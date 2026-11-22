@@ -9,6 +9,7 @@ import {
   FOLDERS,
   fakeEngine,
   LIBRARY,
+  localTime,
   PICKED,
   READY,
   SETTINGS,
@@ -240,7 +241,7 @@ describe("HomePage", () => {
       "/library": LIBRARY,
       "/scan": scanDone(),
       "/batches/done": [
-        batch({ done: 48, failed: 0, waiting: 0, finishedAt: "2026-11-23T06:40:00+02:00" }),
+        batch({ done: 48, failed: 0, waiting: 0, finishedAt: localTime(2026, 11, 23, 6, 40) }),
       ],
       "POST /batches/7/seen": null,
     });

@@ -62,6 +62,12 @@ type Answer = unknown | ((init: RequestInit | undefined, url: URL) => unknown);
  * the JSON to send back, or to a function of the request (its init and address, query and all).
  * Anything else gets a 404.
  */
+/** A moment by this PC's clock, as the engine writes one: a test reads the same hours in any
+ * time zone (CI's is UTC). */
+export function localTime(year: number, month: number, day: number, hours: number, minutes = 0) {
+  return new Date(year, month - 1, day, hours, minutes).toISOString();
+}
+
 export function fakeEngine(answers: Record<string, Answer>) {
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -614,7 +620,7 @@ export const RECIPE: KeptRecipe = {
   },
   words: WORDS,
   used: 3,
-  usedAt: "2026-11-22T23:00:00+02:00",
+  usedAt: localTime(2026, 11, 22, 23),
   tonight: true,
 };
 
@@ -628,8 +634,8 @@ export function batch(overrides: Partial<Batch> = {}): Batch {
     recipe: 1,
     watch: null,
     starts: "tonight",
-    addedAt: "2026-11-22T22:40:00+02:00",
-    startedAt: "2026-11-22T23:00:00+02:00",
+    addedAt: localTime(2026, 11, 22, 22, 40),
+    startedAt: localTime(2026, 11, 22, 23),
     finishedAt: null,
     total: 48,
     done: 17,

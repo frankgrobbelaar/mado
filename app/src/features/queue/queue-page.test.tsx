@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EngineProvider } from "@/lib/engine";
-import { batch, fakeEngine, PC, queue, READY } from "@/test/engine";
+import { batch, fakeEngine, localTime, PC, queue, READY } from "@/test/engine";
 import { QueuePage } from "./queue-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -217,7 +217,7 @@ describe("QueuePage", () => {
           waiting: 0,
           progress: 1,
           secondsLeft: null,
-          finishedAt: "2026-11-23T05:12:00+02:00",
+          finishedAt: localTime(2026, 11, 23, 5, 12),
         }),
         rows: queue().rows.filter((row) => row.state === "failed" || row.state === "done"),
         waitingMore: 0,
