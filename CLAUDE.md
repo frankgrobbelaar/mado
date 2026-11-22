@@ -302,6 +302,15 @@ Everything decided so far. Don't ask again; change only with the owner.
 5. Later: people (faces grouped, on the PC only), renaming by date taken, shrinking the library
    (AVIF or JPEG XL, originals to quarantine), and captions.
 
+The owner, 2026-11-22, going AFK: "you can develop, review & test mado ... release all when you
+want, it does not have to be a v1.0.0 release when you are done ... I saw you had some other 1.1
+and 1.2 stuff, build that as well." So Claude builds 2 to 4 in that order, a piece at a time, each
+reviewed and tested before it's committed, and releases minors (0.1.0, 0.2.0, …) as pieces land:
+the library and a picture's page first, then making it for a screen with the upscaler and saving,
+then looks, many at once with recipes, duplicates and bursts, select, erase and cut out, then 1.1's
+and 1.2's tools. The AI models are exported or fetched, checked and timed on the owner's PC before
+any is taken (docs/stack/ pages say how).
+
 Build each screen to its board in [docs/design/](docs/design/), with its empty, error and recovery
 states.
 
