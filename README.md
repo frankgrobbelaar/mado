@@ -1,11 +1,13 @@
 <div align="center">
 
+<img src="app/src-tauri/icons/mado.svg" width="96" height="96" alt="Mado's mark: a round window lit in green">
+
 # Mado
 
 **窓 · a window onto your pictures**
 
 A personal Windows app to upscale, fix, style and organise your pictures, with small AI models
-that run on your own PC. Mado is at its start: its look is being chosen and its tools are next.
+that run on your own PC. Mado is at its start: its look is chosen and its tools are next.
 
 [Downloads](https://frankgrobbelaar.github.io/mado/) · [What's new](CHANGELOG.md) ·
 [How it's built](docs/README.md)

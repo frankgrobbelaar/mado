@@ -14,3 +14,5 @@ shows these notes when it offers the update.
   Windows, keeping Mado running when its window closes, updates, nightly backups you can restore,
   and an export of your data; and records damaged past use are offered the newest backup that
   opens.
+- Mado's own mark, a round window lit in green with a hill seen through it, on its icon, in its
+  window and on the downloads page.

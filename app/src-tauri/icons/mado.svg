@@ -1,7 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 24 24">
-  <rect x="1" y="1" width="22" height="22" rx="7" fill="#f2b33d"/>
-  <rect x="5.5" y="5.5" width="5.7" height="5.7" rx="1.6" fill="#1d1300"/>
-  <rect x="12.8" y="5.5" width="5.7" height="5.7" rx="1.6" fill="#1d1300"/>
-  <rect x="5.5" y="12.8" width="5.7" height="5.7" rx="1.6" fill="#1d1300"/>
-  <rect x="12.8" y="12.8" width="5.7" height="5.7" rx="1.6" fill="#1d1300"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64">
+  <!-- Mado's mark: a round window (窓, mado) lit in volt, with a hill seen through it. -->
+  <defs>
+    <clipPath id="window"><circle cx="32" cy="32" r="20"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#2a2b2e"/>
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="none" stroke="#46474d" stroke-width="2"/>
+  <circle cx="32" cy="32" r="20" fill="#c9f24d"/>
+  <path clip-path="url(#window)" d="M10 40 C19 34 27 34 34 38 C41 42 47 41 54 37 L54 56 L10 56 Z" fill="#2a2b2e"/>
 </svg>

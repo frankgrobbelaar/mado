@@ -11,18 +11,19 @@ anime library) and Maku (TV series and films), and stands on their foundations.
 **Where it stands (2026-11-22):** scoped with the owner and the repo set up on Kura's
 foundations: CI, the installer, the updater and the downloads page; the window with its engine and
 token, Setup fetching ffmpeg, Settings (light or dark, Start with Windows, updates, nightly backups
-and restoring one, the export), and records damaged past use. Nothing of the pictures yet. Next:
-the look, the owner's pick of three on the Mado Looks canvas (Darkroom, Gallery, Graphite), then
-[What's next](#whats-next).
+and restoring one, the export), and records damaged past use. Nothing of the pictures yet. The
+look is Graphite, the owner's pick, with Mado's own mark; its screens are being drawn on the Mado
+Screens canvas, then built, by [What's next](#whats-next).
 
 ## Ground rules
 
 - **One branch.** Work on `main` in `C:\GitHub\mado`. No feature branches, worktrees or PRs unless
   the owner asks. Commit and push to `main` once every check passes. If another session is working
   at the same time, stage only your own files (never `git add -A`).
-- **Never change the look unasked.** Once the owner picks Mado's look on its design canvas, its
-  colours, type, shapes and motion live in [app/src/styles/tokens.css](app/src/styles/tokens.css)
-  and change only with the owner. Until then the app wears Kura's Cinema tokens as a stand-in.
+- **Never change the look unasked.** Mado's look is Graphite, the owner's pick: its colours,
+  type, shapes and motion live in [app/src/styles/tokens.css](app/src/styles/tokens.css) and change
+  only with the owner. Until the screens canvas is done the app still wears Kura's Cinema tokens as
+  a stand-in.
 - **Nothing changes until the owner reviews it.** A tool's result is a new picture beside the
   original unless the owner chooses to replace it; a replaced original or a duplicate goes to
   quarantine (30 days), never straight to deletion. Renames, moves and deletions are proposed
@@ -185,15 +186,24 @@ Everything decided so far. Don't ask again; change only with the owner.
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
 
 **Design**
-- To be chosen: three looks on the [Mado Looks](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv)
-  canvas (2026-11-22; snapshots in `docs/design/looks*`), each showing Home, the Library, a picture
-  with its tools ("Make it for a screen" first, the filter strip, the before-and-after slider) and
-  many at once, with pictures drawn by code: A Darkroom (near-black #0C0C0D, a safelight accent
-  #FF5F3D, Inter Tight; its light is Contact sheet), B Gallery (a museum wall #F4F4F4 with
-  pictures on white mats, a cobalt accent #2D4FD6, Instrument Serif and Sans; its dark is Night
-  gallery) and C Graphite (a mid-grey bench #2A2B2E, dense panels, a volt accent #C9F24D, IBM
-  Plex; its light is Aluminium). All three keep neutral greys around the pictures, because colour
-  in the window changes how a photo's colours look, with one small accent.
+- **Graphite**, the owner's pick of three on the
+  [Mado Looks](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv) canvas (2026-11-22: "Go with the
+  graphite look"; snapshots in `docs/design/looks*`), with its menu as drawn: the slim icon rail on
+  the side ("Keep the menu on the side as graphite has it", after a moment's liking for Gallery's
+  top bar). A mid-grey bench #2A2B2E, panels #333438, lines #46474D, text #F0F0F1 and #B4B5BA, one
+  volt accent #C9F24D (#172000 on it), IBM Plex Sans and IBM Plex Mono, dense panels and a status
+  bar; neutral greys around the pictures, because colour in the window changes how a photo's
+  colours look. The two looks not chosen, Darkroom and Gallery, stay on the canvas.
+- Light and dark (the owner: "Is there an option to switch between light and dark?"): as Windows
+  is, or chosen in Settings › General ("Light or dark": Same as Windows, the default, Light or
+  Dark), as in Kura. Graphite's light is Aluminium: a bench of #D3D4D7 and a deeper volt, #4C7500.
+- The mark (the owner: "You can create the logo"): a round window (Japanese architecture's
+  marumado, a round window onto a garden) lit in volt, with a graphite hill seen through it, on a
+  graphite tile: `app/src-tauri/icons/mado.svg`, the app's icons, `components/mado-logo.tsx`, the
+  downloads page and the README. It keeps its colours in light and dark. Not four panes: a window
+  of four squares is too near Microsoft's Windows logo.
+- Every screen is drawn on the Mado Screens canvas (Graphite and Aluminium, being drawn), the source
+  of truth to build to; then Graphite's tokens replace Kura's Cinema stand-in in `tokens.css`.
 - Kura's rules carry over: motion that explains (120 ms hover and press, 200 ms toggles, 320 ms
   panels, one curve `cubic-bezier(.2,.8,.2,1)`, none when Windows' animation effects are off),
   status by shape first, light and dark designed together (as Windows is, or chosen in Settings ›
@@ -266,9 +276,8 @@ Everything decided so far. Don't ask again; change only with the owner.
 
 ## What's next
 
-1. The look: the owner's pick of the three on the
-   [Mado Looks](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv) canvas, then every screen
-   drawn in it on a full canvas (as Kura Workflows was), and its tokens in `tokens.css`.
+1. The look: Graphite (picked) and the mark (made); every screen drawn on the Mado Screens canvas
+   (as Kura Workflows was), then Graphite's tokens and IBM Plex in the app.
 2. Mado 1.0: libraries from folders (every picture read, a grid by date or by folder, the folders
    watched, duplicates and bursts found); the upscaler done properly, with sizes for every device's
    screen; looks, finishing touches and the owner's own, on the whole picture or a part; click to

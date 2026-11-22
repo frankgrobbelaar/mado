@@ -1,11 +1,16 @@
 # Design
 
-How Mado looks and behaves. Mado's own look is being chosen: three looks (Darkroom, Gallery and
-Graphite) are drawn on the [Mado Looks canvas](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv)
-for the owner to pick from; the pick's boards then become the source of truth for every screen,
-with snapshots you can open locally in [design/](design/README.md). Until then the app wears
-Kura's Cinema tokens as a stand-in (the stack pages that say "Cinema" mean those tokens). Build to
-the boards once they're chosen, and never change the look unasked.
+How Mado looks and behaves. The look is **Graphite**, the owner's pick of three on the
+[Mado Looks canvas](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv): a mid-grey bench, dense
+panels, the slim icon rail on the side, one volt accent, and IBM Plex Sans and Mono; its light is
+Aluminium. Every screen is being drawn in it on the Mado Screens canvas, the source of truth to
+build to, with snapshots you can open locally in [design/](design/README.md). Until it's done the
+app wears Kura's Cinema tokens as a stand-in (the stack pages that say "Cinema" mean those
+tokens). Never change the look unasked.
+
+The mark is a round window lit in volt with a hill seen through it, on a graphite tile
+([app/src-tauri/icons/mado.svg](../app/src-tauri/icons/mado.svg)). It keeps its colours in light
+and dark, as an app's icon does.
 
 ## The bar
 
@@ -58,7 +63,7 @@ Built so far, in `app/src/components/`:
 | `ui/button.tsx` | Every button. Variants `primary`, `secondary`, `ghost`, `danger`; sizes `md` (44 px) and `sm` (36 px); `asChild` to style a link |
 | `empty-state.tsx` | A place with nothing in it yet, with its one next step |
 | `shell/` | The title bar, nav rail, update card and the notes at the window's foot (offline, what the engine tells of) around every screen |
-| `mado-logo.tsx` | The mark, a stand-in until the look is chosen |
+| `mado-logo.tsx` | The mark, in its own colours |
 
 New primitives start from shadcn/ui (accessible, built on Radix) and are restyled to the tokens;
 see [stack/tailwind.md](stack/tailwind.md).
