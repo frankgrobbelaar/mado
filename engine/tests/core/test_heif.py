@@ -110,3 +110,10 @@ def test_top_level_boxes_are_listed_with_where_each_payload_is():
     kinds = [kind for kind, _, _ in top_boxes(data)]
 
     assert kinds == [b"ftyp", b"meta", b"mdat"]
+
+
+def test_a_heif_says_which_colour_profile_its_picture_is_in():
+    profile = b"made-up ICC profile bytes"
+
+    assert layout_of(heif(profile=profile)).profile == profile
+    assert layout_of(heif()).profile is None

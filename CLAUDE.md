@@ -17,9 +17,13 @@ it. Built and tested: the library and a picture's page, the first piece of Mado 
 in Setup, Home or the Library; every picture read with Pillow, a HEIC's facts by Mado's own reader
 and its pixels by ffmpeg, camera RAW listed; the folders watched; thumbnails and screen-sized
 views in the cache; the Library by the day pictures were taken, with the folder tree, search and
-ticks; a picture's page at Fit, 100% or 400% with its neighbours and the arrow keys, its tools
-column a placeholder). Next: making a picture right for a screen, with the upscaler and saving,
-by [What's next](#whats-next).
+ticks; a picture's page at Fit, 100% or 400% with its neighbours and the arrow keys); and making
+a picture right for a screen, the second piece (the Size tab: the devices, the owner's screens,
+prints at 300 dpi, crop around a focus point or extend with LaMa, the model chosen by what the
+picture is, before and after at full detail; Real-ESRGAN on ONNX Runtime with DirectML, a tile at
+a time, Fast shipped and Best downloaded when asked; saving as a new picture or replacing, the
+original in quarantine; History with undo and put back; This PC tested and timed, as Kura does).
+Next: looks, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -192,6 +196,19 @@ Everything decided so far. Don't ask again; change only with the owner.
   4x-UltraSharp, AnimeGAN and White-box Cartoonization. Generative models (pictures from words,
   filling big gaps with new things) are out: too big for a 6 GB card, and their licences aren't on
   the list.
+- Making a picture right for a screen, as built (2026-11-22, Claude's calls while the owner is
+  away): the devices are six, as Picture-Size draws them (Phone 1290 × 2796, Tablet 2048 × 2732,
+  Laptop 2560 × 1600, Monitor 4K, Ultrawide 3440 × 1440, TV 8K), generic, a screen keeping its
+  own way round; prints at 300 dpi turn to the picture's. The owner's screens come from the
+  shell and are remembered by size. Fast is Real-ESRGAN's general model (its weak-denoise twin
+  when "Clean noise and blocks first" is off), Best is RealESRGAN x4plus for photos (a 67 MB
+  download) and its anime 6B model for drawings (shipped); each kind starts on Best where a
+  12-megapixel photo takes it two minutes at most on the card, else Fast. Extending edges uses
+  LaMa (a 209 MB download), drawn at a scale where it sees the whole picture and joined softly,
+  said plainly to suit skies, walls and water. "Keep faces natural" is left out: GFPGAN's licence
+  is non-commercial, and a face finder needs real faces to test on, which Mado never uses; 1.2's
+  face restoring brings it. JPEG XL waits for a writer Mado can ship. One job at a time, in a
+  jobs table the queue builds on.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -238,8 +255,11 @@ Everything decided so far. Don't ask again; change only with the owner.
 
 **Data**
 - `%LOCALAPPDATA%\Mado`: mado.db, nightly backups (keep 7), logs (30 days), `tools\` (ffmpeg,
-  downloaded on first run; see docs/stack/ffmpeg.md), and `cache\` (each picture's thumbnail and
-  screen-sized view, made again when gone).
+  downloaded on first run; see docs/stack/ffmpeg.md; and the AI models fetched when asked), and
+  `cache\` (each picture's thumbnail and screen-sized view, made again when gone).
+- Next to the pictures: `Mado quarantine` at the top of each drive, a folder a day, holding
+  replaced originals and pictures taken away for 30 days; Mado deletes only what's in a day's
+  folder there, whatever its records say.
 - Export: one zip (the database, settings, the library's folders, every picture with what Mado
   read of it as CSV, and a manifest), growing with the schema.
 - Records damaged past use: as the engine starts, Mado says so and offers the newest backup that
@@ -277,8 +297,8 @@ Everything decided so far. Don't ask again; change only with the owner.
   with `LICENSE.txt`; `engine/tools/third_party_notices.py` writes it from what was actually
   bundled and stops the build on a licence that isn't allowed.
 - **Every download is listed in the installer.** No one installs anything by hand. What isn't
-  inside the installer (WebView2 on a PC without it, ffmpeg, later the bigger models) goes in one
-  manifest, `engine/src/mado/downloads.json`: what it's for, version, size, licence, source and
+  inside the installer (WebView2 on a PC without it, ffmpeg, the bigger AI models, from Mado's own
+  prerelease `models-1`) goes in one manifest, `engine/src/mado/downloads.json`: what it's for, version, size, licence, source and
   checksum. The installer's first page lists it (`scripts/installer-notes.mjs`), Setup downloads
   Mado's part of it (`engine/src/mado/tools.py`), and Mado downloads nothing that isn't on it.
 - Per-user install (no admin) into `%LOCALAPPDATA%\Programs\Mado`, apart from the data.

@@ -9,17 +9,21 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout; later the size a purpose needs, the model a picture suits, plans, checks, estimates | `src/mado/core/`, pure functions only |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the plan, the tiles, the format, the time, what this PC can do | `src/mado/core/`, pure functions only |
 | The library: its folders, the scan, the watcher, reading pictures and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
+| Making a picture right for a screen: sessions on the card, the models' files, a tile at a time, extending edges, making and saving | `src/mado/directml.py`, `ai.py`, `upscale.py`, `extend.py`, `making.py`, `encode.py` (see [docs/stack/upscaling.md](../docs/stack/upscaling.md)) |
+| The jobs, History and the quarantine | `src/mado/jobs.py`, `history.py`, `quarantine.py` |
+| This PC: what it has, its check (in a process of its own), its speeds | `src/mado/hardware.py`, `pc_check.py` (see [docs/stack/hardware.md](../docs/stack/hardware.md)) |
+| The AI models Mado ships, with their licences | `src/mado/assets/` (its README says what each is) |
 | Reaching the world: files, ffmpeg, the graphics card | modules beside `core/`, one per outside thing, each small and replaceable |
 | The API the UI calls | `src/mado/api/<feature>.py`, one `APIRouter` per feature, included in `api/__init__.py` |
 | Shared API pieces | `src/mado/api/common.py` (`ApiModel`, `Paths`, `Database`, `Toolbox`) |
 | The schema | `src/mado/migrations.py`, append-only |
 | What Mado downloads (ffmpeg, AI models fetched on first use) | `src/mado/downloads.json`, the list the installer shows; `src/mado/tools.py` fetches and checks it |
-| Background care (tonight's backup) | `src/mado/care.py` |
+| Background care (tonight's backup, the daily clear-out of the quarantine) | `src/mado/care.py` |
 | Commands | `src/mado/cli.py` |
 | Build tools that run on the engine's Python (the third-party notices) | `tools/`, tested in `tests/` |
-| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py`; made-up pictures from `tests/drawn.py` and `tests/heif_files.py`, ffmpeg from `tests/fake_ffmpeg.py` |
+| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` (a quarantine of the test's own, the AI models on the processor, a stand-in PC check); made-up pictures from `tests/drawn.py` and `tests/heif_files.py`, ffmpeg from `tests/fake_ffmpeg.py`; the shipped Fast model runs on the processor on tiny pictures |
 
 ## Building a feature
 
@@ -48,6 +52,11 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
   pick up where they stopped after a restart or a crash.
 - Mado runs on other people's PCs too: work on the graphics card uses what this PC has, never one
   card by name, and a heavier AI model comes as a choice beside a lighter one, never in its place.
+- DirectML's rules (`mado/directml.py`): every session made and run under its one lock, kept for
+  the engine's life (letting one go can crash another), its sizes pinned, never a quiet fall back
+  to the processor. Work that makes and drops sessions (the PC check) runs in a process of its own.
+- A test never writes to a drive's real quarantine: the `quarantine` fixture keeps it in the test's
+  own folder.
 - Mado downloads nothing that isn't in `downloads.json`, and uses a download only when its size and
   SHA-256 match the list.
 - Every new package must survive PyInstaller: after adding one, build the engine and run the

@@ -126,6 +126,19 @@ on Radix) and are restyled to the tokens; see [stack/tailwind.md](stack/tailwind
 - **A page with its own column** (the Library's folders, a picture's tools): the column runs the
   window's height beside the page, flush to the rail or the edge, and stays put while the page
   scrolls.
+- **Before and after** (the Size tab): fitted, the picture shows the shape it takes (the part
+  kept framed in dashes, the rest dimmed, the point it's cropped around to drag, or the new edges
+  drawn in); zoomed to 100% or 400%, a part of the picture made at full detail beside the same
+  part only stretched, a white line with a round handle between them (dragged, or moved with the
+  arrow keys), the picture dragged (or moved with the arrow keys) to look elsewhere; a big, sharp
+  screen gets no more than a preview may be (4 megapixels), shown a little bigger to fill the
+  stage. After waits, saying so, while its model downloads. Labels sit on the picture in white on
+  black.
+- **A job in its column**: the stage in words, a bar with the percentage, "about 25 s left" and
+  Cancel till it saves; then what it saved with Show in folder and Open it (a new picture, or one
+  that replaced its original in another format), or why it didn't work, hatched.
+- **A model to download**: offered where it's needed, with its size and the lighter way beside it
+  ("Download RealESRGAN x4plus" or "Use Fast"), its progress in its place.
 - **The small things**: a drive unplugged, not enough space, a file in use, a crash, a failed job,
   a name already taken, offline. Each message names the problem, says what Mado already did, and
   offers the next step.

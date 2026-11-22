@@ -1,4 +1,4 @@
-"""Looking after Mado in the background: tonight's backup."""
+"""Looking after Mado in the background: tonight's backup, and the daily clear-out."""
 
 import sqlite3
 from datetime import datetime, timedelta
@@ -9,13 +9,14 @@ from mado import backups
 from mado.backups import BackupError
 from mado.care import Care
 from mado.config import DataPaths
+from mado.quarantine import Quarantine
 
 NIGHT = datetime(2026, 10, 11, 3, 5).astimezone()
 
 
 def look_after(paths: DataPaths, at: list[datetime]) -> Care:
     """Mado's care, at the time `at` holds (a test moves it on)."""
-    return Care(paths, now=lambda: at[0])
+    return Care(paths, Quarantine(lambda _p: paths.root / "quarantine"), now=lambda: at[0])
 
 
 def test_tonights_backup_is_made_once_from_three(paths: DataPaths, conn: sqlite3.Connection):

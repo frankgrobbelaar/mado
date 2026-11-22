@@ -82,6 +82,25 @@ def test_restoring_puts_that_nights_records_back_and_keeps_todays_aside(
     assert [b.name for b in before] == ["mado 2026-10-11 1300 before restoring.db"]
 
 
+def test_jobs_a_backup_was_waiting_on_are_cancelled_not_made_again(
+    paths: DataPaths, conn: sqlite3.Connection
+):
+    with conn:
+        for state in ("queued", "running", "done"):
+            conn.execute(
+                "INSERT INTO jobs (kind, source, recipe, state, queued_at)"
+                " VALUES ('make', 'Pier.jpg', '{}', ?, ?)",
+                (state, NIGHT.isoformat()),
+            )
+    made = back_up(paths, NIGHT)
+
+    restore(paths, made.name, NIGHT + timedelta(days=2))
+
+    rows = conn.execute("SELECT state, problem FROM jobs ORDER BY id").fetchall()
+    assert [row["state"] for row in rows] == ["cancelled", "cancelled", "done"]
+    assert "restored" in rows[0]["problem"]
+
+
 def test_a_backup_that_isnt_there_cant_be_restored(paths: DataPaths, conn: sqlite3.Connection):
     with pytest.raises(BackupError, match="no such backup"):
         restore(paths, "mado 2026-01-01 0300.db", NIGHT)

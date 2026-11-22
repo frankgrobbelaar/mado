@@ -1,4 +1,4 @@
-import { House, ImageIcon, type LucideIcon, Settings } from "lucide-react";
+import { Clock, House, ImageIcon, type LucideIcon, Settings } from "lucide-react";
 
 export interface Section {
   path: string;
@@ -12,6 +12,7 @@ export interface Section {
 export const sections: Section[] = [
   { path: "/", label: "Home", icon: House },
   { path: "/library", label: "Library", icon: ImageIcon },
+  { path: "/history", label: "History", icon: Clock },
   { path: "/settings", label: "Settings", icon: Settings, foot: true },
 ];
 

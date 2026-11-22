@@ -109,7 +109,26 @@ export function versions(releases) {
 // What a PC needs for Mado (the README says the same). Each AI tool adds its row as it arrives.
 const NEEDS = [
   ["Mado", "Windows 10 or 11, 64-bit, and 8 GB of memory", "16 GB of memory"],
-  ["Space", "About 250 MB for Mado and ffmpeg", "Room beside your pictures for the new ones Mado makes"],
+  [
+    "Making pictures bigger, Fast",
+    "Any PC: on the processor, about a minute for a phone's photo made for a 4K screen",
+    "A graphics card with DirectX 12: a few seconds",
+  ],
+  [
+    "Making pictures bigger, Best",
+    "A graphics card with DirectX 12 (on the processor it takes about 25 minutes a photo)",
+    "A card with 4 GB of its own or more: a photo in about a minute, a drawing in seconds",
+  ],
+  [
+    "Extending a picture's edges",
+    "Any PC; LaMa, 209 MB, is downloaded the first time it's asked for",
+    "A graphics card with DirectX 12: a couple of seconds",
+  ],
+  [
+    "Space",
+    "About 280 MB for Mado and ffmpeg, and up to 280 MB more for the AI models it fetches when asked",
+    "Room beside your pictures for the new ones Mado makes",
+  ],
 ];
 
 function needs() {
@@ -119,7 +138,7 @@ function needs() {
   ).join("\n");
   return `<section class="panel" aria-labelledby="needs">
   <h2 id="needs">What your PC needs</h2>
-  <p>Mado runs on any 64-bit Windows 10 or 11 PC. As its AI tools arrive, this table says what each one needs, and how much a graphics card speeds it up.</p>
+  <p>Mado runs on any 64-bit Windows 10 or 11 PC. This table says what each of its AI tools needs, and how much a graphics card speeds it up; Mado tests your PC when it's set up and says what each does there.</p>
   <div class="table"><table>
 <thead><tr><th scope="col">For</th><th scope="col">It works with</th><th scope="col">Best with</th></tr></thead>
 <tbody>

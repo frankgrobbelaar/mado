@@ -5,9 +5,11 @@ from pathlib import Path
 import pytest
 from third_party_notices import (
     MICROSOFT,
+    PYTHON_LICENCES,
     WINDOWS,
     Part,
     allowed,
+    assets,
     cpp_runtime,
     is_licence_file,
     is_windows_runtime,
@@ -141,3 +143,23 @@ def test_the_notices_show_each_licence_text_once():
     assert "(The licence text is the same as for a 1.0.0, above.)" in text
     assert "NSIS\nLicence: Zlib\n" in text
     assert "It comes with no licence file; the licence named above applies." in text
+
+
+def test_the_ai_models_mado_ships_are_listed_with_their_licences():
+    found = assets()
+
+    assert [part.name.split(" (")[-1].rstrip(")") for part in found] == [
+        "realesr-general-x4v3",
+        "realesr-general-wdn-x4v3",
+        "realesrgan-x4plus-anime-6b",
+    ]
+    assert all(allowed(part.licence) for part in found)
+    assert all(part.texts and "Xintao Wang" in part.texts[0] for part in found)
+    assert "Apache License" in found[2].texts[1]  # BasicSR's network
+
+
+def test_onnx_runtime_is_shipped_with_microsofts_directml_inside_it():
+    licence = PYTHON_LICENCES["onnxruntime-directml"]
+
+    assert licence == f"MIT AND {MICROSOFT}"
+    assert allowed(licence)

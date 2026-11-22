@@ -27,6 +27,7 @@ describe("NavRail", () => {
     expect(screen.getAllByRole("link").map((tile) => tile.textContent)).toEqual([
       "Home",
       "Library",
+      "History",
       "Settings",
     ]);
   });
@@ -35,6 +36,7 @@ describe("NavRail", () => {
     ["/", "Home"],
     ["/library", "Library"],
     ["/library/pictures/7", "Library"],
+    ["/history", "History"],
     ["/settings", "Settings"],
     ["/settings/about", "Settings"],
   ])("keeps the place of %s lit: %s", (page, tile) => {

@@ -55,6 +55,9 @@ describe("downloads page", () => {
 
     assert.match(page, /What your PC needs<\/h2>/);
     assert.match(page, /<th scope="row">Mado<\/th><td>Windows 10 or 11, 64-bit, and 8 GB of memory<\/td>/);
+    assert.match(page, /<th scope="row">Making pictures bigger, Fast<\/th><td>Any PC: on the processor/);
+    assert.match(page, /<th scope="row">Making pictures bigger, Best<\/th><td>A graphics card with DirectX 12/);
+    assert.match(page, /<th scope="row">Extending a picture&#39;s edges<\/th>/);
     assert.match(page, /the installer lists everything Mado downloads/);
   });
 

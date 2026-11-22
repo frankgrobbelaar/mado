@@ -757,6 +757,778 @@
         }
       }
     },
+    "/sizes": {
+      "get": {
+        "summary": "Sizes",
+        "description": "The sizes a picture can be made for: the devices' screens, the owner's own and prints.",
+        "operationId": "sizes_sizes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sizes"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/screens": {
+      "post": {
+        "summary": "Seen Screens",
+        "description": "Remembers this PC's screens, as the window sees them, and says which Mado knows now.",
+        "operationId": "seen_screens_screens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreensSeen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SizeOut"
+                  },
+                  "type": "array",
+                  "title": "Response Seen Screens Screens Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/pictures/{picture_id}/plan": {
+      "post": {
+        "summary": "Plan For",
+        "description": "How a picture would be made for a size: its shape, the model, about how long it takes\nhere and how it would be saved.",
+        "operationId": "plan_for_pictures__picture_id__plan_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/preview": {
+      "post": {
+        "summary": "Preview",
+        "description": "A preview of the picture made: a part of it at full detail (`region`), or all of it no\nbigger than `fit`; before (the picture only stretched) or after (made, as Save would).",
+        "operationId": "preview_pictures__picture_id__preview_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/saving": {
+      "post": {
+        "summary": "Saving Name",
+        "description": "What a picture made would be saved as, and about how big it would be.",
+        "operationId": "saving_name_pictures__picture_id__saving_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavingAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavingName"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/make": {
+      "post": {
+        "summary": "Make",
+        "description": "Makes a picture for a size and saves it as the owner chose, as a job: its progress, the\ntime left and Cancel come from /jobs.",
+        "operationId": "make_pictures__picture_id__make_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MakeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "summary": "Jobs List",
+        "description": "The latest jobs, newest first: a picture's (`picture`), or those waiting or under way\n(`active`).",
+        "operationId": "jobs_list_jobs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Picture"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Active"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  },
+                  "title": "Response Jobs List Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "summary": "Job",
+        "operationId": "job_jobs__job_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "description": "Cancels a job: one waiting at once, one under way at its next step (a tile, or before it\nsaves). Nothing is saved. One saving its picture is past cancelling, and goes on.",
+        "operationId": "cancel_jobs__job_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history": {
+      "get": {
+        "summary": "What Mado Did",
+        "description": "What Mado did on its latest days with anything on them (a week's worth), newest first.\n`before` (\"2026-11-15\", the page's `older`) asks for the days before that one, and `q` for\nwhat names a picture or folder.",
+        "operationId": "what_mado_did_history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": "",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history/{entry_id}/undo": {
+      "post": {
+        "summary": "Undo",
+        "description": "Takes a new picture away (into quarantine, put back from here), or puts a replaced\noriginal back (the made picture going into quarantine in its place).",
+        "operationId": "undo_history__entry_id__undo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history/{entry_id}/redo": {
+      "post": {
+        "summary": "Redo",
+        "description": "Puts a new picture that was taken away back where it was, or replaces an original put\nback again (the original going into quarantine once more).",
+        "operationId": "redo_history__entry_id__redo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history/clear": {
+      "post": {
+        "summary": "Clear History",
+        "description": "Forgets what Mado did before the last day, week or month, or all of it. What still waits\nin quarantine stays, so it can be put back, and no picture changes.",
+        "operationId": "clear_history_history_clear_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearHistory"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cleared"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/quarantine": {
+      "get": {
+        "summary": "Set Aside",
+        "description": "What waits in quarantine on each drive.",
+        "operationId": "set_aside_quarantine_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DriveAside"
+                  },
+                  "type": "array",
+                  "title": "Response Set Aside Quarantine Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/quarantine/empty": {
+      "post": {
+        "summary": "Empty Quarantine",
+        "description": "Deletes everything set aside on a drive now, before its days are up: it can't be put\nback. History says so.",
+        "operationId": "empty_quarantine_quarantine_empty_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyQuarantine"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Emptied"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/pc": {
+      "get": {
+        "summary": "This Pc",
+        "operationId": "this_pc_pc_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pc"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/pc/test": {
+      "post": {
+        "summary": "Test This Pc",
+        "description": "Tests this PC again, timing each model, in the background.",
+        "operationId": "test_this_pc_pc_test_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pc"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/data": {
       "get": {
         "summary": "Your Data",
@@ -1014,6 +1786,56 @@
   },
   "components": {
     "schemas": {
+      "AbilityOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "drawing"
+            ],
+            "title": "Kind"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "fast",
+              "best"
+            ],
+            "title": "Quality"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "pace": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "slow"
+            ],
+            "title": "Pace"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "download": {
+            "type": "boolean",
+            "title": "Download"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "quality",
+          "model",
+          "pace",
+          "seconds",
+          "download"
+        ],
+        "title": "AbilityOut"
+      },
       "Backup": {
         "properties": {
           "name": {
@@ -1078,6 +1900,91 @@
           "restored"
         ],
         "title": "Backups"
+      },
+      "CardOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "maker": {
+            "type": "string",
+            "enum": [
+              "nvidia",
+              "amd",
+              "intel",
+              "other"
+            ],
+            "title": "Maker"
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory"
+          },
+          "integrated": {
+            "type": "boolean",
+            "title": "Integrated"
+          },
+          "driver": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "maker",
+          "memory",
+          "integrated",
+          "driver"
+        ],
+        "title": "CardOut"
+      },
+      "ClearHistory": {
+        "properties": {
+          "keep": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "nothing"
+            ],
+            "title": "Keep"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keep"
+        ],
+        "title": "ClearHistory"
+      },
+      "Cleared": {
+        "properties": {
+          "cleared": {
+            "type": "integer",
+            "title": "Cleared"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cleared"
+        ],
+        "title": "Cleared"
       },
       "Damage": {
         "properties": {
@@ -1178,6 +2085,233 @@
         ],
         "title": "DayCount"
       },
+      "DriveAside": {
+        "properties": {
+          "drive": {
+            "type": "string",
+            "title": "Drive"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drive",
+          "folder",
+          "bytes"
+        ],
+        "title": "DriveAside"
+      },
+      "Emptied": {
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bytes"
+        ],
+        "title": "Emptied"
+      },
+      "EmptyQuarantine": {
+        "properties": {
+          "drive": {
+            "type": "string",
+            "title": "Drive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drive"
+        ],
+        "title": "EmptyQuarantine"
+      },
+      "EntryOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "made",
+              "replaced",
+              "emptied"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "madeFor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Madefor"
+          },
+          "original": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "resultName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resultname"
+          },
+          "aside": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aside"
+          },
+          "asideUntil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asideuntil"
+          },
+          "clearedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clearedat"
+          },
+          "clearedBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "days",
+                  "owner"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clearedby"
+          },
+          "undoneAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undoneat"
+          },
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes"
+          },
+          "picture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "canUndo": {
+            "type": "boolean",
+            "title": "Canundo"
+          },
+          "canRedo": {
+            "type": "boolean",
+            "title": "Canredo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "name",
+          "madeFor",
+          "original",
+          "result",
+          "resultName",
+          "aside",
+          "asideUntil",
+          "clearedAt",
+          "clearedBy",
+          "undoneAt",
+          "bytes",
+          "picture",
+          "canUndo",
+          "canRedo"
+        ],
+        "title": "EntryOut"
+      },
       "ExportRequest": {
         "properties": {
           "folder": {
@@ -1208,6 +2342,28 @@
           "size"
         ],
         "title": "Exported"
+      },
+      "Fit": {
+        "properties": {
+          "width": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "width",
+          "height"
+        ],
+        "title": "Fit"
       },
       "FolderNode": {
         "properties": {
@@ -1240,6 +2396,44 @@
         ],
         "title": "FolderNode",
         "description": "A folder inside a library folder."
+      },
+      "Format": {
+        "type": "string",
+        "enum": [
+          "JPEG",
+          "PNG",
+          "WebP",
+          "AVIF"
+        ]
+      },
+      "Fraction": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "width": {
+            "type": "number",
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "Fraction",
+        "description": "A part of the picture, as fractions of its width and height (extending, a canvas starts\nbefore the picture and ends after it)."
       },
       "HTTPValidationError": {
         "properties": {
@@ -1283,6 +2477,34 @@
         ],
         "title": "Health"
       },
+      "HistoryOut": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "older": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Older"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries",
+          "older"
+        ],
+        "title": "HistoryOut"
+      },
       "ImportRequest": {
         "properties": {
           "path": {
@@ -1295,6 +2517,184 @@
           "path"
         ],
         "title": "ImportRequest"
+      },
+      "Job": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "pictureId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pictureid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "madeFor": {
+            "type": "string",
+            "title": "Madefor"
+          },
+          "how": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replace"
+            ],
+            "title": "How"
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "reading",
+                  "shaping",
+                  "making",
+                  "saving"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "secondsLeft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondsleft"
+          },
+          "queuedAt": {
+            "type": "string",
+            "title": "Queuedat"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "resultName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resultname"
+          },
+          "resultPicture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pictureId",
+          "name",
+          "madeFor",
+          "how",
+          "state",
+          "stage",
+          "progress",
+          "secondsLeft",
+          "queuedAt",
+          "startedAt",
+          "finishedAt",
+          "result",
+          "resultName",
+          "resultPicture",
+          "problem"
+        ],
+        "title": "Job"
+      },
+      "JobState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "done",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "Kind": {
+        "type": "string",
+        "enum": [
+          "photo",
+          "drawing",
+          "pixels",
+          "screenshot"
+        ]
       },
       "Library": {
         "properties": {
@@ -1432,6 +2832,68 @@
         ],
         "title": "LibraryPart"
       },
+      "MakeIn": {
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/RecipeIn"
+          },
+          "saving": {
+            "$ref": "#/components/schemas/SavingIn"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe",
+          "saving"
+        ],
+        "title": "MakeIn"
+      },
+      "MeasuredOut": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "tested": {
+            "type": "boolean",
+            "title": "Tested"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "tested",
+          "pictures"
+        ],
+        "title": "MeasuredOut"
+      },
+      "Need": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "size"
+        ],
+        "title": "Need"
+      },
       "Neighbours": {
         "properties": {
           "before": {
@@ -1468,6 +2930,139 @@
           "path"
         ],
         "title": "NewFolder"
+      },
+      "Pc": {
+        "properties": {
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processor"
+          },
+          "cores": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cores"
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory"
+          },
+          "checkedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkedat"
+          },
+          "onCard": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oncard"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Place"
+          },
+          "testing": {
+            "type": "boolean",
+            "title": "Testing"
+          },
+          "timing": {
+            "type": "boolean",
+            "title": "Timing"
+          },
+          "measured": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasuredOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startsOn": {
+            "$ref": "#/components/schemas/StartsOn"
+          },
+          "abilities": {
+            "items": {
+              "$ref": "#/components/schemas/AbilityOut"
+            },
+            "type": "array",
+            "title": "Abilities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card",
+          "processor",
+          "cores",
+          "memory",
+          "checkedAt",
+          "onCard",
+          "problem",
+          "place",
+          "testing",
+          "timing",
+          "measured",
+          "startsOn",
+          "abilities"
+        ],
+        "title": "Pc"
       },
       "PictureDetails": {
         "properties": {
@@ -1736,6 +3331,25 @@
         ],
         "title": "PicturePage"
       },
+      "PictureRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version"
+        ],
+        "title": "PictureRef",
+        "description": "A picture in the library, enough to show its thumbnail or open it."
+      },
       "PictureState": {
         "type": "string",
         "enum": [
@@ -1743,6 +3357,329 @@
           "raw",
           "broken"
         ]
+      },
+      "PlanOut": {
+        "properties": {
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/Shape"
+          },
+          "sides": {
+            "type": "string",
+            "enum": [
+              "none",
+              "top and bottom",
+              "sides"
+            ],
+            "title": "Sides"
+          },
+          "kept": {
+            "$ref": "#/components/schemas/Fraction"
+          },
+          "canvas": {
+            "$ref": "#/components/schemas/Fraction"
+          },
+          "focus": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Focus"
+          },
+          "focusFound": {
+            "type": "boolean",
+            "title": "Focusfound"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "kindGuessed": {
+            "type": "boolean",
+            "title": "Kindguessed"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "pixels",
+              "smooth",
+              "shrink"
+            ],
+            "title": "Method"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "how": {
+            "type": "string",
+            "title": "How"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          },
+          "cleanMatters": {
+            "type": "boolean",
+            "title": "Cleanmatters"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Place"
+          },
+          "measured": {
+            "type": "boolean",
+            "title": "Measured"
+          },
+          "format": {
+            "$ref": "#/components/schemas/Format"
+          },
+          "formatQuality": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formatquality"
+          },
+          "fits": {
+            "type": "string",
+            "title": "Fits"
+          },
+          "colour": {
+            "type": "string",
+            "title": "Colour"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "seeThrough": {
+            "type": "boolean",
+            "title": "Seethrough"
+          },
+          "needs": {
+            "items": {
+              "$ref": "#/components/schemas/Need"
+            },
+            "type": "array",
+            "title": "Needs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "label",
+          "shape",
+          "sides",
+          "kept",
+          "canvas",
+          "focus",
+          "focusFound",
+          "note",
+          "kind",
+          "kindGuessed",
+          "quality",
+          "method",
+          "model",
+          "how",
+          "warning",
+          "cleanMatters",
+          "seconds",
+          "place",
+          "measured",
+          "format",
+          "formatQuality",
+          "fits",
+          "colour",
+          "bytes",
+          "seeThrough",
+          "needs"
+        ],
+        "title": "PlanOut"
+      },
+      "PreviewIn": {
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/RecipeIn"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "before",
+              "after"
+            ],
+            "title": "Side",
+            "default": "after"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Region"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Fit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "title": "PreviewIn"
+      },
+      "Quality": {
+        "type": "string",
+        "enum": [
+          "fast",
+          "best"
+        ]
+      },
+      "RecipeIn": {
+        "properties": {
+          "size": {
+            "type": "string",
+            "title": "Size"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/Shape",
+            "default": "crop"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Kind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clean": {
+            "type": "boolean",
+            "title": "Clean",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "size"
+        ],
+        "title": "RecipeIn"
+      },
+      "Region": {
+        "properties": {
+          "x": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Y"
+          },
+          "width": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "Region",
+        "description": "A part of the picture made, in its pixels."
       },
       "Restored": {
         "properties": {
@@ -1773,6 +3710,177 @@
           "problem"
         ],
         "title": "Restored"
+      },
+      "SavingAsk": {
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/RecipeIn"
+          },
+          "how": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replace"
+            ],
+            "title": "How",
+            "default": "new"
+          },
+          "format": {
+            "$ref": "#/components/schemas/Format"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "keepColours": {
+            "type": "boolean",
+            "title": "Keepcolours",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipe",
+          "format"
+        ],
+        "title": "SavingAsk"
+      },
+      "SavingIn": {
+        "properties": {
+          "how": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replace"
+            ],
+            "title": "How",
+            "default": "new"
+          },
+          "format": {
+            "$ref": "#/components/schemas/Format"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "keepCamera": {
+            "type": "boolean",
+            "title": "Keepcamera",
+            "default": true
+          },
+          "keepColours": {
+            "type": "boolean",
+            "title": "Keepcolours",
+            "default": true
+          },
+          "keepLocation": {
+            "type": "boolean",
+            "title": "Keeplocation",
+            "default": false
+          },
+          "always": {
+            "type": "boolean",
+            "title": "Always",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "format"
+        ],
+        "title": "SavingIn"
+      },
+      "SavingName": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "taken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken"
+          },
+          "takenAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Takenat"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "colour": {
+            "type": "string",
+            "title": "Colour"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "folder",
+          "taken",
+          "takenAt",
+          "bytes",
+          "colour"
+        ],
+        "title": "SavingName"
       },
       "Scan": {
         "properties": {
@@ -1904,16 +4012,182 @@
         ],
         "title": "Scan"
       },
+      "ScreensSeen": {
+        "properties": {
+          "seen": {
+            "items": {
+              "$ref": "#/components/schemas/SeenScreen"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Seen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seen"
+        ],
+        "title": "ScreensSeen"
+      },
+      "SeenScreen": {
+        "properties": {
+          "width": {
+            "type": "integer",
+            "maximum": 30000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "maximum": 30000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Height"
+          },
+          "main": {
+            "type": "boolean",
+            "title": "Main",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "width",
+          "height"
+        ],
+        "title": "SeenScreen"
+      },
       "Settings": {
         "properties": {
           "setUp": {
             "type": "boolean",
             "title": "Setup",
             "default": false
+          },
+          "saveFirst": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replace"
+            ],
+            "title": "Savefirst",
+            "default": "new"
+          },
+          "newPictures": {
+            "type": "string",
+            "enum": [
+              "beside",
+              "folder"
+            ],
+            "title": "Newpictures",
+            "default": "beside"
+          },
+          "newFolder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newfolder"
+          },
+          "keepLocation": {
+            "type": "boolean",
+            "title": "Keeplocation",
+            "default": false
           }
         },
         "type": "object",
         "title": "Settings"
+      },
+      "Shape": {
+        "type": "string",
+        "enum": [
+          "crop",
+          "extend"
+        ]
+      },
+      "SizeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "screens",
+              "yours",
+              "prints",
+              "other"
+            ],
+            "title": "Group"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "width",
+          "height",
+          "group",
+          "purpose",
+          "label"
+        ],
+        "title": "SizeOut"
+      },
+      "Sizes": {
+        "properties": {
+          "screens": {
+            "items": {
+              "$ref": "#/components/schemas/SizeOut"
+            },
+            "type": "array",
+            "title": "Screens"
+          },
+          "yours": {
+            "items": {
+              "$ref": "#/components/schemas/SizeOut"
+            },
+            "type": "array",
+            "title": "Yours"
+          },
+          "prints": {
+            "items": {
+              "$ref": "#/components/schemas/SizeOut"
+            },
+            "type": "array",
+            "title": "Prints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "screens",
+          "yours",
+          "prints"
+        ],
+        "title": "Sizes"
       },
       "Stage": {
         "type": "string",
@@ -1922,6 +4196,32 @@
           "reading",
           "done"
         ]
+      },
+      "StartsOn": {
+        "properties": {
+          "photo": {
+            "type": "string",
+            "enum": [
+              "fast",
+              "best"
+            ],
+            "title": "Photo"
+          },
+          "drawing": {
+            "type": "string",
+            "enum": [
+              "fast",
+              "best"
+            ],
+            "title": "Drawing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "photo",
+          "drawing"
+        ],
+        "title": "StartsOn"
       },
       "Tool": {
         "properties": {

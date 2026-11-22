@@ -63,4 +63,44 @@ MIGRATIONS: Final[tuple[str, ...]] = (
         gone        INTEGER   -- pictures it found gone
     ) STRICT;
     """,
+    # 3. Making pictures: the jobs that make one (the queue of many builds on it), and History,
+    # what Mado did that can be undone or put back, with what waits in quarantine.
+    """
+    CREATE TABLE jobs (
+        id          INTEGER PRIMARY KEY,
+        kind        TEXT NOT NULL CHECK (kind IN ('make')),
+        picture_id  INTEGER REFERENCES pictures (id) ON DELETE SET NULL,
+        source      TEXT NOT NULL,     -- the picture's file, when it was asked for
+        recipe      TEXT NOT NULL,     -- JSON: what to make and how to save it
+        state       TEXT NOT NULL
+                    CHECK (state IN ('queued', 'running', 'done', 'failed', 'cancelled')),
+        stage       TEXT,              -- reading, shaping, making, saving
+        progress    REAL NOT NULL DEFAULT 0,  -- 0 to 1
+        attempts    INTEGER NOT NULL DEFAULT 0,  -- started, counting a start Mado cut short
+        queued_at   TEXT NOT NULL,
+        started_at  TEXT,
+        finished_at TEXT,
+        result      TEXT,              -- the picture saved, or the file it's written to till then
+        problem     TEXT               -- why it didn't work, in words
+    ) STRICT;
+    CREATE INDEX jobs_by_state ON jobs (state, id);
+
+    CREATE TABLE history (
+        id          INTEGER PRIMARY KEY,
+        at          TEXT NOT NULL,     -- local time, with its offset
+        kind        TEXT NOT NULL CHECK (kind IN ('made', 'replaced', 'emptied')),
+        job_id      INTEGER REFERENCES jobs (id) ON DELETE SET NULL,
+        name        TEXT NOT NULL,     -- the original's file name; for 'emptied', the drive
+        made_for    TEXT,              -- what the picture was made for: "TV 8K"
+        original    TEXT,              -- where the original is ('made') or was ('replaced')
+        result      TEXT,              -- the picture Mado made, where it was put
+        aside       TEXT,              -- what waits in quarantine for it now, if anything
+        aside_at    TEXT,              -- since when: the clear-out's days count from it
+        cleared_at  TEXT,              -- what was aside went for good then
+        cleared_by  TEXT CHECK (cleared_by IN ('days', 'owner')),  -- the clear-out, or emptied
+        undone_at   TEXT,              -- taken away ('made') or put back ('replaced')
+        bytes       INTEGER            -- 'emptied': how much went
+    ) STRICT;
+    CREATE INDEX history_by_time ON history (at, id);
+    """,
 )

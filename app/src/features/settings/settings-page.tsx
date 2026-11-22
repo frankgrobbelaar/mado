@@ -20,6 +20,9 @@ import { BackupsPanel } from "./backups-panel";
 import { ExportPanel } from "./export-panel";
 import { LookChoice } from "./look-choice";
 import { Panel } from "./panel";
+import { SavingPanel } from "./saving-panel";
+import { SetAsidePanel } from "./set-aside-panel";
+import { ThisPcPanel, ToolsPanel } from "./this-pc-panel";
 import { WhereItLives } from "./where-it-lives";
 
 const SECTIONS = [
@@ -78,7 +81,13 @@ function Content({ section }: { section: Section }) {
     case "updates":
       return <Updates />;
     case "about":
-      return <AboutPanel />;
+      return (
+        <>
+          <AboutPanel />
+          <ThisPcPanel />
+          <ToolsPanel />
+        </>
+      );
   }
 }
 
@@ -92,26 +101,32 @@ function General() {
   const problem =
     change.error ?? start.error ?? changeKeep.error ?? keep.error ?? changeLook.error ?? look.error;
   return (
-    <Panel title="General">
-      <LookChoice value={look.data ?? "windows"} onChange={(chosen) => changeLook.mutate(chosen)} />
-      <Toggle
-        label="Start Mado when Windows starts"
-        text="It waits in the tray from when you sign in, so the nightly backup carries on, and it tells you what it finished."
-        checked={start.data ?? false}
-        onChange={(on) => change.mutate(on)}
-      />
-      <Toggle
-        label="Keep Mado running when you close the window"
-        text="Closing the window leaves Mado in the tray, still at work; quit from there. Off, closing the window quits Mado."
-        checked={keep.data ?? false}
-        onChange={(on) => changeKeep.mutate(on)}
-      />
-      {problem && (
-        <p role="alert" className="text-13 text-broken-fg">
-          {String(problem)}
-        </p>
-      )}
-    </Panel>
+    <>
+      <Panel title="General">
+        <LookChoice
+          value={look.data ?? "windows"}
+          onChange={(chosen) => changeLook.mutate(chosen)}
+        />
+        <Toggle
+          label="Start Mado when Windows starts"
+          text="It waits in the tray from when you sign in, so the nightly backup carries on, and it tells you what it finished."
+          checked={start.data ?? false}
+          onChange={(on) => change.mutate(on)}
+        />
+        <Toggle
+          label="Keep Mado running when you close the window"
+          text="Closing the window leaves Mado in the tray, still at work; quit from there. Off, closing the window quits Mado."
+          checked={keep.data ?? false}
+          onChange={(on) => changeKeep.mutate(on)}
+        />
+        {problem && (
+          <p role="alert" className="text-13 text-broken-fg">
+            {String(problem)}
+          </p>
+        )}
+      </Panel>
+      <SavingPanel />
+    </>
   );
 }
 
@@ -124,7 +139,7 @@ const PARTS: {
   { key: "database", label: "Database", note: "mado.db, one SQLite file", color: "bg-accent" },
   { key: "backups", label: "Backups", note: "last 7 nights", color: "bg-line-strong" },
   { key: "cache", label: "Cache", note: "can be made again", color: "bg-waiting" },
-  { key: "tools", label: "Tools", note: "ffmpeg", color: "bg-line-strong" },
+  { key: "tools", label: "Tools", note: "ffmpeg, AI models", color: "bg-line-strong" },
   { key: "logs", label: "Logs", note: "kept 30 days", color: "bg-control" },
 ];
 
@@ -145,6 +160,7 @@ function YourData() {
         <BackupsPanel className="flex-[1_1_300px]" />
         <ExportPanel />
       </div>
+      <SetAsidePanel />
       <p className="flex items-start gap-2.5 rounded-8 border border-tint/14 border-dashed px-5 py-4 text-13 text-fg-soft">
         <Info size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-fg-muted" />
         Uninstalling asks you to export first, and keeps this folder unless you choose to delete it.

@@ -3,12 +3,17 @@ import type {
   Backups,
   DataSizes,
   EngineStatus,
+  HistoryEntry,
+  Job,
   Library,
   LibraryFolder,
+  Pc,
   PictureItem,
   PicturePage,
+  Plan,
   Scan,
   Settings,
+  Sizes,
 } from "@/lib/engine";
 
 /** The engine as tests see it: ready, on a made-up address. */
@@ -18,7 +23,13 @@ export const READY: EngineStatus = {
   token: "secret",
 };
 
-export const SETTINGS: Settings = { setUp: true };
+export const SETTINGS: Settings = {
+  setUp: true,
+  saveFirst: "new",
+  newPictures: "beside",
+  newFolder: null,
+  keepLocation: false,
+};
 
 /** A data folder with a little of everything in it. */
 export const DATA: DataSizes = {
@@ -200,5 +211,245 @@ export function page(
     days: [...days].map(([day, count]) => ({ day, pictures: count })),
     total: total ?? pictures.length,
     next,
+  };
+}
+
+/** The sizes the Size tab offers, as the engine lists them. */
+export const SIZES: Sizes = {
+  screens: [
+    {
+      id: "phone",
+      name: "Phone",
+      width: 1290,
+      height: 2796,
+      group: "screens",
+      purpose: "phone",
+      label: "Phone",
+    },
+    {
+      id: "tablet",
+      name: "Tablet",
+      width: 2048,
+      height: 2732,
+      group: "screens",
+      purpose: "tablet",
+      label: "Tablet",
+    },
+    {
+      id: "laptop",
+      name: "Laptop",
+      width: 2560,
+      height: 1600,
+      group: "screens",
+      purpose: "laptop",
+      label: "Laptop",
+    },
+    {
+      id: "monitor-4k",
+      name: "Monitor 4K",
+      width: 3840,
+      height: 2160,
+      group: "screens",
+      purpose: "monitor",
+      label: "Monitor 4K",
+    },
+    {
+      id: "ultrawide",
+      name: "Ultrawide",
+      width: 3440,
+      height: 1440,
+      group: "screens",
+      purpose: "ultrawide",
+      label: "Ultrawide",
+    },
+    {
+      id: "tv-8k",
+      name: "TV 8K",
+      width: 7680,
+      height: 4320,
+      group: "screens",
+      purpose: "tv",
+      label: "TV 8K",
+    },
+  ],
+  yours: [
+    {
+      id: "yours-3440x1440",
+      name: "Main screen",
+      width: 3440,
+      height: 1440,
+      group: "yours",
+      purpose: "screen",
+      label: "3440 × 1440",
+    },
+  ],
+  prints: [
+    {
+      id: "print-10x15",
+      name: "10 × 15 cm",
+      width: 1181,
+      height: 1772,
+      group: "prints",
+      purpose: "print",
+      label: "10 × 15 cm print",
+    },
+    {
+      id: "print-a4",
+      name: "A4",
+      width: 2480,
+      height: 3508,
+      group: "prints",
+      purpose: "print",
+      label: "A4 print",
+    },
+    {
+      id: "print-a3",
+      name: "A3",
+      width: 3508,
+      height: 4961,
+      group: "prints",
+      purpose: "print",
+      label: "A3 print",
+    },
+  ],
+};
+
+/** A 4:3 photo made for TV 8K: cropped around what Mado found, with the photo model. */
+export function plan(overrides: Partial<Plan> = {}): Plan {
+  return {
+    width: 7680,
+    height: 4320,
+    label: "TV 8K",
+    shape: "crop",
+    sides: "top and bottom",
+    kept: { x: 0, y: 0.125, width: 1, height: 0.75 },
+    canvas: { x: 0, y: 0.125, width: 1, height: 0.75 },
+    focus: [0.5, 0.45],
+    focusFound: true,
+    note: "A TV is 16:9 and this picture is 4:3, so a little of the top and bottom goes.",
+    kind: "photo",
+    kindGuessed: true,
+    quality: "fast",
+    method: "ai",
+    model: "Real-ESRGAN general",
+    how: "Made with the photo model, guessed from the picture.",
+    warning: null,
+    cleanMatters: true,
+    seconds: 40,
+    place: "card",
+    measured: true,
+    format: "JPEG",
+    formatQuality: 95,
+    fits: "What every TV shows.",
+    colour: "sRGB",
+    bytes: 18_000_000,
+    seeThrough: false,
+    needs: [],
+    ...overrides,
+  };
+}
+
+/** A job making Harbour at dusk for TV 8K. */
+export function job(overrides: Partial<Job> = {}): Job {
+  return {
+    id: 7,
+    pictureId: 11,
+    name: "Harbour at dusk.heic",
+    madeFor: "TV 8K",
+    how: "new",
+    state: "running",
+    stage: "making",
+    progress: 0.37,
+    secondsLeft: 25,
+    queuedAt: new Date().toISOString(),
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    result: null,
+    resultName: null,
+    resultPicture: null,
+    problem: null,
+    ...overrides,
+  };
+}
+
+/** This PC: the owner's, as the boards draw it. */
+export const PC: Pc = {
+  card: {
+    name: "NVIDIA GeForce GTX 1660 SUPER",
+    maker: "nvidia",
+    memory: 6 * 1024 ** 3,
+    integrated: false,
+    driver: "617.42",
+  },
+  processor: "Intel Core i5-9600K",
+  cores: 6,
+  memory: 24 * 1024 ** 3,
+  checkedAt: "2026-11-22T09:30:00+02:00",
+  onCard: true,
+  problem: null,
+  place: "card",
+  testing: false,
+  timing: false,
+  measured: { at: "2026-11-22T09:30:00+02:00", tested: true, pictures: 3 },
+  startsOn: { photo: "best", drawing: "best" },
+  abilities: [
+    {
+      kind: "photo",
+      quality: "fast",
+      model: "Real-ESRGAN general",
+      pace: "ready",
+      seconds: 6,
+      download: false,
+    },
+    {
+      kind: "photo",
+      quality: "best",
+      model: "RealESRGAN x4plus",
+      pace: "ready",
+      seconds: 68,
+      download: true,
+    },
+    {
+      kind: "drawing",
+      quality: "fast",
+      model: "Real-ESRGAN general",
+      pace: "ready",
+      seconds: 6,
+      download: false,
+    },
+    {
+      kind: "drawing",
+      quality: "best",
+      model: "RealESRGAN x4plus for drawings",
+      pace: "ready",
+      seconds: 23,
+      download: false,
+    },
+  ],
+};
+
+/** A line of History: a picture made beside its original, today at 14:02. */
+export function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
+  const today = new Date();
+  today.setHours(14, 2, 0, 0);
+  return {
+    id: 1,
+    at: today.toISOString(),
+    kind: "made",
+    name: "Harbour at dusk.heic",
+    madeFor: "TV 8K",
+    original: "D:\\Pictures\\Phone\\Harbour at dusk.heic",
+    result: "D:\\Pictures\\Phone\\Harbour at dusk (TV 8K).jpg",
+    resultName: "Harbour at dusk (TV 8K).jpg",
+    aside: null,
+    asideUntil: null,
+    clearedAt: null,
+    clearedBy: null,
+    undoneAt: null,
+    bytes: null,
+    picture: null,
+    canUndo: true,
+    canRedo: false,
+    ...overrides,
   };
 }

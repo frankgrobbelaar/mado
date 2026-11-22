@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type Backup, type DataSizes, EngineProvider, type Health } from "@/lib/engine";
 import type { ReadyUpdate } from "@/lib/updates";
-import { fakeEngine, READY } from "@/test/engine";
+import { fakeEngine, PC, READY, SETTINGS } from "@/test/engine";
 import { SettingsPage } from "./settings-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -392,5 +392,118 @@ describe("SettingsPage", () => {
     expect(
       await screen.findByRole("switch", { name: "Start Mado when Windows starts" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Settings: saving, this PC, downloads and what's set aside", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    shell.invoke.mockReset();
+  });
+
+  it("keeps what Save offers first, where new pictures go and whether they keep the place", async () => {
+    let saved = { ...SETTINGS };
+    const fetch = fakeEngine({
+      "/health": HEALTH,
+      "/settings": () => saved,
+      "PUT /settings": (init?: RequestInit) => {
+        saved = JSON.parse(String(init?.body));
+        return saved;
+      },
+    });
+    renderSettings("general");
+
+    const saving = await screen.findByRole("region", { name: "Saving" });
+    await waitFor(() =>
+      expect(fetch.mock.calls.some(([input]) => String(input).endsWith("/settings"))).toBe(true),
+    );
+    await new Promise((settle) => setTimeout(settle, 0));
+    fireEvent.click(within(saving).getByRole("radio", { name: "Replace the original" }));
+    await waitFor(() => expect(saved.saveFirst).toBe("replace"));
+    fireEvent.click(within(saving).getByRole("radio", { name: "In a folder…" }));
+    await waitFor(() => expect(saved.newFolder).toBe("D:\\Backups"));
+    expect(saved.newPictures).toBe("folder");
+    fireEvent.click(within(saving).getByRole("switch", { name: "Keep where a picture was taken" }));
+    await waitFor(() => expect(saved.keepLocation).toBe(true));
+    expect(fetch).toHaveBeenCalled();
+  });
+
+  it("says what this PC can do, which way each kind starts, and tests it again", async () => {
+    const fetch = fakeEngine({
+      "/health": HEALTH,
+      "/pc": PC,
+      "POST /pc/test": { ...PC, testing: true, timing: true },
+      "/tools": [],
+    });
+    renderSettings("about");
+
+    const panel = await screen.findByRole("region", { name: "This PC" });
+    expect(await within(panel).findByText(/NVIDIA GeForce GTX 1660 SUPER/)).toBeInTheDocument();
+    expect(within(panel).getByText(/6 GB of its own/)).toBeInTheDocument();
+    expect(within(panel).getByText(/The AI models run on the graphics card/)).toBeInTheDocument();
+    const photos = within(panel).getByRole("row", { name: /Photos/ });
+    expect(within(photos).getByText("about 1 min")).toBeInTheDocument();
+    expect(within(photos).getByText("starts on")).toBeInTheDocument();
+    expect(within(photos).getByText("RealESRGAN x4plus, a download")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Test again" }));
+    await waitFor(() =>
+      expect(fetch.mock.calls.some(([input]) => String(input).endsWith("/pc/test"))).toBe(true),
+    );
+  });
+
+  it("fetches a tool again when it's gone missing", async () => {
+    const fetch = fakeEngine({
+      "/health": HEALTH,
+      "/pc": PC,
+      "/tools": [
+        {
+          id: "ffmpeg",
+          name: "ffmpeg",
+          version: "9.0.2",
+          purpose: "Reads HEIC.",
+          licence: "LGPL-2.1-or-later",
+          size: 76_972_461,
+          when: "setup",
+          state: "missing",
+          done: 0,
+          problem: null,
+        },
+      ],
+      "POST /tools/ffmpeg/download": {},
+    });
+    renderSettings("about");
+
+    const tools = await screen.findByRole("region", { name: "What Mado downloads" });
+    expect(await within(tools).findByText(/missing: Mado needs it again/)).toBeInTheDocument();
+    fireEvent.click(within(tools).getByRole("button", { name: "Download it again" }));
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(([input]) => String(input).endsWith("/tools/ffmpeg/download")),
+      ).toBe(true),
+    );
+  });
+
+  it("empties a drive's quarantine only after asking once more", async () => {
+    const fetch = fakeEngine({
+      "/health": HEALTH,
+      "/data": DATA,
+      "/backups": { backups: [], restored: null },
+      "/quarantine": [{ drive: "D:", folder: "D:\\Mado quarantine", bytes: 1_900_000_000 }],
+      "POST /quarantine/empty": { bytes: 1_900_000_000 },
+    });
+    renderSettings("data");
+
+    const panel = await screen.findByRole("region", { name: "Set aside" });
+    expect(await within(panel).findByText("D:\\Mado quarantine")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Empty now…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Empty D:'s quarantine?" });
+    expect(within(dialog).getByText(/deletes 1.9 GB for good/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Empty it for good" }));
+    await waitFor(() => {
+      const emptied = fetch.mock.calls.find(([input]) =>
+        String(input).endsWith("/quarantine/empty"),
+      );
+      expect(JSON.parse(String(emptied?.[1]?.body))).toEqual({ drive: "D:" });
+    });
   });
 });

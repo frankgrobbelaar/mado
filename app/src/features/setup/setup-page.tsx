@@ -4,6 +4,7 @@ import { TitleBar } from "@/components/shell/title-bar";
 import { useHealth, useScan, useSettings, useTools } from "@/lib/engine";
 import { FoldersStep } from "./folders-step";
 import { Steps } from "./parts";
+import { ThisPc } from "./this-pc";
 import { ToolsStep } from "./tools-step";
 
 /** First run: the tool Mado needs, fetched once; then the folders pictures live in (or not yet);
@@ -46,7 +47,10 @@ export function SetupPage() {
 
           <EngineProblem queries={queries} />
           {step === "tools" ? (
-            <ToolsStep onNext={() => setStep("folders")} />
+            <>
+              <ToolsStep onNext={() => setStep("folders")} />
+              <ThisPc />
+            </>
           ) : (
             <FoldersStep onBack={() => setStep("tools")} />
           )}

@@ -9,6 +9,7 @@ mod explorer;
 mod links;
 mod look;
 mod process;
+mod screens;
 mod tray;
 mod updater;
 
@@ -50,6 +51,7 @@ fn main() {
             tray::set_keep_in_tray,
             look::look,
             look::set_look,
+            screens::screens,
         ])
         .on_window_event(|window, event| match event {
             // As the owner chose in Settings > General, closing the window keeps Mado working in

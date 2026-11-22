@@ -180,6 +180,15 @@ def _text(value: object) -> str | None:
 
 
 def _heif_facts(path: Path) -> Facts:
+    layout, found = _heif_layout(path)
+    if not layout.width or not layout.height:
+        raise UnreadableError(f"{_DAMAGED}: it doesn't say how big its picture is.")
+    name = "HEIC" if path.suffix.casefold() == ".heic" else "HEIF"
+    return _facts_turned(name, layout.width, layout.height, found, layout.orientation)
+
+
+def _heif_layout(path: Path) -> tuple[heif.Layout, Image.Exif]:
+    """A HEIF's layout, and its Exif (empty when it has none, or it's damaged)."""
     try:
         with path.open("rb") as file:
             layout = heif.meta_layout(_meta_box(file))
@@ -188,8 +197,6 @@ def _heif_facts(path: Path) -> Facts:
         raise UnreadableError(f"{_DAMAGED}: {error}.") from None
     except OSError as error:
         raise UnreadableError(f"{_DAMAGED}: {error.strerror or error}.") from None
-    if not layout.width or not layout.height:
-        raise UnreadableError(f"{_DAMAGED}: it doesn't say how big its picture is.")
     found = Image.Exif()
     tiff = heif.exif_tiff(item) if item else None
     if tiff is not None:
@@ -197,8 +204,27 @@ def _heif_facts(path: Path) -> Facts:
             found.load(tiff)
         except OSError, SyntaxError, ValueError:
             found = Image.Exif()  # damaged Exif: the picture is still the picture
-    name = "HEIC" if path.suffix.casefold() == ".heic" else "HEIF"
-    return _facts_turned(name, layout.width, layout.height, found, layout.orientation)
+    return layout, found
+
+
+def read_exif(path: Path, kind: Kind) -> Image.Exif | None:
+    """A picture's EXIF as it is, every part of it read in, to carry over to a picture made from
+    it; None when it has none, or it can't be read."""
+    try:
+        if kind == "heif":
+            found = _heif_layout(path)[1]
+        else:
+            with Image.open(path) as image:
+                found = _exif_of(image)
+                for inner in (_EXIF_IFD, _GPS_IFD):
+                    found.get_ifd(inner)  # read in now, while the file is open
+        if not len(found):
+            return None
+        whole = Image.Exif()
+        whole.load(found.tobytes())
+    except Exception:  # damaged EXIF: the picture made carries none
+        return None
+    return whole
 
 
 def _meta_box(file: BinaryIO) -> bytes:
@@ -233,6 +259,7 @@ def _read_extents(file: BinaryIO, extents: tuple[heif.Extent, ...]) -> bytes | N
 
 def _decode_heif(path: Path, longest: int | None, ffmpeg: Command | None) -> Image.Image:
     found = _heif_facts(path)  # its size and turn, and whether it's a HEIF at all
+    profile = _heif_layout(path)[0].profile
     if ffmpeg is None:
         raise NeedsFfmpegError
     command = [str(ffmpeg)] if isinstance(ffmpeg, Path) else list(ffmpeg)
@@ -281,7 +308,10 @@ def _decode_heif(path: Path, longest: int | None, ffmpeg: Command | None) -> Ima
             f"{stored[0]} × {stored[1]}), so Mado didn't show that as the whole."
         )
     turn = _TURNS.get(found.orientation or 1)
-    return image.transpose(turn) if turn is not None else image
+    shown = image.transpose(turn) if turn is not None else image
+    if profile is not None and _rgb_profile(profile):
+        shown.info["icc_profile"] = profile  # a phone's wide colours stay wide
+    return shown
 
 
 def _showable(image: Image.Image, profile: object) -> Image.Image:

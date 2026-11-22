@@ -9,7 +9,7 @@ import {
   type Settings,
   type Tool,
 } from "@/lib/engine";
-import { FOLDERS, fakeEngine, READY, SETTINGS, scanDone } from "@/test/engine";
+import { FOLDERS, fakeEngine, PC, READY, SETTINGS, scanDone } from "@/test/engine";
 import { SetupPage } from "./setup-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -173,7 +173,7 @@ describe("SetupPage", () => {
 
     expect(await screen.findByText("Home")).toBeInTheDocument();
     const [[, put]] = sent(fetch, "PUT", "/settings") as [[unknown, RequestInit]];
-    expect(JSON.parse(String(put.body))).toEqual({ setUp: true });
+    expect(JSON.parse(String(put.body))).toMatchObject({ setUp: true });
   });
 
   it("adds the folders pictures live in and says what it found in each", async () => {
@@ -270,5 +270,21 @@ describe("SetupPage", () => {
 
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("carries on to the folders while ffmpeg downloads, and says what this PC is", async () => {
+    firstRun({
+      "/tools": [{ ...FFMPEG, state: "downloading", done: 35_000_000 }],
+      "/pc": PC,
+    });
+    renderSetup();
+
+    expect(await screen.findByText(/You can carry on while it finishes/)).toBeInTheDocument();
+    const next = screen.getByRole("button", { name: "Next: your folders" });
+    await waitFor(() => expect(next).toBeEnabled());
+    const pc = await screen.findByRole("region", { name: "This PC" });
+    expect(within(pc).getByText("6 GB · DirectX 12")).toBeInTheDocument();
+    expect(within(pc).getByText("24 GB")).toBeInTheDocument();
+    expect(within(pc).getByText(/Mado's AI tools will run on the card/)).toBeInTheDocument();
   });
 });

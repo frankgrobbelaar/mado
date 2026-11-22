@@ -17,7 +17,8 @@ from mado.config import DataPaths
 def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> Path | None:
     """Write `Mado export <date>.zip` into `folder` and return its path: the database, its
     settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
-    each), and a manifest saying which Mado wrote it.
+    each), History as CSV (each picture made, replaced or taken away, and what waits in
+    quarantine), and a manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -39,6 +40,7 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             settings = _settings(source)
             library_folders = _folders(source)
             pictures = _pictures(source)
+            done = _history(source)
             schema_version = db.schema_version(source)
 
         manifest = {
@@ -52,6 +54,7 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             archive.writestr("settings.json", json.dumps(settings, indent=2))
             archive.writestr("folders.json", json.dumps(library_folders, indent=2))
             archive.writestr("pictures.csv", pictures)
+            archive.writestr("history.csv", done)
             archive.writestr("manifest.json", json.dumps(manifest, indent=2))
     return target
 
@@ -96,6 +99,39 @@ def _pictures(conn: sqlite3.Connection) -> str:
                     row["camera"] or "",
                     "yes" if row["located"] else "no",
                     _state(row),
+                )
+            )
+    return out.getvalue()
+
+
+_HISTORY_COLUMNS = (
+    "at", "kind", "name", "madeFor", "original", "result", "aside", "clearedAt", "undoneAt",
+)  # fmt: skip
+
+
+def _history(conn: sqlite3.Connection) -> str:
+    """What Mado did, oldest first, as CSV: each picture made or replaced, what waits in
+    quarantine, and what was undone."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(_HISTORY_COLUMNS)
+    if _has_table(conn, "history"):
+        for row in conn.execute("SELECT * FROM history ORDER BY at, id"):
+            writer.writerow(
+                tuple(
+                    row[column] or ""
+                    for column in (
+                        "at",
+                        "kind",
+                        "name",
+                        "made_for",
+                        "original",
+                        "result",
+                        "aside",
+                        "cleared_at",
+                        "cleared_by",
+                        "undone_at",
+                    )
                 )
             )
     return out.getvalue()

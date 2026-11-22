@@ -260,8 +260,23 @@ def restore(paths: DataPaths, name: str, now: datetime, *, damaged: bool = False
             with closing(db.connect(paths.database)) as live:
                 backup.backup(live)
                 db.migrate(live)  # a backup from an older Mado is brought up to date
+                _cancel_jobs(live, now)
     except (OSError, sqlite3.Error) as error:
         raise BackupError(f"Mado couldn't restore that backup: {error}") from error
+
+
+def _cancel_jobs(conn: sqlite3.Connection, now: datetime) -> None:
+    """The jobs restored records were waiting on or making, cancelled: the pictures have moved
+    on since, and making one again could replace what was made after."""
+    with conn:
+        conn.execute(
+            "UPDATE jobs SET state = 'cancelled', finished_at = ?, problem = ?"
+            " WHERE state IN ('queued', 'running')",
+            (now.isoformat(timespec="seconds"), _RESTORED_JOBS),
+        )
+
+
+_RESTORED_JOBS = "Mado's records were restored from a backup, so this one wasn't made."
 
 
 def checks_out(paths: DataPaths, backup: Backup) -> bool:

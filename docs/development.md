@@ -102,6 +102,9 @@ themselves. At each update, look for the newest release of each:
 | What | Pinned in | Where releases come from |
 | --- | --- | --- |
 | ffmpeg (an LGPL build) | `engine/src/mado/downloads.json` | the source it names (BtbN's FFmpeg-Builds) |
+| ONNX Runtime with DirectML | `engine/pyproject.toml` (`onnxruntime-directml`) | PyPI; its DirectML builds lag plain ONNX Runtime's |
+| Real-ESRGAN general and anime 6B models (shipped) | `engine/src/mado/assets` (README.md has their SHA-256) | exported from [Real-ESRGAN's releases](https://github.com/xinntao/Real-ESRGAN/releases) |
+| RealESRGAN x4plus, LaMa (downloaded) | `engine/src/mado/downloads.json` | Mado's prerelease `models-1`, made from Real-ESRGAN's weights and Carve's LaMa ONNX |
 
 WebView2 is Microsoft's and keeps itself current. Each AI model joins the table as its tool is
 built. A newer model or build is measured before it's taken: its speed on the owner's PC, and its

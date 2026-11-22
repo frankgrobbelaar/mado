@@ -1,6 +1,7 @@
-"""Reading a HEIF file's layout (a phone's HEIC): how big its picture is, which way up it goes and
-where its Exif is. HEIF is ISO base media: boxes inside boxes, each a length and a four-letter
-kind. Only the boxes these need are read; ffmpeg decodes the picture itself (mado/pictures.py)."""
+"""Reading a HEIF file's layout (a phone's HEIC): how big its picture is, which way up it goes,
+where its Exif is and the colour profile its picture is in. HEIF is ISO base media: boxes inside
+boxes, each a length and a four-letter kind. Only the boxes these need are read; ffmpeg decodes
+the picture itself (mado/pictures.py)."""
 
 import struct
 from collections.abc import Iterator
@@ -41,6 +42,7 @@ class Layout:
     orientation: int  # how it's turned and mirrored to be shown, as EXIF numbers it
     exif: tuple[Extent, ...]  # where its Exif item is in the file; () when it has none there
     exif_inline: bytes | None  # its Exif item, when the layout keeps it itself
+    profile: bytes | None = None  # its colours' ICC profile (a phone's Display P3), when it has one
 
 
 def box_header(data: bytes) -> tuple[bytes, int, int | None]:
@@ -76,6 +78,7 @@ def meta_layout(meta: bytes) -> Layout:
     described = _described(meta, *children[b"iref"]) if b"iref" in children else {}
 
     width = height = None
+    profile: bytes | None = None
     turn: Matrix = (1, 0, 0, 1)
     for index in associated.get(primary, []):
         if not 1 <= index <= len(properties):
@@ -88,6 +91,8 @@ def meta_layout(meta: bytes) -> Layout:
                 turn = _then(turn, _ANTICLOCKWISE)
         elif kind == b"imir":
             turn = _then(turn, _MIRRORS[_unpack(">B", meta, start, end)[0] & 1])
+        elif kind == b"colr" and meta[start : start + 4] in (b"prof", b"rICC") and end > start + 4:
+            profile = meta[start + 4 : end]  # an ICC profile, as it is
 
     exif_items = [item for item, kind in kinds.items() if kind == b"Exif"]
     exif_items.sort(key=lambda item: primary not in described.get(item, ()))
@@ -100,7 +105,7 @@ def meta_layout(meta: bytes) -> Layout:
         elif method == 1 and b"idat" in children:
             start, end = children[b"idat"]
             inline = b"".join(meta[start + at : start + at + length] for at, length in extents)
-    return Layout(width, height, _ORIENTATIONS[turn], exif, inline)
+    return Layout(width, height, _ORIENTATIONS[turn], exif, inline, profile)
 
 
 def exif_tiff(item: bytes) -> bytes | None:

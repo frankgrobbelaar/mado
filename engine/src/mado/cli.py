@@ -17,6 +17,7 @@ from mado import __version__, events
 from mado.api import create_app, openapi_schema
 from mado.config import DataPaths
 from mado.export import export_data
+from mado.pc_check import probe
 from mado.system import end_programs_with_engine
 
 app = typer.Typer(help="Mado's engine.", no_args_is_help=True, add_completion=False)
@@ -63,7 +64,32 @@ def serve(
         stop = threading.Thread(target=stop_when_stdin_closes, args=(server,), daemon=True)
         stop.start()
     typer.echo(json.dumps({"event": "ready", "port": sock.getsockname()[1]}))
-    server.run(sockets=[sock])  # one that can't start (its records damaged) ends with 3
+    try:
+        server.run(sockets=[sock])  # one that can't start (its records damaged) ends with 3
+    except SystemExit as ending:
+        code = ending.code if isinstance(ending.code, int) else 1
+    else:
+        code = 0
+    # Its work stopped and its records closed, it ends without Python's teardown: letting
+    # DirectML's sessions go can crash on the way out (mado/directml.py).
+    logging.shutdown()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
+
+
+@app.command(name="check-model", hidden=True)
+def check_model(
+    timing: Annotated[bool, typer.Option("--time", help="Time each model too.")] = False,
+    heavy_tile: Annotated[int, typer.Option(help="The tile the heavy models take here.")] = 256,
+    best: Annotated[Path | None, typer.Option(help="The Best photo model, once fetched.")] = None,
+) -> None:
+    """Whether the AI models run on this PC's graphics card, and how fast: one JSON line. The
+    PC check runs this in a process of its own, so a graphics driver that fails takes only it."""
+    found = probe(timing=timing, heavy_tile=heavy_tile, best=best)
+    typer.echo(json.dumps({"runs": found.runs, "problem": found.problem, "speeds": found.speeds}))
+    sys.stdout.flush()
+    os._exit(0)  # no teardown: letting DirectML's sessions go can crash on the way out
 
 
 @app.command()

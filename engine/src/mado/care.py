@@ -1,16 +1,19 @@
 """Looking after Mado while it's open, on a background thread: tonight's backup of its records,
-from 03:00 or the first chance after (mado/backups.py). The engine's log keeps its last 30 days
-by itself (mado/cli.py).
+from 03:00 or the first chance after (mado/backups.py), and once a day the clear-out of the
+quarantine, deleting what's waited there longer than its 30 days (mado/quarantine.py). The
+engine's log keeps its last 30 days by itself (mado/cli.py).
 """
 
 import logging
 import threading
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from contextlib import closing
+from datetime import date, datetime, timedelta
 
-from mado import backups
+from mado import backups, db
 from mado.backups import BackupError
 from mado.config import DataPaths
+from mado.quarantine import Quarantine, clear_out
 
 log = logging.getLogger(__name__)
 
@@ -19,9 +22,13 @@ _REST = timedelta(hours=1)  # after a backup fails, before it's tried again
 
 
 class Care:
-    def __init__(self, paths: DataPaths, *, now: Callable[[], datetime]) -> None:
+    def __init__(
+        self, paths: DataPaths, quarantine: Quarantine, *, now: Callable[[], datetime]
+    ) -> None:
         self._paths = paths
+        self._quarantine = quarantine
         self._now = now
+        self._cleared_on: date | None = None  # the day the quarantine was last cleared out
         self._resting_until: datetime | None = None  # after a backup failed
         self._wake = threading.Event()
         self._stopping = threading.Event()
@@ -39,16 +46,20 @@ class Care:
             self._thread.join(timeout=10)
 
     def look_after(self) -> None:
-        """Does what's due: tonight's backup, unless the last try failed within the hour."""
+        """Does what's due: tonight's backup, unless the last try failed within the hour, and
+        today's clear-out of the quarantine."""
         now = self._now()
-        if self._resting_until is not None and now < self._resting_until:
-            return
-        if backups.due(self._paths, now):
+        resting = self._resting_until is not None and now < self._resting_until
+        if not resting and backups.due(self._paths, now):
             try:
                 backups.back_up(self._paths, now)
             except BackupError as error:
                 log.warning("%s", error)
                 self._resting_until = now + _REST
+        if self._cleared_on != now.date():
+            with closing(db.connect(self._paths.database)) as conn:
+                clear_out(conn, self._quarantine, now=now)
+            self._cleared_on = now.date()
 
     def _loop(self) -> None:
         while True:

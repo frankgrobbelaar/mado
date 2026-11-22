@@ -60,7 +60,7 @@ def downloaded(tools: Tools, tool: str = "ffmpeg") -> None:
 def test_the_list_says_what_each_download_is_and_where_it_comes_from():
     items = manifest()
 
-    assert [item.id for item in items] == ["webview2", "ffmpeg"]
+    assert [item.id for item in items] == ["webview2", "ffmpeg", "realesrgan-x4plus", "lama"]
     for item in items:
         addresses = [each.url for each in item.files] if item.files else [item.url]
         assert all((address or "").startswith("https://") for address in addresses)
@@ -85,10 +85,21 @@ def test_ffmpeg_is_pinned_to_one_build_that_stays_online():
     assert ffmpeg.licence == "LGPL-2.1-or-later"
 
 
+def test_the_ai_models_come_from_mados_own_release_the_first_time_theyre_asked_for():
+    models = [item for item in manifest() if item.id in ("realesrgan-x4plus", "lama")]
+
+    assert [item.when for item in models] == ["asked", "asked"]
+    for item in models:
+        assert all(
+            "/frankgrobbelaar/mado/releases/download/models-1/" in each.url for each in item.files
+        )
+        assert any(each.name.startswith("LICENSE") for each in item.files)  # with its licence
+
+
 def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
     tools = Tools(paths, fetch=serving(BUILD))
 
-    assert [item.id for item, _ in tools.status()] == ["ffmpeg"]
+    assert [item.id for item, _ in tools.status()] == ["ffmpeg", "realesrgan-x4plus", "lama"]
     with pytest.raises(KeyError):
         tools.start("webview2")
 

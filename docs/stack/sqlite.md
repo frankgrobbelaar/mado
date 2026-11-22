@@ -47,8 +47,24 @@ tables, give every table a primary key, and add the new data to the export.
 | `folders` | 2 | The library's folders: each one's path (unique, in any case), when it was added, and when a scan last looked all through it |
 | `pictures` | 2 | Every picture found in them: its path, the folders between its library folder and it (`dir`, as "2026/Trip"), its name, size and file time; when it was found, last seen and found gone; and what reading it found: format, size as shown, when it was taken (local time, and whether by the camera's clock or the file's), camera, orientation, whether it carries a location, or why it won't open. Camera RAW is kept as `raw`, read as it's found |
 | `scans` | 2 | Each scan: when it started and finished, how it went (`running`, `done`, `failed`), its stage (`finding`, `reading`, `done`), why it stopped, and the pictures it found new and gone |
+| `jobs` | 3 | Each picture made: its picture and file, its recipe and how it's saved (JSON), how it stands (`queued`, `running`, `done`, `failed`, `cancelled`), its stage and progress, how many times it started, when, the picture it saved (or the `.mado-partial` it's writing, so a job cut short can clear it away) and why it didn't work. The queue of many pictures builds on it |
+| `history` | 3 | What Mado did, for History: a picture made (`made`) or an original replaced (`replaced`), with the original's name and place, what it was made for and where it went; what waits in quarantine for it now (`aside`, and since when: the clear-out counts 30 days from it), when that was cleared out and by what (`cleared_by`: the clear-out's `days`, or the `owner` emptying it), and when it was undone; and a drive's quarantine emptied by hand (`emptied`, with how much went). A job's line is written before its pictures move, so a job cut short while saving is finished or taken back from it |
 
-Each of Mado's tools adds its tables as it's built.
+Each of Mado's tools adds its tables as it's built. The settings table also holds what the
+engine keeps about this PC (`pc`, `pc_speeds`) and the owner's screens (`screens`), outside the
+settings the window changes.
+
+### How making pictures uses them
+
+- A job's recipe is what the Size tab asked for (the size's id, the shape, the focus point, what
+  the picture is, Fast or Best, cleaning) and how to save it; the plan is made again from it as
+  the job starts, so a picture that changed since is made as it is now.
+- A job running when Mado closed is started again as the engine starts, once (`attempts`); cut
+  short twice, it's marked failed. Its half-written picture is deleted only when its name ends in
+  `.mado-partial`.
+- History's lines are the records of what's in quarantine: the clear-out and emptying a drive go
+  through them, and delete a file only when it's in a day's folder of a quarantine. Clearing
+  History keeps every line whose picture still waits there.
 
 ### How the library uses them
 

@@ -39,8 +39,8 @@ dist\mado-engine\mado-engine.exe version
   and pytest (anyio's test runner). The filter after `Analysis` drops the Universal C Runtime
   DLLs, which Windows 10 and 11 have built in; otherwise PyInstaller copies whichever ones it
   finds on PATH (a JDK's, on the owner's PC), and builds would differ between PCs.
-- Microsoft's Visual C++ runtime (`vcruntime140.dll` and its kin), which Python needs (and ONNX
-  Runtime will) and not every PC has, ships with the engine from Windows' own copy in `System32`,
+- Microsoft's Visual C++ runtime (`vcruntime140.dll` and its kin), which Python and ONNX Runtime
+  need and not every PC has, ships with the engine from Windows' own copy in `System32`,
   which Microsoft's Visual C++ Redistributable installs. Left alone, PyInstaller takes the first copy on PATH (ImageMagick's
   on GitHub's runners, a JDK's on the owner's PC), which could be any version, and the notices
   couldn't say what it is. A PC that builds the engine needs the Redistributable; GitHub's runners
@@ -57,8 +57,11 @@ whole package with `collect_submodules("name")`, then rebuild and run
 reads at run time go in `datas`.
 
 ffmpeg won't go in this bundle: Mado downloads it on first setup (the "Tools" step in the setup
-screen), which keeps the installer and every update smaller. ONNX Runtime with DirectML and the
-small AI models Mado's tools use will ship inside Mado as those tools arrive.
+screen), which keeps the installer and every update smaller. ONNX Runtime with DirectML ships
+inside it (PyInstaller's own hook collects its `capi` folder, `DirectML.dll` included), and so do
+the small AI models (`src/mado/assets`, in `datas`, about 28 MB): the bundle is about 170 MB. The
+bigger models are downloads (see [upscaling.md](upscaling.md)). The PC check runs the bundled
+engine again as `mado-engine.exe check-model`, a process of its own.
 
 ## Upgrading
 

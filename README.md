@@ -45,9 +45,9 @@ TV, or a print. Mado makes it exactly the pixels and shape it needs there, cropp
 subject or with its edges extended, in the format and quality that suit it. It remembers your own
 screens. It treats each picture as what it is: one AI model for photos, another for drawings, a
 gentler way for screenshots so letters stay letters, and none at all for pixel art, which stays
-crisp. It clears out noise first and keeps faces natural. Drag the line to compare before and
-after, as close as you like. And Mado is honest about limits: two to four times bigger looks real,
-while 8K from a thumbnail looks painted.
+crisp. It clears out noise first, or keeps a photo's grain if you'd rather. Drag the line to
+compare before and after, as close as you like. And Mado is honest about limits: two to four
+times bigger looks real, while 8K from a thumbnail looks painted.
 
 ![A picture made for an 8K TV: before and after, the screens to choose from, its shape and quality](docs/readme/size.png)
 
@@ -130,8 +130,18 @@ and every name in them is made up.
 
 ## The AI inside
 
-Mado's tools are being built, and each AI model arrives with the tool that uses it. Every one is
-named here, with its licence, as it does.
+Every AI model Mado uses is named here, with its licence. Each arrives with the tool that uses
+it, and each runs on your PC.
+
+| Model | What it does in Mado | Licence |
+| --- | --- | --- |
+| Real-ESRGAN general (`realesr-general-x4v3`), and its weak-denoise twin | Fast: makes photos and drawings four times bigger, cleaning noise and JPEG blocks, or keeping grain | BSD-3-Clause |
+| RealESRGAN x4plus anime 6B | Best for drawings, comics and flat colour | BSD-3-Clause, Apache-2.0 |
+| RealESRGAN x4plus | Best for photos (downloaded the first time it's asked for, 67 MB) | BSD-3-Clause, Apache-2.0 |
+| LaMa | Draws more of a picture at its edges, to fit a screen's shape (downloaded the first time, 209 MB) | Apache-2.0 |
+
+They run on ONNX Runtime (MIT) with Microsoft's DirectML, which Mado carries under Microsoft's
+terms.
 
 - **Small, and on your PC.** Every model runs here, on the graphics card when there is one. No
   picture leaves your PC.
@@ -154,11 +164,13 @@ downloads, such as ffmpeg on the first run; nothing is installed by hand.
 
 - **Windows 10 or 11**, 64-bit.
 - **8 GB of memory.**
-- **A graphics card** isn't needed, but one that supports DirectX 12 makes the AI tools quick.
-  Without one, they run on the processor, more slowly.
+- **A graphics card** isn't needed, but one that supports DirectX 12 makes the AI tools quick:
+  a phone's photo made for a 4K screen takes seconds with Fast, and Best, for the finest detail,
+  wants a card with 4 GB of its own. Without one, they run on the processor, more slowly, and
+  Mado starts on Fast.
 
-As its AI tools arrive, Mado will look at your PC when it's set up and say what each one needs
-there.
+Mado tests your PC when it's set up, times each AI model on it, and says what each does there in
+Settings › About.
 
 ## Its siblings
 

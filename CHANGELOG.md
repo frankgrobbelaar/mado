@@ -9,6 +9,35 @@ shows these notes when it offers the update.
 ## Unreleased
 
 ### Added
+- Make a picture right for a screen or a print: on its page, the Size tab offers a phone, a
+  tablet, a laptop, a 4K monitor, an ultrawide and an 8K TV, your own screens (remembered), and
+  prints at 300 dpi (10 × 15 cm, A4, A3 or any size). Mado crops it around its subject, with a
+  point you can drag, or draws more at its edges, and makes it exactly the size with an AI model
+  on your graphics card, the photo or the drawing model as suits the picture (pixel art stays
+  blocky, screenshots keep their letters), saying about how long it takes on your PC.
+- Before and after at full detail: zoom to 100% or 400% on the Size tab and drag the line
+  between them, or the picture, to look anywhere.
+- Fast and Best: the Fast models come with Mado; Best for photos (67 MB) and LaMa, which draws
+  more of a picture at its edges (209 MB), are downloaded the first time they're asked for, each
+  listed in the installer and checked.
+- Save as a new picture beside the original ("Harbour at dusk (TV 8K).jpg", "(2)" when that's
+  taken) or in a folder you choose, or replace the original, which waits 30 days in quarantine;
+  in JPEG, PNG, WebP or AVIF, keeping the date taken, the camera and the colours (a phone's wide
+  colours too), and leaving out where it was taken unless you keep it. The format stays as it
+  was unless you choose another (a HEIC photo, which Mado can't write, becomes JPEG); a picture
+  with see-through parts keeps them, never JPEG unless you ask, and then they turn white.
+- Cancel stops a picture being made at once, up to the moment it's saved; and if Mado is closed
+  while it saves, the picture is finished or the original put back the next time Mado opens.
+- History, in the rail: what Mado made, a week at a time; take a new picture away, put it back,
+  put a replaced original back, or replace it again. A picture changed twice is put back newest
+  first. What waits in quarantine is cleared out after 30 days, or emptied by hand in Settings ›
+  Your data; a drive that isn't plugged in keeps its quarantine till it is.
+- Settings › General has Saving: what Save offers first, where new pictures go, and whether they
+  keep where a picture was taken.
+- Settings › About shows This PC: its graphics card, whether the AI models run on it, how long a
+  picture takes each way, which way each kind starts on, and Test again; and every download, with
+  Download it again for one that's gone missing.
+- Setup carries on to your folders while ffmpeg downloads, and says what your PC can do.
 - Your library: add the folders your pictures live in, in Setup or later from Home or the
   Library, and Mado reads every picture in them where it is (JPEG, HEIC, PNG, WebP, AVIF, TIFF,
   BMP and GIF; camera RAW is listed, to be read later), changing nothing.

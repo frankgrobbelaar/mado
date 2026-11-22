@@ -74,4 +74,8 @@ def test_the_engine_offers_what_it_fetches_itself_and_not_the_installers(paths: 
     with TestClient(app, base_url="http://127.0.0.1", headers=headers) as client:
         listed = client.get("/tools").json()
 
-    assert [(tool["id"], tool["when"]) for tool in listed] == [("ffmpeg", "setup")]
+    assert [(tool["id"], tool["when"]) for tool in listed] == [
+        ("ffmpeg", "setup"),
+        ("realesrgan-x4plus", "asked"),
+        ("lama", "asked"),
+    ]

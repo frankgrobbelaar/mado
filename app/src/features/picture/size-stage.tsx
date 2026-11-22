@@ -1,0 +1,493 @@
+import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type PictureDetails,
+  type Plan,
+  pictureAddress,
+  type Recipe,
+  type Region,
+  usePictureImage,
+  usePreview,
+} from "@/lib/engine";
+import { about, stem } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import type { Zoom } from "./stage";
+
+const LABEL = "absolute rounded-4 bg-black/70 px-2.5 py-1 text-12 text-white";
+const MOST_PREVIEW = 4_000_000; // pixels the engine makes of a part at once
+
+/**
+ * The picture as the Size tab makes it, as Picture-Size draws it. Fitted: the part kept framed
+ * (the rest dimmed), the point it's cropped around to drag; or, extending, the new edges as
+ * LaMa draws them. At 100% or 400%: before and after, the line between them dragged to compare,
+ * a part of the picture made at full detail, moved by dragging.
+ */
+export function SizeStage(props: {
+  picture: PictureDetails;
+  plan: Plan;
+  recipe: Recipe;
+  zoom: Zoom;
+  onFocus: (focus: [number, number]) => void;
+}) {
+  const { picture, plan, recipe, zoom } = props;
+  // Previews are asked for as the plan decided, so they follow it: a model downloaded since
+  // makes Best the way, and the preview shows Best.
+  const decided: Recipe = {
+    ...recipe,
+    kind: recipe.kind ?? plan.kind,
+    quality: recipe.quality ?? plan.quality,
+    focus: recipe.focus ?? plan.focus,
+  };
+  return (
+    <>
+      {zoom === "fit" ? (
+        <Fitted
+          picture={picture}
+          plan={plan}
+          recipe={recipe}
+          decided={decided}
+          onFocus={props.onFocus}
+        />
+      ) : (
+        <Compared picture={picture} plan={plan} recipe={decided} scale={zoom === "400" ? 4 : 1} />
+      )}
+      <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
+        <span>
+          After{" "}
+          <span className="font-mono text-fg">
+            {plan.width} × {plan.height}
+          </span>
+        </span>
+        {plan.seconds > 0 && (
+          <span>
+            {capitalised(about(plan.seconds))} on{" "}
+            {plan.place === "card" ? "your graphics card" : "the processor"}
+            {!plan.measured && plan.method === "ai" && ", a guess till Mado has timed this PC"}
+          </span>
+        )}
+        <span>
+          {zoom === "fit" ? "Zoom to 100% to compare at full detail" : "Drag the line to compare"}
+        </span>
+      </p>
+    </>
+  );
+}
+
+/** The whole picture, the shape it takes drawn over it. */
+function Fitted(props: {
+  picture: PictureDetails;
+  plan: Plan;
+  recipe: Recipe;
+  decided: Recipe;
+  onFocus: (focus: [number, number]) => void;
+}) {
+  const { picture, plan } = props;
+  const view = usePictureImage(pictureAddress(picture, "view"));
+  const area = useRef<HTMLDivElement>(null);
+  const box = useBox(area);
+  const extending = plan.shape === "extend" && plan.sides !== "none";
+  // What's shown fits the stage: the picture, or the canvas it's extended to.
+  const ratio =
+    ((picture.width ?? 1) / (picture.height ?? 1)) *
+    (extending ? plan.canvas.width / plan.canvas.height : 1);
+  const fit = fitted(box, ratio);
+  const lama = plan.needs.find((each) => each.id === "lama");
+  const drawn = usePreview(
+    picture.id,
+    extending && !lama
+      ? { recipe: props.decided, side: "after", fit: { width: 1600, height: 1600 } }
+      : null,
+  );
+  const [dragging, setDragging] = useState<[number, number] | null>(null);
+  // Where the point was last put: the plan for it may still be on its way.
+  const placed = props.recipe.focus ?? plan.focus;
+  const focus = dragging ?? placed;
+
+  function at(event: PointerEvent<HTMLElement>): [number, number] {
+    const frame = (
+      event.currentTarget.closest("[data-picture]") as HTMLElement
+    ).getBoundingClientRect();
+    const x = (event.clientX - frame.left) / frame.width;
+    const y = (event.clientY - frame.top) / frame.height;
+    return [Math.min(Math.max(x, 0), 1), Math.min(Math.max(y, 0), 1)];
+  }
+
+  // The picture's place within what's shown: all of it, or its middle part when extending.
+  const inner = extending
+    ? {
+        left: (-plan.canvas.x / plan.canvas.width) * 100,
+        top: (-plan.canvas.y / plan.canvas.height) * 100,
+        width: (1 / plan.canvas.width) * 100,
+        height: (1 / plan.canvas.height) * 100,
+      }
+    : { left: 0, top: 0, width: 100, height: 100 };
+
+  return (
+    <div ref={area} className="relative min-h-60 flex-1 overflow-hidden rounded-6 bg-behind">
+      <div
+        className="absolute"
+        style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
+      >
+        {extending && (
+          <div aria-hidden="true" className="absolute inset-0 status-waiting opacity-40" />
+        )}
+        {extending && drawn.address && (
+          <img
+            src={drawn.address}
+            alt=""
+            draggable={false}
+            className="absolute inset-0 size-full animate-fade-in object-fill"
+          />
+        )}
+        <div
+          data-picture
+          className="absolute"
+          style={{
+            left: `${inner.left}%`,
+            top: `${inner.top}%`,
+            width: `${inner.width}%`,
+            height: `${inner.height}%`,
+          }}
+        >
+          {view.address ? (
+            <img
+              src={view.address}
+              alt={stem(picture.name)}
+              draggable={false}
+              className="absolute inset-0 size-full animate-fade-in object-fill"
+            />
+          ) : (
+            <span role="status" aria-label="Loading the picture" className="absolute inset-0" />
+          )}
+          {!extending && plan.sides !== "none" && (
+            <>
+              <div
+                aria-hidden="true"
+                className="absolute border border-white/85 border-dashed shadow-[0_0_0_9999px_rgba(12,12,14,0.5)]"
+                style={{
+                  left: `${plan.kept.x * 100}%`,
+                  top: `${plan.kept.y * 100}%`,
+                  width: `${plan.kept.width * 100}%`,
+                  height: `${plan.kept.height * 100}%`,
+                }}
+              />
+              <button
+                type="button"
+                aria-label="The point the crop is around: drag it to move it"
+                className="absolute size-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none rounded-full border-2 border-white bg-black/30 shadow-float active:cursor-grabbing"
+                style={{ left: `${focus[0] * 100}%`, top: `${focus[1] * 100}%` }}
+                onPointerDown={(event) => {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  setDragging(at(event));
+                }}
+                onPointerMove={(event) => dragging && setDragging(at(event))}
+                onPointerUp={(event) => {
+                  if (dragging) props.onFocus(at(event));
+                  setDragging(null);
+                }}
+                onKeyDown={(event) => {
+                  const step = event.shiftKey ? 0.1 : 0.02;
+                  const moves: Record<string, [number, number]> = {
+                    ArrowLeft: [-step, 0],
+                    ArrowRight: [step, 0],
+                    ArrowUp: [0, -step],
+                    ArrowDown: [0, step],
+                  };
+                  const move = moves[event.key];
+                  if (!move) return;
+                  event.preventDefault();
+                  props.onFocus([
+                    Math.min(Math.max(placed[0] + move[0], 0), 1),
+                    Math.min(Math.max(placed[1] + move[1], 0), 1),
+                  ]);
+                }}
+              />
+            </>
+          )}
+        </div>
+        {extending && (
+          <div
+            aria-hidden="true"
+            className="absolute border border-white/85 border-dashed"
+            style={{ inset: 0 }}
+          />
+        )}
+      </div>
+      <span className={cn(LABEL, "bottom-3 left-3")}>
+        {lama ? `The new edges show once ${lama.name} is downloaded` : caption(plan, drawn.busy)}
+      </span>
+      {drawn.problem && (
+        <p role="alert" className={cn(LABEL, "top-3 left-3 max-w-[80%] bg-black/80")}>
+          {drawn.problem}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Before and after at full detail, a part of the picture made, the line between them dragged
+ * or moved with the arrow keys, the part moved by dragging or with the arrow keys. */
+function Compared(props: { picture: PictureDetails; plan: Plan; recipe: Recipe; scale: number }) {
+  const { picture, plan, recipe, scale } = props;
+  const area = useRef<HTMLDivElement>(null);
+  const box = useBox(area);
+  const pixels = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  // The part of the picture made that fills the stage at this zoom, in its pixels: on a big,
+  // sharp screen no more than a preview may be, shown a little bigger to fill the stage.
+  const wanted = { width: (box.width * pixels) / scale, height: (box.height * pixels) / scale };
+  const within = Math.min(1, Math.sqrt(MOST_PREVIEW / (wanted.width * wanted.height)));
+  const width = Math.max(16, Math.min(plan.width, Math.floor(wanted.width * within)));
+  const height = Math.max(16, Math.min(plan.height, Math.floor(wanted.height * within)));
+  const start = startingPoint(plan);
+  const [centre, setCentre] = useState<[number, number]>(start);
+  useEffect(() => setCentre(startingPoint(plan)), [plan]);
+  const region = regionAt(centre, width, height, plan);
+  const [moved, setMoved] = useState<{ x: number; y: number } | null>(null);
+  const grabbed = useRef<{ x: number; y: number } | null>(null);
+  const [split, setSplit] = useState(0.5);
+  // A model still to download: extending needs LaMa on either side, the rest only after.
+  const lama = plan.needs.some((each) => each.id === "lama");
+  const waiting = plan.needs.map((each) => each.name).join(" and ");
+  const after = usePreview(
+    picture.id,
+    box.measured && !waiting ? { recipe, side: "after", region } : null,
+  );
+  const before = usePreview(
+    picture.id,
+    box.measured && !lama ? { recipe, side: "before", region } : null,
+  );
+  const shown = {
+    width: (region.width * scale) / (pixels * within),
+    height: (region.height * scale) / (pixels * within),
+  };
+  const offset = moved ? `translate(${moved.x}px, ${moved.y}px)` : undefined;
+
+  function release(event: PointerEvent<HTMLDivElement>) {
+    const from = grabbed.current;
+    grabbed.current = null;
+    setMoved(null);
+    if (!from) return;
+    const dx = ((event.clientX - from.x) * pixels * within) / scale;
+    const dy = ((event.clientY - from.y) * pixels * within) / scale;
+    moveBy(-dx, -dy);
+  }
+
+  /** The part moved by `dx` and `dy` pixels of the picture made. */
+  function moveBy(dx: number, dy: number) {
+    setCentre(([x, y]) => [
+      Math.min(Math.max(x + dx / plan.width, 0), 1),
+      Math.min(Math.max(y + dy / plan.height, 0), 1),
+    ]);
+  }
+
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a stage to move round, not a form's fieldset
+    <div
+      ref={area}
+      role="group"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: it takes the arrow keys, to move round
+      tabIndex={0}
+      aria-label="Move round the picture: drag it, or use the arrow keys"
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return; // the line between them has its own
+        const step = event.shiftKey ? 1 : 0.25; // of the part shown
+        const moves: Record<string, [number, number]> = {
+          ArrowLeft: [-region.width * step, 0],
+          ArrowRight: [region.width * step, 0],
+          ArrowUp: [0, -region.height * step],
+          ArrowDown: [0, region.height * step],
+        };
+        const move = moves[event.key];
+        if (!move) return;
+        event.preventDefault();
+        moveBy(move[0], move[1]);
+      }}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || (event.target as HTMLElement).closest("[role='slider']")) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        grabbed.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerMove={(event) => {
+        const from = grabbed.current;
+        if (from) setMoved({ x: event.clientX - from.x, y: event.clientY - from.y });
+      }}
+      onPointerUp={release}
+      onPointerCancel={() => {
+        grabbed.current = null;
+        setMoved(null);
+      }}
+      className="relative min-h-60 flex-1 cursor-grab touch-none overflow-hidden rounded-6 bg-behind active:cursor-grabbing"
+    >
+      <Side address={before.address} shown={shown} offset={offset} label="Before" clip={null} />
+      <Side
+        address={after.address}
+        shown={shown}
+        offset={offset}
+        label={`After · ${plan.label}`}
+        clip={`inset(0 0 0 ${split * 100}%)`}
+      />
+      <Slider split={split} onSplit={setSplit} />
+      <span className={cn(LABEL, "top-3 left-3 font-semibold")}>Before</span>
+      <span className={cn(LABEL, "top-3 right-3 font-semibold")}>After · {plan.label}</span>
+      {waiting && (
+        <span role="status" className={cn(LABEL, "bottom-3 left-3")}>
+          After shows once {waiting} is downloaded
+        </span>
+      )}
+      {!waiting && (after.busy || before.busy) && (
+        <span role="status" className={cn(LABEL, "bottom-3 left-3")}>
+          Making the preview…
+        </span>
+      )}
+      {!after.busy && after.seconds !== null && (
+        <span className={cn(LABEL, "bottom-3 left-3")}>
+          Preview made in {after.seconds.toFixed(1)} s
+        </span>
+      )}
+      {(after.problem ?? before.problem) && (
+        <p role="alert" className={cn(LABEL, "bottom-3 left-3 max-w-[80%] bg-black/80")}>
+          {after.problem ?? before.problem}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Side(props: {
+  address: string | null;
+  shown: { width: number; height: number };
+  offset: string | undefined;
+  label: string;
+  clip: string | null;
+}) {
+  return (
+    <div
+      className="absolute inset-0 grid place-items-center"
+      style={props.clip ? { clipPath: props.clip } : undefined}
+    >
+      {props.address && (
+        <img
+          src={props.address}
+          alt={props.label}
+          draggable={false}
+          className="max-w-none select-none [image-rendering:pixelated]"
+          style={{ width: props.shown.width, height: props.shown.height, transform: props.offset }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The line between before and after, dragged, or moved with the arrow keys. */
+function Slider(props: { split: number; onSplit: (split: number) => void }) {
+  const line = useRef<HTMLDivElement>(null);
+  function follow(event: PointerEvent<HTMLElement>) {
+    const area = line.current?.parentElement?.getBoundingClientRect();
+    if (!area) return;
+    props.onSplit(Math.min(Math.max((event.clientX - area.left) / area.width, 0), 1));
+  }
+  return (
+    <div
+      ref={line}
+      className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white"
+      style={{ left: `${props.split * 100}%` }}
+    >
+      <div
+        role="slider"
+        tabIndex={0}
+        aria-label="Drag to compare before and after"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(props.split * 100)}
+        onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+        onPointerMove={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) follow(event);
+        }}
+        onKeyDown={(event) => {
+          const step = event.key === "ArrowLeft" ? -0.05 : event.key === "ArrowRight" ? 0.05 : 0;
+          if (!step) return;
+          event.preventDefault();
+          props.onSplit(Math.min(Math.max(props.split + step, 0), 1));
+        }}
+        className="pointer-events-auto absolute top-1/2 left-1/2 flex size-10 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-black shadow-float"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="m9 7-5 5 5 5M15 7l5 5-5 5" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+/** Where the comparing starts, as fractions of the picture made: the point the crop is around. */
+function startingPoint(plan: Plan): [number, number] {
+  if (plan.shape === "extend") return [0.5, 0.5];
+  const x = (plan.focus[0] - plan.kept.x) / plan.kept.width;
+  const y = (plan.focus[1] - plan.kept.y) / plan.kept.height;
+  return [Math.min(Math.max(x, 0), 1), Math.min(Math.max(y, 0), 1)];
+}
+
+/** A part of the picture made, `width` by `height`, centred on `centre` as far as its edges let. */
+export function regionAt(
+  centre: [number, number],
+  width: number,
+  height: number,
+  plan: Pick<Plan, "width" | "height">,
+): Region {
+  const x = Math.round(
+    Math.min(Math.max(centre[0] * plan.width - width / 2, 0), plan.width - width),
+  );
+  const y = Math.round(
+    Math.min(Math.max(centre[1] * plan.height - height / 2, 0), plan.height - height),
+  );
+  return { x, y, width, height };
+}
+
+/** The words over the picture: what the shape does to it. */
+function caption(plan: Plan, drawing: boolean): ReactNode {
+  if (plan.sides === "none") return `Already ${plan.label}'s shape: all of it stays`;
+  if (plan.shape === "extend")
+    return drawing ? "LaMa is drawing the new edges…" : "The new edges are drawn by LaMa";
+  return plan.focusFound ? "Cropped around the most detailed part" : "Cropped around your point";
+}
+
+/** The space a stage has, kept as the window changes; `measured` once it's known, not guessed
+ * (where nothing can measure it, the guess is all there is). */
+function useBox(area: { current: HTMLElement | null }) {
+  const unmeasurable = typeof ResizeObserver === "undefined";
+  const [box, setBox] = useState({ width: 1000, height: 560, measured: unmeasurable });
+  useEffect(() => {
+    const here = area.current;
+    if (!here || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(([entry]) => {
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0)
+        setBox({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+          measured: true,
+        });
+    });
+    watch.observe(here);
+    return () => watch.disconnect();
+  }, [area]);
+  return box;
+}
+
+/** Something of `ratio` fitted in `box`, in its middle. */
+function fitted(box: { width: number; height: number }, ratio: number) {
+  const width = Math.min(box.width, box.height * ratio);
+  const height = width / ratio;
+  return { width, height, left: (box.width - width) / 2, top: (box.height - height) / 2 };
+}
+
+function capitalised(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

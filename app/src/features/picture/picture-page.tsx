@@ -7,18 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import {
   EngineError,
+  type Job,
   type PictureDetails,
+  type Plan,
+  type Recipe,
   shownFrom,
   shownQuery,
   useFolders,
   useNeighbours,
   usePicture,
+  usePictureJobs,
+  usePlan,
   useReadAgain,
 } from "@/lib/engine";
 import { showInFolder, useExplorer } from "@/lib/explorer";
 import { size, split, stem, takenOn } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { NeighbourStrip } from "./neighbour-strip";
+import { SizeStage } from "./size-stage";
 import { Stage, type Zoom } from "./stage";
 import { ToolsColumn } from "./tools-column";
 
@@ -35,7 +41,8 @@ const ZOOMS = [
 /**
  * A picture's page, opened from the Library: the picture large (fitted, or at 100% or 400%), its
  * facts, the strip of its neighbours in the list it came from (the arrow keys go along it), and
- * the column its tools come to.
+ * its tools' column. With a size chosen there, the picture shows as it'd be made: its shape over
+ * it, and before and after at full detail when zoomed in.
  */
 export function PicturePage() {
   const id = Number(useParams().id);
@@ -47,6 +54,16 @@ export function PicturePage() {
   const folders = useFolders();
   const navigate = useNavigate();
   const [zoom, setZoom] = useState<Zoom>("fit");
+  // The size chosen on the Size tab stays from picture to picture; what the picture is and the
+  // point a crop is around are each picture's own.
+  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [shownFor, setShownFor] = useState(id);
+  if (shownFor !== id) {
+    setShownFor(id);
+    if (recipe && (recipe.focus || recipe.kind)) setRecipe({ ...recipe, focus: null, kind: null });
+  }
+  const jobs = usePictureJobs(id);
+  const plan = usePlan(id, picture.data?.state === "ready" ? recipe : null);
 
   const to = (other: number) => `/library/pictures/${other}${context ? `?${context}` : ""}`;
   const previous = neighbours.data?.before.at(-1);
@@ -120,7 +137,10 @@ export function PicturePage() {
         </header>
 
         {gone ? (
-          <Gone back={`/library${context ? `?${context}` : ""}`} />
+          <Gone
+            back={`/library${context ? `?${context}` : ""}`}
+            replaced={replacedBy(jobs.data?.[0])}
+          />
         ) : (
           <>
             <EngineProblem queries={[picture]} />
@@ -129,7 +149,15 @@ export function PicturePage() {
                 <Skeleton className="h-[60vh] rounded-6" />
               </Loading>
             )}
-            {picture.data && <OnStage picture={picture.data} zoom={zoom} />}
+            {picture.data && (
+              <OnStage
+                picture={picture.data}
+                zoom={zoom}
+                recipe={recipe}
+                plan={recipe ? (plan.data ?? null) : null}
+                onFocus={(focus) => recipe && setRecipe({ ...recipe, focus })}
+              />
+            )}
           </>
         )}
 
@@ -143,7 +171,9 @@ export function PicturePage() {
           />
         )}
       </div>
-      {picture.data && <ToolsColumn picture={picture.data} />}
+      {picture.data && (
+        <ToolsColumn picture={picture.data} recipe={recipe} onRecipe={setRecipe} plan={plan} />
+      )}
     </div>
   );
 }
@@ -159,8 +189,21 @@ function factsOf(picture: PictureDetails): string {
   return parts.filter(Boolean).join(" · ");
 }
 
-/** The picture, and the line under it: or, for one that can't be shown, why, in its place. */
-function OnStage({ picture, zoom }: { picture: PictureDetails; zoom: Zoom }) {
+/** The picture, and the line under it: or, for one that can't be shown, why, in its place. With
+ * a size chosen, the picture as it'd be made. */
+function OnStage({
+  picture,
+  zoom,
+  recipe,
+  plan,
+  onFocus,
+}: {
+  picture: PictureDetails;
+  zoom: Zoom;
+  recipe: Recipe | null;
+  plan: Plan | null;
+  onFocus: (focus: [number, number]) => void;
+}) {
   const explorer = useExplorer();
   const [copied, setCopied] = useState<{ text: string; problem: boolean } | null>(null);
   const show = () => explorer.run(() => showInFolder(picture.path));
@@ -188,15 +231,19 @@ function OnStage({ picture, zoom }: { picture: PictureDetails; zoom: Zoom }) {
   }
   return (
     <>
-      <Stage
-        picture={picture}
-        zoom={zoom}
-        problem={(why) => (
-          <Unshown picture={picture} onShow={show} problem={explorer.problem}>
-            {why}
-          </Unshown>
-        )}
-      />
+      {recipe && plan ? (
+        <SizeStage picture={picture} plan={plan} recipe={recipe} zoom={zoom} onFocus={onFocus} />
+      ) : (
+        <Stage
+          picture={picture}
+          zoom={zoom}
+          problem={(why) => (
+            <Unshown picture={picture} onShow={show} problem={explorer.problem}>
+              {why}
+            </Unshown>
+          )}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-x-4.5 gap-y-1 text-13 text-fg-muted">
         {picture.camera && <span>{picture.camera}</span>}
         <span>{picture.located ? "Carries where it was taken" : "No place in it"}</span>
@@ -291,18 +338,37 @@ function Unshown(props: {
   );
 }
 
-/** The picture isn't in the library any more: gone from its folder, or the folder taken out. */
-function Gone({ back }: { back: string }) {
+/** The job that replaced a picture with one in another format, which the library lists apart. */
+function replacedBy(job: Job | undefined): Job | null {
+  if (job?.how !== "replace" || job.state !== "done" || !job.resultName) return null;
+  return job.resultName !== job.name ? job : null;
+}
+
+/** The picture isn't in the library any more: gone from its folder, or the folder taken out; or
+ * Mado replaced it, as asked, with one in another format. */
+function Gone({ back, replaced }: { back: string; replaced: Job | null }) {
   return (
     <section className="flex min-h-60 flex-1 flex-col items-start justify-center gap-3 rounded-6 border border-dash border-dashed bg-surface px-7 py-6">
-      <h2 className="font-semibold text-16">This picture isn't in your library any more</h2>
+      <h2 className="font-semibold text-16">
+        {replaced ? "Mado replaced this picture" : "This picture isn't in your library any more"}
+      </h2>
       <p className="max-w-150 text-13 text-fg-muted">
-        It was moved or deleted since, or its folder was taken out of the library. Mado didn't
-        change it.
+        {replaced
+          ? `Mado replaced it with ${replaced.resultName}, made for ${replaced.madeFor}, as you asked. The original waits in quarantine for 30 days, and History puts it back.`
+          : "It was moved or deleted since, or its folder was taken out of the library. Mado didn't change it."}
       </p>
-      <Button asChild size="sm">
-        <Link to={back}>Back to the library</Link>
-      </Button>
+      <span className="flex flex-wrap gap-2">
+        {replaced?.resultPicture && (
+          <Button asChild size="sm" variant="primary">
+            <Link to={`/library/pictures/${replaced.resultPicture.id}`}>
+              Open {replaced.resultName}
+            </Link>
+          </Button>
+        )}
+        <Button asChild size="sm">
+          <Link to={back}>Back to the library</Link>
+        </Button>
+      </span>
     </section>
   );
 }

@@ -126,9 +126,13 @@ describe("PicturePage", () => {
       "true",
     );
     const tools = screen.getByRole("complementary", { name: "Tools" });
-    expect(within(tools).getByText(/Size, Looks and Edit arrive here/)).toBeInTheDocument();
-    expect(within(tools).getByText("Pixelworks PW-7 Pro")).toBeInTheDocument();
-    expect(within(tools).getByText("It carries where it was taken")).toBeInTheDocument();
+    expect(
+      within(tools).getByRole("heading", { name: "Make it for a screen" }),
+    ).toBeInTheDocument();
+    expect(within(tools).getByText("Size")).toHaveAttribute("aria-current", "page");
+    expect(within(tools).getByText("Looks")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Pixelworks PW-7 Pro")).toBeInTheDocument();
+    expect(screen.getByText("Carries where it was taken")).toBeInTheDocument();
     expect(asked(fetch, "/pictures/12/full")).toHaveLength(0); // only once it's zoomed
   });
 

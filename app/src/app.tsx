@@ -3,6 +3,7 @@ import { HashRouter, Route, Routes } from "react-router";
 import { ScreenError } from "@/components/screen-error";
 import { AppShell } from "@/components/shell/app-shell";
 import { UpdateCard } from "@/components/shell/update-card";
+import { HistoryPage } from "@/features/history/history-page";
 import { HomePage } from "@/features/home/home-page";
 import { LibraryPage } from "@/features/library/library-page";
 import { PicturePage } from "@/features/picture/picture-page";
@@ -30,6 +31,7 @@ export function App() {
               <Route index element={<HomePage />} />
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/library/pictures/:id" element={<PicturePage />} />
+              <Route path="/history" element={<HistoryPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/:section" element={<SettingsPage />} />
             </Route>

@@ -6,12 +6,16 @@ and [../CLAUDE.md](../CLAUDE.md).
 
 ## Where it stands
 
-The window's frame (the title bar, the nav rail with Home, the Library and Settings, the status
-bar), Setup (Tools, then Your folders), Home (the library in numbers, Add a folder), the Library
-(the folders as a tree, the pictures by the day they were taken, ticks), a picture's page (the
-picture large at Fit, 100% or 400%, its neighbours, the tools column still to come), Settings
-(General, Your data, Updates, About), the update card, the notes at the window's foot, and the way
-back from damaged records. Mado's own screens come from its design canvas.
+The window's frame (the title bar, the nav rail with Home, the Library, History and Settings, the
+status bar), Setup (Tools, which can be left while ffmpeg downloads, with This PC; then Your
+folders), Home (the library in numbers, Add a folder), the Library (the folders as a tree, the
+pictures by the day they were taken, ticks), a picture's page (the picture large at Fit, 100% or
+400%, its neighbours, and its tools column: the Size tab, with the shape over the picture, before
+and after at full detail when zoomed, Save, and the job making it; Looks and Edit still to come),
+History (a week at a time, take away and put back, replace again), Settings (General with Saving, Your data with
+Set aside, Updates, About with This PC and the downloads), the update card, the notes at the
+window's foot, and the way back from damaged records. Mado's own screens come from its design
+canvas.
 
 ## Build to the design
 
@@ -54,7 +58,7 @@ back from damaged records. Mado's own screens come from its design canvas.
 | A screen and its parts | `src/features/<area>/` (`home/`, `settings/`, `setup/`, …) |
 | Shared primitives (buttons, switches, dialogs…) | `src/components/ui/` |
 | The window frame (title bar, nav rail, update card, the notes at its foot) | `src/components/shell/` |
-| Talking to the engine and the shell | `src/lib/engine.tsx`, `src/lib/updates.ts` |
+| Talking to the engine and the shell | `src/lib/engine.tsx`, `src/lib/updates.ts`, `src/lib/screens.ts` |
 | Tokens and global styles | `src/styles/` |
 | Routes | `src/app.tsx`; nav items, and the one a new page lights (`sectionOf`), in `src/components/shell/sections.ts` |
 

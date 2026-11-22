@@ -26,6 +26,74 @@
       "sha256": "7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646",
       "keep": "bin",
       "by": "mado"
+    },
+    {
+      "id": "realesrgan-x4plus",
+      "name": "RealESRGAN x4plus",
+      "version": "0.1.0",
+      "purpose": "The Best model for making photos bigger: the finest detail, about ten times the Fast model's time on a graphics card. Mado fetches it the first time Best is asked for on a photo.",
+      "licence": "BSD-3-Clause AND Apache-2.0",
+      "home": "https://github.com/xinntao/Real-ESRGAN",
+      "url": null,
+      "size": 67087820,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "realesrgan-x4plus.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/realesrgan-x4plus.onnx",
+          "size": 67074951,
+          "sha256": "e43ea44746e78c2eae199d5b19a77ed9be717cff5e2e5822922867a19a492186"
+        },
+        {
+          "name": "LICENSE-Real-ESRGAN.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-Real-ESRGAN.txt",
+          "size": 1519,
+          "sha256": "4a699ec4863d96a91fc265948a0c90033f7e8735d515524dcf3444736406e0c2"
+        },
+        {
+          "name": "LICENSE-BasicSR.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-BasicSR.txt",
+          "size": 11350,
+          "sha256": "5447872f21ddc29dc0dc060d5c885513c01c904e9da9931bba69898a6fb4d415"
+        }
+      ]
+    },
+    {
+      "id": "lama",
+      "name": "LaMa",
+      "version": "models-1",
+      "purpose": "Draws more of a picture at its edges, to extend it to a screen's shape: good with skies, walls and water. Mado fetches it the first time Extend the edges is asked for.",
+      "licence": "Apache-2.0",
+      "home": "https://github.com/advimman/lama",
+      "url": null,
+      "size": 209176178,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "lama_fp32_dml.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/lama_fp32_dml.onnx",
+          "size": 209153482,
+          "sha256": "5f5dfa3b51cda42c550e79096c9431f2f6abe2603b4c27026141b1e4d135043c"
+        },
+        {
+          "name": "LICENSE-LaMa.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-LaMa.txt",
+          "size": 11348,
+          "sha256": "4ceeeac5a802e86c413c22b16cce8e9a22027b0250c97e6f8ac97c14cf0542c0"
+        },
+        {
+          "name": "LICENSE-Carve-LaMa.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-Carve-LaMa.txt",
+          "size": 11348,
+          "sha256": "4ceeeac5a802e86c413c22b16cce8e9a22027b0250c97e6f8ac97c14cf0542c0"
+        }
+      ]
     }
   ]
 }

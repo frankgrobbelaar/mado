@@ -3,11 +3,14 @@ import { Button } from "@/components/ui/button";
 import { type Tool, useDownloadTool, useTools } from "@/lib/engine";
 import { Footer, Panel } from "./parts";
 
-/** The tools Mado fetches once, checked against the list it ships with; then the folders. */
+/** The tools Mado fetches once, checked against the list it ships with; then the folders, which
+ * can be added while a download finishes, as Setup-Welcome draws it. */
 export function ToolsStep({ onNext }: { onNext: () => void }) {
   const tools = useTools();
   // What's fetched the first time it's asked for comes then, not now.
   const needed = tools.data?.filter((tool) => tool.when === "setup");
+  const started =
+    needed?.every((tool) => ["downloading", "unpacking", "ready"].includes(tool.state)) ?? false;
   const ready = needed?.every((tool) => tool.state === "ready") ?? false;
 
   return (
@@ -23,8 +26,14 @@ export function ToolsStep({ onNext }: { onNext: () => void }) {
           </li>
         ))}
       </ul>
-      <Footer note="The installer's first page lists everything Mado downloads.">
-        <Button variant="primary" disabled={!ready} onClick={onNext}>
+      <Footer
+        note={
+          ready || !started
+            ? "The installer's first page lists everything Mado downloads."
+            : "Nothing is installed by hand: the installer's first page listed this download. You can carry on while it finishes."
+        }
+      >
+        <Button variant="primary" disabled={!started} onClick={onNext}>
           Next: your folders
         </Button>
       </Footer>

@@ -51,8 +51,9 @@ export function AboutPanel() {
         uploaded, and it never searches for or downloads pictures.
       </p>
       <p className="text-13 text-fg-muted">
-        Mado stands on others' work, ffmpeg first. THIRD-PARTY-NOTICES.txt, next to Mado, lists
-        every part with its licence.
+        Mado stands on others' work: ffmpeg, ONNX Runtime with Microsoft's DirectML, and the AI
+        models Real-ESRGAN and LaMa. THIRD-PARTY-NOTICES.txt, next to Mado, lists every part with
+        its licence.
       </p>
     </Panel>
   );

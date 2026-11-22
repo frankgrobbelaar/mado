@@ -3,8 +3,8 @@
 `pnpm build:installer` runs this once the engine and the UI are built. The installer puts the file
 next to Mado, and every release carries it (see docs/releasing.md). It lists what actually ships:
 
-- the engine: every file PyInstaller bundled, traced to the package it came from, Python, and
-  Microsoft's C++ runtime;
+- the engine: every file PyInstaller bundled, traced to the package it came from, Python,
+  Microsoft's C++ runtime, and the AI models it carries (engine/src/mado/assets);
 - the shell: the Rust standard library and the crates Cargo links into mado.exe on Windows;
 - the interface: the packages Vite bundled (from its licence report), the styles and the fonts;
 - and the installer's own parts.
@@ -31,6 +31,7 @@ from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "app/src-tauri/target/THIRD-PARTY-NOTICES.txt"
+ASSETS = ROOT / "engine/src/mado/assets"  # the AI models the engine ships beside its code
 ENGINE_RECORDS = ROOT / "engine/build/mado-engine"  # PyInstaller's records of what it bundled
 UI_REPORT = ROOT / "app/dist/.vite/licenses.json"  # Vite's report of the packages it bundled
 NODE_MODULES = ROOT / "app/node_modules"
@@ -63,8 +64,9 @@ ALLOWED = frozenset(
 # Copyleft made fine by its exception: PyInstaller's lets its bootloader be part of any program.
 ALLOWED_WITH = frozenset({"GPL-2.0-or-later WITH Bootloader-exception"})
 # Not open source, but free to pass on: Microsoft's redistributable files, which programs may carry
-# unchanged. The engine carries the Visual C++ runtime, which Python needs and Windows doesn't
-# always have (DirectML, inside ONNX Runtime, joins it with Mado's AI models).
+# unchanged. The engine carries two: the Visual C++ runtime, which Python and ONNX Runtime need
+# and Windows doesn't always have, and DirectML, inside ONNX Runtime, which runs the AI models on
+# the graphics card.
 MICROSOFT = "LicenseRef-Microsoft-Redistributable"
 _CPP_RUNTIME_TERMS = (
     "Microsoft's Visual C++ runtime ships with the engine unchanged, as Microsoft allows for\n"
@@ -72,6 +74,13 @@ _CPP_RUNTIME_TERMS = (
     "https://learn.microsoft.com/visualstudio/releases/2022/redistribution). It is Microsoft's,\n"
     "copyright Microsoft Corporation, and stays under Microsoft's terms: Mado's licence doesn't\n"
     "cover it."
+)
+_DIRECTML_TERMS = (
+    "DirectML.dll, in ONNX Runtime's folder, is Microsoft's DirectML Redistributable Library,\n"
+    "which runs the AI models on the graphics card. ONNX Runtime ships it unchanged, as Microsoft\n"
+    "allows (https://www.nuget.org/packages/Microsoft.AI.DirectML). It is Microsoft's, copyright\n"
+    "Microsoft Corporation, and stays under Microsoft's terms: neither the MIT licence above nor\n"
+    "Mado's covers it."
 )
 # The runtime's files, and where the engine takes them from: Windows' own copy, which Microsoft's
 # Visual C++ Redistributable installs (mado-engine.spec sees to it, with the same pattern).
@@ -85,9 +94,12 @@ PYTHON_LICENCES = {
     "colorama": "BSD-3-Clause",
     "markdown-it-py": "MIT",
     "mdurl": "MIT",
+    "onnxruntime-directml": f"MIT AND {MICROSOFT}",  # ONNX Runtime, and DirectML inside it
     "pyinstaller": "GPL-2.0-or-later WITH Bootloader-exception",
     "shellingham": "ISC",
 }
+# What a package carries that its own licence files don't speak for, said by hand.
+PYTHON_NOTES = {"onnxruntime-directml": _DIRECTML_TERMS}
 
 # Packages that ship as CSS and font files, which Vite's report (JavaScript only) doesn't list.
 STYLES_AND_FONTS = (
@@ -228,7 +240,7 @@ def engine_parts() -> list[Part]:
             sys.exit(f"The engine bundle holds {file}, and it isn't clear where that comes from.")
     shipped.pop("mado", None)
     packages = [_python_package(shipped[name]) for name in sorted(shipped)]
-    return [_python(), *packages, *cpp_runtime(runtime)]
+    return [_python(), *packages, *cpp_runtime(runtime), *assets()]
 
 
 def is_windows_runtime(file: Path) -> bool:
@@ -251,6 +263,22 @@ def cpp_runtime(files: Iterable[str]) -> list[Part]:
             (_CPP_RUNTIME_TERMS,),
         )
     ]
+
+
+def assets() -> list[Part]:
+    """The AI models the engine carries (engine/src/mado/assets/README.md), each with its
+    licence; the ones Mado downloads come with theirs, beside them."""
+    real_esrgan = (ASSETS / "LICENSE-Real-ESRGAN.txt").read_text(encoding="utf-8")
+    basicsr = (ASSETS / "LICENSE-BasicSR.txt").read_text(encoding="utf-8")
+    source = "https://github.com/xinntao/Real-ESRGAN"
+    return [
+        Part("Real-ESRGAN general model (realesr-general-x4v3)", "0.2.5.0", "BSD-3-Clause",
+             source, (real_esrgan,)),
+        Part("Real-ESRGAN general model, weak denoise (realesr-general-wdn-x4v3)", "0.2.5.0",
+             "BSD-3-Clause", source, (real_esrgan,)),
+        Part("RealESRGAN x4plus anime 6B model, for drawings (realesrgan-x4plus-anime-6b)",
+             "0.2.2.4", "BSD-3-Clause AND Apache-2.0", source, (real_esrgan, basicsr)),
+    ]  # fmt: skip
 
 
 def _bundled_files() -> Iterator[Path]:
@@ -309,12 +337,13 @@ def _python_package(dist: Distribution) -> Part:
         or _spdx_id(dist.metadata.get("License") or "")
     )
     files = [Path(str(dist.locate_file(file))) for file in dist.files or ()]
+    note = PYTHON_NOTES.get(_normalise(name))
     return Part(
         name,
         version,
         licence,
         f"https://pypi.org/project/{name}/{version}/",
-        _read(file for file in files if is_licence_file(file.name)),
+        _read(file for file in files if is_licence_file(file.name)) + ((note,) if note else ()),
     )
 
 

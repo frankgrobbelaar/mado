@@ -24,9 +24,17 @@ RAW = frozenset(
     }
 )  # fmt: skip
 
-# The folders Windows keeps on every drive, and a network drive's own thumbnails.
+# Mado's own quarantine, the folders Windows keeps on every drive, and a network drive's own
+# thumbnails.
 _SKIPPED = frozenset(
-    name.casefold() for name in ("$RECYCLE.BIN", "RECYCLER", "System Volume Information", "@eaDir")
+    name.casefold()
+    for name in (
+        "Mado quarantine",
+        "$RECYCLE.BIN",
+        "RECYCLER",
+        "System Volume Information",
+        "@eaDir",
+    )
 )
 
 
@@ -46,7 +54,7 @@ def kind_of(name: str) -> Kind | None:
 
 
 def skipped_folder(name: str) -> bool:
-    """Folders a scan never looks into: Windows' own, a network drive's thumbnails, and hidden
-    ones."""
+    """Folders a scan never looks into: Mado's quarantine, Windows' own, a network drive's
+    thumbnails, and hidden ones."""
     folded = name.casefold()
     return folded in _SKIPPED or folded.startswith(".")

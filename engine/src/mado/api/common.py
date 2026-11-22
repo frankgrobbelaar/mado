@@ -10,8 +10,13 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from mado import db
+from mado.ai import Ai
 from mado.config import DataPaths
+from mado.jobs import Jobs
+from mado.making import Sight
+from mado.pc_check import PcCheck
 from mado.previews import Previews
+from mado.quarantine import Quarantine
 from mado.scan import Scanner
 from mado.tools import Tools
 from mado.watch import Watcher
@@ -57,6 +62,31 @@ def _previews(request: Request) -> Previews:
     return previews
 
 
+def _ai(request: Request) -> Ai:
+    found: Ai = request.app.state.ai
+    return found
+
+
+def _sight(request: Request) -> Sight:
+    found: Sight = request.app.state.sight
+    return found
+
+
+def _quarantine(request: Request) -> Quarantine:
+    found: Quarantine = request.app.state.quarantine
+    return found
+
+
+def _jobs(request: Request) -> Jobs:
+    found: Jobs = request.app.state.jobs
+    return found
+
+
+def _pc(request: Request) -> PcCheck:
+    found: PcCheck = request.app.state.pc
+    return found
+
+
 # Use these as parameter types in routes, e.g. `def route(conn: Database) -> ...`.
 Paths = Annotated[DataPaths, Depends(_paths)]
 Database = Annotated[sqlite3.Connection, Depends(_database)]
@@ -64,3 +94,8 @@ Toolbox = Annotated[Tools, Depends(_toolbox)]
 Scans = Annotated[Scanner, Depends(_scanner)]
 Copies = Annotated[Previews, Depends(_previews)]  # the smaller copies the window shows
 Watching = Annotated[Watcher | None, Depends(_watcher)]  # None while the engine doesn't watch
+Models = Annotated[Ai, Depends(_ai)]  # the AI models, where they run, their files
+Seeing = Annotated[Sight, Depends(_sight)]  # what Mado sees in each picture
+SetAside = Annotated[Quarantine, Depends(_quarantine)]
+Working = Annotated[Jobs, Depends(_jobs)]  # the jobs that make pictures
+ThisPc = Annotated[PcCheck, Depends(_pc)]

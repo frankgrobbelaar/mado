@@ -1,6 +1,7 @@
 """Mado's preferences, chosen during setup and changed later in Settings."""
 
 import json
+from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import ValidationError
@@ -12,6 +13,12 @@ router = APIRouter()
 
 class Settings(ApiModel):
     set_up: bool = False  # the first-run steps are done
+    # Saving (Settings > General): what Save offers first, where new pictures go (beside their
+    # original, or into one folder), and whether they keep where a picture was taken.
+    save_first: Literal["new", "replace"] = "new"
+    new_pictures: Literal["beside", "folder"] = "beside"
+    new_folder: str | None = None
+    keep_location: bool = False
 
 
 @router.get("/settings")

@@ -41,10 +41,15 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Pillow | 13.0 | Reading pictures: their facts and EXIF, and the copies the window shows | [pillow.md](stack/pillow.md) |
 | watchdog | 7.1 | Noticing new, changed and removed pictures in the library's folders | [watchdog.md](stack/watchdog.md) |
 | ffmpeg | 9.0.2 (downloaded on first run) | Decoding a phone's HEIC; more formats for Mado's tools to come | [ffmpeg.md](stack/ffmpeg.md) |
+| ONNX Runtime (DirectML) | 1.24.4 | Running the AI models on the graphics card, or the processor | [upscaling.md](stack/upscaling.md) |
+| NumPy | 2.5 | The pictures' pixels as the models take them | [upscaling.md](stack/upscaling.md) |
+| Real-ESRGAN models | general x4v3 and its twin, x4plus anime 6B (shipped); x4plus (downloaded) | Making pictures bigger, Fast and Best | [upscaling.md](stack/upscaling.md) |
+| LaMa | big-lama, reshaped for DirectML (downloaded) | Extending a picture's edges | [upscaling.md](stack/upscaling.md) |
+| This PC | | What the graphics card can do, tested and timed | [hardware.md](stack/hardware.md) |
 | PyInstaller | 6.22 | Bundles the engine with its own Python | [pyinstaller.md](stack/pyinstaller.md) |
 | Vitest, Testing Library, pytest | 5.1, 16.3, 9.2 | Tests | [testing.md](stack/testing.md) |
 | GitHub Actions | | CI and releases | [github-actions.md](stack/github-actions.md) |
 | NSIS | via Tauri | The Windows installer | [tauri.md](stack/tauri.md#installer) |
 
-Tools still to come (ONNX Runtime with DirectML, and the AI models) get a page when they're first
-used.
+Tools still to come (the models for looks, selecting, erasing and the library) get a page, or a
+section, when they're first used.

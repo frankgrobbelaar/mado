@@ -76,3 +76,9 @@ def test_other_web_pages_may_not(client: TestClient):
 
     assert response.status_code == 400
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_the_app_window_may_read_how_long_a_preview_took(client: TestClient):
+    response = client.get("/health", headers={"Origin": "http://tauri.localhost"})
+
+    assert "x-made-in" in response.headers["access-control-expose-headers"].lower()

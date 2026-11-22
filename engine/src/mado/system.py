@@ -1,4 +1,5 @@
-"""What the engine asks of Windows: that the programs it starts end with it."""
+"""What the engine asks of Windows: that the programs it starts end with it; and how it runs
+itself again, for work that's safer in a process of its own (the PC check)."""
 
 import ctypes
 import sys
@@ -61,3 +62,11 @@ def end_programs_with_engine() -> bool:
         kernel.CloseHandle(job)
         return False
     return True  # the job stays open till the engine ends: Windows closes it, ending the rest
+
+
+def own_command() -> list[str]:
+    """The command that runs this engine again: its bundled mado-engine.exe, or Python with
+    Mado's package, as `mado` from source."""
+    if getattr(sys, "frozen", False):
+        return [sys.executable]
+    return [sys.executable, "-m", "mado"]

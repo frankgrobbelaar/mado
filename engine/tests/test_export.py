@@ -9,7 +9,7 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mado import __version__, db
+from mado import __version__, db, history
 from mado.config import DataPaths
 from mado.export import export_data
 from mado.library import add_folder, find_pictures, save_facts
@@ -39,6 +39,7 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
     with zipfile.ZipFile(expected) as zipped:
         assert sorted(zipped.namelist()) == [
             "folders.json",
+            "history.csv",
             "mado.db",
             "manifest.json",
             "pictures.csv",
@@ -103,3 +104,26 @@ def test_a_second_export_on_the_same_day_keeps_both(paths: DataPaths, tmp_path: 
 def test_there_is_nothing_to_export_before_mado_has_data(paths: DataPaths, tmp_path: Path):
     assert export_data(paths, tmp_path, now=NOW) is None
     assert list(tmp_path.iterdir()) == []
+
+
+def test_history_is_in_the_export_readable_without_mado(paths: DataPaths, tmp_path: Path):
+    _records_with_one_setting(paths)
+    with closing(db.connect(paths.database)) as conn:
+        history.made(
+            conn,
+            now=NOW,
+            job_id=None,
+            name="Harbour at dusk.heic",
+            made_for="TV 8K",
+            original=tmp_path / "Harbour at dusk.heic",
+            result=tmp_path / "Harbour at dusk (TV 8K).jpg",
+        )
+
+    archive = export_data(paths, tmp_path / "exports", now=NOW)
+
+    assert archive is not None
+    with zipfile.ZipFile(archive) as zipped:
+        rows = list(csv.DictReader(io.StringIO(zipped.read("history.csv").decode("utf-8"))))
+    assert [(row["kind"], row["name"], row["madeFor"]) for row in rows] == [
+        ("made", "Harbour at dusk.heic", "TV 8K")
+    ]

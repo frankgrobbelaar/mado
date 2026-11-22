@@ -29,14 +29,17 @@ def heif(
     exif: bytes | None = None,
     exif_in_meta: bool = False,
     wide_associations: bool = False,
+    profile: bytes | None = None,
 ) -> bytes:
     """A HEIF file whose primary item is `width` by `height`, turned by `transforms` (("irot",
     1) turns it 90 degrees anticlockwise, ("imir", 0) mirrors it left to right) in that order,
-    with `exif` as its Exif item, kept in the meta box's idat or after it in mdat."""
+    with `exif` as its Exif item, kept in the meta box's idat or after it in mdat, and `profile`
+    as its colours' ICC profile."""
     ftyp = box(b"ftyp", b"heic" + struct.pack(">I", 0) + b"mif1heic")
-    meta = _meta(width, height, transforms, exif, exif_in_meta, wide_associations, mdat_at=0)
+    shape = (width, height, transforms, exif, exif_in_meta, wide_associations, profile)
+    meta = _meta(*shape, mdat_at=0)
     mdat_at = len(ftyp) + len(meta) + 8  # where mdat's payload starts
-    meta = _meta(width, height, transforms, exif, exif_in_meta, wide_associations, mdat_at)
+    meta = _meta(*shape, mdat_at=mdat_at)
     data = PICTURE if exif is None or exif_in_meta else exif + PICTURE
     return ftyp + meta + box(b"mdat", data)
 
@@ -48,6 +51,7 @@ def _meta(
     exif: bytes | None,
     exif_in_meta: bool,
     wide_associations: bool,
+    profile: bytes | None,
     mdat_at: int,
 ) -> bytes:
     hdlr = full_box(b"hdlr", 0, 0, struct.pack(">I", 0) + b"pict" + bytes(12) + b"\x00")
@@ -56,6 +60,8 @@ def _meta(
     iinf = full_box(b"iinf", 0, 0, struct.pack(">H", len(entries)) + b"".join(entries))
     properties = [full_box(b"ispe", 0, 0, struct.pack(">II", width, height))]
     properties += [box(kind, bytes([value])) for kind, value in transforms]
+    if profile is not None:
+        properties.append(box(b"colr", b"prof" + profile))
     ipco = box(b"ipco", b"".join(properties))
     indexes = range(1, len(properties) + 1)
     if wide_associations:  # flags 1: each association in two bytes
