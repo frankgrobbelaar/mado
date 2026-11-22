@@ -1,6 +1,6 @@
 [project]
 name = "mado"
-version = "0.1.0"
+version = "0.2.0"
 description = "Mado's engine: keeps one library of pictures and makes them look their best."
 requires-python = ">=3.14"
 license = "MIT"

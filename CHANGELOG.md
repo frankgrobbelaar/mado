@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-22
+
 ### Added
 - Give a picture a look: on its page, the Looks tab shows every look as a small copy of your
   picture (Original, Warm film, Cool film, Faded, Teal and orange, Silver, Golden hour, Night
