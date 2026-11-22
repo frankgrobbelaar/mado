@@ -5,8 +5,8 @@ description = "Mado's engine: keeps one library of pictures and makes them look 
 requires-python = ">=3.14"
 license = "MIT"
 dependencies = [
-    "fastapi>=0.162.0",
-    "typer>=0.27.3",
+    "fastapi>=0.165.0",
+    "typer>=0.29.2",
     "uvicorn>=0.54.0",
 ]
 
@@ -15,11 +15,11 @@ mado = "mado.cli:app"
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.0",
+    "httpx2>=2.16.2",
     "pyinstaller>=6.22.3",
     "pyright>=1.1.414",
-    "pytest>=9.1.1",
-    "ruff>=0.17.3",
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
 ]
 
 [build-system]
