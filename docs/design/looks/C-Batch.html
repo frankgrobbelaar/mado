@@ -1,0 +1,411 @@
+<!doctype html>
+<!-- Mado design snapshot of "C · Graphite · Many at once" (https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv), taken 2026-11-22.
+     Change the canvas, then re-run scripts/design-snapshot.mjs; don't edit this file. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Graphite · Many at once · Mado design</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#2a2b2e}
+a{color:#d6f57a}a:hover{color:#e8fbb0}
+</style>
+</head>
+<body>
+<div style="min-height:960px;box-sizing:border-box;display:flex;flex-wrap:wrap;background:#2a2b2e;color:#f0f0f1;font-family:'IBM Plex Sans',system-ui,sans-serif">
+
+<nav aria-label="Mado" style="flex:0 0 80px;box-sizing:border-box;padding:16px 8px;display:flex;flex-direction:column;align-items:stretch;gap:4px;background:#232427;border-right:1px solid #3a3b40">
+<div style="display:flex;justify-content:center;padding:4px 0 16px"><svg width="30" height="30" viewBox="0 0 28 28" role="img" aria-label="Mado"><rect x="2" y="2" width="24" height="24" rx="6" fill="#f0f0f1"></rect><rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.6" fill="#2a2b2e"></rect><rect x="15" y="5.5" width="7.5" height="7.5" rx="1.6" fill="#c9f24d"></rect><rect x="5.5" y="15" width="7.5" height="7.5" rx="1.6" fill="#2a2b2e"></rect><rect x="15" y="15" width="7.5" height="7.5" rx="1.6" fill="#2a2b2e"></rect></svg></div>
+<a href="C-Home.html" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;border-radius:8px;color:#b4b5ba;text-decoration:none;font-size:12px;font-weight:500"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"></path></svg>Home</a>
+<a href="C-Library.html" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;border-radius:8px;color:#b4b5ba;text-decoration:none;font-size:12px;font-weight:500"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><path d="m3.5 16 5-5 4 4 3-3 5 5"></path><circle cx="15.5" cy="9" r="1.5"></circle></svg>Library</a>
+<a href="C-Batch.html" aria-current="page" style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;border-radius:8px;background:#3a3b40;color:#f0f0f1;text-decoration:none;font-size:12px;font-weight:500"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"></path></svg>Queue<span style="position:absolute;top:4px;right:8px;padding:1px 5px;border-radius:999px;background:#c9f24d;color:#172000;font:600 10.5px 'IBM Plex Mono',monospace">37%</span></a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;border-radius:8px;color:#b4b5ba;text-decoration:none;font-size:12px;font-weight:500"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path></svg>History</a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;border-radius:8px;color:#b4b5ba;text-decoration:none;font-size:12px;font-weight:500"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"></path></svg>Settings</a>
+</nav>
+
+<div style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column">
+
+<main style="flex:1;box-sizing:border-box;padding:22px 28px 20px;display:flex;flex-direction:column;gap:16px">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px">
+<h1 style="margin:0;font-size:24px;font-weight:600">Queue</h1>
+<p style="margin:0;font-size:13.5px;color:#b4b5ba">Many at once: <span style="font-family:'IBM Plex Mono',monospace;color:#f0f0f1">48</span> pictures from Holiday, one at a time on the graphics card</p>
+<div style="margin-left:auto;display:flex;gap:8px">
+<button type="button" style="height:40px;padding:0 14px;border-radius:6px;border:1px solid #55565c;background:#333438;color:#f0f0f1;font:500 13.5px 'IBM Plex Sans',sans-serif;display:inline-flex;align-items:center;gap:6px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6v12M15 6v12"></path></svg>Pause</button>
+<button type="button" style="height:40px;padding:0 14px;border-radius:6px;border:1px solid #55565c;background:transparent;color:#f0f0f1;font:500 13.5px 'IBM Plex Sans',sans-serif;cursor:pointer">Cancel all</button>
+</div>
+</header>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+
+<section aria-labelledby="progress" style="box-sizing:border-box;border-radius:8px;border:1px solid #46474d;background:#333438;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+<h2 id="progress" style="margin:0;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#b4b5ba">Progress</h2>
+<div style="display:flex;align-items:baseline;gap:12px"><span style="font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:500">18<span style="color:#9a9ba1">/48</span></span><span style="font-size:13.5px">about 6 min left</span></div>
+<div role="progressbar" aria-label="Pictures done" aria-valuemin="0" aria-valuemax="48" aria-valuenow="18" style="height:6px;border-radius:3px;background:#46474d;overflow:hidden"><div style="width:37.5%;height:100%;background:#c9f24d"></div></div>
+<p style="margin:0;font-size:12.5px;color:#b4b5ba">Needs <span style="font-family:'IBM Plex Mono',monospace;color:#f0f0f1">1.2 GB</span> more · <span style="font-family:'IBM Plex Mono',monospace;color:#f0f0f1">412 GB</span> free on D:</p>
+</section>
+
+<section aria-labelledby="recipe" style="box-sizing:border-box;border-radius:8px;border:1px solid #46474d;background:#333438;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:10px"><h2 id="recipe" style="margin:0;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#b4b5ba">Recipe · Holiday prints</h2><a href="#" style="margin-left:auto;font-size:12.5px;text-decoration:none">Change</a></div>
+<ol style="margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+<li style="padding:6px 10px;border-radius:5px;background:#46474d;font:500 13px 'IBM Plex Mono',monospace">4K</li>
+<li aria-hidden="true" style="color:#9a9ba1">→</li>
+<li style="padding:6px 10px;border-radius:5px;background:#46474d;font-size:13px;font-weight:500">Warm film <span style="font-family:'IBM Plex Mono',monospace;color:#d6f57a">60</span></li>
+<li aria-hidden="true" style="color:#9a9ba1">→</li>
+<li style="padding:6px 10px;border-radius:5px;background:#46474d;font-size:13px;font-weight:500">JPEG into Edited</li>
+</ol>
+<p style="margin:0;font-size:12.5px;color:#b4b5ba">Seen first on 3 pictures; you said they look right.</p>
+</section>
+
+<section aria-labelledby="saving" style="box-sizing:border-box;border-radius:8px;border:1px solid #46474d;background:#333438;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+<h2 id="saving" style="margin:0;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#b4b5ba">Saving</h2>
+<div role="radiogroup" aria-label="How they're saved" style="display:flex;border:1px solid #55565c;border-radius:6px;overflow:hidden">
+<button type="button" role="radio" aria-checked="true" style="flex:1;height:36px;border:0;background:#46474d;color:#f0f0f1;font:600 13px 'IBM Plex Sans',sans-serif;cursor:pointer">New pictures</button>
+<button type="button" role="radio" aria-checked="false" style="flex:1;height:36px;border:0;border-left:1px solid #55565c;background:transparent;color:#b4b5ba;font:500 13px 'IBM Plex Sans',sans-serif;cursor:pointer">Replace the originals</button>
+</div>
+<p style="margin:0;font-size:12.5px;line-height:1.5;color:#b4b5ba">Into <span style="color:#f0f0f1">Holiday › Edited</span> as <span style="font-family:'IBM Plex Mono',monospace;color:#f0f0f1">Name (4K).jpg</span>. Originals stay as they are.</p>
+</section>
+
+</div>
+
+<section aria-labelledby="list" style="box-sizing:border-box;border-radius:8px;border:1px solid #46474d;background:#333438;overflow:hidden">
+<h2 id="list" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">The pictures in the queue</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:#2f3033;color:#b4b5ba;text-align:left"><th scope="col" style="padding:9px 14px;font-weight:500;width:28px"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">State</span></th><th scope="col" style="padding:9px 8px;font-weight:500">Picture</th><th scope="col" style="padding:9px 8px;font-weight:500">Step</th><th scope="col" style="padding:9px 8px;font-weight:500;text-align:right">Size</th><th scope="col" style="padding:9px 14px;font-weight:500;text-align:right">Result</th></tr></thead>
+<tbody>
+<tr style="border-top:1px solid #46474d;background:#3a3b40"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:50%;box-sizing:border-box;border:2.5px solid #55565c;border-top-color:#c9f24d"></span></td><td style="padding:8px"><span style="display:flex;align-items:center;gap:10px"><span style="position:relative;width:48px;height:32px;flex-shrink:0;border-radius:3px;overflow:hidden"><div style="position:relative;width:48px;height:32px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#8cc3e7 0%,#d4ebf7 60%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<path d="M0 120 L80 118 L96 150 L150 148 L160 176 L0 180 Z" fill="#c9673a"></path>
+<path d="M400 110 L310 112 L296 146 L250 148 L236 182 L400 186 Z" fill="#c25f33"></path>
+<path d="M0 150 L96 150" stroke="#e08a58" stroke-width="2"></path>
+<path d="M400 146 L296 146" stroke="#df8653" stroke-width="2"></path>
+<path d="M0 180 L160 176 L176 214 L120 300 L0 300 Z" fill="#9a4423"></path>
+<path d="M400 186 L236 182 L222 222 L270 300 L400 300 Z" fill="#8f3e1f"></path>
+<path d="M176 214 Q200 250 150 300 L270 300 Q230 262 222 222 Z" fill="#4c8db2"></path>
+</svg>
+</div>
+
+
+
+
+
+
+</div>
+</div></span>Red canyon.jpg</span></td><td style="padding:8px">Warm film <span style="font-family:'IBM Plex Mono',monospace;color:#d6f57a">2/3</span></td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">3.8 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">now</td></tr>
+<tr style="border-top:1px solid #46474d"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:50%;box-sizing:border-box;border:1.5px solid #b4b5ba"></span></td><td style="padding:8px"><span style="display:flex;align-items:center;gap:10px"><span style="position:relative;width:48px;height:32px;flex-shrink:0;border-radius:3px;overflow:hidden"><div style="position:relative;width:48px;height:32px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#cdd8cd 0%,#eef2ea 70%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<path d="M0 170 L14 146 L28 170 L40 140 L54 170 L68 150 L82 170 L96 138 L110 170 L124 148 L138 170 L152 142 L166 170 L180 150 L194 170 L208 136 L222 170 L236 148 L250 170 L264 140 L278 170 L292 150 L306 170 L320 142 L334 170 L348 148 L362 170 L376 140 L390 170 L400 158 L400 300 L0 300 Z" fill="#a3b6a6"></path>
+<path d="M0 206 L18 172 L36 206 L52 166 L70 206 L88 176 L106 206 L124 162 L142 206 L160 174 L178 206 L196 168 L214 206 L232 178 L250 206 L268 164 L286 206 L304 176 L322 206 L340 166 L358 206 L376 178 L394 206 L400 200 L400 300 L0 300 Z" fill="#62836c"></path>
+<path d="M0 252 L24 204 L48 252 L70 196 L94 252 L118 210 L142 252 L166 198 L190 252 L214 208 L238 252 L262 192 L286 252 L310 206 L334 252 L358 200 L382 252 L400 228 L400 300 L0 300 Z" fill="#2f4b3a"></path>
+<rect x="0" y="252" width="400" height="48" fill="#26402f"></rect>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span>Misty pines.jpg</span></td><td style="padding:8px;color:#b4b5ba">Waiting</td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">4.2 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">next</td></tr>
+<tr style="border-top:1px solid #46474d"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:50%;box-sizing:border-box;border:1.5px solid #b4b5ba"></span></td><td style="padding:8px"><span style="display:flex;align-items:center;gap:10px"><span style="position:relative;width:48px;height:32px;flex-shrink:0;border-radius:3px;overflow:hidden"><div style="position:relative;width:48px;height:32px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#eeaf79 0%,#f6d6b0 48%,#a6bfcf 48.4%,#6d8ea7 100%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="230" cy="112" r="16" fill="#fff0d6" opacity=".9"></circle>
+<path d="M0 145 L60 96 L110 128 L170 70 L230 120 L290 88 L350 126 L400 104 L400 145 Z" fill="#5a6a86"></path>
+<path d="M0 145 L60 194 L110 162 L170 220 L230 170 L290 202 L350 164 L400 186 L400 145 Z" fill="#5a6a86" opacity=".45"></path>
+<rect x="60" y="210" width="90" height="2" rx="1" fill="#e9f1f6" opacity=".5"></rect>
+<rect x="230" y="240" width="110" height="2" rx="1" fill="#e9f1f6" opacity=".4"></rect>
+<path d="M0 270 Q120 256 260 272 T400 266 L400 300 L0 300 Z" fill="#3b4a3a"></path>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span>Still lake.heic</span></td><td style="padding:8px;color:#b4b5ba">Waiting</td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">2.9 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">+29 more</td></tr>
+<tr style="border-top:1px solid #46474d"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:2px;box-sizing:border-box;border:1px solid #f0f0f1;background:repeating-linear-gradient(45deg,#f0f0f1 0 1.5px,transparent 1.5px 4px)"></span></td><td style="padding:8px"><span style="display:flex;flex-direction:column;gap:1px"><span>Old pier.tif</span><span style="font-size:12px;color:#b4b5ba">The file is damaged, so it was left as it is.</span></span></td><td style="padding:8px"><button type="button" style="height:32px;padding:0 10px;border-radius:5px;border:1px solid #55565c;background:transparent;color:#f0f0f1;font:500 12.5px 'IBM Plex Sans',sans-serif;cursor:pointer">See it</button></td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">61.0 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">didn't work</td></tr>
+<tr style="border-top:1px solid #46474d"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:50%;background:#f0f0f1"></span></td><td style="padding:8px"><span style="display:flex;align-items:center;gap:10px"><span style="position:relative;width:48px;height:32px;flex-shrink:0;border-radius:3px;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:48px;height:32px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#f2d2a0 0%,#f8e7cb 60%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="300" cy="80" r="20" fill="#fff4dc"></circle>
+<path d="M0 170 Q90 130 180 168 T400 150 L400 300 L0 300 Z" fill="#e3ab6a"></path>
+<path d="M0 214 Q110 168 230 210 T400 196 L400 300 L0 300 Z" fill="#cd8b4d"></path>
+<path d="M0 258 Q140 214 280 254 T400 246 L400 300 L0 300 Z" fill="#b2713c"></path>
+<path d="M180 168 Q230 190 300 186" stroke="#f3c88f" stroke-width="2" fill="none" opacity=".7"></path>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span>Warm dunes (4K).jpg</span></td><td style="padding:8px;color:#b4b5ba">Done</td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">2.7 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace">9.8 MB</td></tr>
+<tr style="border-top:1px solid #46474d"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:50%;background:#f0f0f1"></span></td><td style="padding:8px"><span style="display:flex;align-items:center;gap:10px"><span style="position:relative;width:48px;height:32px;flex-shrink:0;border-radius:3px;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:48px;height:32px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#0a0f25 0%,#1b2350 64%,#3a2c5b 100%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="320" cy="62" r="16" fill="#f1ecd6"></circle>
+<circle cx="327" cy="57" r="14" fill="#111838"></circle>
+<circle cx="60" cy="40" r="1.2" fill="#ffffff"></circle>
+<circle cx="140" cy="28" r="1" fill="#ffffff"></circle>
+<circle cx="230" cy="48" r="1.3" fill="#ffffff"></circle>
+<circle cx="380" cy="30" r="1" fill="#ffffff"></circle>
+<rect x="10" y="150" width="46" height="150" fill="#0c0f1d"></rect>
+<rect x="60" y="120" width="36" height="180" fill="#10142a"></rect>
+<rect x="100" y="170" width="54" height="130" fill="#0c0f1d"></rect>
+<rect x="158" y="96" width="40" height="204" fill="#121733"></rect>
+<rect x="202" y="140" width="50" height="160" fill="#0c0f1d"></rect>
+<rect x="256" y="112" width="34" height="188" fill="#10142a"></rect>
+<rect x="294" y="160" width="58" height="140" fill="#0c0f1d"></rect>
+<rect x="356" y="130" width="44" height="170" fill="#121733"></rect>
+<rect x="18" y="162" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="32" y="180" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="68" y="134" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="80" y="160" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="110" y="184" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="132" y="200" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="166" y="110" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="180" y="140" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="166" y="170" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="212" y="156" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="232" y="186" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="264" y="126" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="276" y="150" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="304" y="176" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="330" y="200" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="366" y="146" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="382" y="172" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="0" y="286" width="400" height="14" fill="#2a2140" opacity=".8"></rect>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span>Night market (4K).jpg</span></td><td style="padding:8px;color:#b4b5ba">Done</td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">3.3 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace">11.2 MB</td></tr>
+<tr style="border-top:1px solid #46474d"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:50%;background:#f0f0f1"></span></td><td style="padding:8px"><span style="display:flex;align-items:center;gap:10px"><span style="position:relative;width:48px;height:32px;flex-shrink:0;border-radius:3px;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:48px;height:32px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%,#2e3f2b 0%,#141c12 70%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<ellipse cx="90" cy="250" rx="70" ry="18" fill="#3f6b3a" transform="rotate(-24 90 250)"></ellipse>
+<ellipse cx="318" cy="246" rx="70" ry="18" fill="#365f33" transform="rotate(22 318 246)"></ellipse>
+<g transform="translate(200 146)">
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(45)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6" transform="rotate(90)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(135)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6" transform="rotate(180)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(225)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6" transform="rotate(270)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(315)"></ellipse>
+<circle cx="0" cy="0" r="20" fill="#f6cf4d"></circle>
+<circle cx="0" cy="0" r="11" fill="#e8a63a"></circle>
+</g>
+</svg>
+</div>
+
+
+
+
+</div>
+</div></span>Garden rose (4K).jpg</span></td><td style="padding:8px;color:#b4b5ba">Done</td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">2.4 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace">8.4 MB</td></tr>
+<tr style="border-top:1px solid #46474d"><td style="padding:8px 14px"><span aria-hidden="true" style="display:block;width:12px;height:12px;border-radius:50%;background:#f0f0f1"></span></td><td style="padding:8px"><span style="display:flex;align-items:center;gap:10px"><span style="position:relative;width:48px;height:32px;flex-shrink:0;border-radius:3px;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:48px;height:32px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#bfe2f2 0%,#e9f6fb 52%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="320" cy="64" r="18" fill="#fffbe6" opacity=".9"></circle>
+<rect x="0" y="140" width="400" height="160" fill="#4ea2c6"></rect>
+<path d="M0 196 Q50 186 100 196 T200 196 T300 196 T400 196 L400 300 L0 300 Z" fill="#7cc1dc"></path>
+<path d="M0 222 Q60 210 120 222 T240 222 T360 222 L400 220 L400 300 L0 300 Z" fill="#f4fbfd" opacity=".85"></path>
+<path d="M0 238 Q100 226 220 240 T400 236 L400 300 L0 300 Z" fill="#e8d2a6"></path>
+</svg>
+</div>
+
+
+</div>
+</div></span>Low tide (4K).jpg</span></td><td style="padding:8px;color:#b4b5ba">Done</td><td style="padding:8px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#b4b5ba">3.1 MB</td><td style="padding:8px 14px;text-align:right;font-family:'IBM Plex Mono',monospace">10.6 MB</td></tr>
+</tbody>
+</table>
+</section>
+
+</main>
+
+<footer style="display:flex;flex-wrap:wrap;gap:6px 22px;padding:8px 28px;border-top:1px solid #3a3b40;background:#262729;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#b4b5ba">
+<span><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:#c9f24d"></span>Graphics card busy · 1 job</span>
+<span>Done 17 · didn't work 1 · waiting 30</span>
+<span>Your pictures stay on this PC</span>
+</footer>
+
+</div>
+</div>
+</body>
+</html>

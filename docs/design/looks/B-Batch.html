@@ -1,0 +1,607 @@
+<!doctype html>
+<!-- Mado design snapshot of "B · Gallery · Many at once" (https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv), taken 2026-11-22.
+     Change the canvas, then re-run scripts/design-snapshot.mjs; don't edit this file. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · Gallery · Many at once · Mado design</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&amp;family=Instrument+Serif:ital@0;1&amp;display=swap">
+<style>
+body{margin:0;background:#f4f4f4}
+a{color:#2d4fd6}a:hover{color:#1e3aa8}
+</style>
+</head>
+<body>
+<div style="min-height:960px;box-sizing:border-box;background:#f4f4f4;color:#18181a;font-family:'Instrument Sans',system-ui,sans-serif;display:flex;flex-direction:column">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 36px;padding:18px 48px;background:#ffffff;border-bottom:1px solid #e3e3e4">
+<div style="display:flex;align-items:center;gap:12px">
+<svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="25" rx="2" fill="none" stroke="#18181a" stroke-width="1.3"></rect><rect x="6" y="6" width="16" height="16" fill="none" stroke="#18181a" stroke-width="1.3"></rect><path d="M14 6v16M6 14h16" stroke="#18181a" stroke-width="1.3"></path><circle cx="18" cy="10" r="1.7" fill="#2d4fd6"></circle></svg>
+<span style="font-family:'Instrument Serif',serif;font-size:26px;line-height:1">Mado</span>
+</div>
+<nav aria-label="Mado" style="display:flex;flex-wrap:wrap;gap:4px 26px;font-size:15px">
+<a href="B-Home.html" style="padding:6px 0;color:#5f5f66;text-decoration:none;border-bottom:2px solid transparent">Home</a>
+<a href="B-Library.html" style="padding:6px 0;color:#5f5f66;text-decoration:none;border-bottom:2px solid transparent">Library</a>
+<a href="B-Batch.html" aria-current="page" style="padding:6px 0;color:#18181a;text-decoration:none;font-weight:600;border-bottom:2px solid #2d4fd6">Queue <span style="font-size:13px;color:#2d4fd6">18 of 48</span></a>
+<a href="#" style="padding:6px 0;color:#5f5f66;text-decoration:none;border-bottom:2px solid transparent">History</a>
+<a href="#" style="padding:6px 0;color:#5f5f66;text-decoration:none;border-bottom:2px solid transparent">Settings</a>
+</nav>
+</header>
+
+<main style="flex:1;box-sizing:border-box;width:100%;max-width:1280px;margin:0 auto;padding:36px 48px 40px;display:flex;flex-direction:column;gap:26px">
+
+<div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 24px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<h1 style="margin:0;font-family:'Instrument Serif',serif;font-size:56px;font-weight:400;line-height:1">Queue</h1>
+<p style="margin:0;font-size:16px;color:#5f5f66">Many at once: 48 pictures from Holiday, one at a time on your graphics card.</p>
+</div>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+<button type="button" style="height:44px;padding:0 20px;border-radius:6px;border:1px solid #cfcfd2;background:#ffffff;color:#18181a;font:500 15px 'Instrument Sans',sans-serif;cursor:pointer">Pause</button>
+<button type="button" style="height:44px;padding:0 6px;border:0;background:transparent;color:#18181a;font:500 15px 'Instrument Sans',sans-serif;text-decoration:underline;text-underline-offset:4px;cursor:pointer">Cancel all</button>
+</div>
+</div>
+
+<section aria-labelledby="recipe" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:22px 26px;background:#ffffff;box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 26px rgba(0,0,0,.05)">
+<div style="display:flex;flex-direction:column;gap:4px">
+<span style="font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:#5f5f66">Recipe</span>
+<h2 id="recipe" style="margin:0;font-size:17px;font-weight:600">Holiday prints</h2>
+</div>
+<p style="margin:0;font-family:'Instrument Serif',serif;font-size:30px;line-height:1.1">4K <span style="color:#9a9aa0">→</span> Warm film at 60% <span style="color:#9a9aa0">→</span> JPEG into Edited</p>
+<a href="#" style="margin-left:auto;font-size:14.5px">Change the recipe</a>
+</section>
+
+<div style="display:flex;flex-wrap:wrap;gap:26px">
+
+<section aria-labelledby="progress" style="flex:3 1 440px;min-width:0;box-sizing:border-box;padding:24px 26px;background:#ffffff;box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 26px rgba(0,0,0,.05);display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 20px">
+<h2 id="progress" style="margin:0;font-family:'Instrument Serif',serif;font-size:46px;font-weight:400;line-height:1">18 <span style="color:#5f5f66">of 48</span></h2>
+<span style="font-size:15.5px">About 6 minutes left</span>
+<span style="margin-left:auto;font-size:14px;color:#5f5f66">Needs 1.2 GB more · 412 GB free on D:</span>
+</div>
+<div role="progressbar" aria-label="Pictures done" aria-valuemin="0" aria-valuemax="48" aria-valuenow="18" style="height:4px;background:#e3e3e4"><div style="width:37.5%;height:100%;background:#2d4fd6"></div></div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:20px">
+<div style="padding:5px;background:#ffffff;box-shadow:0 1px 2px rgba(0,0,0,.1),0 6px 14px rgba(0,0,0,.07)"><div style="position:relative;width:128px;height:84px;overflow:hidden"><div style="position:relative;width:128px;height:84px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#8cc3e7 0%,#d4ebf7 60%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<path d="M0 120 L80 118 L96 150 L150 148 L160 176 L0 180 Z" fill="#c9673a"></path>
+<path d="M400 110 L310 112 L296 146 L250 148 L236 182 L400 186 Z" fill="#c25f33"></path>
+<path d="M0 150 L96 150" stroke="#e08a58" stroke-width="2"></path>
+<path d="M400 146 L296 146" stroke="#df8653" stroke-width="2"></path>
+<path d="M0 180 L160 176 L176 214 L120 300 L0 300 Z" fill="#9a4423"></path>
+<path d="M400 186 L236 182 L222 222 L270 300 L400 300 Z" fill="#8f3e1f"></path>
+<path d="M176 214 Q200 250 150 300 L270 300 Q230 262 222 222 Z" fill="#4c8db2"></path>
+</svg>
+</div>
+
+
+
+
+
+
+</div>
+</div></div></div>
+<div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:10px">
+<p style="margin:0;font-size:16px;font-weight:600">Red canyon.jpg <span style="font-weight:400;color:#5f5f66">now</span></p>
+<ol style="margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:14px">
+<li style="display:flex;align-items:center;gap:8px"><span aria-hidden="true" style="width:12px;height:12px;border-radius:50%;background:#18181a"></span>Made 4K</li>
+<li style="display:flex;align-items:center;gap:8px"><span aria-hidden="true" style="width:12px;height:12px;border-radius:50%;box-sizing:border-box;border:2px solid #d8d8db;border-top-color:#2d4fd6"></span>Warm film</li>
+<li style="display:flex;align-items:center;gap:8px;color:#5f5f66"><span aria-hidden="true" style="width:12px;height:12px;border-radius:50%;box-sizing:border-box;border:1.5px solid #5f5f66"></span>Save as JPEG</li>
+</ol>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="saving" style="flex:2 1 320px;min-width:0;box-sizing:border-box;padding:24px 26px;background:#ffffff;box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 26px rgba(0,0,0,.05);display:flex;flex-direction:column;gap:12px">
+<h2 id="saving" style="margin:0;font-family:'Instrument Serif',serif;font-size:26px;font-weight:400">Saving</h2>
+<label style="display:flex;gap:10px;font-size:14.5px;cursor:pointer"><input type="radio" name="b-batch-save" checked style="margin:3px 0 0;accent-color:#2d4fd6"><span style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600">New pictures</span><span style="font-size:13px;color:#5f5f66">Into Holiday › Edited, named like Red canyon (4K).jpg. The originals stay as they are.</span></span></label>
+<label style="display:flex;gap:10px;font-size:14.5px;cursor:pointer"><input type="radio" name="b-batch-save" style="margin:3px 0 0;accent-color:#2d4fd6"><span style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600">Replace the originals</span><span style="font-size:13px;color:#5f5f66">Each original waits 30 days in quarantine, and History puts it back.</span></span></label>
+<div style="display:flex;align-items:center;gap:10px;padding-top:6px;border-top:1px solid #e3e3e4">
+<div style="position:relative;width:50px;height:34px;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:50px;height:34px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#2a2350 0%,#6f3c6c 36%,#e2784f 66%,#f5c16c 80%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="262" cy="198" r="32" fill="#ffd9a3"></circle>
+<path d="M0 194 L52 180 L118 190 L182 170 L250 186 L322 172 L400 184 L400 216 L0 216 Z" fill="#4b2f5f"></path>
+<rect x="0" y="214" width="400" height="86" fill="#251c3b"></rect>
+<rect x="228" y="224" width="66" height="3" rx="1.5" fill="#f3a86b" opacity=".75"></rect>
+<rect x="240" y="234" width="44" height="2.5" rx="1.25" fill="#f3a86b" opacity=".55"></rect>
+<rect x="250" y="244" width="26" height="2" rx="1" fill="#f3a86b" opacity=".4"></rect>
+<rect x="18" y="205" width="168" height="5" fill="#140f23"></rect>
+<rect x="38" y="205" width="4" height="34" fill="#140f23"></rect>
+<rect x="92" y="205" width="4" height="34" fill="#140f23"></rect>
+<rect x="146" y="205" width="4" height="34" fill="#140f23"></rect>
+<circle cx="182" cy="198" r="3" fill="#ffd27a"></circle>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></div>
+<div style="position:relative;width:50px;height:34px;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:50px;height:34px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#8fc1ee 0%,#d4eafb 62%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="90" cy="70" r="22" fill="#fff6d8" opacity=".9"></circle>
+<rect x="0" y="168" width="400" height="132" fill="#3a7db4"></rect>
+<rect x="0" y="206" width="400" height="94" fill="#2f6898"></rect>
+<rect x="0" y="250" width="400" height="50" fill="#285b86"></rect>
+<path d="M262 120 L262 162 L232 162 Z" fill="#ffffff"></path>
+<path d="M266 128 L266 162 L288 162 Z" fill="#eeeeee"></path>
+<path d="M228 164 L296 164 L288 174 L238 174 Z" fill="#7a4b2b"></path>
+<rect x="40" y="186" width="80" height="2" rx="1" fill="#cfe6f7" opacity=".7"></rect>
+<rect x="300" y="224" width="70" height="2" rx="1" fill="#cfe6f7" opacity=".5"></rect>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></div>
+<div style="position:relative;width:50px;height:34px;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:50px;height:34px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#4f86d2 0%,#9ec2ec 58%,#e3edf7 100%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<path d="M0 205 L64 130 L118 172 L186 78 L248 150 L300 108 L360 160 L400 140 L400 300 L0 300 Z" fill="#8199bb"></path>
+<path d="M186 78 L168 104 L180 100 L188 110 L196 99 L206 106 Z" fill="#f4f7fb"></path>
+<path d="M300 108 L286 126 L297 123 L304 131 L312 121 Z" fill="#f4f7fb"></path>
+<path d="M64 130 L52 146 L62 143 L70 150 L76 141 Z" fill="#f4f7fb"></path>
+<path d="M0 246 L84 176 L146 216 L228 150 L316 226 L400 196 L400 300 L0 300 Z" fill="#46597a"></path>
+<path d="M228 150 L212 168 L224 165 L232 174 L242 163 Z" fill="#eef3f8"></path>
+<path d="M0 266 Q200 238 400 260 L400 300 L0 300 Z" fill="#3d5537"></path>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></div>
+<span style="font-size:13px;line-height:1.4;color:#5f5f66">Seen first on 3 of them; you said they look right.</span>
+</div>
+</section>
+
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:40px">
+
+<section aria-labelledby="next" style="flex:1 1 360px;min-width:0;display:flex;flex-direction:column">
+<h2 id="next" style="margin:0 0 4px;font-family:'Instrument Serif',serif;font-size:26px;font-weight:400">Up next <span style="font-family:'Instrument Sans',sans-serif;font-size:14px;color:#5f5f66">30 pictures</span></h2>
+<ul style="margin:0;padding:0;list-style:none">
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;border-radius:50%;box-sizing:border-box;border:1.5px solid #5f5f66"></span><span style="position:relative;width:44px;height:30px;flex-shrink:0;overflow:hidden"><div style="position:relative;width:44px;height:30px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#cdd8cd 0%,#eef2ea 70%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<path d="M0 170 L14 146 L28 170 L40 140 L54 170 L68 150 L82 170 L96 138 L110 170 L124 148 L138 170 L152 142 L166 170 L180 150 L194 170 L208 136 L222 170 L236 148 L250 170 L264 140 L278 170 L292 150 L306 170 L320 142 L334 170 L348 148 L362 170 L376 140 L390 170 L400 158 L400 300 L0 300 Z" fill="#a3b6a6"></path>
+<path d="M0 206 L18 172 L36 206 L52 166 L70 206 L88 176 L106 206 L124 162 L142 206 L160 174 L178 206 L196 168 L214 206 L232 178 L250 206 L268 164 L286 206 L304 176 L322 206 L340 166 L358 206 L376 178 L394 206 L400 200 L400 300 L0 300 Z" fill="#62836c"></path>
+<path d="M0 252 L24 204 L48 252 L70 196 L94 252 L118 210 L142 252 L166 198 L190 252 L214 208 L238 252 L262 192 L286 252 L310 206 L334 252 L358 200 L382 252 L400 228 L400 300 L0 300 Z" fill="#2f4b3a"></path>
+<rect x="0" y="252" width="400" height="48" fill="#26402f"></rect>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span><span style="flex:1;font-size:14.5px">Misty pines.jpg</span><span style="font-size:13px;color:#5f5f66">4.2 MB</span></li>
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;border-radius:50%;box-sizing:border-box;border:1.5px solid #5f5f66"></span><span style="position:relative;width:44px;height:30px;flex-shrink:0;overflow:hidden"><div style="position:relative;width:44px;height:30px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#eeaf79 0%,#f6d6b0 48%,#a6bfcf 48.4%,#6d8ea7 100%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="230" cy="112" r="16" fill="#fff0d6" opacity=".9"></circle>
+<path d="M0 145 L60 96 L110 128 L170 70 L230 120 L290 88 L350 126 L400 104 L400 145 Z" fill="#5a6a86"></path>
+<path d="M0 145 L60 194 L110 162 L170 220 L230 170 L290 202 L350 164 L400 186 L400 145 Z" fill="#5a6a86" opacity=".45"></path>
+<rect x="60" y="210" width="90" height="2" rx="1" fill="#e9f1f6" opacity=".5"></rect>
+<rect x="230" y="240" width="110" height="2" rx="1" fill="#e9f1f6" opacity=".4"></rect>
+<path d="M0 270 Q120 256 260 272 T400 266 L400 300 L0 300 Z" fill="#3b4a3a"></path>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span><span style="flex:1;font-size:14.5px">Still lake.heic</span><span style="font-size:13px;color:#5f5f66">2.9 MB</span></li>
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;border-radius:50%;box-sizing:border-box;border:1.5px solid #5f5f66"></span><span style="position:relative;width:44px;height:30px;flex-shrink:0;overflow:hidden"><div style="position:relative;width:44px;height:30px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#78b1e8 0%,#cde5fa 62%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<ellipse cx="90" cy="64" rx="38" ry="14" fill="#ffffff" opacity=".92"></ellipse>
+<ellipse cx="118" cy="56" rx="26" ry="14" fill="#ffffff" opacity=".92"></ellipse>
+<ellipse cx="290" cy="90" rx="44" ry="13" fill="#ffffff" opacity=".85"></ellipse>
+<path d="M0 190 Q120 160 240 182 T400 172 L400 300 L0 300 Z" fill="#86b552"></path>
+<path d="M0 230 Q160 198 400 226 L400 300 L0 300 Z" fill="#5f9640"></path>
+<circle cx="40" cy="252" r="3.5" fill="#f5d04a"></circle>
+<circle cx="72" cy="270" r="3" fill="#ffffff"></circle>
+<circle cx="104" cy="246" r="3.5" fill="#e86b8a"></circle>
+<circle cx="138" cy="282" r="3.5" fill="#f5d04a"></circle>
+<circle cx="170" cy="258" r="3" fill="#ffffff"></circle>
+<circle cx="204" cy="276" r="3.5" fill="#e86b8a"></circle>
+<circle cx="236" cy="250" r="3.5" fill="#f5d04a"></circle>
+<circle cx="268" cy="286" r="3" fill="#ffffff"></circle>
+<circle cx="300" cy="262" r="3.5" fill="#f5d04a"></circle>
+<circle cx="334" cy="278" r="3.5" fill="#e86b8a"></circle>
+<circle cx="366" cy="254" r="3" fill="#ffffff"></circle>
+<circle cx="388" cy="284" r="3.5" fill="#f5d04a"></circle>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span><span style="flex:1;font-size:14.5px">Spring meadow.jpg</span><span style="font-size:13px;color:#5f5f66">3.6 MB</span></li>
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;border-radius:50%;box-sizing:border-box;border:1.5px solid #5f5f66"></span><span style="position:relative;width:44px;height:30px;flex-shrink:0;overflow:hidden"><div style="position:relative;width:44px;height:30px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#bfe2f2 0%,#e9f6fb 52%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="320" cy="64" r="18" fill="#fffbe6" opacity=".9"></circle>
+<rect x="0" y="140" width="400" height="160" fill="#4ea2c6"></rect>
+<path d="M0 196 Q50 186 100 196 T200 196 T300 196 T400 196 L400 300 L0 300 Z" fill="#7cc1dc"></path>
+<path d="M0 222 Q60 210 120 222 T240 222 T360 222 L400 220 L400 300 L0 300 Z" fill="#f4fbfd" opacity=".85"></path>
+<path d="M0 238 Q100 226 220 240 T400 236 L400 300 L0 300 Z" fill="#e8d2a6"></path>
+</svg>
+</div>
+
+
+</div>
+</div></span><span style="flex:1;font-size:14.5px">Low tide.jpg</span><span style="font-size:13px;color:#5f5f66">3.1 MB</span></li>
+</ul>
+</section>
+
+<section aria-labelledby="done" style="flex:1 1 360px;min-width:0;display:flex;flex-direction:column">
+<h2 id="done" style="margin:0 0 4px;font-family:'Instrument Serif',serif;font-size:26px;font-weight:400">Done <span style="font-family:'Instrument Sans',sans-serif;font-size:14px;color:#5f5f66">17, and 1 didn't work</span></h2>
+<ul style="margin:0;padding:0;list-style:none">
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;box-sizing:border-box;border:1px solid #18181a;background:repeating-linear-gradient(45deg,#18181a 0 1.5px,transparent 1.5px 4.5px)"></span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:14.5px">Old pier.tif</span><span style="font-size:13px;color:#5f5f66">The file is damaged, so it was left as it is.</span></span><button type="button" style="height:34px;padding:0 14px;border-radius:6px;border:1px solid #cfcfd2;background:#ffffff;color:#18181a;font:500 13.5px 'Instrument Sans',sans-serif;cursor:pointer">See it</button></li>
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;border-radius:50%;background:#18181a"></span><span style="position:relative;width:44px;height:30px;flex-shrink:0;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:44px;height:30px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#f2d2a0 0%,#f8e7cb 60%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="300" cy="80" r="20" fill="#fff4dc"></circle>
+<path d="M0 170 Q90 130 180 168 T400 150 L400 300 L0 300 Z" fill="#e3ab6a"></path>
+<path d="M0 214 Q110 168 230 210 T400 196 L400 300 L0 300 Z" fill="#cd8b4d"></path>
+<path d="M0 258 Q140 214 280 254 T400 246 L400 300 L0 300 Z" fill="#b2713c"></path>
+<path d="M180 168 Q230 190 300 186" stroke="#f3c88f" stroke-width="2" fill="none" opacity=".7"></path>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span><span style="flex:1;font-size:14.5px">Warm dunes (4K).jpg</span><span style="font-size:13px;color:#5f5f66">9.8 MB</span></li>
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;border-radius:50%;background:#18181a"></span><span style="position:relative;width:44px;height:30px;flex-shrink:0;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:44px;height:30px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,#0a0f25 0%,#1b2350 64%,#3a2c5b 100%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<circle cx="320" cy="62" r="16" fill="#f1ecd6"></circle>
+<circle cx="327" cy="57" r="14" fill="#111838"></circle>
+<circle cx="60" cy="40" r="1.2" fill="#ffffff"></circle>
+<circle cx="140" cy="28" r="1" fill="#ffffff"></circle>
+<circle cx="230" cy="48" r="1.3" fill="#ffffff"></circle>
+<circle cx="380" cy="30" r="1" fill="#ffffff"></circle>
+<rect x="10" y="150" width="46" height="150" fill="#0c0f1d"></rect>
+<rect x="60" y="120" width="36" height="180" fill="#10142a"></rect>
+<rect x="100" y="170" width="54" height="130" fill="#0c0f1d"></rect>
+<rect x="158" y="96" width="40" height="204" fill="#121733"></rect>
+<rect x="202" y="140" width="50" height="160" fill="#0c0f1d"></rect>
+<rect x="256" y="112" width="34" height="188" fill="#10142a"></rect>
+<rect x="294" y="160" width="58" height="140" fill="#0c0f1d"></rect>
+<rect x="356" y="130" width="44" height="170" fill="#121733"></rect>
+<rect x="18" y="162" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="32" y="180" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="68" y="134" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="80" y="160" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="110" y="184" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="132" y="200" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="166" y="110" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="180" y="140" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="166" y="170" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="212" y="156" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="232" y="186" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="264" y="126" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="276" y="150" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="304" y="176" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="330" y="200" width="5" height="7" fill="#9fd0ff"></rect>
+<rect x="366" y="146" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="382" y="172" width="5" height="7" fill="#ffd27a"></rect>
+<rect x="0" y="286" width="400" height="14" fill="#2a2140" opacity=".8"></rect>
+</svg>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div></span><span style="flex:1;font-size:14.5px">Night market (4K).jpg</span><span style="font-size:13px;color:#5f5f66">11.2 MB</span></li>
+<li style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #e3e3e4"><span aria-hidden="true" style="width:12px;height:12px;flex-shrink:0;border-radius:50%;background:#18181a"></span><span style="position:relative;width:44px;height:30px;flex-shrink:0;overflow:hidden;filter:sepia(.28) saturate(1.25) contrast(1.05)"><div style="position:relative;width:44px;height:30px;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow:hidden;background:#8a8a8a">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%,#2e3f2b 0%,#141c12 70%)">
+<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%">
+<ellipse cx="90" cy="250" rx="70" ry="18" fill="#3f6b3a" transform="rotate(-24 90 250)"></ellipse>
+<ellipse cx="318" cy="246" rx="70" ry="18" fill="#365f33" transform="rotate(22 318 246)"></ellipse>
+<g transform="translate(200 146)">
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(45)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6" transform="rotate(90)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(135)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6" transform="rotate(180)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(225)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f29bb6" transform="rotate(270)"></ellipse>
+<ellipse cx="0" cy="-50" rx="22" ry="46" fill="#f7c3d4" transform="rotate(315)"></ellipse>
+<circle cx="0" cy="0" r="20" fill="#f6cf4d"></circle>
+<circle cx="0" cy="0" r="11" fill="#e8a63a"></circle>
+</g>
+</svg>
+</div>
+
+
+
+
+</div>
+</div></span><span style="flex:1;font-size:14.5px">Garden rose (4K).jpg</span><span style="font-size:13px;color:#5f5f66">8.4 MB</span></li>
+</ul>
+</section>
+
+</div>
+</main>
+</div>
+</body>
+</html>

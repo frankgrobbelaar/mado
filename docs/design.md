@@ -1,7 +1,8 @@
 # Design
 
-How Mado looks and behaves. Mado's own look is being chosen: three looks are drawn on a design
-canvas for the owner to pick from, and its boards become the source of truth for every screen,
+How Mado looks and behaves. Mado's own look is being chosen: three looks (Darkroom, Gallery and
+Graphite) are drawn on the [Mado Looks canvas](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv)
+for the owner to pick from; the pick's boards then become the source of truth for every screen,
 with snapshots you can open locally in [design/](design/README.md). Until then the app wears
 Kura's Cinema tokens as a stand-in (the stack pages that say "Cinema" mean those tokens). Build to
 the boards once they're chosen, and never change the look unasked.

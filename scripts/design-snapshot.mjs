@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 // Mado's canvases by name, each added here as it's drawn.
-const CANVASES = {};
+const CANVASES = {
+  looks: "https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv",
+};
 const out = join(dirname(fileURLToPath(import.meta.url)), "..", "docs", "design");
 const today = new Date().toISOString().slice(0, 10);
 
@@ -68,7 +70,7 @@ function toPage(canvas, file, { canvas: url, link }) {
     .match(/<x-dc>([\s\S]*?)<\/x-dc>/)[1]
     .replace(/<helmet>[\s\S]*?<\/helmet>/, "")
     .replace(/\s(?:ref|on[A-Z]\w*)="\{\{[^}]+\}\}"/g, "");
-  const body = expand(board, renderValues(source)).replace(
+  const body = importBoards(canvas, expand(board, renderValues(source))).replace(
     /href="([\w.-]+)\.dc\.html"/g,
     (_, target) => `href="${link(target)}"`,
   );
@@ -89,17 +91,38 @@ ${body.trim()}
 `;
 }
 
+// A board placed inside another (`<dc-import name="Pic" kind="dusk" hint-size="92px,60px">`) is
+// drawn in place, at the size the canvas gives it, its other attributes as its props.
+function importBoards(canvas, html, depth = 0) {
+  return html.replace(/<dc-import\b([^>]*)>\s*<\/dc-import>/g, (_, attributes) => {
+    const found = Object.fromEntries(
+      [...attributes.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, key, value]) => [key, value]),
+    );
+    const [width, height] = (found["hint-size"] ?? "100%,100%").split(",");
+    const props = Object.fromEntries(Object.entries(found).filter(([key]) => key !== "name" && !key.startsWith("hint-")));
+    const source = canvas.source(`${found.name}.dc.html`);
+    const inner = source
+      .match(/<x-dc>([\s\S]*?)<\/x-dc>/)[1]
+      .replace(/<helmet>[\s\S]*?<\/helmet>/, "")
+      .replace(/\s(?:ref|on[A-Z]\w*)="\{\{[^}]+\}\}"/g, "");
+    const drawn = depth < 3 ? importBoards(canvas, expand(inner, renderValues(source, props)), depth + 1) : "";
+    return `<div style="position:relative;width:${width};height:${height};overflow:hidden">${drawn}</div>`;
+  });
+}
+
 // A board's script builds the data its template repeats over. It only computes
 // values, so it runs in an empty sandbox with nothing but the base class it needs.
-function renderValues(source) {
+function renderValues(source, props = {}) {
   const script = source.match(/<script type="text\/x-dc"[^>]*>([\s\S]*?)<\/script>/)?.[1];
   if (!script) return {};
   const sandbox = vm.createContext({
     DCLogic: class {
       props = {};
     },
+    props,
   });
-  return vm.runInContext(`${script}\n;new Component().renderVals()`, sandbox, { timeout: 1000 });
+  const run = `${script}\n;const component = new Component(); component.props = props; component.renderVals()`;
+  return vm.runInContext(run, sandbox, { timeout: 1000 });
 }
 
 // Expands <sc-for>, <sc-if> and {{holes}} the way the canvas renders them.

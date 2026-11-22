@@ -12,7 +12,7 @@ anime library) and Maku (TV series and films), and stands on their foundations.
 foundations: CI, the installer, the updater and the downloads page; the window with its engine and
 token, Setup fetching ffmpeg, Settings (light or dark, Start with Windows, updates, nightly backups
 and restoring one, the export), and records damaged past use. Nothing of the pictures yet. Next:
-the look, three of them drawn on a design canvas for the owner to pick, then
+the look, the owner's pick of three on the Mado Looks canvas (Darkroom, Gallery, Graphite), then
 [What's next](#whats-next).
 
 ## Ground rules
@@ -185,11 +185,15 @@ Everything decided so far. Don't ask again; change only with the owner.
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
 
 **Design**
-- To be chosen: three looks drawn on a design canvas for the owner to pick, each showing the
-  library grid, a picture with its tools, filter strip and before-and-after slider, a batch in the
-  queue, and the drop zone, with made-up pictures. All three keep neutral greys around the
-  pictures, because colour in the window changes how a photo's colours look, with one small
-  accent.
+- To be chosen: three looks on the [Mado Looks](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv)
+  canvas (2026-11-22; snapshots in `docs/design/looks*`), each showing Home, the Library, a picture
+  with its tools ("Make it for a screen" first, the filter strip, the before-and-after slider) and
+  many at once, with pictures drawn by code: A Darkroom (near-black #0C0C0D, a safelight accent
+  #FF5F3D, Inter Tight; its light is Contact sheet), B Gallery (a museum wall #F4F4F4 with
+  pictures on white mats, a cobalt accent #2D4FD6, Instrument Serif and Sans; its dark is Night
+  gallery) and C Graphite (a mid-grey bench #2A2B2E, dense panels, a volt accent #C9F24D, IBM
+  Plex; its light is Aluminium). All three keep neutral greys around the pictures, because colour
+  in the window changes how a photo's colours look, with one small accent.
 - Kura's rules carry over: motion that explains (120 ms hover and press, 200 ms toggles, 320 ms
   panels, one curve `cubic-bezier(.2,.8,.2,1)`, none when Windows' animation effects are off),
   status by shape first, light and dark designed together (as Windows is, or chosen in Settings ›
@@ -262,8 +266,9 @@ Everything decided so far. Don't ask again; change only with the owner.
 
 ## What's next
 
-1. The look: three looks on the Mado design canvas, the owner's pick, and its snapshots in
-   `docs/design/`.
+1. The look: the owner's pick of the three on the
+   [Mado Looks](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv) canvas, then every screen
+   drawn in it on a full canvas (as Kura Workflows was), and its tokens in `tokens.css`.
 2. Mado 1.0: libraries from folders (every picture read, a grid by date or by folder, the folders
    watched, duplicates and bursts found); the upscaler done properly, with sizes for every device's
    screen; looks, finishing touches and the owner's own, on the whole picture or a part; click to
