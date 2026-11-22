@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-22
+
 ### Added
 - Many at once: tick pictures in the Library and choose Many at once, or choose it from a folder's
   menu or beside a search, and make them all for a screen or a print, give them a look, or both,
