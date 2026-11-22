@@ -1,5 +1,6 @@
 """The API's door: the health check, the token, this PC only, and the app's window alone."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from mado import __version__
@@ -82,3 +83,19 @@ def test_the_app_window_may_read_how_long_a_preview_took(client: TestClient):
     response = client.get("/health", headers={"Origin": "http://tauri.localhost"})
 
     assert "x-made-in" in response.headers["access-control-expose-headers"].lower()
+
+
+def test_a_fault_inside_the_engine_is_answered_in_words_the_window_can_read(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+):
+    def broken(*_args: object) -> object:
+        raise RuntimeError("list index out of range")
+
+    monkeypatch.setattr("mado.api.making.yours", broken)
+
+    response = client.get("/sizes", headers={"Origin": "http://tauri.localhost"})
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "http://tauri.localhost"
+    assert "index" not in response.text
+    assert response.json()["detail"].startswith("Something went wrong inside Mado")

@@ -187,6 +187,8 @@ Change a contract on both sides in the same commit.
 - The engine listens only on `127.0.0.1`, on a port chosen at random.
 - Every request needs the launch's token; anything else gets 401.
 - Only the app's own pages may call it (CORS), and only when addressed to this PC (Host check).
+  A fault inside the engine is answered in plain words inside CORS (`api.Unexpected`), so the
+  window can say so, rather than that the engine didn't answer; the details go to its log.
 - The window's content security policy allows the app itself, Tauri's IPC and the local engine.
 - The window may call only the core APIs, its title bar buttons and Mado's own commands
   (`app/src-tauri/capabilities/default.json`).

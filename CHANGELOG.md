@@ -28,6 +28,8 @@ shows these notes when it offers the update.
   with see-through parts keeps them, never JPEG unless you ask, and then they turn white.
 - Cancel stops a picture being made at once, up to the moment it's saved; and if Mado is closed
   while it saves, the picture is finished or the original put back the next time Mado opens.
+- When something goes wrong inside Mado, the window says so in plain words, not that Mado's
+  engine didn't answer.
 - History, in the rail: what Mado made, a week at a time; take a new picture away, put it back,
   put a replaced original back, or replace it again. A picture changed twice is put back newest
   first. What waits in quarantine is cleared out after 30 days, or emptied by hand in Settings ›

@@ -16,7 +16,9 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from mado import __version__, db, hardware
 from mado.ai import Ai
@@ -61,6 +63,40 @@ LOCAL_HOSTS = ["127.0.0.1", "localhost"]
 _bearer = HTTPBearer(auto_error=False)
 
 log = logging.getLogger(__name__)
+
+
+class Unexpected:
+    """A fault inside the engine, answered as one in plain words. Starlette's own last resort
+    answers outside CORS, so the window couldn't read it and would say the engine didn't answer
+    at all."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        started = False
+
+        async def sending(message: Message) -> None:
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self._app(scope, receive, sending)
+        except Exception:
+            log.exception("A request to the engine hit a problem")
+            if started:  # half answered already: nothing better can be said
+                raise
+            await JSONResponse({"detail": _UNEXPECTED}, status_code=500)(scope, receive, send)
+
+
+_UNEXPECTED = (
+    "Something went wrong inside Mado, so it couldn't do that. Try again; Mado's log says what "
+    "happened."
+)
 
 
 def create_app(
@@ -173,7 +209,9 @@ def create_app(
         best=lambda: app.state.ai.file(BEST_PHOTO),
     )
     # The middleware added last runs first: CORS answers the webview's preflight
-    # checks, then only requests addressed to this PC get through.
+    # checks, then only requests addressed to this PC get through, and a fault inside the
+    # engine is answered in words that pass back through CORS, so the window can read them.
+    app.add_middleware(Unexpected)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOCAL_HOSTS)
     app.add_middleware(
         CORSMiddleware,
