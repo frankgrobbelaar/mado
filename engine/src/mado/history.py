@@ -27,7 +27,7 @@ class Entry:
     at: str  # local time, with its offset
     kind: Kind
     name: str  # the original's file name; the drive, for a quarantine emptied
-    made_for: str | None
+    made_for: str | None  # what its size made it for: "TV 8K"; None without a size
     original: str | None
     result: str | None
     aside: str | None  # what waits in quarantine for it now
@@ -36,6 +36,7 @@ class Entry:
     cleared_by: Literal["days", "owner"] | None  # the clear-out after its days, or the owner
     undone_at: str | None
     bytes: int | None
+    look: str | None = None  # what it was made with: "Warm film at 60%"
 
 
 @dataclass(frozen=True)
@@ -54,12 +55,13 @@ def made(
     now: datetime,
     job_id: int | None,
     name: str,
-    made_for: str,
+    made_for: str | None,
     original: Path,
     result: Path,
+    look: str | None = None,
 ) -> int:
     """A new picture made beside (or away from) its original."""
-    return _insert(conn, now, "made", job_id, name, made_for, original, result, None)
+    return _insert(conn, now, "made", job_id, name, (made_for, look), original, result, None)
 
 
 def replaced(
@@ -68,13 +70,14 @@ def replaced(
     now: datetime,
     job_id: int | None,
     name: str,
-    made_for: str,
+    made_for: str | None,
     original: Path,
     result: Path,
     aside: Path,
+    look: str | None = None,
 ) -> int:
     """An original replaced by a picture made from it, the original set aside."""
-    return _insert(conn, now, "replaced", job_id, name, made_for, original, result, aside)
+    return _insert(conn, now, "replaced", job_id, name, (made_for, look), original, result, aside)
 
 
 def forget(conn: sqlite3.Connection, entry_id: int) -> None:
@@ -271,7 +274,7 @@ def _insert(
     kind: Kind,
     job_id: int | None,
     name: str,
-    made_for: str,
+    made: tuple[str | None, str | None],  # what its size made it for, and what look it has
     original: Path,
     result: Path,
     aside: Path | None,
@@ -279,15 +282,16 @@ def _insert(
     stamp = now.isoformat(timespec="seconds")
     with conn:
         row = conn.execute(
-            """INSERT INTO history (at, kind, job_id, name, made_for, original, result, aside,
-                                    aside_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+            """INSERT INTO history (at, kind, job_id, name, made_for, look, original, result,
+                                    aside, aside_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (
                 stamp,
                 kind,
                 job_id,
                 name,
-                made_for,
+                made[0],
+                made[1],
                 str(original),
                 str(result),
                 str(aside) if aside else None,
@@ -330,11 +334,13 @@ def _entry(row: sqlite3.Row) -> Entry:
         cleared_by=row["cleared_by"],
         undone_at=row["undone_at"],
         bytes=row["bytes"],
+        look=row["look"],
     )
 
 
 def _names(found: Entry, words: list[str]) -> bool:
-    """Whether a line names every word: its picture, what it was made for, or a folder."""
+    """Whether a line names every word: its picture, what it was made for or with, or a
+    folder."""
     if not words:
         return True
     text = " ".join(
@@ -342,6 +348,7 @@ def _names(found: Entry, words: list[str]) -> bool:
         for part in (
             found.name,
             found.made_for,
+            found.look,
             found.original,
             PureWindowsPath(found.result).name if found.result else None,
         )

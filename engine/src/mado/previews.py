@@ -10,6 +10,7 @@ made again.
 
 import secrets
 import sqlite3
+import threading
 from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from mado.pictures import Command, PictureGoneError, UnreadableError, decode
 THUMBNAIL = 512  # pixels on its longer side
 VIEW = 2560
 FULL_KEPT = 8  # full-size copies kept: each is as big as its picture, and only one is looked at
+_LOCKS = 64  # copies being made at once, each with a lock of its own among these
 # Formats the window shows as they are, at full size.
 SHOWN_AS_IS = {
     "JPEG": "image/jpeg",
@@ -69,6 +71,12 @@ class Previews:
         self._root = paths.cache / "pictures"
         self._full = paths.cache / "full"
         self._ffmpeg = ffmpeg
+        # A copy asked for twice at once (a look's small copies, all at once) is made once: each
+        # copy's own lock among a few, so copies of other pictures don't wait for it.
+        self._making = [threading.Lock() for _ in range(_LOCKS)]
+
+    def _lock_for(self, target: Path) -> threading.Lock:
+        return self._making[hash(str(target).casefold()) % _LOCKS]
 
     def thumbnail(self, picture: Source) -> Path:
         """Its thumbnail, made now if it hasn't been."""
@@ -88,10 +96,13 @@ class Previews:
                 raise PictureGoneError(picture.path)
             return picture.path, shown
         target = self._full / f"{picture.id}-{picture.version}.png"
-        if not target.is_file():
-            image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
-            save_copy(image, target, "PNG", compress_level=1)
-            self._prune()
+        if target.is_file():
+            return target, "image/png"
+        with self._lock_for(target):
+            if not target.is_file():
+                image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
+                save_copy(image, target, "PNG", compress_level=1)
+                self._prune()
         return target, "image/png"
 
     def forget(self, ids: Iterable[int]) -> None:
@@ -113,8 +124,10 @@ class Previews:
         target = self._root / _shelf(picture.id) / f"{picture.id}-{picture.version}-{purpose}.webp"
         if target.is_file():
             return target
-        image = decode(picture.path, picture.kind, longest=longest, ffmpeg=self._ffmpeg())
-        save_copy(image, target, "WEBP", quality=quality, method=4)
+        with self._lock_for(target):
+            if not target.is_file():  # made meanwhile, by the ask that held the lock
+                image = decode(picture.path, picture.kind, longest=longest, ffmpeg=self._ffmpeg())
+                save_copy(image, target, "WEBP", quality=quality, method=4)
         return target
 
     @staticmethod

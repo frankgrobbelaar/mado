@@ -42,6 +42,7 @@ fn main() {
             links::open_downloads_page,
             dialogs::pick_folder,
             dialogs::pick_export,
+            dialogs::pick_cube,
             explorer::open_folder,
             explorer::show_in_folder,
             explorer::show_files,

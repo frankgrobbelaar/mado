@@ -6,11 +6,28 @@ import {
   dayAndTime,
   dayHeading,
   madeAt,
+  madeWith,
   pictures,
   size,
   split,
   takenOn,
+  versionOf,
 } from "./format";
+
+describe("madeWith and versionOf", () => {
+  it("say what a picture was made for and with", () => {
+    const sized = { madeFor: "TV 8K", look: null };
+    const looked = { madeFor: null, look: "Warm film at 60%" };
+    const both = { madeFor: "TV 8K", look: "Warm film at 60%" };
+
+    expect(madeWith(sized)).toBe("for TV 8K");
+    expect(madeWith(looked)).toBe("with Warm film at 60%");
+    expect(madeWith(both)).toBe("for TV 8K, with Warm film at 60%");
+    expect(versionOf(sized)).toBe("TV 8K");
+    expect(versionOf(looked)).toBe("Warm film at 60%");
+    expect(versionOf(both)).toBe("TV 8K, Warm film at 60%");
+  });
+});
 
 describe("size", () => {
   it("writes sizes the way the boards do", () => {

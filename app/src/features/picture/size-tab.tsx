@@ -11,8 +11,8 @@ import {
   type Plan,
   type Quality,
   type Recipe,
+  type SizeStep,
   useDownloadTool,
-  usePictureJobs,
   useRememberScreens,
   useSizes,
   useTools,
@@ -21,8 +21,7 @@ import { size as sizeOf } from "@/lib/format";
 import { thisPcsScreens } from "@/lib/screens";
 import { cn } from "@/lib/utils";
 import { DeviceIcon } from "./device-icon";
-import { JobCard } from "./job-card";
-import { SaveDialog } from "./save-dialog";
+import { SaveSection } from "./save-section";
 
 const KINDS = [
   { value: "photo", label: "Photo" },
@@ -41,8 +40,8 @@ const SHAPES = [
   { value: "extend", label: "Extend the edges" },
 ] as const;
 
-/** A new recipe for a size: the rest as Mado guesses, the focus as it finds it. */
-export function recipeFor(size: string, before: Recipe | null): Recipe {
+/** A new size step for a size: the rest as Mado guesses, the focus as it finds it. */
+export function sizeFor(size: string, before: SizeStep | null): SizeStep {
   return {
     size,
     shape: before?.shape ?? "crop",
@@ -56,24 +55,28 @@ export function recipeFor(size: string, before: Recipe | null): Recipe {
 /**
  * The Size tab, as Picture-Size draws it: making the picture right for a screen (the devices),
  * the owner's own screens and prints at 300 dpi, the shape (cropped around its subject, or its
- * edges extended), the quality line with the model Mado chose, and Save. What it waits for (a
- * model to download) is offered in its place, and the job making it shows its progress here.
+ * edges extended), the quality line with the model Mado chose, and Save, which makes the whole
+ * recipe: the size, and the look chosen on the Looks tab. What it waits for (a model to
+ * download) is offered in its place, and the job making it shows its progress here.
  */
 export function SizeTab(props: {
   picture: PictureDetails;
+  /** The size step chosen; null till one is. */
+  chosen: SizeStep | null;
+  onChosen: (size: SizeStep) => void;
+  /** The whole recipe Save makes, and its plan (the last one shown while the next comes). */
   recipe: Recipe | null;
-  onRecipe: (recipe: Recipe) => void;
   plan: UseQueryResult<Plan>;
+  /** The plan for the recipe as it is now, which Save opens with; null while it's on its way. */
+  saving: Plan | null;
+  /** The look is still changing, so the plan for it isn't here yet. */
+  settling: boolean;
 }) {
-  const { picture, recipe, onRecipe, plan } = props;
+  const { picture, chosen, onChosen, plan } = props;
   const sizes = useSizes();
   const remember = useRememberScreens();
-  const jobs = usePictureJobs(picture.id);
-  const [saving, setSaving] = useState(false);
   const asked = useRef(false);
-  const shown = plan.data && recipe ? plan.data : null;
-  const job = jobs.data?.[0];
-  const working = job?.state === "queued" || job?.state === "running";
+  const shown = plan.data && chosen ? plan.data : null;
 
   // This PC's screens, from the shell, remembered once each time the tab opens.
   useEffect(() => {
@@ -84,8 +87,8 @@ export function SizeTab(props: {
     });
   }, [remember]);
 
-  const pick = (size: MadeSize) => onRecipe(recipeFor(size.id, recipe));
-  const change = (part: Partial<Recipe>) => recipe && onRecipe({ ...recipe, ...part });
+  const pick = (size: MadeSize) => onChosen(sizeFor(size.id, chosen));
+  const change = (part: Partial<SizeStep>) => chosen && onChosen({ ...chosen, ...part });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3.5">
@@ -98,7 +101,7 @@ export function SizeTab(props: {
             <SizeButton
               key={each.id}
               size={each}
-              chosen={recipe?.size === each.id}
+              chosen={chosen?.size === each.id}
               onPick={() => pick(each)}
             />
           ))}
@@ -118,40 +121,40 @@ export function SizeTab(props: {
           {[...(sizes.data?.yours ?? []), ...(sizes.data?.prints ?? [])].map((each) => (
             <Chip
               key={each.id}
-              chosen={recipe?.size === each.id}
+              chosen={chosen?.size === each.id}
               onClick={() => pick(each)}
               name={each.name}
               pixels={each.group === "yours" ? `${each.width} × ${each.height}` : null}
             />
           ))}
           <OtherSize
-            chosen={recipe?.size.startsWith("other-") ?? false}
-            onSize={(id) => onRecipe(recipeFor(id, recipe))}
+            chosen={chosen?.size.startsWith("other-") ?? false}
+            onSize={(id) => onChosen(sizeFor(id, chosen))}
           />
         </div>
       </section>
 
-      {recipe && (
+      {chosen && (
         <section aria-labelledby="shape" className="flex flex-col gap-2">
           <h2 id="shape" className="type-eyebrow">
             Shape
           </h2>
           <Segmented
             label="Shape"
-            value={recipe.shape}
+            value={chosen.shape}
             options={SHAPES}
             onChange={(shape) => change({ shape })}
             className="flex [&>button]:flex-1"
           />
           {shown && <p className="text-13 text-fg-faint leading-normal">{shown.note}</p>}
-          {shown && recipe.shape === "crop" && shown.sides !== "none" && (
+          {shown && chosen.shape === "crop" && shown.sides !== "none" && (
             <p className="text-12 text-fg-faint">
               {shown.focusFound
                 ? "Around the most detailed part. Drag the point on the picture to choose."
                 : "Around the point you chose. Drag it to move it."}
             </p>
           )}
-          {shown && recipe.shape === "extend" && (
+          {shown && chosen.shape === "extend" && (
             <p className="text-12 text-fg-faint leading-normal">
               LaMa draws the new edges softly: it carries skies, walls and water on well, while
               people and busy detail at an edge come out smeared, so crop those instead.
@@ -160,16 +163,16 @@ export function SizeTab(props: {
         </section>
       )}
 
-      {recipe && plan.isError && (
+      {chosen && plan.isError && (
         <p role="alert" className="text-13 text-broken-fg">
           {plan.error.message}
         </p>
       )}
 
-      {shown && recipe && (
+      {shown && chosen && (
         <QualityCard
           plan={shown}
-          recipe={recipe}
+          size={chosen}
           onKind={(kind) => change({ kind })}
           onQuality={(quality) => change({ quality })}
           onClean={(clean) => change({ clean })}
@@ -191,30 +194,21 @@ export function SizeTab(props: {
         />
       )}
 
-      <div className="mt-auto flex flex-col gap-2 pt-2">
-        {job && <JobCard job={job} />}
-        <Button
-          variant="primary"
-          disabled={!shown || shown.needs.length > 0 || working}
-          onClick={() => setSaving(true)}
-        >
-          Save…
-        </Button>
-        <p className="text-center text-13 text-fg-faint">
-          {recipe
-            ? "As a new picture beside the original, unless you choose to replace it."
-            : "Pick a screen or a print to see the picture made for it."}
-        </p>
-      </div>
-
-      {saving && shown && recipe && (
-        <SaveDialog
-          picture={picture}
-          plan={shown}
-          recipe={recipe}
-          onClose={() => setSaving(false)}
-        />
-      )}
+      <SaveSection
+        picture={picture}
+        recipe={props.recipe}
+        plan={props.settling ? null : props.saving}
+        ready={shown !== null}
+        caption={
+          !chosen
+            ? props.recipe?.look
+              ? "Pick a screen or a print, or save the look alone on the Looks tab."
+              : "Pick a screen or a print to see the picture made for it."
+            : shown?.look
+              ? `As a new picture beside the original, with ${shown.look}, unless you choose to replace it.`
+              : "As a new picture beside the original, unless you choose to replace it."
+        }
+      />
     </div>
   );
 }
@@ -351,12 +345,12 @@ function OtherSize(props: { chosen: boolean; onSize: (id: string) => void }) {
  * two switches; "Change" opens what it is and Fast or Best. */
 function QualityCard(props: {
   plan: Plan;
-  recipe: Recipe;
+  size: SizeStep;
   onKind: (kind: PictureKind) => void;
   onQuality: (quality: Quality) => void;
   onClean: (clean: boolean) => void;
 }) {
-  const { plan, recipe } = props;
+  const { plan, size } = props;
   const [open, setOpen] = useState(false);
   const clean = useId();
   const format = `${plan.format}${plan.formatQuality ? ` ${plan.formatQuality}` : ""}`;
@@ -416,7 +410,7 @@ function QualityCard(props: {
       <div className="flex items-center gap-2.5 text-13">
         <Switch
           id={clean}
-          checked={plan.cleanMatters ? recipe.clean : true}
+          checked={plan.cleanMatters ? size.clean : true}
           disabled={!plan.cleanMatters}
           onCheckedChange={props.onClean}
         />

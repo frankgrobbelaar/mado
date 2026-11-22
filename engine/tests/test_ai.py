@@ -11,7 +11,7 @@ import pytest
 from mado.ai import ASSETS, Ai, Timer
 from mado.config import DataPaths
 from mado.core.models import BEST_DRAWING, BEST_PHOTO, FAST
-from mado.core.recipe import Recipe
+from mado.core.recipe import Recipe, Sizing
 from mado.core.sizes import resolve
 from mado.directml import LOCK, ModelError, Sessions, Tensor
 from mado.extend import Filler
@@ -109,7 +109,7 @@ def test_the_time_lama_takes_isnt_learned_as_the_upscalers():
     image = photo_like((96, 72))
     seen = see(image, Picture(Path("Tide.jpg"), "picture", "JPEG", None))
     made = planned(
-        Recipe(size=resolve("other-256x144", []), shape="extend"),
+        Recipe(Sizing(size=resolve("other-256x144", []), shape="extend")),
         seen,
         {"photo": "fast", "drawing": "fast"},
     )

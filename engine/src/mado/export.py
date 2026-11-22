@@ -10,15 +10,18 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from mado import __version__, db
+from mado import __version__, db, own_looks
 from mado.config import DataPaths
+
+_UNSAFE = str.maketrans(dict.fromkeys('<>:"/\\|?*', "-"))
 
 
 def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> Path | None:
     """Write `Mado export <date>.zip` into `folder` and return its path: the database, its
     settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
     each), History as CSV (each picture made, replaced or taken away, and what waits in
-    quarantine), and a manifest saying which Mado wrote it.
+    quarantine), the owner's looks (listed in JSON, each a .cube file any app opens), and a
+    manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -41,6 +44,7 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             library_folders = _folders(source)
             pictures = _pictures(source)
             done = _history(source)
+            looks = _looks(source)
             schema_version = db.schema_version(source)
 
         manifest = {
@@ -55,8 +59,39 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             archive.writestr("folders.json", json.dumps(library_folders, indent=2))
             archive.writestr("pictures.csv", pictures)
             archive.writestr("history.csv", done)
+            archive.writestr("looks.json", json.dumps([each for each, _ in looks], indent=2))
+            for listed, text in looks:
+                archive.writestr(str(listed["file"]), text)
             archive.writestr("manifest.json", json.dumps(manifest, indent=2))
     return target
+
+
+def _looks(conn: sqlite3.Connection) -> list[tuple[dict[str, object], str]]:
+    """The owner's looks, each as the export lists it and as a .cube file's text."""
+    if not _has_table(conn, "looks"):
+        return []
+    found: list[tuple[dict[str, object], str]] = []
+    files: set[str] = set()
+    for kept in own_looks.listed(conn):
+        mine = own_looks.found(conn, kept.id)
+        if mine is None or mine[1].grid is None:
+            continue  # a table damaged in the records: nothing to write out
+        base = f"looks/{kept.name.translate(_UNSAFE)}"
+        file, number = f"{base}.cube", 2
+        while file.casefold() in files:
+            file, number = f"{base} ({number}).cube", number + 1
+        files.add(file.casefold())
+        listed: dict[str, object] = {
+            "name": kept.name,
+            "kind": kept.kind,
+            "source": kept.source,
+            "touches": {touch: kept.touches.amount(touch) for touch in kept.touches.on()},
+            "points": kept.points,
+            "addedAt": kept.added_at,
+            "file": file,
+        }
+        found.append((listed, own_looks.cube_text(kept.name, mine[1].grid)))
+    return found
 
 
 def _settings(conn: sqlite3.Connection) -> dict[str, object]:
@@ -104,35 +139,33 @@ def _pictures(conn: sqlite3.Connection) -> str:
     return out.getvalue()
 
 
+# Each of History's columns as the export names it, and the column it's kept in.
 _HISTORY_COLUMNS = (
-    "at", "kind", "name", "madeFor", "original", "result", "aside", "clearedAt", "undoneAt",
-)  # fmt: skip
+    ("at", "at"),
+    ("kind", "kind"),
+    ("name", "name"),
+    ("madeFor", "made_for"),
+    ("look", "look"),
+    ("original", "original"),
+    ("result", "result"),
+    ("aside", "aside"),
+    ("clearedAt", "cleared_at"),
+    ("clearedBy", "cleared_by"),
+    ("undoneAt", "undone_at"),
+)
 
 
 def _history(conn: sqlite3.Connection) -> str:
-    """What Mado did, oldest first, as CSV: each picture made or replaced, what waits in
-    quarantine, and what was undone."""
+    """What Mado did, oldest first, as CSV: each picture made or replaced, what it was made for
+    and with, what waits in quarantine, and what was undone."""
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
-    writer.writerow(_HISTORY_COLUMNS)
+    writer.writerow(name for name, _column in _HISTORY_COLUMNS)
     if _has_table(conn, "history"):
         for row in conn.execute("SELECT * FROM history ORDER BY at, id"):
+            kept = row.keys()
             writer.writerow(
-                tuple(
-                    row[column] or ""
-                    for column in (
-                        "at",
-                        "kind",
-                        "name",
-                        "made_for",
-                        "original",
-                        "result",
-                        "aside",
-                        "cleared_at",
-                        "cleared_by",
-                        "undone_at",
-                    )
-                )
+                (row[column] or "") if column in kept else "" for _name, column in _HISTORY_COLUMNS
             )
     return out.getvalue()
 

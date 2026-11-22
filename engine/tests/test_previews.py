@@ -2,11 +2,15 @@
 
 import os
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 import pytest
 from PIL import Image
 
+from mado import previews as mado_previews
 from mado.config import DataPaths
 from mado.core.files import Kind
 from mado.pictures import NeedsFfmpegError, UnreadableError
@@ -195,3 +199,24 @@ def test_a_heif_gets_its_copies_through_ffmpeg(paths: DataPaths, tmp_path: Path)
     full, media = previews.full(source(path))
     assert media == "image/png"
     assert full.is_relative_to(paths.cache)
+
+
+def test_a_copy_asked_for_twice_at_once_is_made_once(
+    previews: Previews, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    picture = source(draw(tmp_path / "IMG.jpg", size=(800, 600)))
+    decoded: list[Path] = []
+    real = mado_previews.decode
+
+    def slow(path: Path, kind: Kind, **options: Any) -> Image.Image:
+        decoded.append(path)
+        time.sleep(0.2)  # long enough for the second ask to come while the first is made
+        return real(path, kind, **options)
+
+    monkeypatch.setattr(mado_previews, "decode", slow)
+    with ThreadPoolExecutor(2) as pool:
+        asks = [pool.submit(previews.thumbnail, picture) for _ in range(2)]
+        made = [ask.result() for ask in asks]
+
+    assert made[0] == made[1]
+    assert decoded == [picture.path]

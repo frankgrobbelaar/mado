@@ -642,8 +642,8 @@ export type Quality = "fast" | "best";
 export type Shape = "crop" | "extend";
 export type SaveFormat = "JPEG" | "PNG" | "WebP" | "AVIF";
 
-/** What the owner asks for on the Size tab. */
-export interface Recipe {
+/** The size step: what the owner asks for on the Size tab. */
+export interface SizeStep {
   size: string;
   shape: Shape;
   /** The point to crop around, as fractions across and down; null: as Mado finds it. */
@@ -653,6 +653,25 @@ export interface Recipe {
   /** null: as this PC starts on. */
   quality: Quality | null;
   clean: boolean;
+}
+
+export type TouchName = "grain" | "vignette" | "glow" | "fade" | "leak" | "dust";
+/** Each finishing touch's amount, 0 (off) to 100. */
+export type Touches = Record<TouchName, number>;
+
+/** The look step: what the owner asks for on the Looks tab. */
+export interface LookStep {
+  /** A look's id: "warm-film", or one of the owner's, "yours-3". */
+  look: string;
+  /** 0 to 1. */
+  strength: number;
+  touches: Touches;
+}
+
+/** One picture, one recipe: what the Size and Looks tabs set together, made by one Save. */
+export interface Recipe {
+  size: SizeStep | null;
+  look: LookStep | null;
 }
 
 /** A part of the picture as fractions of its width and height. */
@@ -670,10 +689,11 @@ export interface Need {
   size: number;
 }
 
-/** How a picture would be made for a size. */
+/** How a picture would be made to a recipe. */
 export interface Plan {
   width: number;
   height: number;
+  /** What the size makes it for: "TV 8K"; empty with no size. */
   label: string;
   shape: Shape;
   sides: "none" | "top and bottom" | "sides";
@@ -688,12 +708,15 @@ export interface Plan {
   kind: PictureKind;
   kindGuessed: boolean;
   quality: Quality;
-  method: "ai" | "pixels" | "smooth" | "shrink";
+  /** "keep": no size, its pixels as they are. */
+  method: "ai" | "pixels" | "smooth" | "shrink" | "keep";
   model: string | null;
   how: string;
   warning: string | null;
   /** Cleaning first changes the model (Fast keeps grain without it). */
   cleanMatters: boolean;
+  /** The look, as Save says it after "with": "Warm film at 60%"; null with no look. */
+  look: string | null;
   seconds: number;
   place: "card" | "processor";
   /** The time is this PC's own, not a guess. */
@@ -736,9 +759,59 @@ function useEnginePost<T>(path: string, body: unknown, enabled = true) {
   });
 }
 
-/** How a picture would be made to a recipe (null: no size chosen yet). */
+/** How a picture would be made to a recipe (null: nothing chosen yet). */
 export const usePlan = (id: number, recipe: Recipe | null) =>
   useEnginePost<Plan>(`/pictures/${id}/plan`, recipe, recipe !== null);
+
+// Looks: Mado's and the owner's own (the Looks tab).
+
+/** One of Mado's looks. */
+export interface Look {
+  /** "warm-film"; the owner's are "yours-3". */
+  id: string;
+  name: string;
+  /** Changes when its table does: its small copies' addresses carry it. */
+  version: string;
+}
+
+/** One of the owner's looks: a .cube file imported, or a mix kept from the Looks tab. */
+export interface YourLook {
+  /** "yours-3" */
+  id: string;
+  name: string;
+  kind: "cube" | "mix";
+  /** Its table's points a side. */
+  points: number;
+  /** A mix's, which picking it brings back. */
+  touches: Touches;
+  /** The .cube file's name, or what the mix is made of: "Warm film at 60%, grain 20". */
+  source: string;
+  addedAt: string;
+}
+
+export interface Looks {
+  /** Mado's, the original first. */
+  looks: Look[];
+  /** The owner's, oldest first. */
+  yours: YourLook[];
+}
+
+export const useLooks = () => useEngineQuery<Looks>("/looks");
+
+/** A small copy of a picture in a look: its address carries both their versions, so a picture
+ * or a look that changes is shown anew. */
+export function lookAddress(picture: { id: number; version: string }, look: Look) {
+  return `/pictures/${picture.id}/looks/${look.id}?v=${encodeURIComponent(picture.version)}-${look.version}`;
+}
+
+/** Imports a .cube file: `importing.mutate({ path: "/looks/import", body: { path } })`. */
+export const useImportLook = () => useEngineAction<YourLook>(["/looks"]);
+/** Keeps the mix: `keep.mutate({ path: "/looks", body: { name, look } })`. */
+export const useKeepLook = () => useEngineAction<YourLook>(["/looks"]);
+/** Renames one: `rename.mutate({ path: "/looks/yours-3", body: { name } })`. */
+export const useRenameLook = () => useEngineAction<YourLook>(["/looks"], "PUT");
+/** Deletes one: `remove.mutate({ path: "/looks/yours-3" })`. */
+export const useDeleteLook = () => useEngineAction<void>(["/looks"], "DELETE");
 
 /** A part of the picture made, in its pixels. */
 export interface Region {
@@ -759,11 +832,15 @@ export interface PreviewAsk {
 
 /**
  * A preview of a picture made (a part at full detail, or all of it fitted), as an address the page
- * can show, how long it took to make, and why it couldn't be. A null `ask` lets it go.
+ * can show, how long it took to make, and why it couldn't be. A null `ask` lets it go. Asked once
+ * the ask stops changing; an answer to an ask since changed is dropped. With `keep`, the last
+ * preview of the same picture stays shown while the next is made, so going from look to look
+ * never flashes back; another picture's never stands in.
  */
 export function usePreview(
   id: number,
   ask: PreviewAsk | null,
+  { keep = false }: { keep?: boolean } = {},
 ): { address: string | null; problem: string | null; seconds: number | null; busy: boolean } {
   const engine = useEngine();
   const wanted = ask ? JSON.stringify(ask) : null;
@@ -771,14 +848,26 @@ export function usePreview(
   const settled = useSettled(wanted, 150);
   const sent = settled === wanted ? wanted : null;
   const [shown, setShown] = useState<{
+    id: number;
     sent: string;
     address: string | null;
     problem: string | null;
     seconds: number | null;
   } | null>(null);
+  // The address shown now: let go once the next one is shown, or the preview is.
+  const current = useRef<string | null>(null);
+  const showing = useCallback((next: string | null) => {
+    if (current.current && current.current !== next) URL.revokeObjectURL(current.current);
+    current.current = next;
+  }, []);
+  useEffect(() => () => showing(null), [showing]);
+  useEffect(() => {
+    if (wanted !== null) return;
+    showing(null); // let go, and forgotten: it's never shown again
+    setShown(null);
+  }, [wanted, showing]);
   useEffect(() => {
     if (sent === null || engine.state !== "ready") return;
-    let address: string | null = null;
     let cancelled = false;
     const stop = new AbortController();
     fetch(new URL(`/pictures/${id}/preview`, engine.url), {
@@ -791,7 +880,7 @@ export function usePreview(
         if (cancelled) return;
         if (!response.ok) {
           const problem = (await problemIn(response)) ?? "Mado couldn't make the preview.";
-          if (!cancelled) setShown({ sent, address: null, problem, seconds: null });
+          if (!cancelled) setShown({ id, sent, address: null, problem, seconds: null });
           return;
         }
         // How long it took, when the engine says (a header it lets the window read).
@@ -799,8 +888,10 @@ export function usePreview(
         const seconds = said === null ? null : Number(said);
         const blob = await response.blob();
         if (cancelled) return;
-        address = URL.createObjectURL(blob);
+        const address = URL.createObjectURL(blob);
+        showing(address);
         setShown({
+          id,
           sent,
           address,
           problem: null,
@@ -809,17 +900,25 @@ export function usePreview(
       })
       .catch(() => {
         if (!cancelled)
-          setShown({ sent, address: null, problem: "Mado's engine didn't answer.", seconds: null });
+          setShown({
+            id,
+            sent,
+            address: null,
+            problem: "Mado's engine didn't answer.",
+            seconds: null,
+          });
       });
     return () => {
       cancelled = true;
       stop.abort();
-      if (address) URL.revokeObjectURL(address);
     };
-  }, [engine, id, sent]);
+  }, [engine, id, sent, showing]);
   if (wanted === null) return { address: null, problem: null, seconds: null, busy: false };
-  if (shown === null || shown.sent !== wanted)
-    return { address: null, problem: null, seconds: null, busy: true };
+  const ours = shown !== null && shown.id === id && shown.address === current.current;
+  if (shown === null || shown.id !== id || shown.sent !== wanted) {
+    const last = keep && ours ? shown.address : null;
+    return { address: last, problem: null, seconds: null, busy: true };
+  }
   return { address: shown.address, problem: shown.problem, seconds: shown.seconds, busy: false };
 }
 
@@ -873,10 +972,13 @@ export interface Job {
   pictureId: number | null;
   /** The original's file name. */
   name: string;
-  madeFor: string;
+  /** What its size makes it for: "TV 8K"; null with no size. */
+  madeFor: string | null;
+  /** What it's made with: "Warm film at 60%"; null with no look. */
+  look: string | null;
   how: "new" | "replace";
   state: JobState;
-  stage: "reading" | "shaping" | "making" | "saving" | null;
+  stage: "reading" | "shaping" | "making" | "looking" | "saving" | null;
   /** 0 to 1. */
   progress: number;
   secondsLeft: number | null;
@@ -925,7 +1027,10 @@ export interface HistoryEntry {
   kind: "made" | "replaced" | "emptied";
   /** The original's file name; the drive, for a quarantine emptied. */
   name: string;
+  /** What its size made it for: "TV 8K". */
   madeFor: string | null;
+  /** What it was made with: "Warm film at 60%". */
+  look: string | null;
   original: string | null;
   result: string | null;
   resultName: string | null;

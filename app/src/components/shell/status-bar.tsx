@@ -1,5 +1,5 @@
 import { useActiveJobs, useEngine, useHealth, useLibrary, useScan } from "@/lib/engine";
-import { count, stem } from "@/lib/format";
+import { count, madeWith, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const STATES = { starting: "Starting", ready: "Ready", failed: "Stopped" } as const;
@@ -30,7 +30,7 @@ export function StatusBar() {
       {version && <span>Mado {version}</span>}
       {making && (
         <span>
-          Making {stem(making.name)} for {making.madeFor} · {Math.round(making.progress * 100)}%
+          Making {stem(making.name)} {madeWith(making)} · {Math.round(making.progress * 100)}%
         </span>
       )}
       {scan?.state === "running" && (

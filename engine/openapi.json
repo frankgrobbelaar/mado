@@ -832,7 +832,7 @@
     "/pictures/{picture_id}/plan": {
       "post": {
         "summary": "Plan For",
-        "description": "How a picture would be made for a size: its shape, the model, about how long it takes\nhere and how it would be saved.",
+        "description": "How a picture would be made to a recipe: its shape, the model, its look, about how long it\ntakes here and how it would be saved.",
         "operationId": "plan_for_pictures__picture_id__plan_post",
         "security": [
           {
@@ -887,7 +887,7 @@
     "/pictures/{picture_id}/preview": {
       "post": {
         "summary": "Preview",
-        "description": "A preview of the picture made: a part of it at full detail (`region`), or all of it no\nbigger than `fit`; before (the picture only stretched) or after (made, as Save would).",
+        "description": "A preview of the picture made: all of it no bigger than `fit` (from its view the size of a\nscreen), or a part of it at full detail (`region`); before (the picture only stretched) or\nafter (made, as Save would, with its look and touches). All of it comes as JPEG, quick to\nmake as looks are gone through (WebP when it has see-through parts); a part as WebP.",
         "operationId": "preview_pictures__picture_id__preview_post",
         "security": [
           {
@@ -919,6 +919,7 @@
           "200": {
             "description": "Successful Response",
             "content": {
+              "image/jpeg": {},
               "image/webp": {}
             }
           },
@@ -993,7 +994,7 @@
     "/pictures/{picture_id}/make": {
       "post": {
         "summary": "Make",
-        "description": "Makes a picture for a size and saves it as the owner chose, as a job: its progress, the\ntime left and Cancel come from /jobs.",
+        "description": "Makes a picture to its recipe and saves it as the owner chose, as a job: its progress,\nthe time left and Cancel come from /jobs.",
         "operationId": "make_pictures__picture_id__make_post",
         "security": [
           {
@@ -1031,6 +1032,257 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/looks": {
+      "get": {
+        "summary": "Looks",
+        "description": "Mado's looks and the owner's own.",
+        "operationId": "looks_looks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Looks"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Keep Mix",
+        "description": "Keeps the mix on the Looks tab (a look, its strength and its touches) as a look.",
+        "operationId": "keep_mix_looks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeepIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YourLook"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/pictures/{picture_id}/looks/{look_id}": {
+      "get": {
+        "summary": "Small Copy",
+        "description": "A small copy of the picture in a look, made from its thumbnail: WebP, kept by the window\n(its address carries the picture's version and the look's).",
+        "operationId": "small_copy_pictures__picture_id__looks__look_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          },
+          {
+            "name": "look_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Look Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/looks/import": {
+      "post": {
+        "summary": "Import Cube",
+        "description": "Keeps a .cube file as one of the owner's looks, named after its title or its file.",
+        "operationId": "import_cube_looks_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YourLook"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/looks/{look_id}": {
+      "put": {
+        "summary": "Rename",
+        "description": "Gives one of the owner's looks a new name.",
+        "operationId": "rename_looks__look_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "look_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Look Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YourLook"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete",
+        "description": "Deletes one of the owner's looks. Pictures made with it stay as they are.",
+        "operationId": "delete_looks__look_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "look_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Look Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -2168,6 +2420,17 @@
             ],
             "title": "Madefor"
           },
+          "look": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look"
+          },
           "original": {
             "anyOf": [
               {
@@ -2297,6 +2560,7 @@
           "kind",
           "name",
           "madeFor",
+          "look",
           "original",
           "result",
           "resultName",
@@ -2505,6 +2769,19 @@
         ],
         "title": "HistoryOut"
       },
+      "ImportIn": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "ImportIn"
+      },
       "ImportRequest": {
         "properties": {
           "path": {
@@ -2540,8 +2817,26 @@
             "title": "Name"
           },
           "madeFor": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Madefor"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look"
           },
           "how": {
             "type": "string",
@@ -2562,6 +2857,7 @@
                   "reading",
                   "shaping",
                   "making",
+                  "looking",
                   "saving"
                 ]
               },
@@ -2662,6 +2958,7 @@
           "pictureId",
           "name",
           "madeFor",
+          "look",
           "how",
           "state",
           "stage",
@@ -2686,6 +2983,24 @@
           "failed",
           "cancelled"
         ]
+      },
+      "KeepIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "look": {
+            "$ref": "#/components/schemas/LookIn"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "look"
+        ],
+        "title": "KeepIn"
       },
       "Kind": {
         "type": "string",
@@ -2831,6 +3146,77 @@
           "pictures"
         ],
         "title": "LibraryPart"
+      },
+      "LookIn": {
+        "properties": {
+          "look": {
+            "type": "string",
+            "title": "Look"
+          },
+          "strength": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strength",
+            "default": 1.0
+          },
+          "touches": {
+            "$ref": "#/components/schemas/TouchesIn"
+          }
+        },
+        "type": "object",
+        "required": [
+          "look"
+        ],
+        "title": "LookIn",
+        "description": "The look step: a look by its id, at a strength, with its touches."
+      },
+      "LookOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version"
+        ],
+        "title": "LookOut"
+      },
+      "Looks": {
+        "properties": {
+          "looks": {
+            "items": {
+              "$ref": "#/components/schemas/LookOut"
+            },
+            "type": "array",
+            "title": "Looks"
+          },
+          "yours": {
+            "items": {
+              "$ref": "#/components/schemas/YourLook"
+            },
+            "type": "array",
+            "title": "Yours"
+          }
+        },
+        "type": "object",
+        "required": [
+          "looks",
+          "yours"
+        ],
+        "title": "Looks"
       },
       "MakeIn": {
         "properties": {
@@ -3421,7 +3807,8 @@
               "ai",
               "pixels",
               "smooth",
-              "shrink"
+              "shrink",
+              "keep"
             ],
             "title": "Method"
           },
@@ -3454,6 +3841,17 @@
           "cleanMatters": {
             "type": "boolean",
             "title": "Cleanmatters"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look"
           },
           "seconds": {
             "type": "number",
@@ -3529,6 +3927,7 @@
           "how",
           "warning",
           "cleanMatters",
+          "look",
           "seconds",
           "place",
           "measured",
@@ -3593,60 +3992,29 @@
       "RecipeIn": {
         "properties": {
           "size": {
-            "type": "string",
-            "title": "Size"
-          },
-          "shape": {
-            "$ref": "#/components/schemas/Shape",
-            "default": "crop"
-          },
-          "focus": {
             "anyOf": [
               {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array",
-                "maxItems": 2,
-                "minItems": 2
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Focus"
-          },
-          "kind": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Kind"
+                "$ref": "#/components/schemas/SizeIn"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "quality": {
+          "look": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Quality"
+                "$ref": "#/components/schemas/LookIn"
               },
               {
                 "type": "null"
               }
             ]
-          },
-          "clean": {
-            "type": "boolean",
-            "title": "Clean",
-            "default": true
           }
         },
         "type": "object",
-        "required": [
-          "size"
-        ],
-        "title": "RecipeIn"
+        "title": "RecipeIn",
+        "description": "A recipe: the size step, then the look step; either can be left out."
       },
       "Region": {
         "properties": {
@@ -3680,6 +4048,20 @@
         ],
         "title": "Region",
         "description": "A part of the picture made, in its pixels."
+      },
+      "RenameIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RenameIn"
       },
       "Restored": {
         "properties": {
@@ -4108,6 +4490,65 @@
           "extend"
         ]
       },
+      "SizeIn": {
+        "properties": {
+          "size": {
+            "type": "string",
+            "title": "Size"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/Shape",
+            "default": "crop"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Kind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clean": {
+            "type": "boolean",
+            "title": "Clean",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "size"
+        ],
+        "title": "SizeIn",
+        "description": "The size step, as the Size tab asks for it."
+      },
       "SizeOut": {
         "properties": {
           "id": {
@@ -4291,6 +4732,55 @@
         ],
         "title": "Tool"
       },
+      "TouchesIn": {
+        "properties": {
+          "grain": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Grain",
+            "default": 0
+          },
+          "vignette": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Vignette",
+            "default": 0
+          },
+          "glow": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Glow",
+            "default": 0
+          },
+          "fade": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Fade",
+            "default": 0
+          },
+          "leak": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Leak",
+            "default": 0
+          },
+          "dust": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Dust",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TouchesIn",
+        "description": "Each finishing touch's amount, 0 (off) to 100."
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -4330,6 +4820,52 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "YourLook": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cube",
+              "mix"
+            ],
+            "title": "Kind"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "touches": {
+            "$ref": "#/components/schemas/TouchesIn"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "addedAt": {
+            "type": "string",
+            "title": "Addedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "points",
+          "touches",
+          "source",
+          "addedAt"
+        ],
+        "title": "YourLook"
       },
       "mado__scan__State": {
         "type": "string",

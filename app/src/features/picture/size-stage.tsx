@@ -1,16 +1,18 @@
 import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import {
+  type LookStep,
   type PictureDetails,
   type Plan,
   pictureAddress,
-  type Recipe,
   type Region,
+  type SizeStep,
   usePictureImage,
   usePreview,
 } from "@/lib/engine";
 import { about, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Zoom } from "./stage";
+import { fitted, useBox } from "./stage-box";
 
 const LABEL = "absolute rounded-4 bg-black/70 px-2.5 py-1 text-12 text-white";
 const MOST_PREVIEW = 4_000_000; // pixels the engine makes of a part at once
@@ -19,23 +21,26 @@ const MOST_PREVIEW = 4_000_000; // pixels the engine makes of a part at once
  * The picture as the Size tab makes it, as Picture-Size draws it. Fitted: the part kept framed
  * (the rest dimmed), the point it's cropped around to drag; or, extending, the new edges as
  * LaMa draws them. At 100% or 400%: before and after, the line between them dragged to compare,
- * a part of the picture made at full detail, moved by dragging.
+ * a part of the picture made at full detail, moved by dragging; after carries the look chosen on
+ * the Looks tab too, as Save makes it.
  */
 export function SizeStage(props: {
   picture: PictureDetails;
   plan: Plan;
-  recipe: Recipe;
+  size: SizeStep;
+  /** The look chosen on the Looks tab, which after carries; null with none. */
+  look: LookStep | null;
   zoom: Zoom;
   onFocus: (focus: [number, number]) => void;
 }) {
-  const { picture, plan, recipe, zoom } = props;
+  const { picture, plan, size, zoom } = props;
   // Previews are asked for as the plan decided, so they follow it: a model downloaded since
   // makes Best the way, and the preview shows Best.
-  const decided: Recipe = {
-    ...recipe,
-    kind: recipe.kind ?? plan.kind,
-    quality: recipe.quality ?? plan.quality,
-    focus: recipe.focus ?? plan.focus,
+  const decided: SizeStep = {
+    ...size,
+    kind: size.kind ?? plan.kind,
+    quality: size.quality ?? plan.quality,
+    focus: size.focus ?? plan.focus,
   };
   return (
     <>
@@ -43,12 +48,18 @@ export function SizeStage(props: {
         <Fitted
           picture={picture}
           plan={plan}
-          recipe={recipe}
+          size={size}
           decided={decided}
           onFocus={props.onFocus}
         />
       ) : (
-        <Compared picture={picture} plan={plan} recipe={decided} scale={zoom === "400" ? 4 : 1} />
+        <Compared
+          picture={picture}
+          plan={plan}
+          size={decided}
+          look={props.look}
+          scale={zoom === "400" ? 4 : 1}
+        />
       )}
       <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
         <span>
@@ -76,8 +87,8 @@ export function SizeStage(props: {
 function Fitted(props: {
   picture: PictureDetails;
   plan: Plan;
-  recipe: Recipe;
-  decided: Recipe;
+  size: SizeStep;
+  decided: SizeStep;
   onFocus: (focus: [number, number]) => void;
 }) {
   const { picture, plan } = props;
@@ -91,15 +102,20 @@ function Fitted(props: {
     (extending ? plan.canvas.width / plan.canvas.height : 1);
   const fit = fitted(box, ratio);
   const lama = plan.needs.find((each) => each.id === "lama");
+  // The new edges alone, without the look, so they meet the picture under them seamlessly.
   const drawn = usePreview(
     picture.id,
     extending && !lama
-      ? { recipe: props.decided, side: "after", fit: { width: 1600, height: 1600 } }
+      ? {
+          recipe: { size: props.decided, look: null },
+          side: "after",
+          fit: { width: 1600, height: 1600 },
+        }
       : null,
   );
   const [dragging, setDragging] = useState<[number, number] | null>(null);
   // Where the point was last put: the plan for it may still be on its way.
-  const placed = props.recipe.focus ?? plan.focus;
+  const placed = props.size.focus ?? plan.focus;
   const focus = dragging ?? placed;
 
   function at(event: PointerEvent<HTMLElement>): [number, number] {
@@ -225,9 +241,16 @@ function Fitted(props: {
 }
 
 /** Before and after at full detail, a part of the picture made, the line between them dragged
- * or moved with the arrow keys, the part moved by dragging or with the arrow keys. */
-function Compared(props: { picture: PictureDetails; plan: Plan; recipe: Recipe; scale: number }) {
-  const { picture, plan, recipe, scale } = props;
+ * or moved with the arrow keys, the part moved by dragging or with the arrow keys. After carries
+ * the look, as Save makes it; before is the picture only stretched. */
+function Compared(props: {
+  picture: PictureDetails;
+  plan: Plan;
+  size: SizeStep;
+  look: LookStep | null;
+  scale: number;
+}) {
+  const { picture, plan, size, look, scale } = props;
   const area = useRef<HTMLDivElement>(null);
   const box = useBox(area);
   const pixels = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
@@ -249,11 +272,11 @@ function Compared(props: { picture: PictureDetails; plan: Plan; recipe: Recipe; 
   const waiting = plan.needs.map((each) => each.name).join(" and ");
   const after = usePreview(
     picture.id,
-    box.measured && !waiting ? { recipe, side: "after", region } : null,
+    box.measured && !waiting ? { recipe: { size, look }, side: "after", region } : null,
   );
   const before = usePreview(
     picture.id,
-    box.measured && !lama ? { recipe, side: "before", region } : null,
+    box.measured && !lama ? { recipe: { size, look: null }, side: "before", region } : null,
   );
   const shown = {
     width: (region.width * scale) / (pixels * within),
@@ -457,35 +480,6 @@ function caption(plan: Plan, drawing: boolean): ReactNode {
   if (plan.shape === "extend")
     return drawing ? "LaMa is drawing the new edges…" : "The new edges are drawn by LaMa";
   return plan.focusFound ? "Cropped around the most detailed part" : "Cropped around your point";
-}
-
-/** The space a stage has, kept as the window changes; `measured` once it's known, not guessed
- * (where nothing can measure it, the guess is all there is). */
-function useBox(area: { current: HTMLElement | null }) {
-  const unmeasurable = typeof ResizeObserver === "undefined";
-  const [box, setBox] = useState({ width: 1000, height: 560, measured: unmeasurable });
-  useEffect(() => {
-    const here = area.current;
-    if (!here || typeof ResizeObserver === "undefined") return;
-    const watch = new ResizeObserver(([entry]) => {
-      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0)
-        setBox({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
-          measured: true,
-        });
-    });
-    watch.observe(here);
-    return () => watch.disconnect();
-  }, [area]);
-  return box;
-}
-
-/** Something of `ratio` fitted in `box`, in its middle. */
-function fitted(box: { width: number; height: number }, ratio: number) {
-  const width = Math.min(box.width, box.height * ratio);
-  const height = width / ratio;
-  return { width, height, left: (box.width - width) / 2, top: (box.height - height) / 2 };
 }
 
 function capitalised(text: string): string {

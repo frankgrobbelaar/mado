@@ -39,6 +39,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Typer | 0.29 | The engine's command line | [fastapi.md](stack/fastapi.md) |
 | SQLite | bundled with Python | Mado's one database file | [sqlite.md](stack/sqlite.md) |
 | Pillow | 13.0 | Reading pictures: their facts and EXIF, and the copies the window shows | [pillow.md](stack/pillow.md) |
+| Looks | Pillow's Color3DLUT, Mado's own code | Looks as tables of colours (Mado's, `.cube` files, mixes kept), finishing touches drawn by code | [looks.md](stack/looks.md) |
 | watchdog | 7.1 | Noticing new, changed and removed pictures in the library's folders | [watchdog.md](stack/watchdog.md) |
 | ffmpeg | 9.0.2 (downloaded on first run) | Decoding a phone's HEIC; more formats for Mado's tools to come | [ffmpeg.md](stack/ffmpeg.md) |
 | ONNX Runtime (DirectML) | 1.24.4 | Running the AI models on the graphics card, or the processor | [upscaling.md](stack/upscaling.md) |
@@ -51,5 +52,5 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | GitHub Actions | | CI and releases | [github-actions.md](stack/github-actions.md) |
 | NSIS | via Tauri | The Windows installer | [tauri.md](stack/tauri.md#installer) |
 
-Tools still to come (the models for looks, selecting, erasing and the library) get a page, or a
+Tools still to come (the models for selecting, erasing, depth and the library) get a page, or a
 section, when they're first used.

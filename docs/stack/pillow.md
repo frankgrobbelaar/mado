@@ -22,6 +22,7 @@ repeats, so THIRD-PARTY-NOTICES.txt carries them with it.
 | `mado/core/facts.py` | EXIF's values in Mado's words: when it was taken, the camera, which way up, a location |
 | `mado/core/heif.py` | A HEIF's layout: its size, its turn (`irot`, `imir`) and where its Exif is |
 | `mado/previews.py` | The copies the window shows, kept in the data folder's cache |
+| `mado/looks.py` | Looks through `ImageFilter.Color3DLUT`, and the soft touches through `ImageChops` (see [looks.md](looks.md)) |
 | `tests/drawn.py` | Made-up pictures for the tests, with EXIF written the way a camera writes it |
 
 ## The facts

@@ -30,9 +30,10 @@ const LOSSY = new Set<SaveFormat>(["JPEG", "WebP", "AVIF"]);
 
 /**
  * Save, as the Save board draws it: as a new picture (beside the original, named after it with
- * what it was made for, or into a folder chosen), or in the original's place (the original into
- * quarantine for 30 days); the format and quality; what's kept of the original; and "Always save
- * this way". Saving starts the job; its progress shows in the Size tab.
+ * what it was made for and with, or into a folder chosen), or in the original's place (the
+ * original into quarantine for 30 days); the format and quality; what's kept of the original; and
+ * "Always save this way". It saves the whole recipe, the size and the look together. Saving
+ * starts the job; its progress shows in the tab Save was opened from.
  */
 export function SaveDialog(props: {
   picture: PictureDetails;
@@ -50,7 +51,7 @@ export function SaveDialog(props: {
           <>
             <DialogHeader
               title={`Save ${stem(props.picture.name)}`}
-              description={`Made for ${props.plan.label}, ${props.plan.width} × ${props.plan.height}`}
+              description={<MadeAs plan={props.plan} />}
             />
             <DialogBody>
               {settings.isError ? (
@@ -136,17 +137,7 @@ function SaveForm(props: {
 
   return (
     <>
-      <DialogHeader
-        title={`Save ${stem(picture.name)}`}
-        description={
-          <>
-            Made for <span className="font-mono text-fg">{plan.label}</span>,{" "}
-            <span className="font-mono text-fg">
-              {plan.width} × {plan.height}
-            </span>
-          </>
-        }
-      />
+      <DialogHeader title={`Save ${stem(picture.name)}`} description={<MadeAs plan={plan} />} />
       <DialogBody>
         <div role="radiogroup" aria-label="How to save" className="flex flex-col gap-2">
           <Choice
@@ -290,6 +281,36 @@ function SaveForm(props: {
           </Button>
         </span>
       </DialogFooter>
+    </>
+  );
+}
+
+/** What the picture is made for and with, as the Save board's header says it: "Made for TV 8K,
+ * 7680 × 4320", "Made for TV 8K (7680 × 4320), with Warm film at 60%", "With Warm film at 60%,
+ * 4032 × 3024". */
+function MadeAs({ plan }: { plan: Plan }) {
+  const pixels = (
+    <span className="font-mono text-fg">
+      {plan.width} × {plan.height}
+    </span>
+  );
+  const size = <span className="font-mono text-fg">{plan.label}</span>;
+  const look = <span className="text-fg">{plan.look}</span>;
+  if (plan.label && plan.look)
+    return (
+      <>
+        Made for {size} ({pixels}), with {look}
+      </>
+    );
+  if (plan.label)
+    return (
+      <>
+        Made for {size}, {pixels}
+      </>
+    );
+  return (
+    <>
+      With {look}, {pixels}
     </>
   );
 }

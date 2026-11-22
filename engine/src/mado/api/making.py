@@ -1,6 +1,7 @@
-"""Making a picture right for a screen or a print, as the Size tab asks: the sizes there are, the
-owner's screens, the plan for a size (its shape, model, time and quality), a preview of the part
-being looked at, the name it would be saved as, and making it, as a job (mado/api/jobs.py)."""
+"""Making a picture to a recipe, as the Size and Looks tabs ask: the sizes there are, the owner's
+screens, the plan for a recipe (its shape, model, look, time and quality), a preview (all of it
+fitted, or a part at full detail), the name it would be saved as, and making it, as a job
+(mado/api/jobs.py). A recipe is a size step, a look step, or both, made by one Save."""
 
 import io
 import json
@@ -19,21 +20,22 @@ from fastapi.responses import Response
 from PIL import Image
 from pydantic import Field
 
+from mado import own_looks
 from mado.ai import LAMA
-from mado.api.common import ApiModel, Database, Models, Seeing, Toolbox, Working
+from mado.api.common import ApiModel, Copies, Database, Models, Seeing, Toolbox, Working
 from mado.api.jobs import Job, job_of
+from mado.api.looks import LookIn
 from mado.core.estimate import key
 from mado.core.framing import Box, Shape
 from mado.core.kind import Kind
 from mado.core.models import Quality
 from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
 from mado.core.quality import Format, about_bytes, colour_words, suited
-from mado.core.recipe import Plan, Recipe
+from mado.core.recipe import Plan, Recipe, Sizing, Styling
 from mado.core.sizes import (
     MAX_SIDE,
     PRINTS,
     SCREENS,
-    Screen,
     Size,
     SizeError,
     remember,
@@ -41,6 +43,7 @@ from mado.core.sizes import (
     yours,
 )
 from mado.directml import ModelError
+from mado.looks import Placement, seed_of, styled
 from mado.making import (
     Picture,
     Seen,
@@ -52,7 +55,7 @@ from mado.making import (
     waiting_for,
 )
 from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError
-from mado.previews import version
+from mado.previews import Previews, Source, version
 from mado.upscale import Pixels, StoppedError, by_pixels, smaller, smoothly, through_model
 
 router = APIRouter()
@@ -60,6 +63,7 @@ log = logging.getLogger(__name__)
 
 _MOST_PREVIEW = 4_000_000  # pixels a preview of a part may have
 _MARGIN = 16  # pixels of the picture around a part previewed, so its edges see what's beside
+_NOTHING = "Pick a size or a look first: as it is, there's nothing to make."
 
 
 class SizeOut(ApiModel):
@@ -88,13 +92,22 @@ class ScreensSeen(ApiModel):
     seen: Annotated[list[SeenScreen], Field(max_length=16)]  # a PC has a few
 
 
-class RecipeIn(ApiModel):
+class SizeIn(ApiModel):
+    """The size step, as the Size tab asks for it."""
+
     size: str  # an id from /sizes, or "other-5000x3000", "other-20x30cm"
     shape: Shape = "crop"
     focus: Annotated[list[float], Field(min_length=2, max_length=2)] | None = None
     kind: Kind | None = None  # None: as Mado guesses
     quality: Quality | None = None  # None: as this PC starts on
     clean: bool = True
+
+
+class RecipeIn(ApiModel):
+    """A recipe: the size step, then the look step; either can be left out."""
+
+    size: SizeIn | None = None
+    look: LookIn | None = None
 
 
 class Fraction(ApiModel):
@@ -116,7 +129,7 @@ class Need(ApiModel):
 class PlanOut(ApiModel):
     width: int  # the size made
     height: int
-    label: str
+    label: str  # what the size makes it for: "TV 8K"; empty with no size
     shape: Shape
     sides: Literal["none", "top and bottom", "sides"]
     kept: Fraction  # the part of the picture kept
@@ -127,11 +140,12 @@ class PlanOut(ApiModel):
     kind: Kind
     kind_guessed: bool
     quality: Quality
-    method: Literal["ai", "pixels", "smooth", "shrink"]
+    method: Literal["ai", "pixels", "smooth", "shrink", "keep"]  # keep: no size, its pixels kept
     model: str | None  # the model's name, when AI makes it
     how: str  # "Made with the photo model, guessed from the picture."
     warning: str | None  # what it can't make look real
     clean_matters: bool  # cleaning first changes the model (Fast keeps grain without it)
+    look: str | None  # the look, as Save says it after "with": "Warm film at 60%"
     seconds: float  # about how long it takes here
     place: Literal["card", "processor"]
     measured: bool  # the time is this PC's own, not a guess
@@ -226,20 +240,21 @@ def seen_screens(body: ScreensSeen, conn: Database) -> list[SizeOut]:
 def plan_for(
     picture_id: int, body: RecipeIn, conn: Database, sight: Seeing, ai: Models, toolbox: Toolbox
 ) -> PlanOut:
-    """How a picture would be made for a size: its shape, the model, about how long it takes
-    here and how it would be saved."""
-    picture, seen = _seen(conn, sight, picture_id)
-    recipe = _recipe(body, screens_kept(conn))
+    """How a picture would be made to a recipe: its shape, the model, its look, about how long it
+    takes here and how it would be saved."""
+    picture, seen, _source = _seen(conn, sight, picture_id)
+    recipe = _recipe(body, conn)
     here = ai.where()
     made = planned(recipe, seen, ai.starts_on(here))
-    suits = suited(recipe.size.purpose, made.kind, picture.format, alpha=seen.alpha)
+    purpose = recipe.sizing.size.purpose if recipe.sizing else "screen"
+    suits = suited(purpose, made.kind, picture.format, alpha=seen.alpha)
     frame = made.frame
     names = {item.id: item for item, _ in toolbox.status()}
     measured = made.model is not None and key(made.model.id, here.place) in here.speeds
     return PlanOut(
         width=made.width,
         height=made.height,
-        label=recipe.size.label,
+        label=made.made_for or "",
         shape=frame.shape,
         sides=frame.sides,
         kept=_fraction(frame.kept, seen),
@@ -255,6 +270,7 @@ def plan_for(
         how=made.how,
         warning=made.warning,
         clean_matters=made.method == "ai" and made.quality == "fast",
+        look=made.look,
         seconds=estimated(made, here),
         place=here.place,
         measured=measured,
@@ -272,17 +288,21 @@ def plan_for(
     )
 
 
-_WEBP: dict[int | str, dict[str, object]] = {200: {"content": {"image/webp": {}}}}
+_PREVIEWS: dict[int | str, dict[str, object]] = {
+    200: {"content": {"image/jpeg": {}, "image/webp": {}}}
+}
 
 
-@router.post("/pictures/{picture_id}/preview", response_class=Response, responses=_WEBP)
+@router.post("/pictures/{picture_id}/preview", response_class=Response, responses=_PREVIEWS)
 def preview(
-    picture_id: int, body: PreviewIn, conn: Database, sight: Seeing, ai: Models
+    picture_id: int, body: PreviewIn, conn: Database, sight: Seeing, ai: Models, copies: Copies
 ) -> Response:
-    """A preview of the picture made: a part of it at full detail (`region`), or all of it no
-    bigger than `fit`; before (the picture only stretched) or after (made, as Save would)."""
-    picture, seen = _seen(conn, sight, picture_id)
-    recipe = _recipe(body.recipe, screens_kept(conn))
+    """A preview of the picture made: all of it no bigger than `fit` (from its view the size of a
+    screen), or a part of it at full detail (`region`); before (the picture only stretched) or
+    after (made, as Save would, with its look and touches). All of it comes as JPEG, quick to
+    make as looks are gone through (WebP when it has see-through parts); a part as WebP."""
+    picture, seen, source = _seen(conn, sight, picture_id)
+    recipe = _recipe(body.recipe, conn)
     made = planned(recipe, seen, ai.starts_on())
     missing = waiting_for(made, ai)
     # Extending needs LaMa on either side; the upscaler only for a part made at full detail.
@@ -293,17 +313,31 @@ def preview(
         )
     began = time.perf_counter()
     try:
-        image = _previewed(picture, seen, made, body, sight, ai)
+        image = _previewed(picture, source, seen, made, body, sight, ai, copies)
     except ModelError as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
     except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
         raise _refused(error) from None
     except StoppedError:  # never asked to stop: a preview runs to its end
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The preview stopped.") from None
+    except OSError as error:  # keeping the copy it's made from, not the picture
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            f"Mado couldn't keep a copy of it to show in its data folder: "
+            f"{error.strerror or error}. Your picture is as it was.",
+        ) from None
     out = io.BytesIO()
-    image.save(out, format="WEBP", quality=90, method=2)
+    profile = image.info.get("icc_profile")  # its colours, so wide ones show as wide
+    kept = {"icc_profile": profile} if isinstance(profile, bytes) else {}
+    if body.region is None and image.mode in ("RGB", "L"):
+        # JPEG takes a few milliseconds where WebP takes a hundred and more on a grainy picture.
+        image.save(out, format="JPEG", quality=92, subsampling=0, **kept)
+        media = "image/jpeg"
+    else:
+        image.save(out, format="WEBP", quality=90, method=2, **kept)
+        media = "image/webp"
     took = f"{time.perf_counter() - began:.2f}"
-    return Response(out.getvalue(), media_type="image/webp", headers={"X-Made-In": took})
+    return Response(out.getvalue(), media_type=media, headers={"X-Made-In": took})
 
 
 @router.post("/pictures/{picture_id}/saving")
@@ -311,16 +345,18 @@ def saving_name(
     picture_id: int, body: SavingAsk, conn: Database, sight: Seeing, ai: Models
 ) -> SavingName:
     """What a picture made would be saved as, and about how big it would be."""
-    picture, seen = _seen(conn, sight, picture_id)
-    recipe = _recipe(body.recipe, screens_kept(conn))
+    picture, seen, _source = _seen(conn, sight, picture_id)
+    recipe = _recipe(body.recipe, conn)
     made = planned(recipe, seen, ai.starts_on())
+    if made.empty:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
     extension = EXTENSIONS[body.format]
     original = picture.path
     taken: str | None = None
     if body.how == "new":
         folder = Path(body.folder) if body.folder else original.parent
-        first = new_name(original.stem, recipe.size.label, extension, lambda _name: False)
-        name = new_name(original.stem, recipe.size.label, extension, _taken_in(folder))
+        first = new_name(original.stem, made.named, extension, lambda _name: False)
+        name = new_name(original.stem, made.named, extension, _taken_in(folder))
         taken = first if name != first else None
     else:
         folder = original.parent
@@ -342,11 +378,13 @@ def saving_name(
 def make(
     picture_id: int, body: MakeIn, conn: Database, sight: Seeing, ai: Models, jobs: Working
 ) -> Job:
-    """Makes a picture for a size and saves it as the owner chose, as a job: its progress, the
-    time left and Cancel come from /jobs."""
-    picture, seen = _seen(conn, sight, picture_id)
-    recipe = _recipe(body.recipe, screens_kept(conn))
+    """Makes a picture to its recipe and saves it as the owner chose, as a job: its progress,
+    the time left and Cancel come from /jobs."""
+    picture, seen, _source = _seen(conn, sight, picture_id)
+    recipe = _recipe(body.recipe, conn)
     made = planned(recipe, seen, ai.starts_on())
+    if made.empty:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
     if waiting_for(made, ai):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -365,15 +403,25 @@ def make(
                 " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
                 (json.dumps(saving.how),),
             )
-    decided = body.recipe.model_copy(
-        update={"kind": made.kind, "quality": made.quality, "focus": list(made.focus)}
+    asked = body.recipe
+    # What the plan decided, so the job makes what was previewed: the picture's kind, Fast or
+    # Best, and the crop's point, even if this PC's choice changes before it starts.
+    decided = (
+        asked.size.model_copy(
+            update={"kind": made.kind, "quality": made.quality, "focus": list(made.focus)}
+        )
+        if asked.size is not None
+        else None
     )
+    look = asked.look if made.styling is not None else None  # a look that changes nothing isn't
     order = {
-        # What the plan decided, so the job makes what was previewed: the picture's kind, Fast
-        # or Best, and the crop's point, even if this PC's choice changes before it starts.
-        "recipe": decided.model_dump(by_alias=True),
+        "recipe": {
+            "size": decided.model_dump(by_alias=True) if decided else None,
+            "look": look.model_dump(by_alias=True) if look else None,
+        },
         "saving": saving.model_dump(by_alias=True, exclude={"always"}),
-        "label": recipe.size.label,
+        "label": made.made_for,
+        "look": made.look,
         "estimate": round(made.scale, 3),
     }
     job_id = jobs.add(conn, picture_id, picture.path, order)
@@ -381,21 +429,31 @@ def make(
 
 
 def _previewed(
-    picture: Picture, seen: Seen, made: Plan, body: PreviewIn, sight: Sight, ai: Models
+    picture: Picture,
+    source: Source,
+    seen: Seen,
+    made: Plan,
+    body: PreviewIn,
+    sight: Sight,
+    ai: Models,
+    copies: Previews,
 ) -> Image.Image:
-    """The preview as asked for: all of it fitted, or a part at full detail."""
-    version_ = _version_of(picture)
-    if made.frame.shape == "extend" and made.frame.sides != "none":
-        pixels, kept, _at = sight.extended(picture, version_, made.frame.canvas, ai.filler)
-    else:
-        pixels = np.asarray(sight.picture(picture, version_).convert("RGB"))
-        kept = made.frame.kept
+    """The preview as asked for: all of it fitted, or a part at full detail; its look and
+    touches where they fall on the picture made, after."""
+    looked = made.styling if body.side == "after" else None
+    seed = seed_of(picture.path)
     target = (made.width, made.height)
     if body.region is None:
         fit = body.fit or Fit(width=1600, height=1600)
         scale = min(fit.width / target[0], fit.height / target[1], 1.0)
         size = (max(1, round(target[0] * scale)), max(1, round(target[1] * scale)))
-        return Image.fromarray(smaller(pixels, kept, size))
+        base = sight.fitted(
+            (str(picture.path).casefold(), source.version, made.frame, size),
+            lambda: _fitted(picture, source, seen, made, size, sight, ai, copies),
+        )
+        if looked is None:
+            return base
+        return styled(base, looked, seed=seed, placement=Placement.fitted(base.size, target))
     region = body.region
     if region.width * region.height > _MOST_PREVIEW:
         raise HTTPException(
@@ -405,17 +463,73 @@ def _previewed(
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "That part is outside the picture made."
         )
+    version_ = _version_of(picture)
+    decoded = sight.picture(picture, version_)
+    profile = decoded.info.get("icc_profile")
+    if made.frame.shape == "extend" and made.frame.sides != "none":
+        pixels, kept, _at = sight.extended(picture, version_, made.frame.canvas, ai.filler)
+    else:
+        pixels = np.asarray(decoded.convert("RGB"))
+        kept = made.frame.kept
     kx, ky = kept.width / target[0], kept.height / target[1]  # the picture's pixels a made one
     part = Box(
         kept.x + region.x * kx, kept.y + region.y * ky, region.width * kx, region.height * ky
     )
     if body.side == "before":
-        return Image.fromarray(pixels).resize(
+        stretched = Image.fromarray(pixels).resize(
             (region.width, region.height),
             Image.Resampling.BICUBIC,
             box=(part.x, part.y, part.x + part.width, part.y + part.height),
         )
-    return Image.fromarray(_made_part(pixels, part, (region.width, region.height), made, ai))
+        return _profiled(stretched, profile)
+    made_part = Image.fromarray(_made_part(pixels, part, (region.width, region.height), made, ai))
+    made_part = _profiled(made_part, profile)
+    if looked is None:
+        return made_part
+    at = Placement(target[0], target[1], left=region.x, top=region.y)
+    return styled(made_part, looked, seed=seed, placement=at)
+
+
+def _profiled(image: Image.Image, profile: object) -> Image.Image:
+    """The picture with the colour profile it was made from, so its colours show as they are."""
+    if isinstance(profile, bytes):
+        image.info["icc_profile"] = profile
+    return image
+
+
+def _fitted(
+    picture: Picture,
+    source: Source,
+    seen: Seen,
+    made: Plan,
+    size: tuple[int, int],
+    sight: Sight,
+    ai: Models,
+    copies: Previews,
+) -> Image.Image:
+    """The picture made, `size` big: from its view the size of a screen, cut as its plan says
+    (or from the picture itself, when the view has fewer pixels than that); or, with its edges
+    extended, from the canvas LaMa drew."""
+    if made.frame.shape == "extend" and made.frame.sides != "none":
+        version_ = _version_of(picture)
+        canvas, kept, _at = sight.extended(picture, version_, made.frame.canvas, ai.filler)
+        profile = sight.picture(picture, version_).info.get("icc_profile")
+        return _profiled(Image.fromarray(smaller(canvas, kept, size)), profile)
+    kept = made.frame.kept
+    with Image.open(copies.view(source)) as view:
+        view.load()
+        k = view.width / seen.width
+        if kept.width * k >= size[0] or k >= 1:
+            box = (kept.x * k, kept.y * k, (kept.x + kept.width) * k, (kept.y + kept.height) * k)
+            return _profiled(
+                view.resize(size, Image.Resampling.LANCZOS, box=box), view.info.get("icc_profile")
+            )
+    # A big picture on a big, sharp screen: the view would only be stretched.
+    whole = sight.picture(picture, _version_of(picture))
+    box = (kept.x, kept.y, kept.x + kept.width, kept.y + kept.height)
+    return _profiled(
+        whole.resize(size, Image.Resampling.LANCZOS, box=box), whole.info.get("icc_profile")
+    )
 
 
 def _made_part(pixels: Pixels, part: Box, size: tuple[int, int], made: Plan, ai: Models) -> Pixels:
@@ -426,7 +540,7 @@ def _made_part(pixels: Pixels, part: Box, size: tuple[int, int], made: Plan, ai:
             return by_pixels(pixels, part, size)
         case "smooth":
             return smoothly(pixels, part, size)
-        case "shrink":
+        case "shrink" | "keep":
             return smaller(pixels, part, size)
         case "ai":
             pass
@@ -444,7 +558,7 @@ def _made_part(pixels: Pixels, part: Box, size: tuple[int, int], made: Plan, ai:
     return np.ascontiguousarray(whole[cut_y : cut_y + size[1], cut_x : cut_x + size[0]])
 
 
-def _seen(conn: sqlite3.Connection, sight: Seeing, picture_id: int) -> tuple[Picture, Seen]:
+def _seen(conn: sqlite3.Connection, sight: Seeing, picture_id: int) -> tuple[Picture, Seen, Source]:
     row = conn.execute(
         "SELECT * FROM pictures WHERE id = ? AND gone_at IS NULL", (picture_id,)
     ).fetchone()
@@ -459,9 +573,10 @@ def _seen(conn: sqlite3.Connection, sight: Seeing, picture_id: int) -> tuple[Pic
         )
     picture = picture_of(conn, picture_id, Path(row["path"]))
     try:
-        return picture, sight.of(picture, version(row["modified"], row["size"]))
+        seen = sight.of(picture, version(row["modified"], row["size"]))
     except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
         raise _refused(error) from None
+    return picture, seen, Source.of(row)
 
 
 def _version_of(picture: Picture) -> str:
@@ -472,13 +587,27 @@ def _version_of(picture: Picture) -> str:
     return version(stat.st_mtime_ns, stat.st_size)
 
 
-def _recipe(body: RecipeIn, screens: list[Screen]) -> Recipe:
-    try:
-        size = resolve(body.size, screens)
-    except SizeError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
-    focus = (body.focus[0], body.focus[1]) if body.focus else None
-    return Recipe(size, body.shape, focus, body.kind, body.quality, body.clean)
+def _recipe(body: RecipeIn, conn: sqlite3.Connection) -> Recipe:
+    """The recipe asked for: its size (the owner's screens naming theirs) and its look (one of
+    Mado's or the owner's), either of them none."""
+    sizing: Sizing | None = None
+    if body.size is not None:
+        asked = body.size
+        try:
+            size = resolve(asked.size, screens_kept(conn))
+        except SizeError as error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+        focus = (asked.focus[0], asked.focus[1]) if asked.focus else None
+        sizing = Sizing(size, asked.shape, focus, asked.kind, asked.quality, asked.clean)
+    styling: Styling | None = None
+    if body.look is not None:
+        look = own_looks.resolve(conn, body.look.look)
+        if look is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "That look isn't in your looks any more."
+            )
+        styling = Styling(look, body.look.strength, body.look.touches.touches())
+    return Recipe(sizing, styling)
 
 
 def _refused(error: Exception) -> HTTPException:

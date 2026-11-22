@@ -7,6 +7,7 @@ import type {
   Job,
   Library,
   LibraryFolder,
+  Looks,
   Pc,
   PictureItem,
   PicturePage,
@@ -335,6 +336,7 @@ export function plan(overrides: Partial<Plan> = {}): Plan {
     how: "Made with the photo model, guessed from the picture.",
     warning: null,
     cleanMatters: true,
+    look: null,
     seconds: 40,
     place: "card",
     measured: true,
@@ -356,6 +358,7 @@ export function job(overrides: Partial<Job> = {}): Job {
     pictureId: 11,
     name: "Harbour at dusk.heic",
     madeFor: "TV 8K",
+    look: null,
     how: "new",
     state: "running",
     stage: "making",
@@ -438,6 +441,7 @@ export function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     kind: "made",
     name: "Harbour at dusk.heic",
     madeFor: "TV 8K",
+    look: null,
     original: "D:\\Pictures\\Phone\\Harbour at dusk.heic",
     result: "D:\\Pictures\\Phone\\Harbour at dusk (TV 8K).jpg",
     resultName: "Harbour at dusk (TV 8K).jpg",
@@ -453,3 +457,29 @@ export function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     ...overrides,
   };
 }
+
+/** Mado's looks, as the engine lists them, and one of the owner's: a mix kept. */
+export const LOOKS: Looks = {
+  looks: [
+    { id: "original", name: "Original", version: "00000000" },
+    { id: "warm-film", name: "Warm film", version: "1a2b3c4d" },
+    { id: "cool-film", name: "Cool film", version: "2b3c4d5e" },
+    { id: "faded", name: "Faded", version: "3c4d5e6f" },
+    { id: "teal-and-orange", name: "Teal and orange", version: "4d5e6f70" },
+    { id: "silver", name: "Silver", version: "5e6f7081" },
+    { id: "golden-hour", name: "Golden hour", version: "6f708192" },
+    { id: "night-neon", name: "Night neon", version: "708192a3" },
+    { id: "duotone", name: "Duotone", version: "8192a3b4" },
+  ],
+  yours: [
+    {
+      id: "yours-1",
+      name: "Holiday warm",
+      kind: "mix",
+      points: 33,
+      touches: { grain: 20, vignette: 35, glow: 0, fade: 0, leak: 0, dust: 0 },
+      source: "Warm film at 60%, grain 20, vignette 35",
+      addedAt: "2026-11-20T19:00:00+02:00",
+    },
+  ],
+};

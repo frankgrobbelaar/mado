@@ -129,8 +129,12 @@ describe("PicturePage", () => {
     expect(
       within(tools).getByRole("heading", { name: "Make it for a screen" }),
     ).toBeInTheDocument();
-    expect(within(tools).getByText("Size")).toHaveAttribute("aria-current", "page");
-    expect(within(tools).getByText("Looks")).toHaveAttribute("aria-disabled", "true");
+    expect(within(tools).getByRole("tab", { name: "Size" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(within(tools).getByRole("tab", { name: "Looks" })).toBeEnabled();
+    expect(within(tools).getByRole("tab", { name: "Edit" })).toBeDisabled();
     expect(screen.getByText("Pixelworks PW-7 Pro")).toBeInTheDocument();
     expect(screen.getByText("Carries where it was taken")).toBeInTheDocument();
     expect(asked(fetch, "/pictures/12/full")).toHaveLength(0); // only once it's zoomed

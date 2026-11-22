@@ -11,7 +11,9 @@ status bar), Setup (Tools, which can be left while ffmpeg downloads, with This P
 folders), Home (the library in numbers, Add a folder), the Library (the folders as a tree, the
 pictures by the day they were taken, ticks), a picture's page (the picture large at Fit, 100% or
 400%, its neighbours, and its tools column: the Size tab, with the shape over the picture, before
-and after at full detail when zoomed, Save, and the job making it; Looks and Edit still to come),
+and after at full detail when zoomed; the Looks tab, every look as a small copy of the picture,
+its strength, the finishing touches, the owner's own looks, and "Hold to see the original"; one
+Save for both, and the job making it; Edit still to come),
 History (a week at a time, take away and put back, replace again), Settings (General with Saving, Your data with
 Set aside, Updates, About with This PC and the downloads), the update card, the notes at the
 window's foot, and the way back from damaged records. Mado's own screens come from its design

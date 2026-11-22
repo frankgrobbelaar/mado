@@ -22,8 +22,11 @@ a picture right for a screen, the second piece (the Size tab: the devices, the o
 prints at 300 dpi, crop around a focus point or extend with LaMa, the model chosen by what the
 picture is, before and after at full detail; Real-ESRGAN on ONNX Runtime with DirectML, a tile at
 a time, Fast shipped and Best downloaded when asked; saving as a new picture or replacing, the
-original in quarantine; History with undo and put back; This PC tested and timed, as Kura does).
-Next: looks, by [What's next](#whats-next).
+original in quarantine; History with undo and put back; This PC tested and timed, as Kura does);
+and looks, the third (the Looks tab: fourteen looks shown as small copies of the picture and on
+the picture itself, strength, six finishing touches drawn by code, hold to see the original, the
+owner's own looks from .cube files or kept mixes; and one recipe for both tabs, made by one Save).
+Next: the rest of Mado 1.0, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -210,6 +213,34 @@ Everything decided so far. Don't ask again; change only with the owner.
   is non-commercial, and a face finder needs real faces to test on, which Mado never uses; 1.2's
   face restoring brings it. JPEG XL waits for a writer Mado can ship. One job at a time, in a
   jobs table the queue builds on.
+- Looks, as built (2026-11-22, Claude's calls while the owner is away; docs/stack/looks.md):
+  fourteen, the Picture-Looks board's nine and Mado's own Bold colour, Sepia print, Moody blue,
+  Cross-processed and Soft pastel ("Vivid" and "Matte", though suggested, are left out as names
+  other photo apps' filters use). Every look is a table of colours (a 3D LUT) through Pillow's
+  `Color3DLUT`: Mado's made by code at 33 points; a .cube file as the format allows (up to 100 MB,
+  about 129 points; bigger than 65 sampled down), 1D too, with its input range; strength mixes a
+  look with the colours as they were, and fade goes into the same table. The touches (grain,
+  vignette, glow, fade, light leak, dust) are drawn by code, off till turned on (at 20, 35, 30, 30,
+  40 and 30, the board's grain and vignette), placed and sized in the picture made by its short side
+  and grown from the picture's path, so the preview and the picture saved match. A kept mix is its
+  look at its strength made into one table, with its touches, so it never changes under the owner; a
+  look's number is never given to another, so a job naming one deleted fails rather than taking
+  another's; names are unique in any case and never Mado's, an imported file taking "(2)" and a
+  typed name refused with a sentence. Kept packed (16-bit, differences along red, zlib: a 65-point
+  table in about 50 KB), in the export as `looks.json` and a .cube file each. One recipe for both
+  tabs: the size step, then the look step, either left out (a look alone keeps the picture's
+  pixels), made by one Save after the size, so grain never grows; a new picture is named after both
+  ("Harbour at dusk (TV 8K, Warm film).jpg"; the Save board's example named only the size), and
+  History keeps the look apart from the size. The tab follows its board: no zoom or neighbours there
+  (the arrow keys don't change pictures from it), "Hold to see the original" (and the \ key) in
+  their place; resting the pointer on a look shows it; the stage shows the picture as Save makes it,
+  the Size tab's crop or canvas included, and the Size tab's after carries the look. "Open it" on a
+  picture just made shows it as it is, the size and look that made it not kept for it. A look works
+  on a picture's colours in its own colour space, its profile kept (wide colours stay wide), 8 bits
+  as the Size tab makes it, see-through parts untouched, a grey picture grey unless the look colours
+  it. "Only on a part" waits for selection (SAM 2.1), with no control shown; a mask fits as a
+  composite of the picture before and after its look. Save stays at the foot of the tools column on
+  both tabs. The slider's thumb is the text colour without the board's shadow, which isn't a token.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -323,7 +354,8 @@ Everything decided so far. Don't ask again; change only with the owner.
    watched, duplicates and bursts found); the upscaler done properly, with sizes for every device's
    screen; looks, finishing touches and the owner's own, on the whole picture or a part; click to
    select, then erase or cut out; many at once, with recipes and the queue; and the choice between
-   a new picture and replacing.
+   a new picture and replacing. Built: the library and a picture's page, making it for a screen
+   with saving, and looks on the whole picture (a part comes with selecting).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG

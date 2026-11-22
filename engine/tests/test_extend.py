@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 
 from mado.ai import Ai
 from mado.core.framing import Box, frame
-from mado.core.recipe import Recipe
+from mado.core.recipe import Recipe, Sizing
 from mado.core.sizes import resolve
 from mado.directml import Tensor
 from mado.extend import Filler, extended
@@ -126,7 +126,7 @@ def test_a_see_through_pictures_new_edges_are_as_see_through_as_its_edge_beside_
     ImageDraw.Draw(sticker).ellipse([30, 10, 90, 70], fill=(220, 40, 40, 255))
     seen = see(sticker, Picture(Path("Sticker.png"), "picture", "PNG", None))
     made = planned(
-        Recipe(size=resolve("other-512x320", []), shape="extend"),
+        Recipe(Sizing(size=resolve("other-512x320", []), shape="extend")),
         seen,
         {"photo": "fast", "drawing": "fast"},
     )

@@ -26,7 +26,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows), making pictures right for a screen (the AI models on the graphics card) and saving them, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows), making pictures right for a screen (the AI models on the graphics card) and giving them a look, and saving them, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -114,6 +114,22 @@ flowchart LR
 | History | `mado/history.py`, `mado/quarantine.py` | What Mado made, a week at a time, its undo and redo (a picture's changes newest first); the quarantine on each drive, the daily clear-out after 30 days (`mado/care.py`, a drive not connected waiting for it), emptying a drive by hand |
 | This PC | `mado/hardware.py`, `mado/pc_check.py` | What Windows says the PC has; the check in a process of its own (`mado check-model`), timing each model; the speeds learned from each picture made |
 
+## Giving a picture a look
+
+The Looks tab shows every look as a small copy of the picture and the one picked on the picture
+itself, with its strength and finishing touches; what the Size and Looks tabs set together is one
+recipe (`mado/core/recipe.py`: the size step, then the look step, either left out), made by one
+Save: cropped or extended, made bigger, given its look and touches at that size, then saved.
+Every look is a table of colours (a 3D LUT) run through Pillow's `Color3DLUT`; the owner's own
+(a `.cube` file imported, or a mix kept) are kept in the database. docs/stack/looks.md has how
+looks are made, what `.cube` files may be, and the times.
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/` (`grids`, `looks`, `cube`, `touches`, `recipe`) | Pure: a table of colours and keeping it small, Mado's looks made by code, reading a `.cube` file, the touches' shapes, the recipe of steps and its plan |
+| Laying it on | `mado/looks.py` | A look's one table, then the touches where they fall on the picture made, see-through parts and grey pictures kept as they are |
+| Your looks | `mado/own_looks.py` | Importing, keeping, renaming and deleting the owner's looks, and finding any look by its id |
+
 ## Contracts
 
 | Between | How | Kept honest by |
@@ -141,10 +157,14 @@ Change a contract on both sides in the same commit.
 | `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version) |
 | `POST /pictures/{id}/read` | Reads one picture again now (one that wouldn't open may have been mended) |
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
-| `POST /pictures/{id}/plan` | How a picture would be made to a recipe: its shape and the words for it, what it is, the model, about how long here, the format, colours and size, and the downloads it waits for |
-| `POST /pictures/{id}/preview` | The picture made, all of it fitted or a part at full detail, before (stretched) or after (made): WebP, with how long it took |
-| `POST /pictures/{id}/saving` | The name a picture made would be saved as, whether that's taken, and about how big it comes out |
-| `POST /pictures/{id}/make` | Makes it and saves it as chosen, as a job |
+| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its size step and its look step, either of them none): its shape and the words for it, what it is, the model, its look, about how long here, the format, colours and size, and the downloads it waits for |
+| `POST /pictures/{id}/preview` | The picture made, all of it fitted (from its screen-sized view, as JPEG) or a part at full detail (as WebP), before (stretched) or after (made, with its look and touches), with its colour profile and how long it took |
+| `POST /pictures/{id}/saving` | The name a picture made would be saved as ("Harbour at dusk (TV 8K, Warm film).jpg"), whether that's taken, and about how big it comes out |
+| `POST /pictures/{id}/make` | Makes it to its recipe and saves it as chosen, as a job |
+| `GET /looks` | Mado's looks and the owner's own, each with a version its small copies' addresses carry |
+| `GET /pictures/{id}/looks/{look}` | A small copy of the picture in a look, from its thumbnail (WebP, kept by the window) |
+| `POST /looks/import`, `POST /looks` | Importing a `.cube` file as a look; keeping the mix on the Looks tab (a look, its strength and its touches) as one |
+| `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are) |
 | `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | The jobs (a picture's, or those under way): stage, progress, time left, what they saved, why they didn't work; Cancel |
 | `GET /history`, `POST /history/{id}/undo`, `POST /history/{id}/redo`, `POST /history/clear` | History a week of days at a time (`before`, `q`); taking a new picture away or putting a replaced original back, newest first; putting a picture taken away back, or replacing an original again; clearing History |
 | `GET /quarantine`, `POST /quarantine/empty` | What waits in quarantine on each drive; emptying one now |
@@ -177,7 +197,7 @@ Change a contract on both sides in the same commit.
   into one.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
-  picture with what Mado read of it (`pictures.csv`), History (`history.csv`), and a manifest. It grows with the
+  picture with what Mado read of it (`pictures.csv`), History (`history.csv`), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

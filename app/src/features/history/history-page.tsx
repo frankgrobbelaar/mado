@@ -20,7 +20,7 @@ import {
   useHistoryAction,
   usePictureImage,
 } from "@/lib/engine";
-import { size, split, stem } from "@/lib/format";
+import { madeWith, size, split, stem, versionOf } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 
 const KEEP = [
@@ -221,11 +221,11 @@ function words(entry: HistoryEntry): [string, string] {
         return [
           `Put ${entry.name} back`,
           until
-            ? `Its ${entry.madeFor} version waits in quarantine on ${drive} until ${until}.`
-            : `Its ${entry.madeFor} version was set aside.`,
+            ? `Its ${versionOf(entry)} version waits in quarantine on ${drive} until ${until}.`
+            : `Its ${versionOf(entry)} version was set aside.`,
         ];
       return [
-        `Replaced ${entry.name} with its ${entry.madeFor} version`,
+        `Replaced ${entry.name} with its ${versionOf(entry)} version`,
         entry.clearedAt
           ? entry.clearedBy === "owner"
             ? "The original went when you emptied the quarantine."
@@ -243,7 +243,7 @@ function words(entry: HistoryEntry): [string, string] {
             : `It waits in quarantine on ${drive} until ${until ?? "its days are up"}.`,
         ];
       return [
-        `Made ${stem(entry.name)} for ${entry.madeFor}`,
+        `Made ${stem(entry.name)} ${madeWith(entry)}`,
         `As a new picture: ${entry.resultName ?? ""}${entry.result ? ` in ${split(split(entry.result)[1])[0]}` : ""}`,
       ];
   }

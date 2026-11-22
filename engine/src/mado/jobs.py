@@ -32,14 +32,15 @@ from mado.upscale import StoppedError
 
 log = logging.getLogger(__name__)
 
-type Stage = Literal["reading", "shaping", "making", "saving"]
+type Stage = Literal["reading", "shaping", "making", "looking", "saving"]
 
 PARTIAL = ".mado-partial"  # a picture being written, beside where it goes
 _TRIES = 2  # starts a job gets, counting one Mado's closing cut short
 _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's whole
     "reading": (0.0, 0.05),
     "shaping": (0.05, 0.2),
-    "making": (0.2, 0.93),
+    "making": (0.2, 0.85),
+    "looking": (0.85, 0.93),
     "saving": (0.93, 1.0),
 }
 

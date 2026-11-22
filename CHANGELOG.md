@@ -8,6 +8,33 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Give a picture a look: on its page, the Looks tab shows every look as a small copy of your
+  picture (Original, Warm film, Cool film, Faded, Teal and orange, Silver, Golden hour, Night
+  neon, Duotone, and Mado's own Bold colour, Sepia print, Moody blue, Cross-processed and Soft
+  pastel), and the one you pick, or rest the pointer on, on the picture itself. The arrow keys go
+  through them, and Strength sets how much of the look you want.
+- Finishing touches: grain, a vignette, glow, fade, a light leak and dust, each with its own
+  amount, drawn by Mado and the same on the preview as on the picture you save.
+- Hold to see the original, or hold the \ key, to compare the picture with and without its look.
+- Your own looks: import a .cube file (the kind Adobe's apps and DaVinci Resolve export), or keep
+  the mix you've made, its look, strength and touches, under a name; rename them and delete them,
+  Mado asking first. Backups and the export carry them, and the export holds each as a .cube file
+  other apps open.
+- One picture, one recipe: what you set on the Size and Looks tabs is made by one Save, so a
+  picture can be made for a TV 8K and given Warm film at once ("Harbour at dusk (TV 8K, Warm
+  film).jpg"), or given a look alone at its own size ("Harbour at dusk (Warm film).jpg"). History
+  says what each picture was made with.
+- Save stays at the foot of a picture's tools however long the column grows.
+
+### Changed
+- Open it, on a picture Mado has just made, shows the new picture as it is, without the size or
+  look that made it chosen again.
+
+### Fixed
+- Previews of a picture with wide colours (a phone's Display P3) show its colours as they are.
+- The export's History spreadsheet put when a picture was cleared out under the wrong heading.
+
 ## 0.1.0 - 2026-11-22
 
 ### Added

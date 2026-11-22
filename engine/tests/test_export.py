@@ -9,8 +9,14 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mado import __version__, db, history
+import numpy as np
+
+from mado import __version__, db, history, own_looks
 from mado.config import DataPaths
+from mado.core.cube import read
+from mado.core.grids import blended
+from mado.core.looks import mado_look
+from mado.core.touches import Touches
 from mado.export import export_data
 from mado.library import add_folder, find_pictures, save_facts
 from mado.migrations import MIGRATIONS
@@ -40,11 +46,13 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
         assert sorted(zipped.namelist()) == [
             "folders.json",
             "history.csv",
+            "looks.json",
             "mado.db",
             "manifest.json",
             "pictures.csv",
             "settings.json",
         ]
+        assert json.loads(zipped.read("looks.json")) == []
         assert json.loads(zipped.read("settings.json")) == {"set_up": True}
         assert json.loads(zipped.read("manifest.json")) == {
             "app": "Mado",
@@ -127,3 +135,65 @@ def test_history_is_in_the_export_readable_without_mado(paths: DataPaths, tmp_pa
     assert [(row["kind"], row["name"], row["madeFor"]) for row in rows] == [
         ("made", "Harbour at dusk.heic", "TV 8K")
     ]
+
+
+def test_historys_columns_line_up_with_their_names(paths: DataPaths, tmp_path: Path):
+    _records_with_one_setting(paths)
+    with closing(db.connect(paths.database)) as conn:
+        line = history.made(
+            conn,
+            now=NOW,
+            job_id=None,
+            name="Harbour at dusk.heic",
+            made_for=None,
+            look="Warm film at 60%",
+            original=tmp_path / "Harbour at dusk.heic",
+            result=tmp_path / "Harbour at dusk (Warm film).jpg",
+        )
+        with conn:
+            conn.execute(
+                "UPDATE history SET undone_at = ?, cleared_at = ?, cleared_by = 'days'"
+                " WHERE id = ?",
+                ("2026-11-22T15:00:00+00:00", "2026-12-22T03:00:00+00:00", line),
+            )
+
+    archive = export_data(paths, tmp_path / "exports", now=NOW)
+
+    assert archive is not None
+    with zipfile.ZipFile(archive) as zipped:
+        [row] = list(csv.DictReader(io.StringIO(zipped.read("history.csv").decode("utf-8"))))
+    assert row["madeFor"] == ""
+    assert row["look"] == "Warm film at 60%"
+    assert row["clearedAt"] == "2026-12-22T03:00:00+00:00"
+    assert row["clearedBy"] == "days"
+    assert row["undoneAt"] == "2026-11-22T15:00:00+00:00"
+    assert None not in row  # no value without its column's name
+
+
+def test_your_looks_are_in_the_export_as_files_any_app_opens(paths: DataPaths, tmp_path: Path):
+    _records_with_one_setting(paths)
+    warm = mado_look("warm-film")
+    assert warm is not None
+    assert warm.grid is not None
+    with closing(db.connect(paths.database)) as conn:
+        own_looks.kept(conn, "Holiday: warm", warm, 0.6, Touches(grain=20), NOW)
+
+    archive = export_data(paths, tmp_path / "exports", now=NOW)
+
+    assert archive is not None
+    with zipfile.ZipFile(archive) as zipped:
+        listed = json.loads(zipped.read("looks.json"))
+        cube = read(zipped.read("looks/Holiday- warm.cube").decode("utf-8"))
+    assert listed == [
+        {
+            "name": "Holiday: warm",
+            "kind": "mix",
+            "source": "Warm film at 60%, grain 20",
+            "touches": {"grain": 20},
+            "points": 33,
+            "addedAt": NOW.isoformat(timespec="seconds"),
+            "file": "looks/Holiday- warm.cube",
+        }
+    ]
+    assert cube.title == "Holiday: warm"
+    assert np.allclose(cube.grid, blended(warm.grid, 0.6), atol=1e-4)

@@ -156,12 +156,8 @@ describe("The Size tab", () => {
       screen.getByRole("button", { name: "The point the crop is around: drag it to move it" }),
     ).toBeInTheDocument();
     expect(sent(fetch, "POST", "/pictures/11/plan")[0]).toEqual({
-      size: "tv-8k",
-      shape: "crop",
-      focus: null,
-      kind: null,
-      quality: null,
-      clean: true,
+      size: { size: "tv-8k", shape: "crop", focus: null, kind: null, quality: null, clean: true },
+      look: null,
     });
     expect(screen.getByRole("button", { name: "Save…" })).toBeEnabled();
   });
@@ -177,18 +173,22 @@ describe("The Size tab", () => {
     fireEvent.keyDown(point, { key: "ArrowUp" });
     await waitFor(() =>
       expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({
-        focus: [0.5, 0.43],
+        size: { focus: [0.5, 0.43] },
       }),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
     fireEvent.click(screen.getByRole("radio", { name: "Drawing" }));
     await waitFor(() =>
-      expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({ kind: "drawing" }),
+      expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({
+        size: { kind: "drawing" },
+      }),
     );
     fireEvent.click(screen.getByRole("radio", { name: "Best" }));
     await waitFor(() =>
-      expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({ quality: "best" }),
+      expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({
+        size: { quality: "best" },
+      }),
     );
   });
 
@@ -243,7 +243,7 @@ describe("The Size tab", () => {
 
     await waitFor(() => expect(sent(fetch, "POST", "/pictures/11/make")).toHaveLength(1));
     expect(sent(fetch, "POST", "/pictures/11/make")[0]).toMatchObject({
-      recipe: { size: "tv-8k", shape: "crop" },
+      recipe: { size: { size: "tv-8k", shape: "crop" }, look: null },
       saving: {
         how: "new",
         format: "JPEG",
@@ -430,7 +430,7 @@ describe("The Size tab", () => {
 
     await waitFor(() => expect(sent(fetch, "POST", "/pictures/11/preview")).toHaveLength(2));
     expect(sent(fetch, "POST", "/pictures/11/preview")[0]).toMatchObject({
-      recipe: { size: "tv-8k", kind: "photo", quality: "fast", focus: [0.5, 0.45] },
+      recipe: { size: { size: "tv-8k", kind: "photo", quality: "fast", focus: [0.5, 0.45] } },
     });
   });
 
@@ -525,7 +525,7 @@ describe("The Size tab", () => {
 
     await waitFor(() =>
       expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({
-        focus: [0.5, 0.41],
+        size: { focus: [0.5, 0.41] },
       }),
     );
   });
@@ -544,16 +544,16 @@ describe("The Size tab", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Change" }));
     fireEvent.click(screen.getByRole("radio", { name: "Drawing" }));
     await waitFor(() =>
-      expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({ kind: "drawing" }),
+      expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toMatchObject({
+        size: { kind: "drawing" },
+      }),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Next picture" }));
 
     await waitFor(() =>
       expect(sent(fetch, "POST", "/pictures/12/plan").at(-1)).toMatchObject({
-        size: "tv-8k",
-        kind: null,
-        focus: null,
+        size: { size: "tv-8k", kind: null, focus: null },
       }),
     );
     // Its plan failed: the last picture's isn't shown in its place, nor asked for again.

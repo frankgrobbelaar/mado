@@ -32,7 +32,8 @@ class EntryOut(ApiModel):
     at: str  # local time, with its offset
     kind: Literal["made", "replaced", "emptied"]
     name: str  # the original's file name; the drive, for a quarantine emptied
-    made_for: str | None
+    made_for: str | None  # what its size made it for: "TV 8K"
+    look: str | None  # what it was made with: "Warm film at 60%"
     original: str | None
     result: str | None
     result_name: str | None
@@ -149,6 +150,7 @@ def _out(conn: sqlite3.Connection, found: Entry) -> EntryOut:
         kind=found.kind,
         name=found.name,
         made_for=found.made_for,
+        look=found.look,
         original=found.original,
         result=found.result,
         result_name=PureWindowsPath(found.result).name if found.result else None,

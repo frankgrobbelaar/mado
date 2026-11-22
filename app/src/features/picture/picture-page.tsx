@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
 import { Loading, Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,15 @@ import { Segmented } from "@/components/ui/segmented";
 import {
   EngineError,
   type Job,
+  type LookStep,
   type PictureDetails,
   type Plan,
   type Recipe,
+  type SizeStep,
   shownFrom,
   shownQuery,
   useFolders,
+  useLooks,
   useNeighbours,
   usePicture,
   usePictureJobs,
@@ -21,16 +24,21 @@ import {
   useReadAgain,
 } from "@/lib/engine";
 import { showInFolder, useExplorer } from "@/lib/explorer";
-import { size, split, stem, takenOn } from "@/lib/format";
+import { madeWith, size, split, stem, takenOn } from "@/lib/format";
+import { useSettled } from "@/lib/settled";
 import { cn } from "@/lib/utils";
+import { LooksStage } from "./looks-stage";
+import { changes, ORIGINAL, PLAIN, TOUCHES } from "./looks-tab";
 import { NeighbourStrip } from "./neighbour-strip";
 import { SizeStage } from "./size-stage";
 import { Stage, type Zoom } from "./stage";
-import { ToolsColumn } from "./tools-column";
+import { type Tool, ToolsColumn } from "./tools-column";
 
 // Controls that keep the arrow keys to themselves.
-const CONTROLS = "input, textarea, select, [role='group'], [role='radiogroup'], [role='dialog']";
+const CONTROLS =
+  "input, textarea, select, [role='group'], [role='radiogroup'], [role='dialog'], [role='slider'], [role='tablist']";
 const NOT_HERE = "That picture isn't in your library any more.";
+const HOLD_KEY = "\\"; // held down, it shows the original, as "Hold to see the original" does
 
 const ZOOMS = [
   { value: "fit", label: "Fit" },
@@ -39,10 +47,12 @@ const ZOOMS = [
 ] as const;
 
 /**
- * A picture's page, opened from the Library: the picture large (fitted, or at 100% or 400%), its
- * facts, the strip of its neighbours in the list it came from (the arrow keys go along it), and
- * its tools' column. With a size chosen there, the picture shows as it'd be made: its shape over
- * it, and before and after at full detail when zoomed in.
+ * A picture's page, opened from the Library: the picture large, its facts, and its tools'
+ * column. On the Size tab: fitted or at 100% or 400%, the strip of its neighbours in the list it
+ * came from (the arrow keys go along it), and with a size chosen the picture as it'd be made: its
+ * shape over it, and before and after at full detail when zoomed in. On the Looks tab, as
+ * Picture-Looks draws it: the picture with its look, and "Hold to see the original". What the two
+ * tabs set together is one recipe, made by one Save.
  */
 export function PicturePage() {
   const id = Number(useParams().id);
@@ -54,23 +64,42 @@ export function PicturePage() {
   const folders = useFolders();
   const navigate = useNavigate();
   const [zoom, setZoom] = useState<Zoom>("fit");
-  // The size chosen on the Size tab stays from picture to picture; what the picture is and the
-  // point a crop is around are each picture's own.
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [tool, setTool] = useState<Tool>("size");
+  // The size and the look chosen stay from picture to picture; what the picture is and the point
+  // a crop is around are each picture's own.
+  const [sized, setSized] = useState<SizeStep | null>(null);
+  const [look, setLook] = useState<LookStep>(PLAIN);
+  const [pointed, setPointed] = useState<LookStep | null>(null);
+  const [held, setHeld] = useState(false);
   const [shownFor, setShownFor] = useState(id);
+  const opened = useLocation().state as { fresh?: boolean } | null;
   if (shownFor !== id) {
     setShownFor(id);
-    if (recipe && (recipe.focus || recipe.kind)) setRecipe({ ...recipe, focus: null, kind: null });
+    setPointed(null);
+    if (opened?.fresh) {
+      // A picture Mado just made, opened from its job: shown as it is, not made again.
+      setSized(null);
+      setLook(PLAIN);
+    } else if (sized && (sized.focus || sized.kind)) {
+      setSized({ ...sized, focus: null, kind: null });
+    }
   }
   const jobs = usePictureJobs(id);
-  const plan = usePlan(id, picture.data?.state === "ready" ? recipe : null);
+  // The plan follows the look once it stops changing (a strength being dragged, say).
+  const settled = useSettled(look, 300);
+  const ready = picture.data?.state === "ready";
+  const looked = changes(settled) ? settled : null;
+  const recipe: Recipe | null = ready && (sized || looked) ? { size: sized, look: looked } : null;
+  const plan = usePlan(id, recipe);
 
   const to = (other: number) => `/library/pictures/${other}${context ? `?${context}` : ""}`;
   const previous = neighbours.data?.before.at(-1);
   const next = neighbours.data?.after[0];
 
-  // The arrow keys go to the picture before and after, unless they're moving round a control.
+  // On the Size tab, the arrow keys go to the picture before and after, unless they're moving
+  // round a control; the Looks tab, as its board draws it, has no neighbours.
   useEffect(() => {
+    if (tool !== "size") return;
     function go(event: KeyboardEvent) {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target instanceof HTMLElement ? event.target : null;
@@ -84,12 +113,40 @@ export function PicturePage() {
     }
     window.addEventListener("keydown", go);
     return () => window.removeEventListener("keydown", go);
-  }, [previous, next, navigate, context]);
+  }, [tool, previous, next, navigate, context]);
+
+  // On the Looks tab, holding the key shows the original, as the button beside the title does.
+  useEffect(() => {
+    if (tool !== "looks") return;
+    function down(event: KeyboardEvent) {
+      // Some keyboards type \ with AltGr, which Windows reports as Ctrl and Alt together.
+      const altGr = event.getModifierState("AltGraph");
+      if (event.key !== HOLD_KEY || event.metaKey) return;
+      if ((event.ctrlKey || event.altKey) && !altGr) return;
+      if (event.target instanceof HTMLElement && event.target.closest("input, textarea")) return;
+      event.preventDefault();
+      setHeld(true);
+    }
+    function up(event: KeyboardEvent) {
+      if (event.key === HOLD_KEY) setHeld(false);
+    }
+    const letGo = () => setHeld(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", letGo);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", letGo);
+      setHeld(false);
+    };
+  }, [tool]);
 
   const gone = picture.error instanceof EngineError && picture.error.message === NOT_HERE;
   const listed =
     shown.folder === null ? undefined : folders.data?.find((f) => f.id === shown.folder);
   const back = shown.dir ? (shown.dir.split("/").at(-1) ?? shown.dir) : (listed?.name ?? "Library");
+  const looking = tool === "looks";
 
   return (
     <div className="-mx-7 -mb-12 flex h-[calc(100vh-4.25rem)]">
@@ -109,31 +166,37 @@ export function PicturePage() {
               <p className="font-mono text-12 text-fg-muted">{factsOf(picture.data)}</p>
             )}
           </div>
-          <Segmented
-            label="Zoom"
-            value={zoom}
-            options={ZOOMS}
-            onChange={setZoom}
-            className="ml-auto [&_button:not(:first-child)]:font-mono"
-          />
-          <Button
-            size="sm"
-            aria-label="Previous picture"
-            className="w-9 bg-transparent px-0"
-            disabled={!previous}
-            onClick={() => previous && void navigate(to(previous.id), { replace: true })}
-          >
-            <ChevronLeft size={16} aria-hidden="true" />
-          </Button>
-          <Button
-            size="sm"
-            aria-label="Next picture"
-            className="w-9 bg-transparent px-0"
-            disabled={!next}
-            onClick={() => next && void navigate(to(next.id), { replace: true })}
-          >
-            <ChevronRight size={16} aria-hidden="true" />
-          </Button>
+          {looking ? (
+            <HoldButton held={held} onHeld={setHeld} disabled={!ready} />
+          ) : (
+            <>
+              <Segmented
+                label="Zoom"
+                value={zoom}
+                options={ZOOMS}
+                onChange={setZoom}
+                className="ml-auto [&_button:not(:first-child)]:font-mono"
+              />
+              <Button
+                size="sm"
+                aria-label="Previous picture"
+                className="w-9 bg-transparent px-0"
+                disabled={!previous}
+                onClick={() => previous && void navigate(to(previous.id), { replace: true })}
+              >
+                <ChevronLeft size={16} aria-hidden="true" />
+              </Button>
+              <Button
+                size="sm"
+                aria-label="Next picture"
+                className="w-9 bg-transparent px-0"
+                disabled={!next}
+                onClick={() => next && void navigate(to(next.id), { replace: true })}
+              >
+                <ChevronRight size={16} aria-hidden="true" />
+              </Button>
+            </>
+          )}
         </header>
 
         {gone ? (
@@ -149,19 +212,29 @@ export function PicturePage() {
                 <Skeleton className="h-[60vh] rounded-6" />
               </Loading>
             )}
-            {picture.data && (
+            {picture.data && looking && (
+              <LooksOnStage
+                picture={picture.data}
+                sized={sized}
+                plan={plan.data ?? null}
+                look={pointed ?? look}
+                held={held}
+              />
+            )}
+            {picture.data && !looking && (
               <OnStage
                 picture={picture.data}
                 zoom={zoom}
-                recipe={recipe}
-                plan={recipe ? (plan.data ?? null) : null}
-                onFocus={(focus) => recipe && setRecipe({ ...recipe, focus })}
+                sized={sized}
+                look={looked}
+                plan={sized ? (plan.data ?? null) : null}
+                onFocus={(focus) => sized && setSized({ ...sized, focus })}
               />
             )}
           </>
         )}
 
-        {picture.data && neighbours.data && (
+        {picture.data && neighbours.data && !looking && (
           <NeighbourStrip
             label={`Pictures in ${back === "Library" ? "your library" : back}`}
             current={picture.data}
@@ -172,7 +245,19 @@ export function PicturePage() {
         )}
       </div>
       {picture.data && (
-        <ToolsColumn picture={picture.data} recipe={recipe} onRecipe={setRecipe} plan={plan} />
+        <ToolsColumn
+          picture={picture.data}
+          tool={tool}
+          onTool={setTool}
+          size={sized}
+          onSize={setSized}
+          look={look}
+          onLook={setLook}
+          onPoint={setPointed}
+          recipe={recipe}
+          plan={plan}
+          settling={settled !== look}
+        />
       )}
     </div>
   );
@@ -189,18 +274,116 @@ function factsOf(picture: PictureDetails): string {
   return parts.filter(Boolean).join(" · ");
 }
 
+/** "Hold to see the original", as the Looks board draws it: the picture without its look while
+ * it's held down, by the pointer, Space or Enter (and the \ key, anywhere on the tab). */
+function HoldButton(props: { held: boolean; onHeld: (held: boolean) => void; disabled: boolean }) {
+  const { onHeld } = props;
+  return (
+    <Button
+      size="sm"
+      aria-pressed={props.held}
+      aria-keyshortcuts="Backslash"
+      title="Or hold the \ key"
+      disabled={props.disabled}
+      className="ml-auto touch-none select-none font-medium"
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        onHeld(true);
+      }}
+      onPointerUp={() => onHeld(false)}
+      onPointerCancel={() => onHeld(false)}
+      onLostPointerCapture={() => onHeld(false)}
+      onKeyDown={(event) => {
+        if (event.key !== " " && event.key !== "Enter") return;
+        event.preventDefault();
+        onHeld(true);
+      }}
+      onKeyUp={(event) => {
+        if (event.key === " " || event.key === "Enter") onHeld(false);
+      }}
+      onBlur={() => onHeld(false)}
+    >
+      Hold to see the original
+    </Button>
+  );
+}
+
+/** The picture with its look, and the line under it the Looks board draws; or, for one that
+ * can't be shown, why, in its place. */
+function LooksOnStage(props: {
+  picture: PictureDetails;
+  sized: SizeStep | null;
+  plan: Plan | null;
+  look: LookStep;
+  held: boolean;
+}) {
+  const { picture, plan, look } = props;
+  const looks = useLooks();
+  const explorer = useExplorer();
+  if (picture.state !== "ready") {
+    return (
+      <Unshown
+        picture={picture}
+        onShow={() => explorer.run(() => showInFolder(picture.path))}
+        problem={explorer.problem}
+      >
+        {null}
+      </Unshown>
+    );
+  }
+  const all = [...(looks.data?.looks ?? []), ...(looks.data?.yours ?? [])];
+  const name = all.find((each) => each.id === look.look)?.name ?? "";
+  const touched = TOUCHES.filter((touch) => look.touches[touch.name] > 0)
+    .map((touch) => touch.label.toLowerCase())
+    .join(", ");
+  const label = [
+    look.look === ORIGINAL ? "Original" : `${name} · ${Math.round(look.strength * 100)}%`,
+    touched,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  // A size shown as the plan decided it, so the picture shown is the one Save makes.
+  const decided =
+    props.sized && plan
+      ? {
+          ...props.sized,
+          kind: props.sized.kind ?? plan.kind,
+          quality: props.sized.quality ?? plan.quality,
+          focus: props.sized.focus ?? plan.focus,
+        }
+      : null;
+  return (
+    <>
+      <LooksStage
+        picture={picture}
+        size={decided}
+        plan={decided ? plan : null}
+        look={changes(look) ? look : null}
+        label={label}
+        held={props.held}
+      />
+      <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
+        <span>Every look is shown on this picture as you go through them</span>
+        <span>Nothing changes until you save</span>
+      </p>
+    </>
+  );
+}
+
 /** The picture, and the line under it: or, for one that can't be shown, why, in its place. With
  * a size chosen, the picture as it'd be made. */
 function OnStage({
   picture,
   zoom,
-  recipe,
+  sized,
+  look,
   plan,
   onFocus,
 }: {
   picture: PictureDetails;
   zoom: Zoom;
-  recipe: Recipe | null;
+  sized: SizeStep | null;
+  look: LookStep | null;
   plan: Plan | null;
   onFocus: (focus: [number, number]) => void;
 }) {
@@ -231,8 +414,15 @@ function OnStage({
   }
   return (
     <>
-      {recipe && plan ? (
-        <SizeStage picture={picture} plan={plan} recipe={recipe} zoom={zoom} onFocus={onFocus} />
+      {sized && plan ? (
+        <SizeStage
+          picture={picture}
+          plan={plan}
+          size={sized}
+          look={look}
+          zoom={zoom}
+          onFocus={onFocus}
+        />
       ) : (
         <Stage
           picture={picture}
@@ -354,7 +544,7 @@ function Gone({ back, replaced }: { back: string; replaced: Job | null }) {
       </h2>
       <p className="max-w-150 text-13 text-fg-muted">
         {replaced
-          ? `Mado replaced it with ${replaced.resultName}, made for ${replaced.madeFor}, as you asked. The original waits in quarantine for 30 days, and History puts it back.`
+          ? `Mado replaced it with ${replaced.resultName}, made ${madeWith(replaced)}, as you asked. The original waits in quarantine for 30 days, and History puts it back.`
           : "It was moved or deleted since, or its folder was taken out of the library. Mado didn't change it."}
       </p>
       <span className="flex flex-wrap gap-2">

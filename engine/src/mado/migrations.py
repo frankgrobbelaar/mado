@@ -103,4 +103,21 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     ) STRICT;
     CREATE INDEX history_by_time ON history (at, id);
     """,
+    # 4. Looks: the owner's own, a .cube file imported or a mix kept from the Looks tab, each a
+    # table of colours packed small (mado/core/grids.py); and the look a picture was made with,
+    # for History.
+    """
+    CREATE TABLE looks (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,  -- never given again, as jobs name it
+        name      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        kind      TEXT NOT NULL CHECK (kind IN ('cube', 'mix')),
+        points    INTEGER NOT NULL CHECK (points BETWEEN 2 AND 65),  -- the table's points a side
+        grid      BLOB NOT NULL,     -- the table: 16-bit steps along red, zlib-packed
+        touches   TEXT,              -- JSON: a kept mix's finishing touches
+        source    TEXT NOT NULL,     -- the .cube file's name, or the look mixed: "Warm film at 60%"
+        added_at  TEXT NOT NULL
+    ) STRICT;
+
+    ALTER TABLE history ADD COLUMN look TEXT;  -- what it was made with: "Warm film at 60%"
+    """,
 )

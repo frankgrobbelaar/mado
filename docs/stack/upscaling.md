@@ -127,7 +127,9 @@ across) is always inside what's drawn.
 
 ## Saving
 
-The format stays as it was when Mado writes it (JPEG, PNG, WebP, AVIF: CLAUDE.md, "The format
+A look chosen on the Looks tab is made after the size, at the size made, before saving; a new
+picture's name then says both ("Harbour at dusk (TV 8K, Warm film).jpg"), and a job's stage says
+"Giving it its look" ([looks.md](looks.md)). The format stays as it was when Mado writes it (JPEG, PNG, WebP, AVIF: CLAUDE.md, "The format
 stays unless another is chosen"). Otherwise it suits what it's for: photos as JPEG (90 for a
 phone, 92 for a laptop or monitor, 95 for a TV or a print), drawings, pixel art and screenshots
 as PNG (`mado/core/quality.py`); JPEG XL waits for a writer Mado can ship. A picture with

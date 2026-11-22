@@ -1,16 +1,19 @@
-"""Making a picture right for a size, and saving it: the work of a job (mado/jobs.py).
+"""Making a picture to its recipe, and saving it: the work of a job (mado/jobs.py).
 
 1. Reading: the picture decoded at full size, as the library reads it, turned upright.
 2. Shaping: cropped around its subject (the crop is the part kept, resized from exactly), or its
    edges extended by LaMa (mado/extend.py).
 3. Making: four times bigger through the AI model a tile at a time, then resized exactly, or
    without AI for pixel art, screenshots and a picture already big enough (mado/upscale.py).
-4. Saving: as a new picture beside the original (or in a folder the owner chose), named after
-   it with what it was made for, or in the original's place, the original going into
+   With no size, the picture keeps its pixels.
+4. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
+   never grow into blobs.
+5. Saving: as a new picture beside the original (or in a folder the owner chose), named after
+   it with what it was made for and with, or in the original's place, the original going into
    quarantine; either way written beside first, checked, then put in place, and in History.
 
 What Mado sees in a picture (what it is, where its subject is, its colours) is worked out once
-a picture and kept for the engine's life, so the Size tab and the job agree.
+a picture and kept for the engine's life, so the tabs and the job agree.
 """
 
 import json
@@ -27,7 +30,7 @@ from typing import Literal, cast
 import numpy as np
 from PIL import Image
 
-from mado import encode, hardware, history
+from mado import encode, hardware, history, own_looks
 from mado.ai import LAMA, Ai, Timer
 from mado.core.estimate import seconds_for
 from mado.core.files import Kind as FileKind
@@ -35,16 +38,19 @@ from mado.core.files import kind_of
 from mado.core.framing import Box, subject
 from mado.core.hardware import Place, overlap_for, tile_for
 from mado.core.kind import Kind, guess
+from mado.core.looks import Look
 from mado.core.models import Quality
 from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
 from mado.core.quality import Format
-from mado.core.recipe import Plan, Recipe, plan
-from mado.core.sizes import DPI, Screen, Size, SizeError, resolve
+from mado.core.recipe import Plan, Recipe, Sizing, Styling, plan
+from mado.core.sizes import DPI, Screen, SizeError, resolve
 from mado.core.tiles import count
+from mado.core.touches import named
 from mado.directml import ModelError
 from mado.extend import Filler, canvas_around, extended, squares_needed
 from mado.hardware import Here
 from mado.jobs import PARTIAL, JobError, Stage, note_writing
+from mado.looks import seed_of, styled
 from mado.pictures import (
     Command,
     NeedsFfmpegError,
@@ -119,6 +125,16 @@ class SavingError(Exception):
     it was."""
 
 
+class MissingLookError(ValueError):
+    """A recipe's look that isn't there any more (the owner deleted it), with a sentence."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Its look isn't in your looks any more, so nothing was made and the original is as "
+            "it was. Pick another look, then save again."
+        )
+
+
 def see(image: Image.Image, picture: Picture) -> Seen:
     """What a picture is and where its subject is, from the picture decoded at full size."""
     rgb = image.convert("RGB")
@@ -157,25 +173,44 @@ def _see_through(image: Image.Image) -> bool:
 
 class Sight:
     """What Mado sees in each picture, by its version, worked out once; and the picture last
-    decoded at full size, and the canvas last extended, kept for the previews that follow."""
+    decoded at full size, the canvas last extended and the picture last made small for a preview,
+    kept for the previews that follow. Each is made under a lock of its own, so two asking at once
+    (the Looks tab's picture with its look and without) wait for one making, not make it twice."""
 
     def __init__(self, ffmpeg: Callable[[], Command | None]) -> None:
         self._ffmpeg = ffmpeg
         self._seen: dict[tuple[str, str], Seen] = {}
         self._decoded: tuple[tuple[str, str], Image.Image] | None = None
         self._extended: tuple[tuple[object, ...], tuple[Pixels, Box, tuple[int, int]]] | None = None
-        self._lock = threading.Lock()
+        self._fitted: tuple[tuple[object, ...], Image.Image] | None = None
+        self._lock = threading.Lock()  # what's kept
+        self._decoding = threading.Lock()
+        self._extending = threading.Lock()
+        self._fitting = threading.Lock()
+
+    def fitted(self, key: tuple[object, ...], make: Callable[[], Image.Image]) -> Image.Image:
+        """The picture made small for a preview (`key` says which picture, shape and size), the
+        last one kept: the next look tried on it takes moments."""
+        with self._fitting:
+            with self._lock:
+                if self._fitted is not None and self._fitted[0] == key:
+                    return self._fitted[1]
+            image = make()
+            with self._lock:
+                self._fitted = (key, image)
+            return image
 
     def picture(self, picture: Picture, version: str) -> Image.Image:
         """The picture decoded at full size, upright. Raises what decoding raises."""
         key = (str(picture.path).casefold(), version)
-        with self._lock:
-            if self._decoded is not None and self._decoded[0] == key:
-                return self._decoded[1]
-        image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
-        with self._lock:
-            self._decoded = (key, image)
-        return image
+        with self._decoding:
+            with self._lock:
+                if self._decoded is not None and self._decoded[0] == key:
+                    return self._decoded[1]
+            image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
+            with self._lock:
+                self._decoded = (key, image)
+            return image
 
     def of(self, picture: Picture, version: str) -> Seen:
         """What Mado sees in the picture."""
@@ -196,14 +231,15 @@ class Sight:
     ) -> tuple[Pixels, Box, tuple[int, int]]:
         """The picture on an extended canvas, its new edges drawn by LaMa: the last one kept."""
         key = (str(picture.path).casefold(), version, canvas)
-        with self._lock:
-            if self._extended is not None and self._extended[0] == key:
-                return self._extended[1]
-        pixels: Pixels = np.asarray(self.picture(picture, version).convert("RGB"))
-        made = extended(pixels, canvas, fill())
-        with self._lock:
-            self._extended = (key, made)
-        return made
+        with self._extending:
+            with self._lock:
+                if self._extended is not None and self._extended[0] == key:
+                    return self._extended[1]
+            pixels: Pixels = np.asarray(self.picture(picture, version).convert("RGB"))
+            made = extended(pixels, canvas, fill())
+            with self._lock:
+                self._extended = (key, made)
+            return made
 
 
 def planned(
@@ -228,10 +264,29 @@ def make(
     report: Report,
     stop: Callable[[], bool],
     timer: Timer | None = None,
+    seed: int = 0,
 ) -> Image.Image:
-    """The picture made to its plan, from the picture decoded at full size and upright. Its
-    colour profile comes with it. Raises StoppedError when stopped, ModelError when a model
-    can't run."""
+    """The picture made to its plan, from the picture decoded at full size and upright: its
+    size, then its look and touches at that size (`seed` grows them). Its colour profile comes
+    with it. Raises StoppedError when stopped, ModelError when a model can't run."""
+    sized = image if made.method == "keep" else _sized(image, made, ai, report, stop, timer)
+    if made.styling is None:
+        return sized
+    report("looking", 0.0)
+    looked = styled(sized, made.styling, seed=seed, stop=stop)
+    report("looking", 1.0)
+    return looked
+
+
+def _sized(
+    image: Image.Image,
+    made: Plan,
+    ai: Ai,
+    report: Report,
+    stop: Callable[[], bool],
+    timer: Timer | None,
+) -> Image.Image:
+    """The picture cropped or extended, and made the size its plan says."""
     profile = image.info.get("icc_profile")
     grey = image.mode in ("L", "I", "I;16", "1", "F")
     if image.mode in ("P", "PA", "La", "RGBa") or "transparency" in image.info:
@@ -271,7 +326,7 @@ def make(
             out = by_pixels(pixels, kept, target)
         case "smooth":
             out = smoothly(pixels, kept, target)
-        case "shrink":
+        case "shrink" | "keep":
             out = smaller(pixels, kept, target)
     result = Image.fromarray(out)
     if alpha is not None:
@@ -287,20 +342,21 @@ def keep(
     result: Image.Image,
     picture: Picture,
     made: Plan,
-    size: Size,
     saving: Saving,
     *,
+    dpi: int | None,
     conn: sqlite3.Connection,
     quarantine: Quarantine,
     now: datetime,
     job_id: int | None,
     writing: Callable[[Path], None] = lambda _path: None,
 ) -> Saved:
-    """Saves a picture made for `size`: as a new picture, or in its original's place. `writing`
-    hears the file it's written to first, so a job cut short knows what to clear away. History's
-    line is written before any picture moves, so a job cut short while saving can be finished
-    or taken back from it (mado/jobs.py). Raises SavingError."""
-    label = size.label
+    """Saves a picture made to its plan: as a new picture named after what it was made for and
+    with, or in its original's place; a print's says `dpi`. `writing` hears the file it's
+    written to first, so a job cut short knows what to clear away. History's line is written
+    before any picture moves, so a job cut short while saving can be finished or taken back from
+    it (mado/jobs.py). Raises SavingError."""
+    label = made.named
     extension = EXTENSIONS[saving.format]
     original = picture.path
     profile = result.info.get("icc_profile")
@@ -308,7 +364,6 @@ def keep(
     image = result
     if kept_profile is not None and not saving.keep_colours:
         image, kept_profile = encode.in_srgb(result, kept_profile), None
-    dpi = DPI if size.purpose == "print" else None
     exif = encode.prepared_exif(
         read_exif(original, picture.kind),
         keep_camera=saving.keep_camera,
@@ -354,7 +409,8 @@ def keep(
             now=now,
             job_id=job_id,
             name=original.name,
-            made_for=label,
+            made_for=made.made_for,
+            look=made.look,
             original=original,
             result=target,
         )
@@ -376,7 +432,8 @@ def keep(
         now=now,
         job_id=job_id,
         name=original.name,
-        made_for=label,
+        made_for=made.made_for,
+        look=made.look,
         original=original,
         result=target,
         aside=aside,
@@ -473,9 +530,38 @@ def _unsaved(folder: Path, error: OSError) -> str:
 # The jobs' side: what a job's recipe says, how long it should take, and making it.
 
 
-def recipe_from(data: dict[str, object], screens: list[Screen]) -> Recipe:
-    """A recipe as a job keeps it (JSON), the owner's screens naming theirs. Raises SizeError
-    for a size Mado can't make."""
+def recipe_from(
+    data: dict[str, object], screens: list[Screen], looks: Callable[[str], Look | None]
+) -> Recipe:
+    """A recipe as a job keeps it (JSON: its size step and its look step, either of them none),
+    the owner's screens naming theirs and `looks` finding a look by its id. A job Mado 0.1 kept
+    is its size step alone, flat. Raises SizeError for a size Mado can't make, MissingLookError
+    for a look that isn't there any more."""
+    if isinstance(data.get("size"), str):  # Mado 0.1's: the size step's fields, flat
+        return Recipe(sizing=_sizing_from(data, screens))
+    size, look = data.get("size"), data.get("look")
+    sizing = (
+        _sizing_from(cast("dict[str, object]", size), screens) if isinstance(size, dict) else None
+    )
+    styling: Styling | None = None
+    if isinstance(look, dict):
+        asked = cast("dict[str, object]", look)
+        found = looks(str(asked.get("look", "")))
+        if found is None:
+            raise MissingLookError
+        strength, amounts = asked.get("strength"), asked.get("touches")
+        styling = Styling(
+            look=found,
+            strength=min(max(float(strength), 0.0), 1.0)
+            if isinstance(strength, int | float)
+            else 1.0,
+            touches=named(cast("dict[str, int]", amounts) if isinstance(amounts, dict) else {}),
+        )
+    return Recipe(sizing=sizing, styling=styling)
+
+
+def _sizing_from(data: dict[str, object], screens: list[Screen]) -> Sizing:
+    """The size step as a job keeps it."""
     focus = data.get("focus")
     point: tuple[float, float] | None = None
     if isinstance(focus, list):
@@ -483,7 +569,7 @@ def recipe_from(data: dict[str, object], screens: list[Screen]) -> Recipe:
         if len(values) == 2 and all(isinstance(each, int | float) for each in values):
             point = (float(cast("float", values[0])), float(cast("float", values[1])))
     kind, quality = data.get("kind"), data.get("quality")
-    return Recipe(
+    return Sizing(
         size=resolve(str(data.get("size", "")), screens),
         shape="extend" if data.get("shape") == "extend" else "crop",
         focus=point,
@@ -491,6 +577,11 @@ def recipe_from(data: dict[str, object], screens: list[Screen]) -> Recipe:
         quality=quality if quality in ("fast", "best") else None,
         clean=data.get("clean") is not False,
     )
+
+
+def dpi_of(recipe: Recipe) -> int | None:
+    """The dots to the inch a picture made to `recipe` says: a print's 300."""
+    return DPI if recipe.sizing is not None and recipe.sizing.size.purpose == "print" else None
 
 
 def saving_from(data: dict[str, object]) -> Saving:
@@ -513,6 +604,9 @@ def estimated(made: Plan, here: Here) -> float:
     pixels = made.width * made.height
     canvas = made.frame.canvas
     seconds = 0.0
+    if made.styling is not None:
+        drawn = made.styling.touches.spatial()
+        seconds += pixels / 1e6 * (_LOOK_SECONDS + (_TOUCHES_SECONDS if drawn else 0.0))
     if made.frame.shape == "extend" and made.frame.sides != "none":
         width, height = round(made.frame.kept.width), round(made.frame.kept.height)
         left, top, canvas_width, canvas_height = canvas_around(canvas, width, height)
@@ -538,6 +632,10 @@ def waiting_for(made: Plan, ai: Ai) -> list[str]:
 
 
 _LAMA_SECONDS: dict[Place, float] = {"card": 0.35, "processor": 3.0}  # a square drawn
+# Seconds a megapixel takes through a look's table, and for its touches drawn across it: the
+# owner's i5-9600K (docs/stack/looks.md).
+_LOOK_SECONDS = 0.02
+_TOUCHES_SECONDS = 0.1
 
 
 class Maker:
@@ -567,8 +665,10 @@ class Maker:
     ) -> Path:
         order = cast("dict[str, dict[str, object]]", json.loads(row["recipe"]))
         try:
-            recipe = recipe_from(order["recipe"], screens_kept(conn))
-        except SizeError as error:
+            recipe = recipe_from(
+                order["recipe"], screens_kept(conn), lambda look: own_looks.resolve(conn, look)
+            )
+        except (SizeError, MissingLookError) as error:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
@@ -579,6 +679,11 @@ class Maker:
             raise JobError(str(error)) from None
         here = self._ai.where()
         made = planned(recipe, see(image, picture), self._ai.starts_on(here))
+        if made.empty:
+            raise JobError(
+                "There was nothing to make: no size, and no look that changes it. Nothing was "
+                "saved, and the original is as it was."
+            )
         if waiting_for(made, self._ai):
             raise JobError(
                 "It needs a model Mado downloads the first time it's asked for. Download it on "
@@ -589,7 +694,15 @@ class Maker:
         if stop():  # cancelled while it was read: a way without a model never asks again
             raise StoppedError
         try:
-            result = make(image, made, self._ai, report=report, stop=stop, timer=timer)
+            result = make(
+                image,
+                made,
+                self._ai,
+                report=report,
+                stop=stop,
+                timer=timer,
+                seed=seed_of(picture.path),
+            )
         except ModelError as error:
             raise JobError(f"{error} Nothing was saved; the original is as it was.") from None
         if stop():  # cancelled as its last tile was made
@@ -601,8 +714,8 @@ class Maker:
                 result,
                 picture,
                 made,
-                recipe.size,
                 saving,
+                dpi=dpi_of(recipe),
                 conn=conn,
                 quarantine=self._quarantine,
                 now=self._now(),

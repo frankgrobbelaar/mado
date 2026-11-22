@@ -2,20 +2,22 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { type Job, useCancelJob } from "@/lib/engine";
 import { showInFolder, useExplorer } from "@/lib/explorer";
-import { about, split, stem } from "@/lib/format";
+import { about, madeWith, split, stem } from "@/lib/format";
 
 const STAGES = {
   reading: "Reading the picture",
   shaping: "Drawing the new edges",
   making: "Making it bigger",
+  looking: "Giving it its look",
   saving: "Saving it",
 } as const;
 
 const RECENT = 60 * 60 * 1000; // a job over this long ago is History's to show, not this card's
 
 /**
- * The job making a picture, in the Size tab: its stage, how far it is and the time left, with
- * Cancel till it saves; then what it saved, why it didn't work, or that it was cancelled.
+ * The job making a picture, in the Size and Looks tabs: its stage, how far it is and the time
+ * left, with Cancel till it saves; then what it saved, why it didn't work, or that it was
+ * cancelled.
  */
 export function JobCard({ job }: { job: Job }) {
   const cancel = useCancelJob();
@@ -38,7 +40,7 @@ export function JobCard({ job }: { job: Job }) {
         </div>
         <div
           role="progressbar"
-          aria-label={`Making ${name} for ${job.madeFor}`}
+          aria-label={`Making ${name} ${madeWith(job)}`}
           aria-valuenow={percent}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -95,7 +97,10 @@ export function JobCard({ job }: { job: Job }) {
           </Button>
           {job.resultPicture && job.resultPicture.id !== job.pictureId && (
             <Button asChild size="sm" variant="ghost">
-              <Link to={`/library/pictures/${job.resultPicture.id}`}>Open it</Link>
+              {/* As it is: the size and look that made it aren't kept for it. */}
+              <Link to={`/library/pictures/${job.resultPicture.id}`} state={{ fresh: true }}>
+                Open it
+              </Link>
             </Button>
           )}
         </span>
@@ -116,7 +121,7 @@ export function JobCard({ job }: { job: Job }) {
         <span aria-hidden="true" className="status-problem mt-1 size-3 shrink-0 rounded-2" />
         <span className="flex flex-col gap-0.5">
           <span className="font-semibold">
-            {name} wasn't made for {job.madeFor}
+            {name} wasn't made {madeWith(job)}
           </span>
           <span className="text-fg-muted leading-normal">{job.problem}</span>
         </span>

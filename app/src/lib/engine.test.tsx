@@ -5,9 +5,13 @@ import {
   EngineError,
   EngineProvider,
   type EngineStatus,
+  type PreviewAsk,
   useEngine,
   usePictureImage,
+  usePreview,
 } from "./engine";
+
+const NO_TOUCHES = { grain: 0, vignette: 0, glow: 0, fade: 0, leak: 0, dust: 0 };
 
 const shell = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -174,5 +178,79 @@ describe("usePictureImage", () => {
     );
 
     await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+  });
+});
+
+const LOOKED: PreviewAsk = {
+  recipe: { size: null, look: { look: "warm-film", strength: 1, touches: NO_TOUCHES } },
+  side: "after",
+  fit: { width: 800, height: 600 },
+};
+
+function Preview({ id, ask }: { id: number; ask: PreviewAsk | null }) {
+  const { address, busy } = usePreview(id, ask, { keep: true });
+  return <p>{`${address ?? "no picture"}${busy ? ", busy" : ""}`}</p>;
+}
+
+describe("usePreview", () => {
+  let made = 0;
+  const revoked = new Set<string>();
+  beforeEach(() => {
+    made = 0;
+    revoked.clear();
+    shell.listeners.length = 0;
+    shell.invoke.mockReset();
+    shell.invoke.mockResolvedValue(ready);
+    URL.createObjectURL = vi.fn(() => `blob:preview-${++made}`);
+    URL.revokeObjectURL = vi.fn((address: string) => revoked.add(address));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function shown(): string {
+    return screen.getByText(/no picture|blob:/).textContent ?? "";
+  }
+
+  it("never shows a picture it has let go, after going through one with nothing to show", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => new Response("preview")),
+    );
+    const view = (ask: PreviewAsk | null) => (
+      <EngineProvider>
+        <Preview id={11} ask={ask} />
+      </EngineProvider>
+    );
+    const { rerender } = render(view(LOOKED));
+    await waitFor(() => expect(shown()).toBe("blob:preview-1"));
+
+    rerender(view(null)); // the original: no look to show over it
+    await waitFor(() => expect(revoked.has("blob:preview-1")).toBe(true));
+    rerender(view(LOOKED));
+
+    expect(shown()).not.toContain("blob:preview-1");
+    await waitFor(() => expect(shown()).toBe("blob:preview-2"));
+  });
+
+  it("never shows one picture's preview for another, even asked the same way", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(
+        async (url) =>
+          String(url).includes("/pictures/11/")
+            ? new Response("preview")
+            : new Promise<Response>(() => {}), // the next picture's is still on its way
+      ),
+    );
+    const view = (id: number) => (
+      <EngineProvider>
+        <Preview id={id} ask={LOOKED} />
+      </EngineProvider>
+    );
+    const { rerender } = render(view(11));
+    await waitFor(() => expect(shown()).toBe("blob:preview-1"));
+
+    rerender(view(12));
+
+    expect(shown()).toBe("no picture, busy");
   });
 });

@@ -88,6 +88,32 @@ describe("History", () => {
     expect(within(before).queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("says what a picture was made with: its look, alone or with a size", async () => {
+    fakeEngine({
+      "/history": {
+        entries: [
+          entry({
+            madeFor: null,
+            look: "Warm film at 60%",
+            result: "D:\\Pictures\\Phone\\Harbour at dusk (Warm film).jpg",
+            resultName: "Harbour at dusk (Warm film).jpg",
+          }),
+          { ...REPLACED, look: "Silver" },
+        ],
+        older: null,
+      },
+    });
+    renderHistory();
+
+    const today = await screen.findByRole("region", { name: /^Today/ });
+    expect(
+      within(today).getByText("Made Harbour at dusk with Warm film at 60%"),
+    ).toBeInTheDocument();
+    expect(
+      within(today).getByText("Replaced Old harbour.jpg with its TV 8K, Silver version"),
+    ).toBeInTheDocument();
+  });
+
   it("says whether a picture went after its days or when the quarantine was emptied", async () => {
     const gone = { clearedAt: "2026-11-23T10:00:00+02:00", aside: null, canUndo: false };
     fakeEngine({

@@ -40,7 +40,8 @@ def library(client: TestClient, tmp_path: Path) -> Library:
 
 
 def _recipe(**overrides: object) -> dict[str, object]:
-    return {"size": SMALL, **overrides}
+    """A recipe of one step, its size: the one the processor makes in a moment, unless said."""
+    return {"size": {"size": SMALL, **overrides}}
 
 
 def test_the_sizes_are_the_devices_the_prints_and_the_owners_screens(client: TestClient):
@@ -471,7 +472,7 @@ def test_a_job_keeps_what_the_plan_decided_so_it_makes_what_was_previewed(
 
     kept = json.loads(
         conn.execute("SELECT recipe FROM jobs WHERE id = ?", (job["id"],)).fetchone()[0]
-    )["recipe"]
+    )["recipe"]["size"]
     assert kept["kind"] == plan["kind"]
     assert kept["quality"] == plan["quality"]
     assert kept["focus"] == plan["focus"]

@@ -104,6 +104,7 @@ Built so far, in `app/src/components/`:
 | --- | --- |
 | `ui/button.tsx` | Every button. Variants `primary`, `secondary`, `ghost`, `danger`; sizes `md` (40 px) and `sm` (36 px); `asChild` to style a link |
 | `ui/segmented.tsx` | One choice from a few side by side, the chosen one raised in a well |
+| `ui/slider.tsx` | An amount along a line (a look's strength, a touch's amount): a thin track, the part up to the thumb in the accent, a round thumb in the text colour; the arrow keys, Page Up and Down, Home and End move it |
 | `ui/switch.tsx`, `toggle.tsx` | On or off: the switch (the accent when on), and a row with its name and what it does |
 | `empty-state.tsx` | A place with nothing in it yet, with its one next step |
 | `made-up-picture.tsx` | The made-up pictures an empty place shows (alps, dunes, aurora, meadow, lake, bloom), drawn by code as the Pic board draws them |
@@ -134,6 +135,16 @@ on Radix) and are restyled to the tokens; see [stack/tailwind.md](stack/tailwind
   screen gets no more than a preview may be (4 megapixels), shown a little bigger to fill the
   stage. After waits, saying so, while its model downloads. Labels sit on the picture in white on
   black.
+- **Going through looks** (the Looks tab): every look a small copy of the picture, three to a
+  row, the one picked outlined in the accent; the arrow keys go along them (up and down a row at
+  a time), and the pointer resting on one shows it on the big picture till it moves away. The big
+  picture keeps the last look while the next is made, says "Making the preview…" meanwhile, and
+  "Hold to see the original" (or the \ key) shows it without its look. A label on the picture says
+  what's on it: "Warm film · 60% · grain, vignette".
+- **On or off, with an amount** (finishing touches): a pill each, its amount beside its name in
+  the mono while it's on, and a line with a slider for each touch that's on.
+- **A tool's foot**: the job making the picture and the primary action stay at the foot of the
+  tools column however long it grows, what scrolls under them fading out above.
 - **A job in its column**: the stage in words, a bar with the percentage, "about 25 s left" and
   Cancel till it saves; then what it saved with Show in folder and Open it (a new picture, or one
   that replaced its original in another format), or why it didn't work, hatched.

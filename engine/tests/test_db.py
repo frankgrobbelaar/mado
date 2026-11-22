@@ -55,3 +55,21 @@ def test_records_from_before_the_library_gain_it_and_keep_their_settings(tmp_pat
         tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
         assert {"folders", "pictures", "scans"} <= tables
         assert conn.execute("SELECT value FROM settings").fetchone()["value"] == "true"
+
+
+def test_records_from_mado_0_1_gain_looks_and_keep_their_history(tmp_path: Path):
+    with closing(db.connect(tmp_path / "mado.db")) as conn:
+        for number, sql in enumerate(MIGRATIONS[:3], start=1):
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        conn.execute(
+            "INSERT INTO history (at, kind, name, made_for) VALUES (?, 'made', ?, ?)",
+            ("2026-11-22T14:02:00+02:00", "Harbour at dusk.heic", "TV 8K"),
+        )
+        conn.commit()
+
+        assert db.migrate(conn) == 4
+
+        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
+        assert "looks" in tables
+        line = conn.execute("SELECT made_for, look FROM history").fetchone()
+        assert (line["made_for"], line["look"]) == ("TV 8K", None)
