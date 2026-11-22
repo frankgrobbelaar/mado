@@ -1,0 +1,240 @@
+/*
+ * Cinema: Kura's design tokens, Mado's stand-in until the owner picks Mado's own look on its
+ * design canvas (docs/design/). Kura's canvases hold where every value came from: dark from Kura
+ * Workflows, light from Paper. Mado's look is the owner's choice, so never change a value unasked:
+ * the chosen look replaces this file whole. Tailwind turns each token into utilities: --color-accent gives
+ * bg-accent, text-accent, border-accent and so on. docs/design.md says when to use which.
+ *
+ * A colour that differs in light mode is light-dark(paper, cinema): the page follows the window,
+ * which is light or dark as Windows is, or as the owner chose in Settings. A part that stays dark
+ * on a light page (the featured panel, a video) carries scheme-dark, and its colours follow.
+ */
+
+@theme {
+  /* Only Cinema values exist: Tailwind's own palette and scales are switched off. */
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --breakpoint-*: initial;
+  --animate-*: initial;
+
+  /* Colour. Artwork brings the colour; the interface stays near-black in dark and warm paper in
+     light, with one amber accent. White and black are for what sits on artwork or stays dark. */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Surfaces */
+  --color-window: light-dark(#f3efe6, #0b0c0f); /* the window, behind everything */
+  --color-glass: light-dark(#fffcf6, rgb(255 255 255 / 0.04)); /* panels */
+  --color-edge: light-dark(#e6dfd1, rgb(255 255 255 / 0.08)); /* panel borders and dividers */
+  --color-surface: light-dark(#ebe4d6, #16181d); /* solid glass: placeholders, cut-out rings */
+  --color-raised: light-dark(#fffcf6, #13161c); /* alert and choice cards */
+  --color-dialog: light-dark(#fffcf6, #121419); /* dialogs */
+  --color-inset: light-dark(#f1ebe0, #08090c); /* logs and code */
+
+  /* Washes. Tint is white on dark and ink on paper: bg-tint/6 is a chip, a tag or a hover. */
+  --color-tint: light-dark(#1d1912, #ffffff);
+  --color-rule: light-dark(#eee7da, rgb(255 255 255 / 0.06)); /* lines between rows */
+  --color-field: light-dark(#fffcf6, rgb(255 255 255 / 0.05)); /* secondary buttons, fields */
+  --color-field-edge: light-dark(#dcd3c2, rgb(255 255 255 / 0.12));
+  --color-well: light-dark(#ebe4d6, rgb(255 255 255 / 0.05)); /* under segmented choices */
+  --color-tag: light-dark(rgb(255 252 246 / 0.9), rgb(11 12 15 / 0.6)); /* a tag on artwork */
+
+  /* Text */
+  --color-fg: light-dark(#1d1912, #f4f5f7); /* main text */
+  --color-fg-soft: light-dark(#34302a, #d7dae0); /* labels and inactive controls */
+  --color-fg-muted: light-dark(#5d564a, #a3a8b3); /* secondary text */
+  --color-fg-faint: light-dark(#6e6759, #7c818c); /* footnotes and steps not reached */
+
+  /* The one accent: warm amber */
+  --color-accent: #f2b33d;
+  --color-on-accent: #1d1300; /* text and icons on amber */
+  --color-accent-fg: light-dark(#7f5200, #ffd27a); /* amber text */
+  --color-accent-fg-hover: light-dark(#5a3a00, #ffe1a6);
+
+  /* Status. Shape and label carry the meaning; colour only reinforces it. */
+  --color-ready: #f2b33d; /* at your standard: solid amber */
+  --color-ready-edge: light-dark(#a8771c, transparent); /* amber's edge, on paper */
+  --color-converting: light-dark(#c0841a, #ffe1a6); /* converting now: pulsing */
+  --color-convert: light-dark(#5b7cc4, #4f73b3); /* to convert: solid blue */
+  --color-convert-fg: light-dark(#2f4f8f, #bdd0f4); /* blue text on a blue tint */
+  --color-broken: light-dark(#d9483b, #ff6b6b); /* broken: hatched, see status-broken */
+  --color-broken-hatch: light-dark(#f7d8d2, #3a1a1c);
+  --color-broken-fg: light-dark(#a3271c, #ffb4b4);
+  --color-missing: light-dark(#9a9284, #8b919c); /* missing: a hollow ring */
+  --color-danger: light-dark(#c23a2e, #ff8a8a); /* destructive buttons */
+  --color-on-danger: light-dark(#ffffff, #2a0b0b);
+
+  /* Featured: the big "continue" panel, the same in light and dark */
+  --color-featured: #13254f;
+  --color-featured-orb: #f08a24;
+  --color-featured-sun: #ffcf6b;
+
+  /* Lines, tracks and charts */
+  --color-track: light-dark(#e9e2d4, #262a33); /* progress tracks */
+  --color-line: light-dark(#dcd3c2, #2a2e38); /* step connectors and scrollbars */
+  --color-line-strong: light-dark(#b8ae9b, #3a3f4b); /* rings of steps not reached yet */
+  --color-control: light-dark(#857d6e, #5b6170); /* unchecked radio and checkbox rings */
+  --color-chart: light-dark(#a89e8b, #6b7385); /* chart bars that aren't the accent */
+
+  /* Toast: the one surface in the other light, dark on paper and light on dark */
+  --color-toast: light-dark(#1d1912, #f4f5f7);
+  --color-on-toast: light-dark(#fffcf6, #101217);
+
+  /* Type. Manrope for words; Geist Mono for paths, sizes and times. */
+  --font-sans: "Manrope Variable", Manrope, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+
+  /* Sizes are named by their pixel size: text-13 is 13px. */
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px; /* body */
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-17: 17px;
+  --text-18: 18px;
+  --text-20: 20px;
+  --text-22: 22px;
+  --text-24: 24px;
+  --text-26: 26px;
+  --text-32: 32px;
+  --text-36: 36px;
+  --text-44: 44px;
+  --text-50: 50px;
+
+  /* Shape. Panels use 16 to 24, dialogs 28; buttons and chips are pills (rounded-full). */
+  --radius-2: 2px;
+  --radius-3: 3px;
+  --radius-4: 4px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-14: 14px;
+  --radius-16: 16px;
+  --radius-18: 18px;
+  --radius-20: 20px;
+  --radius-22: 22px;
+  --radius-24: 24px;
+  --radius-26: 26px;
+  --radius-28: 28px;
+
+  /* Depth. On paper, panels lift with a soft warm shadow; on dark, glass needs none. */
+  --shadow-dialog: 0 40px 80px -40px light-dark(rgb(60 40 10 / 0.35), rgb(0 0 0 / 0.8));
+  --shadow-toast: 0 20px 40px -24px light-dark(rgb(60 40 10 / 0.45), rgb(0 0 0 / 0.9));
+  --shadow-float: 0 24px 48px -24px light-dark(rgb(60 40 10 / 0.35), rgb(0 0 0 / 0.7));
+  --shadow-panel:
+    0 1px 2px light-dark(rgb(60 40 10 / 0.06), transparent),
+    0 12px 28px -20px light-dark(rgb(60 40 10 / 0.3), transparent);
+
+  /* Layout: compact below 900px, standard from 900, wide from 1440. */
+  --breakpoint-standard: 900px;
+  --breakpoint-wide: 1440px;
+
+  /*
+   * Motion explains what changed. One curve everywhere: a quick start and a soft landing.
+   * Durations: hover and press 120ms, toggles and chips 200ms, panels and pages 320ms,
+   * charts on first view 600-900ms.
+   */
+  --ease-cinema: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --animate-fade-up: fade-up 0.5s var(--ease-cinema) both;
+  --animate-pop: pop 0.45s var(--ease-cinema) both;
+  --animate-grow-x: grow-x 1s var(--ease-cinema) both;
+  --animate-grow-y: grow-y 0.9s var(--ease-cinema) both;
+  --animate-ring: ring 1.3s var(--ease-cinema) both;
+  --animate-pulse: pulse 1.6s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-float: float 4s ease-in-out infinite;
+  --animate-card-in: card-in 0.32s var(--ease-cinema) both;
+  --animate-fade-in: fade-in 0.2s var(--ease-cinema) both;
+
+  /* A card over the page rises into place; what's behind it dims. */
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes grow-x {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes grow-y {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+  @keyframes ring {
+    from {
+      stroke-dashoffset: 100;
+    }
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+}

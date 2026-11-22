@@ -1,0 +1,825 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mado engine",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/tools": {
+      "get": {
+        "summary": "Tools",
+        "description": "What Mado downloads to work with, and whether each is ready.",
+        "operationId": "tools_tools_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Tool"
+                  },
+                  "type": "array",
+                  "title": "Response Tools Tools Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/tools/{tool_id}/download": {
+      "post": {
+        "summary": "Download",
+        "description": "Starts downloading a tool, unless it's ready or already on its way.",
+        "operationId": "download_tools__tool_id__download_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tool Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tool"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings": {
+      "get": {
+        "summary": "Settings",
+        "operationId": "settings_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Save Settings",
+        "description": "Keeps the owner's choices.",
+        "operationId": "save_settings_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/data": {
+      "get": {
+        "summary": "Your Data",
+        "description": "How big each part of Mado's data is.",
+        "operationId": "your_data_data_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSizes"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/export": {
+      "post": {
+        "summary": "Export",
+        "description": "Writes the export zip (the database, its settings and a manifest) into a folder, never\nover another file.",
+        "operationId": "export_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Exported"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/backups": {
+      "get": {
+        "summary": "List Backups",
+        "operationId": "list_backups_backups_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Backups"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Back Up Now",
+        "description": "Makes a backup now, checked like the nightly ones (and kept apart from them).",
+        "operationId": "back_up_now_backups_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Backup"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/backups/import": {
+      "post": {
+        "summary": "Import Export",
+        "description": "Puts an export's records in place as the engine starts again, the way a backup is\nrestored: the app starts it again right after asking.",
+        "operationId": "import_export_backups_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/backups/{name}/restore": {
+      "post": {
+        "summary": "Restore Backup",
+        "description": "Restores a backup as the engine starts again: the app starts it again right after.",
+        "operationId": "restore_backup_backups__name__restore_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/records": {
+      "get": {
+        "summary": "Records",
+        "description": "Whether Mado's records are damaged, and what can bring them back; null while they're\nfine.",
+        "operationId": "records_records_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Damage"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Records Records Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/records/restore": {
+      "post": {
+        "summary": "Restore Records",
+        "description": "Restores the newest backup that opens over the damaged records, which are kept beside it\nas they are. The app starts the engine again right after.",
+        "operationId": "restore_records_records_restore_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/records/new": {
+      "post": {
+        "summary": "New Records",
+        "description": "Sets the damaged records aside as they are, so Mado starts again with new ones, as on its\nfirst day. The app starts the engine again right after.",
+        "operationId": "new_records_records_new_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Backup": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "made": {
+            "type": "string",
+            "title": "Made"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "beforeRestoring": {
+            "type": "boolean",
+            "title": "Beforerestoring"
+          },
+          "fromExport": {
+            "type": "boolean",
+            "title": "Fromexport"
+          },
+          "byHand": {
+            "type": "boolean",
+            "title": "Byhand"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "made",
+          "size",
+          "beforeRestoring",
+          "fromExport",
+          "byHand"
+        ],
+        "title": "Backup"
+      },
+      "Backups": {
+        "properties": {
+          "backups": {
+            "items": {
+              "$ref": "#/components/schemas/Backup"
+            },
+            "type": "array",
+            "title": "Backups"
+          },
+          "restored": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Restored"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "backups",
+          "restored"
+        ],
+        "title": "Backups"
+      },
+      "Damage": {
+        "properties": {
+          "problem": {
+            "type": "string",
+            "title": "Problem"
+          },
+          "badRead": {
+            "type": "boolean",
+            "title": "Badread"
+          },
+          "backup": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup"
+          },
+          "made": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Made"
+          }
+        },
+        "type": "object",
+        "required": [
+          "problem",
+          "badRead",
+          "backup",
+          "made"
+        ],
+        "title": "Damage",
+        "description": "Mado's records are damaged: what's wrong, and the newest backup that opens."
+      },
+      "DataSizes": {
+        "properties": {
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "database": {
+            "type": "integer",
+            "title": "Database"
+          },
+          "cache": {
+            "type": "integer",
+            "title": "Cache"
+          },
+          "logs": {
+            "type": "integer",
+            "title": "Logs"
+          },
+          "backups": {
+            "type": "integer",
+            "title": "Backups"
+          },
+          "tools": {
+            "type": "integer",
+            "title": "Tools"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder",
+          "database",
+          "cache",
+          "logs",
+          "backups",
+          "tools"
+        ],
+        "title": "DataSizes"
+      },
+      "ExportRequest": {
+        "properties": {
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder"
+        ],
+        "title": "ExportRequest"
+      },
+      "Exported": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "size"
+        ],
+        "title": "Exported"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "dataDir": {
+            "type": "string",
+            "title": "Datadir"
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "title": "Schemaversion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "dataDir",
+          "schemaVersion"
+        ],
+        "title": "Health"
+      },
+      "ImportRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "ImportRequest"
+      },
+      "Restored": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "at",
+          "problem"
+        ],
+        "title": "Restored"
+      },
+      "Settings": {
+        "properties": {
+          "setUp": {
+            "type": "boolean",
+            "title": "Setup",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "Settings"
+      },
+      "State": {
+        "type": "string",
+        "enum": [
+          "missing",
+          "downloading",
+          "unpacking",
+          "ready",
+          "failed"
+        ]
+      },
+      "Tool": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "licence": {
+            "type": "string",
+            "title": "Licence"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "when": {
+            "type": "string",
+            "enum": [
+              "setup",
+              "asked"
+            ],
+            "title": "When"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "purpose",
+          "licence",
+          "size",
+          "when",
+          "state",
+          "done",
+          "problem"
+        ],
+        "title": "Tool"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
