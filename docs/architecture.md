@@ -26,7 +26,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows), making pictures right for a screen (the AI models on the graphics card) and giving them a look, and saving them, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows), making pictures right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -130,12 +130,43 @@ looks are made, what `.cube` files may be, and the times.
 | Laying it on | `mado/looks.py` | A look's one table, then the touches where they fall on the picture made, see-through parts and grey pictures kept as they are |
 | Your looks | `mado/own_looks.py` | Importing, keeping, renaming and deleting the owner's looks, and finding any look by its id |
 
+## Many at once
+
+Pictures ticked in the Library, a folder, what a search found, or files and folders dropped on
+the window or picked (in the library or not) become a batch: its steps (the size, then the look,
+as the picture page's tabs choose them), how it saves, and when it starts. See it first makes
+three of them in full, unsaved; then each picture is a job in the queue, made one at a time by
+the same worker as a picture's own Save. docs/stack/queue.md has the order, nights, room on a
+drive, See it first, recipes and watch folders.
+
+```mermaid
+flowchart LR
+    pick["ticks, a folder, a search, a drop"] -- "/batches/pictures" --> batch["Many at once"]
+    batch -- "/batches/samples" --> first["See it first: three made, unsaved"]
+    batch -- "/batches" --> queue[("jobs, a picture each")]
+    watch["a watch folder's new pictures"] --> queue
+    queue --> worker["the jobs' worker, one at a time"]
+    first --> worker
+    worker --> saved["saved: new pictures, or originals to quarantine"]
+    saved --> history[("History: one line a batch")]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/batch.py` | Pure: nights, See it first's pictures, reckoning a batch by them, room on a drive, steps in Mado's order and their words |
+| The queue | `mado/jobs.py` | The worker: a picture's own Save first, then batches by their place; pausing, cancelling, ticked pictures next, last or out, trying again; room on a drive; the PC kept awake; a batch done told once |
+| Batches | `mado/batches.py`, `mado/samples.py` | The pictures a batch is made of, what it takes, putting it in the queue; See it first |
+| Recipes and watch folders | `mado/recipes.py`, `mado/watching.py` | Steps kept by name; folders whose new pictures, once copied, are made to a recipe, never their own results nor anything Mado wrote |
+
+The window's drag and drop is Tauri's (`lib/drop.ts`), which gives the files' paths; Home's Pick
+pictures uses the shell's `pick_pictures` (`src-tauri/src/dialogs.rs`).
+
 ## Contracts
 
 | Between | How | Kept honest by |
 | --- | --- | --- |
 | Shell and engine | `serve` arguments, `MADO_TOKEN`, the ready line, stdin | Tests on both sides |
-| Shell and UI | Commands `engine_status`, `restart_engine`, `prepare_update`, `install_update`, `screens`; event `engine-status` | Types mirrored in `app/src/lib/engine.tsx`, `updates.ts` and `screens.ts` |
+| Shell and UI | Commands `engine_status`, `restart_engine`, `prepare_update`, `install_update`, `screens`, the dialogs (`pick_folder`, `pick_pictures`, …); events `engine-status` and Tauri's drag and drop | Types mirrored in `app/src/lib/engine.tsx`, `updates.ts`, `screens.ts`, `dialogs.ts` and `drop.ts` |
 | UI and engine | JSON over HTTP, camelCase | `engine/openapi.json` snapshot + test; types in `app/src/lib/engine.tsx` |
 
 Change a contract on both sides in the same commit.
@@ -145,7 +176,7 @@ Change a contract on both sides in the same commit.
 | Route | For |
 | --- | --- |
 | `GET /health` | Is the engine up, its version, the data folder, the schema version (0 while the records are damaged) |
-| `GET /settings`, `PUT /settings` | The owner's choices; so far whether Setup is done |
+| `GET /settings`, `PUT /settings` | The owner's choices: whether Setup is done, Saving, and whether a watch folder's big batch waits for the night |
 | `GET /tools`, `POST /tools/{id}/download` | What Mado downloads (ffmpeg), its state, and fetching it |
 | `GET /backups`, `POST /backups`, `POST /backups/import`, `POST /backups/{name}/restore` | The backups, one made by hand, importing an export, restoring one as the engine starts again |
 | `GET /data`, `POST /export` | What the data folder holds, by part, and the export zip |
@@ -164,9 +195,18 @@ Change a contract on both sides in the same commit.
 | `GET /looks` | Mado's looks and the owner's own, each with a version its small copies' addresses carry |
 | `GET /pictures/{id}/looks/{look}` | A small copy of the picture in a look, from its thumbnail (WebP, kept by the window) |
 | `POST /looks/import`, `POST /looks` | Importing a `.cube` file as a look; keeping the mix on the Looks tab (a look, its strength and its touches) as one |
-| `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are) |
-| `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | The jobs (a picture's, or those under way): stage, progress, time left, what they saved, why they didn't work; Cancel |
-| `GET /history`, `POST /history/{id}/undo`, `POST /history/{id}/redo`, `POST /history/clear` | History a week of days at a time (`before`, `q`); taking a new picture away or putting a replaced original back, newest first; putting a picture taken away back, or replacing an original again; clearing History |
+| `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are; not while a recipe uses it, or pictures waiting in the queue are made with it) |
+| `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | Pictures' own Saves (a picture's, or those under way; the queue's are `/queue`'s): stage, progress, time left, what they saved, why they didn't work; Cancel |
+| `POST /batches/pictures` | The pictures a batch would be made of: ticked (`ids`), a folder's (`folder`, `dir`), what a search found (`q`), or the pictures in files and folders dropped or picked (`paths`), with those left out and why |
+| `POST /batches/takes` | What a batch would take: about how long, how much space and what's free where it's saved, by this PC's speeds and what See it first found; its steps in words, where its pictures go, a name they'd take, and the downloads it waits for |
+| `POST /batches/samples`, `GET /batches/samples/{id}`, `DELETE /batches/samples/{id}`, `GET /batches/samples/{id}/{index}/{side}` | See it first: three pictures made in full, not saved (`round` asks for three others); how they're coming on; letting them go; each one before and after (WebP) or as made |
+| `POST /batches`, `GET /batches/done`, `POST /batches/{id}/seen` | Putting a batch in the queue (now, after what's in it, or tonight), See it first's pictures kept; the batches done that Home tells of; Home's card for one seen |
+| `GET /queue`, `GET /queue/now` | The queue as its page shows it (the batch being made and its pictures, the batches after it, a drive without room and how much more it needs; with nothing waiting, the latest batch whose pictures didn't all work, `finished`); the queue in a word, for the rail's badge and the status bar |
+| `POST /queue/pause`, `/resume`, `/cancel`, `/fit`, `/next`, `/last`, `/remove`, `/clear`, `POST /queue/{job}/retry` | Pause and resume; cancel all; make what fits on a drive without room; ticked pictures next, to the end, or out of the queue; what didn't work of the batches done cleared from the Queue; a picture that didn't work tried again |
+| `GET /recipes`, `POST /recipes`, `PUT /recipes/{id}`, `DELETE /recipes/{id}` | The owner's recipes, each with its steps in words and how often and when it was used; keeping, changing and deleting one (not while a watch folder runs it) |
+| `GET /watch-folders`, `POST /watch-folders`, `PUT /watch-folders/{id}`, `DELETE /watch-folders/{id}` | The watch folders: each one's recipe, where its new pictures go, on or off, connected, when it last took pictures, and why its pictures couldn't go in the queue lately; adding (what's there already left alone), changing, turning off and on, and stopping watching one |
+| `GET /history`, `POST /history/{id}/undo`, `POST /history/{id}/redo`, `POST /history/clear` | History a week of days at a time (`before`, `q`), with the batches its lines were made in; taking a new picture away or putting a replaced original back, newest first; putting a picture taken away back, or replacing an original again; clearing History |
+| `POST /history/batches/{id}/undo`, `/redo`, `GET /history/today`, `GET /history/{id}/thumbnail` | A whole batch taken away or its originals put back, and done again, once nothing of it waits (409 till then); what was made today, for Home; a thumbnail of a picture a line made, in the library or not |
 | `GET /quarantine`, `POST /quarantine/empty` | What waits in quarantine on each drive; emptying one now |
 | `GET /pc`, `POST /pc/test` | This PC: its card, processor and memory, where the models run, each kind at each quality with its time, what each starts on; testing it again |
 | `GET /records`, `POST /records/restore`, `POST /records/new` | Records damaged past use, and the two ways back |
@@ -197,7 +237,7 @@ Change a contract on both sides in the same commit.
   into one.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
-  picture with what Mado read of it (`pictures.csv`), History (`history.csv`), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), and a manifest. It grows with the
+  picture with what Mado read of it (`pictures.csv`), History (`history.csv`), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

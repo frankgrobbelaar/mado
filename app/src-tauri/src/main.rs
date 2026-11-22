@@ -41,6 +41,7 @@ fn main() {
             updater::install_update,
             links::open_downloads_page,
             dialogs::pick_folder,
+            dialogs::pick_pictures,
             dialogs::pick_export,
             dialogs::pick_cube,
             explorer::open_folder,

@@ -251,3 +251,19 @@ def test_camera_raw_isnt_decoded_yet(tmp_path: Path):
 
     with pytest.raises(UnreadableError, match="RAW"):
         decode(path, "raw", longest=512)
+
+
+def _in_use(*_args: object, **_options: object) -> None:
+    raise PermissionError(13, "The process cannot access the file", "Pier.jpg", 32)
+
+
+def test_a_picture_open_in_another_app_says_so_rather_than_that_its_damaged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    path = draw(tmp_path / "Pier.jpg")
+    monkeypatch.setattr(Image, "open", _in_use)
+
+    with pytest.raises(UnreadableError, match="open in another app"):
+        decode(path, "picture", longest=None)
+    with pytest.raises(UnreadableError, match="open in another app"):
+        read_facts(path, "picture")

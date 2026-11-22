@@ -1262,7 +1262,7 @@
       },
       "delete": {
         "summary": "Delete",
-        "description": "Deletes one of the owner's looks. Pictures made with it stay as they are.",
+        "description": "Deletes one of the owner's looks. Pictures made with it stay as they are. Not while a\nrecipe uses it, or pictures waiting in the queue are made with it.",
         "operationId": "delete_looks__look_id__delete",
         "security": [
           {
@@ -1300,7 +1300,7 @@
     "/jobs": {
       "get": {
         "summary": "Jobs List",
-        "description": "The latest jobs, newest first: a picture's (`picture`), or those waiting or under way\n(`active`).",
+        "description": "The latest pictures' own Saves, newest first: a picture's (`picture`), or those waiting\nor under way (`active`). A batch's pictures are the queue's (/queue).",
         "operationId": "jobs_list_jobs_get",
         "security": [
           {
@@ -1464,6 +1464,1104 @@
         }
       }
     },
+    "/batches/pictures": {
+      "post": {
+        "summary": "Pictures",
+        "description": "The pictures a batch would be made of: those ticked, a folder's, what a search found, or\nthe pictures in files and folders dropped or picked, with those left out and why.",
+        "operationId": "pictures_batches_pictures_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PickIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Picked"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/batches/takes": {
+      "post": {
+        "summary": "Takes",
+        "description": "What a batch would take: about how long, how much space, and what's free there, by this\nPC's speeds and what See it first found; its steps in words, and where its pictures go.",
+        "operationId": "takes_batches_takes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Takes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/batches/samples": {
+      "post": {
+        "summary": "See First",
+        "description": "Makes three of a batch's pictures in full, but doesn't save them: timed and sized, to see\nfirst. `round` asks for three others.",
+        "operationId": "see_first_batches_samples_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SamplesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SamplesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/batches/samples/{set_id}": {
+      "get": {
+        "summary": "Seen First",
+        "description": "How See it first's three are coming on.",
+        "operationId": "seen_first_batches_samples__set_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Set Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SamplesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Let Go",
+        "description": "Lets See it first's three go: the one being made stops.",
+        "operationId": "let_go_batches_samples__set_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Set Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches/samples/{set_id}/{index}/{side}": {
+      "get": {
+        "summary": "Sample Picture",
+        "description": "One of See it first's pictures: a copy of it before and after (WebP), or as it was made,\nin full, to look at closely.",
+        "operationId": "sample_picture_batches_samples__set_id___index___side__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Set Id"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Index"
+            }
+          },
+          {
+            "name": "side",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "before",
+                "after",
+                "full"
+              ],
+              "type": "string",
+              "title": "Side"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {},
+              "image/jpeg": {},
+              "image/png": {},
+              "image/avif": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/batches": {
+      "post": {
+        "summary": "Put In",
+        "description": "Puts a batch in the queue: now, after what's in it, or tonight from 23:00. See it first's\npictures made to the same steps are kept rather than made again.",
+        "operationId": "put_in_batches_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/batches/done": {
+      "get": {
+        "summary": "Done",
+        "description": "Batches done that Home tells of: made in the last week, not cancelled, not yet seen. A\nwatch folder's aren't: they come as pictures arrive, and History and Made today have them.",
+        "operationId": "done_batches_done_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BatchOut"
+                  },
+                  "type": "array",
+                  "title": "Response Done Batches Done Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/batches/{batch_id}/seen": {
+      "post": {
+        "summary": "Seen",
+        "description": "Home's card for a batch done was seen: it goes.",
+        "operationId": "seen_batches__batch_id__seen_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queue": {
+      "get": {
+        "summary": "Queue",
+        "description": "The queue as its page shows it. `all` lists every picture waiting and done.",
+        "operationId": "queue_queue_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "All"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queue/now": {
+      "get": {
+        "summary": "Queue Now",
+        "description": "The queue in a word: the batch being made and how far it's got, or how many wait.",
+        "operationId": "queue_now_queue_now_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueNow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/pause": {
+      "post": {
+        "summary": "Pause",
+        "description": "Pauses the queue: the picture being made stops at its next tile, first in line again.",
+        "operationId": "pause_queue_pause_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueNow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/resume": {
+      "post": {
+        "summary": "Resume",
+        "operationId": "resume_queue_resume_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueNow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/cancel": {
+      "post": {
+        "summary": "Cancel All",
+        "description": "Cancels everything in the queue: what waits, and the picture being made at its next tile.\nPictures made already stay, and History has them.",
+        "operationId": "cancel_all_queue_cancel_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Moved"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/next": {
+      "post": {
+        "summary": "Do Next",
+        "description": "Ticked pictures waiting go next, together.",
+        "operationId": "do_next_queue_next_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ticked"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Moved"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/last": {
+      "post": {
+        "summary": "To The End",
+        "description": "Ticked pictures waiting go to the end of the queue, together.",
+        "operationId": "to_the_end_queue_last_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ticked"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Moved"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/remove": {
+      "post": {
+        "summary": "Take Out",
+        "description": "Ticked pictures waiting come out of the queue, as if they'd never been put in.",
+        "operationId": "take_out_queue_remove_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ticked"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Moved"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/fit": {
+      "post": {
+        "summary": "Make What Fits",
+        "description": "On a drive without room, the pictures that fit are made, and the rest wait for room.",
+        "operationId": "make_what_fits_queue_fit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitOn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueNow"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/clear": {
+      "post": {
+        "summary": "Clear",
+        "description": "Clears what didn't work of the batches done from the Queue. History still says which.",
+        "operationId": "clear_queue_clear_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueNow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/queue/{job_id}/retry": {
+      "post": {
+        "summary": "Try Again",
+        "description": "A picture that didn't work goes back in the queue, at its end.",
+        "operationId": "try_again_queue__job_id__retry_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueNow"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recipes": {
+      "get": {
+        "summary": "Listed",
+        "description": "The owner's recipes, each with its steps in words and how often and when it was used.",
+        "operationId": "listed_recipes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/KeptRecipe"
+                  },
+                  "type": "array",
+                  "title": "Response Listed Recipes Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Keep",
+        "description": "Keeps steps and how they save as a recipe.",
+        "operationId": "keep_recipes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRecipe"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptRecipe"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/recipes/{recipe_id}": {
+      "put": {
+        "summary": "Change",
+        "description": "Changes a recipe: batches in the queue make what they were asked for.",
+        "operationId": "change_recipes__recipe_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recipe Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRecipe"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptRecipe"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete",
+        "description": "Deletes a recipe; batches made from it keep their steps.",
+        "operationId": "delete_recipes__recipe_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recipe Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/watch-folders": {
+      "get": {
+        "summary": "Watch Folders",
+        "description": "The watch folders: each one's recipe, where its new pictures go, on or off, and when it\nlast made pictures.",
+        "operationId": "watch_folders_watch_folders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WatchOut"
+                  },
+                  "type": "array",
+                  "title": "Response Watch Folders Watch Folders Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Watch",
+        "description": "Watches a folder from now: what's in it already is left alone.",
+        "operationId": "watch_watch_folders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/watch-folders/{watch_id}": {
+      "put": {
+        "summary": "Change Watch",
+        "description": "Changes a watch folder, or turns it on or off: on again, it takes what arrives from now.",
+        "operationId": "change_watch_watch_folders__watch_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "watch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Watch Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Stop Watching",
+        "description": "Stops watching a folder: its pictures, and what it made, stay as they are.",
+        "operationId": "stop_watching_watch_folders__watch_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "watch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Watch Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/history": {
       "get": {
         "summary": "What Mado Did",
@@ -1513,6 +2611,165 @@
                   "$ref": "#/components/schemas/HistoryOut"
                 }
               }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history/batches/{batch_id}/undo": {
+      "post": {
+        "summary": "Undo Batch",
+        "description": "Undoes a whole batch: its new pictures taken away (into quarantine), or its originals put\nback. Each picture's own line says why one couldn't be. Not while some of its pictures are\nstill in the queue: what's made after would be left as it is.",
+        "operationId": "undo_batch_history_batches__batch_id__undo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchUndone"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history/batches/{batch_id}/redo": {
+      "post": {
+        "summary": "Redo Batch",
+        "description": "Undoes a batch's undo: its new pictures put back, or its originals replaced again.",
+        "operationId": "redo_batch_history_batches__batch_id__redo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchUndone"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history/today": {
+      "get": {
+        "summary": "Made Today",
+        "description": "The pictures made today, newest first, for Home.",
+        "operationId": "made_today_history_today_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MadeToday"
+                  },
+                  "type": "array",
+                  "title": "Response Made Today History Today Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/history/{entry_id}/thumbnail": {
+      "get": {
+        "summary": "Made Thumbnail",
+        "description": "A thumbnail of the picture a line made (WebP): the library's, or made now from the picture\nitself when it's outside the library. Only a picture Mado made.",
+        "operationId": "made_thumbnail_history__entry_id__thumbnail_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
             }
           },
           "422": {
@@ -2153,6 +3410,599 @@
         ],
         "title": "Backups"
       },
+      "BatchIn": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Source"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          },
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/BatchPicture"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Pictures"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "saving": {
+            "$ref": "#/components/schemas/BatchSaving"
+          },
+          "starts": {
+            "$ref": "#/components/schemas/Starts",
+            "default": "now"
+          },
+          "recipe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipe"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "pictures",
+          "steps",
+          "saving"
+        ],
+        "title": "BatchIn"
+      },
+      "BatchLine": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "watch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watch"
+          },
+          "how": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replace"
+            ],
+            "title": "How"
+          },
+          "madeFor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Madefor"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "into": {
+            "type": "string",
+            "title": "Into"
+          },
+          "made": {
+            "type": "integer",
+            "title": "Made"
+          },
+          "undone": {
+            "type": "integer",
+            "title": "Undone"
+          },
+          "failed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed"
+          },
+          "overnight": {
+            "type": "boolean",
+            "title": "Overnight"
+          },
+          "canUndo": {
+            "type": "boolean",
+            "title": "Canundo"
+          },
+          "canRedo": {
+            "type": "boolean",
+            "title": "Canredo"
+          },
+          "working": {
+            "type": "boolean",
+            "title": "Working"
+          },
+          "drive": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive"
+          },
+          "asideUntil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asideuntil"
+          },
+          "picture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "watch",
+          "how",
+          "madeFor",
+          "look",
+          "purpose",
+          "into",
+          "made",
+          "undone",
+          "failed",
+          "overnight",
+          "canUndo",
+          "canRedo",
+          "working",
+          "drive",
+          "asideUntil",
+          "picture"
+        ],
+        "title": "BatchLine",
+        "description": "A batch as History's one line for it: what it made, and what undoes all of it."
+      },
+      "BatchOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          },
+          "recipe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipe"
+          },
+          "watch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watch"
+          },
+          "starts": {
+            "$ref": "#/components/schemas/Starts"
+          },
+          "addedAt": {
+            "type": "string",
+            "title": "Addedat"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting"
+          },
+          "cancelled": {
+            "type": "integer",
+            "title": "Cancelled"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "secondsLeft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondsleft"
+          },
+          "seenFirst": {
+            "type": "boolean",
+            "title": "Seenfirst"
+          },
+          "how": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replace"
+            ],
+            "title": "How"
+          },
+          "into": {
+            "type": "string",
+            "title": "Into"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "madeFor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Madefor"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/Words"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "before": {
+            "type": "integer",
+            "title": "Before"
+          },
+          "after": {
+            "type": "integer",
+            "title": "After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "shared",
+          "recipe",
+          "watch",
+          "starts",
+          "addedAt",
+          "startedAt",
+          "finishedAt",
+          "total",
+          "done",
+          "failed",
+          "waiting",
+          "cancelled",
+          "progress",
+          "secondsLeft",
+          "seenFirst",
+          "how",
+          "into",
+          "folder",
+          "madeFor",
+          "look",
+          "purpose",
+          "words",
+          "before",
+          "after"
+        ],
+        "title": "BatchOut"
+      },
+      "BatchPicture": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "name",
+          "size",
+          "width",
+          "height",
+          "version"
+        ],
+        "title": "BatchPicture"
+      },
+      "BatchSaving": {
+        "properties": {
+          "how": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replace"
+            ],
+            "title": "How",
+            "default": "new"
+          },
+          "format": {
+            "$ref": "#/components/schemas/Format",
+            "default": "JPEG"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "keepCamera": {
+            "type": "boolean",
+            "title": "Keepcamera",
+            "default": true
+          },
+          "keepColours": {
+            "type": "boolean",
+            "title": "Keepcolours",
+            "default": true
+          },
+          "keepLocation": {
+            "type": "boolean",
+            "title": "Keeplocation",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "BatchSaving",
+        "description": "How a batch saves: new pictures (beside the originals, into a folder by name beside each,\nor into a folder of their own), or in the originals' places, each original to quarantine."
+      },
+      "BatchUndone": {
+        "properties": {
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "problems"
+        ],
+        "title": "BatchUndone"
+      },
       "CardOut": {
         "properties": {
           "name": {
@@ -2551,6 +4401,17 @@
           "canRedo": {
             "type": "boolean",
             "title": "Canredo"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
           }
         },
         "type": "object",
@@ -2572,7 +4433,8 @@
           "bytes",
           "picture",
           "canUndo",
-          "canRedo"
+          "canRedo",
+          "batch"
         ],
         "title": "EntryOut"
       },
@@ -2628,6 +4490,20 @@
           "height"
         ],
         "title": "Fit"
+      },
+      "FitOn": {
+        "properties": {
+          "drive": {
+            "type": "string",
+            "maxLength": 260,
+            "title": "Drive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drive"
+        ],
+        "title": "FitOn"
       },
       "FolderNode": {
         "properties": {
@@ -2760,14 +4636,32 @@
               }
             ],
             "title": "Older"
+          },
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/BatchLine"
+            },
+            "type": "array",
+            "title": "Batches"
           }
         },
         "type": "object",
         "required": [
           "entries",
-          "older"
+          "older",
+          "batches"
         ],
         "title": "HistoryOut"
+      },
+      "How": {
+        "type": "string",
+        "enum": [
+          "ticked",
+          "folder",
+          "search",
+          "dropped",
+          "picked"
+        ]
       },
       "ImportIn": {
         "properties": {
@@ -3002,6 +4896,66 @@
         ],
         "title": "KeepIn"
       },
+      "KeptRecipe": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "saving": {
+            "$ref": "#/components/schemas/BatchSaving"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/Words"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "used": {
+            "type": "integer",
+            "title": "Used"
+          },
+          "usedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usedat"
+          },
+          "tonight": {
+            "type": "boolean",
+            "title": "Tonight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "steps",
+          "saving",
+          "words",
+          "used",
+          "usedAt",
+          "tonight"
+        ],
+        "title": "KeptRecipe"
+      },
       "Kind": {
         "type": "string",
         "enum": [
@@ -3010,6 +4964,24 @@
           "pixels",
           "screenshot"
         ]
+      },
+      "LeftOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "why"
+        ],
+        "title": "LeftOut"
       },
       "Library": {
         "properties": {
@@ -3194,6 +5166,36 @@
         ],
         "title": "LookOut"
       },
+      "LookStep": {
+        "properties": {
+          "look": {
+            "type": "string",
+            "title": "Look"
+          },
+          "strength": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strength",
+            "default": 1.0
+          },
+          "touches": {
+            "$ref": "#/components/schemas/TouchesIn"
+          },
+          "step": {
+            "type": "string",
+            "const": "look",
+            "title": "Step",
+            "default": "look"
+          }
+        },
+        "type": "object",
+        "required": [
+          "look"
+        ],
+        "title": "LookStep",
+        "description": "A look, with its strength and touches: the Looks tab's choices."
+      },
       "Looks": {
         "properties": {
           "looks": {
@@ -3217,6 +5219,48 @@
           "yours"
         ],
         "title": "Looks"
+      },
+      "MadeToday": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "madeFor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Madefor"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "madeFor",
+          "look"
+        ],
+        "title": "MadeToday"
       },
       "MakeIn": {
         "properties": {
@@ -3256,6 +5300,19 @@
           "pictures"
         ],
         "title": "MeasuredOut"
+      },
+      "Moved": {
+        "properties": {
+          "moved": {
+            "type": "integer",
+            "title": "Moved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moved"
+        ],
+        "title": "Moved"
       },
       "Need": {
         "properties": {
@@ -3316,6 +5373,32 @@
           "path"
         ],
         "title": "NewFolder"
+      },
+      "NewRecipe": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "saving": {
+            "$ref": "#/components/schemas/BatchSaving"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "steps",
+          "saving"
+        ],
+        "title": "NewRecipe"
       },
       "Pc": {
         "properties": {
@@ -3449,6 +5532,107 @@
           "abilities"
         ],
         "title": "Pc"
+      },
+      "PickIn": {
+        "properties": {
+          "how": {
+            "$ref": "#/components/schemas/How"
+          },
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Ids"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Paths"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "dir": {
+            "type": "string",
+            "title": "Dir",
+            "default": ""
+          },
+          "q": {
+            "type": "string",
+            "title": "Q",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "how"
+        ],
+        "title": "PickIn",
+        "description": "Which pictures: ticked (`ids`), a folder (`folder`, `dir`), what a search found (`search`,\nwith `q`), or files and folders dropped or picked (`paths`)."
+      },
+      "Picked": {
+        "properties": {
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/BatchPicture"
+            },
+            "type": "array",
+            "title": "Pictures"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words"
+          },
+          "leftOut": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "type": "array",
+            "title": "Leftout"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pictures",
+          "bytes",
+          "source",
+          "shared",
+          "words",
+          "leftOut"
+        ],
+        "title": "Picked"
       },
       "PictureDetails": {
         "properties": {
@@ -3989,6 +6173,155 @@
           "best"
         ]
       },
+      "QueueNow": {
+        "properties": {
+          "working": {
+            "type": "boolean",
+            "title": "Working"
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
+          },
+          "over": {
+            "type": "integer",
+            "title": "Over"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting"
+          }
+        },
+        "type": "object",
+        "required": [
+          "working",
+          "paused",
+          "batch",
+          "over",
+          "total",
+          "progress",
+          "waiting"
+        ],
+        "title": "QueueNow",
+        "description": "The queue in a word, for the rail's badge and the status bar."
+      },
+      "QueueOut": {
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "working": {
+            "type": "boolean",
+            "title": "Working"
+          },
+          "room": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Room"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatchOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Row"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "waitingMore": {
+            "type": "integer",
+            "title": "Waitingmore"
+          },
+          "doneMore": {
+            "type": "integer",
+            "title": "Donemore"
+          },
+          "later": {
+            "items": {
+              "$ref": "#/components/schemas/BatchOut"
+            },
+            "type": "array",
+            "title": "Later"
+          },
+          "night": {
+            "type": "boolean",
+            "title": "Night"
+          },
+          "morning": {
+            "type": "string",
+            "title": "Morning"
+          },
+          "waitsForNight": {
+            "type": "boolean",
+            "title": "Waitsfornight"
+          },
+          "secondsLeft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondsleft"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paused",
+          "working",
+          "room",
+          "batch",
+          "finished",
+          "rows",
+          "waitingMore",
+          "doneMore",
+          "later",
+          "night",
+          "morning",
+          "waitsForNight",
+          "secondsLeft"
+        ],
+        "title": "QueueOut"
+      },
       "RecipeIn": {
         "properties": {
           "size": {
@@ -4092,6 +6425,374 @@
           "problem"
         ],
         "title": "Restored"
+      },
+      "Room": {
+        "properties": {
+          "drive": {
+            "type": "string",
+            "title": "Drive"
+          },
+          "fit": {
+            "type": "boolean",
+            "title": "Fit"
+          },
+          "free": {
+            "type": "integer",
+            "title": "Free"
+          },
+          "needed": {
+            "type": "integer",
+            "title": "Needed"
+          },
+          "more": {
+            "type": "integer",
+            "title": "More"
+          },
+          "fitting": {
+            "type": "integer",
+            "title": "Fitting"
+          },
+          "aside": {
+            "type": "integer",
+            "title": "Aside"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drive",
+          "fit",
+          "free",
+          "needed",
+          "more",
+          "fitting",
+          "aside",
+          "batch"
+        ],
+        "title": "Room"
+      },
+      "Row": {
+        "properties": {
+          "job": {
+            "type": "integer",
+            "title": "Job"
+          },
+          "batch": {
+            "type": "integer",
+            "title": "Batch"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "picture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "queued",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes"
+          },
+          "madeBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Madebytes"
+          },
+          "resultName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resultname"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "waits": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "batch",
+          "name",
+          "path",
+          "picture",
+          "state",
+          "step",
+          "progress",
+          "bytes",
+          "madeBytes",
+          "resultName",
+          "problem",
+          "waits"
+        ],
+        "title": "Row"
+      },
+      "SampleOut": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "picture": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Picture"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "making",
+              "done",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "madeBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Madebytes"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "name",
+          "picture",
+          "state",
+          "progress",
+          "seconds",
+          "bytes",
+          "madeBytes",
+          "width",
+          "height",
+          "problem"
+        ],
+        "title": "SampleOut"
+      },
+      "SamplesIn": {
+        "properties": {
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/BatchPicture"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Pictures"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "saving": {
+            "$ref": "#/components/schemas/BatchSaving"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Round",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "pictures",
+          "steps",
+          "saving"
+        ],
+        "title": "SamplesIn"
+      },
+      "SamplesOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/SampleOut"
+            },
+            "type": "array",
+            "title": "Samples"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "round",
+          "samples",
+          "seconds"
+        ],
+        "title": "SamplesOut"
       },
       "SavingAsk": {
         "properties": {
@@ -4478,6 +7179,11 @@
             "type": "boolean",
             "title": "Keeplocation",
             "default": false
+          },
+          "bigBatchesAtNight": {
+            "type": "boolean",
+            "title": "Bigbatchesatnight",
+            "default": false
           }
         },
         "type": "object",
@@ -4598,6 +7304,71 @@
         ],
         "title": "SizeOut"
       },
+      "SizeStep": {
+        "properties": {
+          "size": {
+            "type": "string",
+            "title": "Size"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/Shape",
+            "default": "crop"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Kind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clean": {
+            "type": "boolean",
+            "title": "Clean",
+            "default": true
+          },
+          "step": {
+            "type": "string",
+            "const": "size",
+            "title": "Step",
+            "default": "size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "size"
+        ],
+        "title": "SizeStep",
+        "description": "Make it for a screen: the Size tab's choices, each picture's own subject and model."
+      },
       "Sizes": {
         "properties": {
           "screens": {
@@ -4638,6 +7409,14 @@
           "done"
         ]
       },
+      "Starts": {
+        "type": "string",
+        "enum": [
+          "now",
+          "tonight",
+          "after"
+        ]
+      },
       "StartsOn": {
         "properties": {
           "photo": {
@@ -4663,6 +7442,209 @@
           "drawing"
         ],
         "title": "StartsOn"
+      },
+      "Step": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SizeStep"
+          },
+          {
+            "$ref": "#/components/schemas/LookStep"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "step",
+          "mapping": {
+            "look": "#/components/schemas/LookStep",
+            "size": "#/components/schemas/SizeStep"
+          }
+        }
+      },
+      "Takes": {
+        "properties": {
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/Words"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "free": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free"
+          },
+          "drive": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive"
+          },
+          "fits": {
+            "type": "boolean",
+            "title": "Fits"
+          },
+          "measured": {
+            "type": "boolean",
+            "title": "Measured"
+          },
+          "reckoned": {
+            "type": "boolean",
+            "title": "Reckoned"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Place"
+          },
+          "needs": {
+            "items": {
+              "$ref": "#/components/schemas/Need"
+            },
+            "type": "array",
+            "title": "Needs"
+          },
+          "example": {
+            "type": "string",
+            "title": "Example"
+          },
+          "into": {
+            "type": "string",
+            "title": "Into"
+          },
+          "madeFor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Madefor"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Look"
+          }
+        },
+        "type": "object",
+        "required": [
+          "words",
+          "seconds",
+          "bytes",
+          "free",
+          "drive",
+          "fits",
+          "measured",
+          "reckoned",
+          "place",
+          "needs",
+          "example",
+          "into",
+          "madeFor",
+          "look"
+        ],
+        "title": "Takes"
+      },
+      "TakesIn": {
+        "properties": {
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/BatchPicture"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Pictures"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "saving": {
+            "$ref": "#/components/schemas/BatchSaving"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pictures",
+          "steps",
+          "saving"
+        ],
+        "title": "TakesIn"
+      },
+      "Ticked": {
+        "properties": {
+          "jobs": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Jobs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "jobs"
+        ],
+        "title": "Ticked"
       },
       "Tool": {
         "properties": {
@@ -4820,6 +7802,149 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WatchIn": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Path"
+          },
+          "recipe": {
+            "type": "integer",
+            "title": "Recipe"
+          },
+          "results": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Results"
+          },
+          "watching": {
+            "type": "boolean",
+            "title": "Watching",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "recipe",
+          "results"
+        ],
+        "title": "WatchIn"
+      },
+      "WatchOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "recipe": {
+            "type": "integer",
+            "title": "Recipe"
+          },
+          "recipeName": {
+            "type": "string",
+            "title": "Recipename"
+          },
+          "results": {
+            "type": "string",
+            "title": "Results"
+          },
+          "watching": {
+            "type": "boolean",
+            "title": "Watching"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "ranAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ranat"
+          },
+          "ranOn": {
+            "type": "integer",
+            "title": "Ranon"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "recipe",
+          "recipeName",
+          "results",
+          "watching",
+          "connected",
+          "ranAt",
+          "ranOn",
+          "problem"
+        ],
+        "title": "WatchOut"
+      },
+      "Words": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "chip": {
+            "type": "string",
+            "title": "Chip"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "detail",
+          "chip",
+          "amount"
+        ],
+        "title": "Words",
+        "description": "A step, or a batch's save, as the steps and a recipe's line say it."
       },
       "YourLook": {
         "properties": {

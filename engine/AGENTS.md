@@ -9,11 +9,12 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes | `src/mado/core/`, pure functions only |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive | `src/mado/core/`, pure functions only |
 | The library: its folders, the scan, the watcher, reading pictures and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
 | Making a picture right for a screen: sessions on the card, the models' files, a tile at a time, extending edges, making and saving | `src/mado/directml.py`, `ai.py`, `upscale.py`, `extend.py`, `making.py`, `encode.py` (see [docs/stack/upscaling.md](../docs/stack/upscaling.md)) |
 | Giving a picture a look: the look's table and the touches laid on it, the owner's looks in the database | `src/mado/looks.py`, `own_looks.py` (see [docs/stack/looks.md](../docs/stack/looks.md)) |
 | The jobs, History and the quarantine | `src/mado/jobs.py`, `history.py`, `quarantine.py` |
+| Many at once: the queue (in the jobs' worker), batches and what they take, See it first, recipes, watch folders | `src/mado/jobs.py`, `batches.py`, `samples.py`, `recipes.py`, `watching.py` (see [docs/stack/queue.md](../docs/stack/queue.md)) |
 | This PC: what it has, its check (in a process of its own), its speeds | `src/mado/hardware.py`, `pc_check.py` (see [docs/stack/hardware.md](../docs/stack/hardware.md)) |
 | The AI models Mado ships, with their licences | `src/mado/assets/` (its README says what each is) |
 | Reaching the world: files, ffmpeg, the graphics card | modules beside `core/`, one per outside thing, each small and replaceable |

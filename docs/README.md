@@ -47,6 +47,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Real-ESRGAN models | general x4v3 and its twin, x4plus anime 6B (shipped); x4plus (downloaded) | Making pictures bigger, Fast and Best | [upscaling.md](stack/upscaling.md) |
 | LaMa | big-lama, reshaped for DirectML (downloaded) | Extending a picture's edges | [upscaling.md](stack/upscaling.md) |
 | This PC | | What the graphics card can do, tested and timed | [hardware.md](stack/hardware.md) |
+| The queue | Mado's own code | Many at once: batches made one at a time, nights, room on a drive, See it first, recipes and watch folders | [queue.md](stack/queue.md) |
 | PyInstaller | 6.22 | Bundles the engine with its own Python | [pyinstaller.md](stack/pyinstaller.md) |
 | Vitest, Testing Library, pytest | 5.1, 16.3, 9.2 | Tests | [testing.md](stack/testing.md) |
 | GitHub Actions | | CI and releases | [github-actions.md](stack/github-actions.md) |

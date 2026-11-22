@@ -14,3 +14,9 @@ export function pickExport(title: string) {
 export function pickCube(title: string) {
   return invoke<string | null>("pick_cube", { title });
 }
+
+/** Asks for pictures with Windows' file picker, as many as are wanted. Empty when it's
+ * cancelled. */
+export function pickPictures(title: string) {
+  return invoke<string[]>("pick_pictures", { title });
+}

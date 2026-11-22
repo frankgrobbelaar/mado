@@ -128,6 +128,30 @@ def test_a_mix_is_kept_renamed_and_deleted(client: TestClient, library: Library)
     assert client.get("/looks").json()["yours"] == []
 
 
+def test_a_look_a_recipe_uses_isnt_deleted_from_under_it(client: TestClient):
+    mine = client.post("/looks", json={"name": "Holiday warm", "look": WARM}).json()
+    look_step: dict[str, object] = {
+        "step": "look",
+        "look": mine["id"],
+        "strength": 1.0,
+        "touches": {},
+    }
+    recipe = client.post(
+        "/recipes",
+        json={"name": "Warm prints", "steps": [look_step], "saving": {"format": "JPEG"}},
+    )
+    assert recipe.status_code == 201, recipe.text
+
+    refused = client.delete(f"/looks/{mine['id']}")
+
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == (
+        "Your recipe Warm prints uses it. Change that recipe first, or delete it, then this look."
+    )
+    assert client.delete(f"/recipes/{recipe.json()['id']}").status_code == 204
+    assert client.delete(f"/looks/{mine['id']}").status_code == 204
+
+
 def test_a_look_alone_is_planned_on_the_pictures_own_pixels(client: TestClient, library: Library):
     picture = library["ids"]["Harbour at dusk.jpg"]
 

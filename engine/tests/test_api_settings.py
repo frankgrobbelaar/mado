@@ -11,6 +11,7 @@ DEFAULTS = {
     "newPictures": "beside",
     "newFolder": None,
     "keepLocation": False,
+    "bigBatchesAtNight": False,
 }
 
 

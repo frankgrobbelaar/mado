@@ -52,9 +52,9 @@ def jobs_list(
     active: bool = False,
     limit: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> list[Job]:
-    """The latest jobs, newest first: a picture's (`picture`), or those waiting or under way
-    (`active`)."""
-    where: list[str] = ["1"]
+    """The latest pictures' own Saves, newest first: a picture's (`picture`), or those waiting
+    or under way (`active`). A batch's pictures are the queue's (/queue)."""
+    where: list[str] = ["batch_id IS NULL"]
     values: list[object] = []
     if picture is not None:
         where.append("picture_id = ?")

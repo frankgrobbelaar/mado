@@ -16,7 +16,7 @@ process or updating belongs in the engine. Start with [../../AGENTS.md](../../AG
 | Making the window, light or dark | `src/look.rs` |
 | The shell's own choices (`window.json`) | `src/choices.rs` |
 | Pages opened in the browser (the downloads page) | `src/links.rs` |
-| Windows' dialogs (the folder picker, an export to import) | `src/dialogs.rs` |
+| Windows' dialogs (the folder picker, pictures to make, an export to import) | `src/dialogs.rs` |
 | Showing a folder or file in Explorer | `src/explorer.rs` |
 | This PC's screens, for the Size tab (the engine remembers them) | `src/screens.rs` |
 | Running console programs without a window | `src/process.rs` |

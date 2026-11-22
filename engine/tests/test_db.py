@@ -67,9 +67,29 @@ def test_records_from_mado_0_1_gain_looks_and_keep_their_history(tmp_path: Path)
         )
         conn.commit()
 
-        assert db.migrate(conn) == 4
+        assert db.migrate(conn) == len(MIGRATIONS)
 
         tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
         assert "looks" in tables
         line = conn.execute("SELECT made_for, look FROM history").fetchone()
         assert (line["made_for"], line["look"]) == ("TV 8K", None)
+
+
+def test_records_from_mado_0_2_gain_batches_and_keep_their_jobs_in_line(tmp_path: Path):
+    with closing(db.connect(tmp_path / "mado.db")) as conn:
+        for number, sql in enumerate(MIGRATIONS[:4], start=1):
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        for source in ("Pier.jpg", "Sail.jpg"):
+            conn.execute(
+                """INSERT INTO jobs (kind, source, recipe, state, queued_at)
+                   VALUES ('make', ?, '{}', 'queued', '2026-11-22T14:02:00+02:00')""",
+                (source,),
+            )
+        conn.commit()
+
+        assert db.migrate(conn) == len(MIGRATIONS)
+
+        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
+        assert {"batches", "recipes", "watch_folders", "watched"} <= tables
+        jobs = conn.execute("SELECT id, position, batch_id FROM jobs ORDER BY id").fetchall()
+        assert [(job["position"], job["batch_id"]) for job in jobs] == [(1, None), (2, None)]

@@ -1,6 +1,7 @@
 """Saving a picture Mado made: its formats, what it keeps of its original, and the check before
 it's kept."""
 
+import errno
 import io
 from pathlib import Path
 from typing import Any
@@ -120,3 +121,15 @@ def test_exif_read_back_through_bytes_is_whole():
     picture().save(written, format="JPEG", exif=ORIGINAL)
     with Image.open(written) as again:
         assert again.getexif()[ORIENTATION] == 6
+
+
+def test_a_full_drive_says_so_and_is_told_apart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def full(*_args: object, **_options: object) -> None:
+        raise OSError(errno.ENOSPC, "There is not enough space on the disk")
+
+    monkeypatch.setattr(Image.Image, "save", full)
+
+    with pytest.raises(SaveError) as raised:
+        save(picture(), tmp_path / "made.png", "PNG", None, exif=None, profile=None, dpi=None)
+
+    assert raised.value.full

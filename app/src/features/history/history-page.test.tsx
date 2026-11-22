@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EngineProvider, type HistoryEntry } from "@/lib/engine";
+import { type BatchLine, EngineProvider, type HistoryEntry } from "@/lib/engine";
 import { entry, fakeEngine, READY } from "@/test/engine";
 import { HistoryPage } from "./history-page";
 
@@ -248,4 +248,128 @@ describe("History", () => {
     const cleared = fetch.mock.calls.find(([input]) => String(input).endsWith("/history/clear"));
     expect(JSON.parse(String(cleared?.[1]?.body))).toEqual({ keep: "nothing" });
   });
+
+  it("shows a batch as one line, with what undoes all of it, and each picture's own lines", async () => {
+    const lines = [
+      entry({ id: 11, batch: 7, name: "Warm dunes.jpg", resultName: "Warm dunes (TV 8K).jpg" }),
+      entry({ id: 12, batch: 7, name: "Still lake.heic", resultName: "Still lake (TV 8K).jpg" }),
+    ];
+    const fetch = fakeEngine({
+      "/history": {
+        entries: lines,
+        older: null,
+        batches: [
+          {
+            id: 7,
+            name: "Holiday prints",
+            source: "Holiday",
+            watch: null,
+            how: "new",
+            madeFor: "TV 8K",
+            look: null,
+            purpose: "tv",
+            into: "Holiday › Edited",
+            made: 47,
+            undone: 0,
+            failed: ["Old pier.tif"],
+            overnight: true,
+            canUndo: true,
+            canRedo: false,
+            working: false,
+            drive: null,
+            asideUntil: null,
+            picture: null,
+          },
+        ],
+      },
+      "POST /history/batches/7/undo": { done: 47, problems: [] },
+    });
+    renderHistory();
+
+    expect(await screen.findByText("Made 47 pictures for the TV overnight")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Holiday prints, as new pictures in Holiday › Edited · Old pier.tif didn't work/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Warm dunes (TV 8K).jpg", { exact: false })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show the 2 pictures" }));
+    expect(await screen.findAllByRole("button", { name: "Take it away" })).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Take them away" }));
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(
+          ([input, init]) =>
+            init?.method === "POST" && String(input).endsWith("/history/batches/7/undo"),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("keeps a batch made across midnight as one line, on the day of its newest picture", async () => {
+    const late = new Date();
+    late.setDate(late.getDate() - 1);
+    late.setHours(23, 40, 0, 0);
+    const early = new Date();
+    early.setHours(0, 20, 0, 0);
+    fakeEngine({
+      "/history": {
+        entries: [
+          entry({ id: 21, batch: 9, at: early.toISOString(), name: "Pier.jpg" }),
+          entry({ id: 20, batch: 9, at: late.toISOString(), name: "Sail.jpg" }),
+          entry({ id: 19, batch: 8, at: late.toISOString(), name: "Dunes.jpg" }),
+        ],
+        older: null,
+        batches: [batchLine({ id: 9, made: 2 }), batchLine({ id: 8, name: "Dunes", made: 1 })],
+      },
+    });
+    renderHistory();
+
+    expect(await screen.findByText("Made 2 pictures for the TV overnight")).toBeInTheDocument();
+    const today = screen.getByRole("region", { name: /^Today/ });
+    expect(within(today).getByRole("button", { name: "Show the 2 pictures" })).toBeInTheDocument();
+    const before = screen.getByRole("region", { name: /^Yesterday/ });
+    expect(within(before).queryByText("Made 2 pictures for the TV overnight")).toBeNull();
+    expect(within(before).getByRole("button", { name: "Show the picture" })).toBeInTheDocument();
+  });
+
+  it("says a batch is still being made rather than undoing what's made so far", async () => {
+    fakeEngine({
+      "/history": {
+        entries: [entry({ id: 31, batch: 4, name: "Pier.jpg" })],
+        older: null,
+        batches: [batchLine({ id: 4, made: 1, working: true })],
+      },
+    });
+    renderHistory();
+
+    expect(await screen.findByText("Still being made")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Take them away" })).toBeNull();
+  });
 });
+
+function batchLine(overrides: Partial<BatchLine>): BatchLine {
+  return {
+    id: 7,
+    name: "Holiday prints",
+    source: "Holiday",
+    watch: null,
+    how: "new",
+    madeFor: "TV 8K",
+    look: null,
+    purpose: "tv",
+    into: "Holiday › Edited",
+    made: 47,
+    undone: 0,
+    failed: [],
+    overnight: true,
+    canUndo: true,
+    canRedo: false,
+    working: false,
+    drive: null,
+    asideUntil: null,
+    picture: null,
+    ...overrides,
+  };
+}

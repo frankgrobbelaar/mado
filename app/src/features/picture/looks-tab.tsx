@@ -162,8 +162,8 @@ export function LooksTab(props: {
 /** Every look as a small copy of the picture in it, three to a row: picked by a click or the
  * arrow keys (which move along it, a row at a time up and down), shown on the big picture while
  * the pointer rests on one. */
-function LookGrid(props: {
-  picture: PictureDetails;
+export function LookGrid(props: {
+  picture: { id: number; version: string };
   looks: Look[];
   chosen: string;
   onPick: (look: Look) => void;
@@ -224,7 +224,7 @@ function LookGrid(props: {
 }
 
 function LookTile(props: {
-  picture: PictureDetails;
+  picture: { id: number; version: string };
   look: Look;
   chosen: boolean;
   focusable: boolean;
@@ -275,7 +275,7 @@ function LookTile(props: {
 
 /** Finishing touches, as the board's chips: each on or off with its amount, and while it's on a
  * line to set how much. */
-function Touches(props: { step: LookStep; onStep: (step: LookStep) => void }) {
+export function Touches(props: { step: LookStep; onStep: (step: LookStep) => void }) {
   const { step, onStep } = props;
   const set = (name: TouchName, amount: number) =>
     onStep({ ...step, touches: { ...step.touches, [name]: amount } });

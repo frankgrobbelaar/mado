@@ -8,6 +8,7 @@ pictures: a line whose picture still waits in quarantine stays, so it can be put
 """
 
 import sqlite3
+import threading
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,6 +20,9 @@ from mado.quarantine import MoveError, Quarantine
 type Kind = Literal["made", "replaced", "emptied"]
 
 DAYS_A_PAGE = 7
+# Held while a picture's line is written and its pictures move (mado/making.py), and while a
+# line is undone or done again, so an undo never comes between a line and its moves.
+MOVES = threading.RLock()
 
 
 @dataclass(frozen=True)
@@ -37,6 +41,7 @@ class Entry:
     undone_at: str | None
     bytes: int | None
     look: str | None = None  # what it was made with: "Warm film at 60%"
+    batch_id: int | None = None  # the batch it was made in, when it was
 
 
 @dataclass(frozen=True)
@@ -114,8 +119,9 @@ def page(
     rows = [
         _entry(row)
         for row in conn.execute(
-            "SELECT * FROM history WHERE (?1 IS NULL OR substr(at, 1, 10) < ?1)"
-            " ORDER BY at DESC, id DESC",
+            "SELECT h.*, j.batch_id FROM history AS h LEFT JOIN jobs AS j ON j.id = h.job_id"
+            " WHERE (?1 IS NULL OR substr(h.at, 1, 10) < ?1)"
+            " ORDER BY h.at DESC, h.id DESC",
             (before,),
         )
     ]
@@ -131,6 +137,11 @@ def page(
 def undo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: datetime) -> Entry:
     """Takes a new picture away (into quarantine), or puts a replaced original back (the made
     picture going into quarantine in its place). Raises UndoError."""
+    with MOVES:
+        return _undo(conn, quarantine, entry_id, now)
+
+
+def _undo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: datetime) -> Entry:
     found = entry(conn, entry_id)
     if found is None:
         raise UndoError("History has no such line any more.")
@@ -162,6 +173,11 @@ def redo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: d
     """Undoes an undo: puts a new picture that was taken away back where it was, or replaces
     an original put back again (the original going into quarantine once more). Raises
     UndoError."""
+    with MOVES:
+        return _redo(conn, quarantine, entry_id, now)
+
+
+def _redo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: datetime) -> Entry:
     found = entry(conn, entry_id)
     if found is None:
         raise UndoError("History has no such line any more.")
@@ -185,6 +201,60 @@ def redo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: d
     _first_newer(conn, found, found.original)
     _swapped(conn, quarantine, found, Path(found.original), Path(found.result), None, now)
     return entry(conn, entry_id) or found
+
+
+def of_batch(conn: sqlite3.Connection, batch_id: int, limit: int = -1) -> list[Entry]:
+    """A batch's lines, newest first; the newest `limit` of them, when it's given."""
+    return [
+        _entry(row)
+        for row in conn.execute(
+            """SELECT h.*, j.batch_id FROM history AS h JOIN jobs AS j ON j.id = h.job_id
+               WHERE j.batch_id = ? ORDER BY h.id DESC LIMIT ?""",
+            (batch_id, limit),
+        )
+    ]
+
+
+def undo_batch(
+    conn: sqlite3.Connection, quarantine: Quarantine, batch_id: int, now: datetime
+) -> tuple[int, list[str]]:
+    """Undoes every line of a batch that can be, newest first: its new pictures taken away, or
+    its originals put back. Says how many were, and why any couldn't be."""
+    done, problems = 0, list[str]()
+    for line in of_batch(conn, batch_id):
+        if line.undone_at is not None or not _can_undo(line):
+            continue
+        try:
+            undo(conn, quarantine, line.id, now)
+        except UndoError as error:
+            problems.append(f"{line.name}: {error}")
+            continue
+        done += 1
+    return done, problems
+
+
+def redo_batch(
+    conn: sqlite3.Connection, quarantine: Quarantine, batch_id: int, now: datetime
+) -> tuple[int, list[str]]:
+    """Undoes a batch's undo, oldest first: its new pictures put back, or its originals replaced
+    again. Says how many were, and why any couldn't be."""
+    done, problems = 0, list[str]()
+    for line in reversed(of_batch(conn, batch_id)):
+        if line.undone_at is None or not line.aside or line.cleared_at is not None:
+            continue
+        try:
+            redo(conn, quarantine, line.id, now)
+        except UndoError as error:
+            problems.append(f"{line.name}: {error}")
+            continue
+        done += 1
+    return done, problems
+
+
+def _can_undo(line: Entry) -> bool:
+    if line.kind == "made":
+        return line.result is not None
+    return line.kind == "replaced" and line.aside is not None and line.cleared_at is None
 
 
 def clear(conn: sqlite3.Connection, *, keep: timedelta | None, now: datetime) -> int:
@@ -335,6 +405,7 @@ def _entry(row: sqlite3.Row) -> Entry:
         undone_at=row["undone_at"],
         bytes=row["bytes"],
         look=row["look"],
+        batch_id=row["batch_id"] if "batch_id" in row.keys() else None,  # noqa: SIM118 - a Row's
     )
 
 

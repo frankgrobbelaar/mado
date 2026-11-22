@@ -2,17 +2,19 @@
 each, importing a .cube file, keeping the mix on the tab as a look, renaming and deleting one."""
 
 import io
+import sqlite3
 import zlib
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Response, status
 from PIL import Image
 from pydantic import Field
 
-from mado import own_looks
+from mado import own_looks, recipes
 from mado.api.common import ApiModel, Copies, Database
+from mado.batches import order_of
 from mado.core.cube import CubeError
 from mado.core.looks import Look, built_in
 from mado.core.touches import Touches
@@ -177,9 +179,33 @@ def rename(look_id: str, body: RenameIn, conn: Database) -> YourLook:
 
 @router.delete("/looks/{look_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(look_id: str, conn: Database) -> None:
-    """Deletes one of the owner's looks. Pictures made with it stay as they are."""
+    """Deletes one of the owner's looks. Pictures made with it stay as they are. Not while a
+    recipe uses it, or pictures waiting in the queue are made with it."""
+    needed = _needed_by(conn, look_id)
+    if needed is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, needed)
     if not own_looks.deleted(conn, look_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, _GONE)
+
+
+def _needed_by(conn: sqlite3.Connection, look_id: str) -> str | None:
+    """What still needs a look, in a sentence: a recipe that uses it (a watch folder may run
+    it), or pictures waiting in the queue made with it."""
+    for kept in recipes.listed(conn):
+        if any(step.get("step") == "look" and step.get("look") == look_id for step in kept.steps):
+            return (
+                f"Your recipe {kept.name} uses it. Change that recipe first, or delete it, then "
+                "this look."
+            )
+    for row in conn.execute("SELECT recipe FROM jobs WHERE state IN ('queued', 'running')"):
+        made = order_of(row["recipe"]).get("recipe")
+        look = cast("dict[str, object]", made).get("look") if isinstance(made, dict) else None
+        if isinstance(look, dict) and cast("dict[str, object]", look).get("look") == look_id:
+            return (
+                "Pictures waiting in the queue are made with it. Delete it once they're made, or "
+                "take them out of the queue first."
+            )
+    return None
 
 
 def _yours(kept: Kept) -> YourLook:

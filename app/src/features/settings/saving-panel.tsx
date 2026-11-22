@@ -96,6 +96,42 @@ export function SavingPanel() {
   );
 }
 
+/** Many at once, in Settings › General: whether a watch folder's big batch waits for the night. */
+export function ManyAtOncePanel() {
+  const settings = useSettings();
+  const save = useSaveSettings();
+  const nights = useId();
+  const stored = settings.data;
+  return (
+    <Panel title="Many at once">
+      <div className="flex items-center gap-3.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <label htmlFor={nights} className="cursor-pointer font-semibold text-14">
+            Big batches wait for the night
+          </label>
+          <span className="text-13 text-fg-muted">
+            A watch folder that finds more than 20 new pictures makes them from 23:00, so the
+            graphics card is free by day.
+          </span>
+        </span>
+        <Switch
+          id={nights}
+          checked={stored?.bigBatchesAtNight ?? false}
+          disabled={!stored}
+          onCheckedChange={(bigBatchesAtNight) =>
+            stored && save.mutate({ path: "/settings", body: { ...stored, bigBatchesAtNight } })
+          }
+        />
+      </div>
+      {save.isError && (
+        <p role="alert" className="text-13 text-broken-fg">
+          {save.error.message}
+        </p>
+      )}
+    </Panel>
+  );
+}
+
 function Row(props: { title: string; text: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-rule border-t pt-3 first-of-type:border-t-0 first-of-type:pt-0">

@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -104,6 +110,7 @@ export function useEngineQuery<T>(
   path: string,
   poll?: (data: T | undefined) => number | false,
   enabled = true,
+  keep = false,
 ) {
   const engine = useEngine();
   return useQuery({
@@ -114,6 +121,8 @@ export function useEngineQuery<T>(
     },
     enabled: engine.state === "ready" && enabled,
     refetchInterval: poll ? (query) => poll(query.state.data) : false,
+    // `keep`: the last answer stays while another address is asked, rather than a skeleton.
+    placeholderData: keep ? keepPreviousData : undefined,
   });
 }
 
@@ -179,6 +188,10 @@ const CHANGED_ON_ITS_OWN = [
   "/history",
   "/quarantine",
   "/pc",
+  "/queue",
+  "/batches/done",
+  "/recipes",
+  "/watch-folders",
 ];
 
 /** Asks again for what the engine may have changed by itself, once it tells of something. */
@@ -257,6 +270,8 @@ export interface Settings {
   newFolder: string | null;
   /** New pictures keep where a picture was taken. */
   keepLocation: boolean;
+  /** A watch folder's batch of more than 20 pictures waits for the night. */
+  bigBatchesAtNight: boolean;
 }
 
 export const useSettings = () => useEngineQuery<Settings>("/settings");
@@ -733,9 +748,10 @@ export interface Plan {
 
 /**
  * A POST that asks rather than changes (a plan, a name): a query, keyed by its body, waiting
- * until the engine is ready and `enabled`.
+ * until the engine is ready and `enabled`. `once`: asked once for each body, not again as the
+ * window comes back into focus (the pictures a batch is made of stay as they were found).
  */
-function useEnginePost<T>(path: string, body: unknown, enabled = true) {
+function useEnginePost<T>(path: string, body: unknown, enabled = true, once = false) {
   const engine = useEngine();
   const sent = JSON.stringify(body);
   const asking = engineKey(engine, path);
@@ -756,6 +772,7 @@ function useEnginePost<T>(path: string, body: unknown, enabled = true) {
         ? before
         : undefined,
     retry: false, // an answer that fails says why at once
+    ...(once ? { staleTime: Number.POSITIVE_INFINITY, refetchOnWindowFocus: false } : {}),
   });
 }
 
@@ -1046,12 +1063,16 @@ export interface HistoryEntry {
   picture: PictureRef | null;
   canUndo: boolean;
   canRedo: boolean;
+  /** The batch it was made in, which History shows as one line. */
+  batch: number | null;
 }
 
 export interface HistoryPage {
   entries: HistoryEntry[];
   /** The day the next page starts before; null: that's all. */
   older: string | null;
+  /** The batches its lines were made in. */
+  batches: BatchLine[];
 }
 
 /** History, a week of days at a time: `fetchNextPage()` brings the week before. */
@@ -1125,3 +1146,365 @@ export interface Pc {
 export const usePc = () => useEngineQuery<Pc>("/pc", (pc) => (pc?.testing ? 1000 : false));
 /** Tests this PC again: `test.mutate({ path: "/pc/test" })`. */
 export const useTestPc = () => useEngineAction<Pc>(["/pc"]);
+
+// Many at once: batches, the queue, recipes and watch folders.
+
+/** Make it for a screen, as a batch's step: the Size tab's choices, each picture its own
+ * subject. */
+export interface SizeStepItem extends Omit<SizeStep, "focus"> {
+  step: "size";
+}
+
+/** A look, as a batch's step: the Looks tab's choices. */
+export interface LookStepItem extends LookStep {
+  step: "look";
+}
+
+/** A batch's step. Later pieces add kinds of their own. */
+export type BatchStep = SizeStepItem | LookStepItem;
+
+/** How a batch saves: new pictures (beside the originals, into a folder by name beside each,
+ * or into a folder of their own), or in the originals' places, each original to quarantine. */
+export interface BatchSaving {
+  how: "new" | "replace";
+  format: SaveFormat;
+  quality: number | null;
+  /** null: beside the originals; "Edited": a folder by that name beside each; or a path. */
+  folder: string | null;
+  keepCamera: boolean;
+  keepColours: boolean;
+  keepLocation: boolean;
+}
+
+/** Which pictures a batch is made of. */
+export interface Pick {
+  how: "ticked" | "folder" | "search" | "dropped" | "picked";
+  ids?: number[];
+  paths?: string[];
+  folder?: number | null;
+  dir?: string;
+  q?: string;
+}
+
+/** One of a batch's pictures. */
+export interface BatchPicture {
+  /** In the library; null for one outside it. */
+  id: number | null;
+  path: string;
+  name: string;
+  size: number;
+  width: number;
+  height: number;
+  version: string;
+}
+
+export interface Picked {
+  pictures: BatchPicture[];
+  bytes: number;
+  /** Where they're from: "Holiday". */
+  source: string;
+  /** The folder they share. */
+  shared: string | null;
+  /** "ticked in Holiday", "found by “beach”", "dropped from Desktop". */
+  words: string;
+  leftOut: { name: string; why: string }[];
+}
+
+/** A step, or a batch's save, as the steps and a recipe's line say it. */
+export interface StepWords {
+  kind: string;
+  title: string;
+  detail: string;
+  chip: string;
+  /** A look's strength: "60". */
+  amount: string | null;
+}
+
+/** What a batch takes. */
+export interface Takes {
+  words: StepWords[];
+  seconds: number;
+  bytes: number;
+  free: number | null;
+  drive: string | null;
+  fits: boolean;
+  /** Timed on this PC, not a guess. */
+  measured: boolean;
+  /** Reckoned by what See it first found. */
+  reckoned: boolean;
+  place: "card" | "processor";
+  needs: Need[];
+  /** "Name (TV 8K).jpg" */
+  example: string;
+  /** "Holiday › Edited", "beside the originals". */
+  into: string;
+  madeFor: string | null;
+  look: string | null;
+}
+
+export interface Sample {
+  /** Its place in the batch. */
+  index: number;
+  name: string;
+  picture: number | null;
+  state: "waiting" | "making" | "done" | "failed";
+  progress: number;
+  seconds: number | null;
+  bytes: number;
+  madeBytes: number | null;
+  width: number | null;
+  height: number | null;
+  problem: string | null;
+}
+
+/** See it first's three. */
+export interface Samples {
+  id: string;
+  round: number;
+  samples: Sample[];
+  /** All of them, once made. */
+  seconds: number | null;
+}
+
+export type Starts = "now" | "tonight" | "after";
+
+/** A batch, as the queue and Home show it. */
+export interface Batch {
+  id: number;
+  name: string;
+  source: string;
+  shared: string | null;
+  recipe: number | null;
+  /** The watch folder that made it. */
+  watch: string | null;
+  starts: Starts;
+  addedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** Its pictures, those cancelled not counted. */
+  total: number;
+  done: number;
+  failed: number;
+  waiting: number;
+  cancelled: number;
+  progress: number;
+  secondsLeft: number | null;
+  seenFirst: boolean;
+  how: "new" | "replace";
+  /** "Holiday › Edited" */
+  into: string;
+  /** The folder to open, when its pictures share one. */
+  folder: string | null;
+  madeFor: string | null;
+  look: string | null;
+  /** What its size made them for: "tv". */
+  purpose: string | null;
+  words: StepWords[];
+  /** Bytes of its pictures made, as they were and as made. */
+  before: number;
+  after: number;
+}
+
+/** One of a batch's pictures in the queue. */
+export interface QueueRow {
+  job: number;
+  batch: number;
+  name: string;
+  path: string;
+  picture: PictureRef | null;
+  state: "running" | "queued" | "done" | "failed" | "cancelled";
+  /** What it's at while it's made: "A look 2/3". */
+  step: string | null;
+  progress: number;
+  bytes: number | null;
+  madeBytes: number | null;
+  resultName: string | null;
+  problem: string | null;
+  /** Why it waits: "D: isn't connected; it waits for it". */
+  waits: string | null;
+}
+
+/** A drive without room for what waits on it. */
+export interface Room {
+  drive: string;
+  /** What fits there is being made while the rest wait. */
+  fit: boolean;
+  free: number;
+  needed: number;
+  /** What's wanted there past what's free, a margin kept free. */
+  more: number;
+  fitting: number;
+  /** Bytes its quarantine would free, emptied. */
+  aside: number;
+  batch: string | null;
+}
+
+export interface Queue {
+  paused: boolean;
+  working: boolean;
+  room: Room | null;
+  batch: Batch | null;
+  /** Nothing waits: the batch is the latest whose pictures didn't all work, till it's cleared. */
+  finished: boolean;
+  rows: QueueRow[];
+  waitingMore: number;
+  doneMore: number;
+  later: Batch[];
+  night: boolean;
+  /** The 07:00 that ends tonight's run. */
+  morning: string;
+  waitsForNight: boolean;
+  secondsLeft: number | null;
+}
+
+/** The queue in a word, for the rail's badge and the status bar. */
+export interface QueueNow {
+  working: boolean;
+  paused: boolean;
+  batch: string | null;
+  over: number;
+  total: number;
+  progress: number;
+  waiting: number;
+}
+
+/** A recipe: steps kept by name. */
+export interface KeptRecipe {
+  id: number;
+  name: string;
+  steps: BatchStep[];
+  saving: BatchSaving;
+  words: StepWords[];
+  used: number;
+  usedAt: string | null;
+  /** A batch of it waits for tonight. */
+  tonight: boolean;
+}
+
+export interface WatchFolder {
+  id: number;
+  path: string;
+  recipe: number;
+  recipeName: string;
+  results: string;
+  watching: boolean;
+  connected: boolean;
+  /** When it last took pictures. */
+  ranAt: string | null;
+  /** How many its latest batch holds. */
+  ranOn: number;
+  /** Why its new pictures couldn't go in the queue, lately: it tries again in a few minutes. */
+  problem: string | null;
+}
+
+/** A batch as History's one line for it. */
+export interface BatchLine {
+  id: number;
+  name: string;
+  source: string;
+  watch: string | null;
+  how: "new" | "replace";
+  madeFor: string | null;
+  look: string | null;
+  purpose: string | null;
+  into: string;
+  made: number;
+  undone: number;
+  failed: string[];
+  overnight: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  /** Some of its pictures are still in the queue: it's undone as a whole once they're done. */
+  working: boolean;
+  drive: string | null;
+  asideUntil: string | null;
+  picture: PictureRef | null;
+}
+
+export interface MadeToday {
+  id: number;
+  name: string;
+  madeFor: string | null;
+  look: string | null;
+}
+
+// "/batches/done", not "/batches": that would ask again for the pictures a batch is made of.
+const QUEUE = ["/queue", "/batches/done", "/jobs", "/history", "/recipes"];
+
+/** The pictures a batch would be made of, found once. */
+export const usePicked = (pick: Pick | null) =>
+  useEnginePost<Picked>("/batches/pictures", pick, pick !== null, true);
+/** Finds the pictures in files and folders dropped or picked, once:
+ * `find.mutate({ path: "/batches/pictures", body: pick })`. */
+export const useFindPictures = () => useEngineAction<Picked>([]);
+
+/** What a batch would take (null: nothing to make yet). */
+export const useTakes = (
+  ask: {
+    pictures: BatchPicture[];
+    steps: BatchStep[];
+    saving: BatchSaving;
+    shared: string | null;
+    sample: string | null;
+  } | null,
+) => useEnginePost<Takes>("/batches/takes", ask, ask !== null && ask.steps.length > 0);
+
+/** Asks for See it first's three: `see.mutate({ path: "/batches/samples", body })`. */
+export const useSeeFirst = () => useEngineAction<Samples>([]);
+/** See it first's three, asked again every second while any is being made. */
+export const useSamples = (id: string | null) =>
+  useEngineQuery<Samples>(
+    `/batches/samples/${id ?? ""}`,
+    (shown) =>
+      shown?.samples.some((each) => each.state === "waiting" || each.state === "making")
+        ? 1000
+        : false,
+    id !== null,
+  );
+/** Lets See it first's three go: `letGo.mutate({ path: "/batches/samples/abc" })`. */
+export const useLetGo = () => useEngineAction<void>([], "DELETE");
+/** Puts a batch in the queue: `queue.mutate({ path: "/batches", body })`. */
+export const usePutInQueue = () => useEngineAction<Batch>(QUEUE);
+
+/** The queue, asked again every second while it works, every five otherwise. */
+export const useQueue = (all = false) =>
+  useEngineQuery<Queue>(
+    all ? "/queue?all=true" : "/queue",
+    (queue) => (queue?.working ? 1000 : 5000),
+    true,
+    true,
+  );
+/** The queue in a word, for the rail and the status bar. */
+export const useQueueNow = () =>
+  useEngineQuery<QueueNow>("/queue/now", (now) => (now?.working ? 1500 : 5000));
+/** Pauses, resumes, cancels, moves ticked pictures: `act.mutate({ path: "/queue/pause" })`. */
+export const useQueueAction = <T = unknown>() => useEngineAction<T>([...QUEUE, "/quarantine"]);
+
+/** Batches done that Home tells of. */
+export const useDoneBatches = () => useEngineQuery<Batch[]>("/batches/done");
+/** Home's card for a batch done was seen: `seen.mutate({ path: "/batches/3/seen" })`. */
+export const useSeenBatch = () => useEngineAction<void>(["/batches/done"]);
+
+export const useRecipes = () => useEngineQuery<KeptRecipe[]>("/recipes");
+/** Keeps or changes a recipe: `keep.mutate({ path: "/recipes", body })`. */
+export const useKeepRecipe = () => useEngineAction<KeptRecipe>(["/recipes"]);
+export const useChangeRecipe = () => useEngineAction<KeptRecipe>(["/recipes"], "PUT");
+export const useDeleteRecipe = () => useEngineAction<void>(["/recipes"], "DELETE");
+
+export const useWatchFolders = () => useEngineQuery<WatchFolder[]>("/watch-folders");
+/** Watches a folder: `watch.mutate({ path: "/watch-folders", body })`. */
+export const useAddWatch = () => useEngineAction<WatchFolder>(["/watch-folders"]);
+export const useChangeWatch = () => useEngineAction<WatchFolder>(["/watch-folders"], "PUT");
+export const useStopWatching = () => useEngineAction<void>(["/watch-folders"], "DELETE");
+
+/** Undoes a whole batch: `undo.mutate({ path: "/history/batches/3/undo" })` (or `/redo`). */
+export const useBatchUndo = () =>
+  useEngineAction<{ done: number; problems: string[] }>([...JOBS, "/batches/done", "/queue"]);
+
+/** The pictures made today, for Home. */
+export const useMadeToday = () => useEngineQuery<MadeToday[]>("/history/today");
+/** A picture a line of History made, as a thumbnail. */
+export const madeAddress = (id: number) => `/history/${id}/thumbnail`;
+/** See it first's picture: a copy before or after, or as it was made, in full. */
+export const sampleAddress = (set: string, index: number, side: "before" | "after" | "full") =>
+  `/batches/samples/${set}/${index}/${side}`;

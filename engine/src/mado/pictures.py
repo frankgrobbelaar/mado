@@ -100,10 +100,25 @@ def read_facts(path: Path, kind: Kind) -> Facts:
     except Image.DecompressionBombError:
         raise UnreadableError(_too_big(path)) from None
     except OSError as error:
-        raise UnreadableError(f"{_DAMAGED}: {error.strerror or error}.") from None
+        raise UnreadableError(
+            _in_use(path, error) or f"{_DAMAGED}: {error.strerror or error}."
+        ) from None
     except (SyntaxError, ValueError) as error:  # a part of it Pillow won't take, as decode says
         raise UnreadableError(f"{_DAMAGED}: {error}.") from None
     return _facts(name, width, height, found)
+
+
+_LOCKED = (32, 33)  # Windows' sharing and lock violations: another app has the file open
+
+
+def _in_use(path: Path, error: OSError) -> str | None:
+    """What to say of a picture another app holds open, so Mado can't read it."""
+    if getattr(error, "winerror", None) in _LOCKED:
+        return (
+            f"{path.name} is open in another app, so Mado can't read it. Close it there, then "
+            "try again."
+        )
+    return None
 
 
 def decode(
@@ -132,7 +147,9 @@ def decode(
         ) from None
     except Image.DecompressionBombError:
         raise UnreadableError(_too_big(path)) from None
-    except (OSError, SyntaxError, ValueError) as error:
+    except OSError as error:
+        raise UnreadableError(_in_use(path, error) or f"{_DAMAGED}: {error}.") from None
+    except (SyntaxError, ValueError) as error:
         raise UnreadableError(f"{_DAMAGED}: {error}.") from None
     if longest is not None:
         shown.thumbnail((longest, longest), Image.Resampling.LANCZOS)

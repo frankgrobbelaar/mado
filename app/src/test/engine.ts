@@ -1,20 +1,30 @@
 import { vi } from "vitest";
 import type {
   Backups,
+  Batch,
+  BatchPicture,
   DataSizes,
   EngineStatus,
   HistoryEntry,
   Job,
+  KeptRecipe,
   Library,
   LibraryFolder,
   Looks,
   Pc,
+  Picked,
   PictureItem,
   PicturePage,
   Plan,
+  Queue,
+  QueueRow,
+  Samples,
   Scan,
   Settings,
   Sizes,
+  StepWords,
+  Takes,
+  WatchFolder,
 } from "@/lib/engine";
 
 /** The engine as tests see it: ready, on a made-up address. */
@@ -30,6 +40,7 @@ export const SETTINGS: Settings = {
   newPictures: "beside",
   newFolder: null,
   keepLocation: false,
+  bigBatchesAtNight: false,
 };
 
 /** A data folder with a little of everything in it. */
@@ -454,6 +465,7 @@ export function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     picture: null,
     canUndo: true,
     canRedo: false,
+    batch: null,
     ...overrides,
   };
 }
@@ -483,3 +495,254 @@ export const LOOKS: Looks = {
     },
   ],
 };
+
+/** One of Holiday's made-up pictures, as a batch holds it. */
+export function batchPicture(id: number | null, name: string): BatchPicture {
+  return {
+    id,
+    path: `D:\\Pictures\\Holiday\\${name}`,
+    name,
+    size: 2_700_000,
+    width: 4032,
+    height: 3024,
+    version: `v${id ?? name}`,
+  };
+}
+
+/** Holiday's pictures, ticked in the Library. */
+export const PICKED: Picked = {
+  pictures: [
+    batchPicture(1, "Warm dunes.jpg"),
+    batchPicture(2, "Still lake.heic"),
+    batchPicture(3, "Night market.jpg"),
+  ],
+  bytes: 8_100_000,
+  source: "Holiday",
+  shared: "D:\\Pictures\\Holiday",
+  words: "ticked in Holiday",
+  leftOut: [],
+};
+
+/** Holiday prints' steps and save, in words. */
+export const WORDS: StepWords[] = [
+  {
+    kind: "size",
+    title: "Make it for a screen",
+    detail: "TV 8K, 7680 × 4320, cropped around the subject; the right model for each picture",
+    chip: "TV 8K",
+    amount: null,
+  },
+  {
+    kind: "look",
+    title: "A look",
+    detail: "Warm film at 60%, grain 20",
+    chip: "Warm film",
+    amount: "60",
+  },
+  {
+    kind: "save",
+    title: "Save",
+    detail: "As new pictures, JPEG 95, into a folder called Edited beside each",
+    chip: "JPEG 95 into Edited",
+    amount: null,
+  },
+];
+
+/** What Holiday prints takes. */
+export function takes(overrides: Partial<Takes> = {}): Takes {
+  return {
+    words: WORDS,
+    seconds: 1920,
+    bytes: 480_000_000,
+    free: 412_000_000_000,
+    drive: "D:",
+    fits: true,
+    measured: true,
+    reckoned: false,
+    place: "card",
+    needs: [],
+    example: "Name (TV 8K, Warm film).jpg",
+    into: "Holiday › Edited",
+    madeFor: "TV 8K",
+    look: "Warm film at 60%",
+    ...overrides,
+  };
+}
+
+/** See it first's three, made. */
+export const SAMPLES: Samples = {
+  id: "abc123",
+  round: 0,
+  seconds: 110,
+  samples: [
+    { index: 0, name: "Warm dunes.jpg", bytes: 2_700_000, madeBytes: 9_800_000 },
+    { index: 1, name: "Still lake.heic", bytes: 2_900_000, madeBytes: 10_400_000 },
+    { index: 2, name: "Night market.jpg", bytes: 3_300_000, madeBytes: 11_200_000 },
+  ].map((each) => ({
+    ...each,
+    picture: each.index + 1,
+    state: "done" as const,
+    progress: 1,
+    seconds: 36,
+    width: 7680,
+    height: 4320,
+    problem: null,
+  })),
+};
+
+/** Holiday prints, as Recipes lists it. */
+export const RECIPE: KeptRecipe = {
+  id: 1,
+  name: "Holiday prints",
+  steps: [
+    { step: "size", size: "tv-8k", shape: "crop", kind: null, quality: null, clean: true },
+    {
+      step: "look",
+      look: "warm-film",
+      strength: 0.6,
+      touches: { grain: 20, vignette: 0, glow: 0, fade: 0, leak: 0, dust: 0 },
+    },
+  ],
+  saving: {
+    how: "new",
+    format: "JPEG",
+    quality: 95,
+    folder: "Edited",
+    keepCamera: true,
+    keepColours: true,
+    keepLocation: false,
+  },
+  words: WORDS,
+  used: 3,
+  usedAt: "2026-11-22T23:00:00+02:00",
+  tonight: true,
+};
+
+/** Holiday prints being made at night, 18 of 48 over. */
+export function batch(overrides: Partial<Batch> = {}): Batch {
+  return {
+    id: 7,
+    name: "Holiday prints",
+    source: "Holiday",
+    shared: "D:\\Pictures\\Holiday",
+    recipe: 1,
+    watch: null,
+    starts: "tonight",
+    addedAt: "2026-11-22T22:40:00+02:00",
+    startedAt: "2026-11-22T23:00:00+02:00",
+    finishedAt: null,
+    total: 48,
+    done: 17,
+    failed: 1,
+    waiting: 30,
+    cancelled: 0,
+    progress: 0.37,
+    secondsLeft: 360,
+    seenFirst: true,
+    how: "new",
+    into: "Holiday › Edited",
+    folder: "D:\\Pictures\\Holiday\\Edited",
+    madeFor: "TV 8K",
+    look: "Warm film at 60%",
+    purpose: "tv",
+    words: WORDS,
+    before: 45_900_000,
+    after: 166_000_000,
+    ...overrides,
+  };
+}
+
+function row(job: number, name: string, overrides: Partial<QueueRow>): QueueRow {
+  return {
+    job,
+    batch: 7,
+    name,
+    path: `D:\\Pictures\\Holiday\\${name}`,
+    picture: { id: job, version: `v${job}` },
+    state: "queued",
+    step: null,
+    progress: 0,
+    bytes: 3_800_000,
+    madeBytes: null,
+    resultName: null,
+    problem: null,
+    waits: null,
+    ...overrides,
+  };
+}
+
+/** The queue as the Queue board draws it. */
+export function queue(overrides: Partial<Queue> = {}): Queue {
+  return {
+    paused: false,
+    working: true,
+    room: null,
+    batch: batch(),
+    finished: false,
+    rows: [
+      row(1, "Red canyon.jpg", { state: "running", step: "A look 2/3", progress: 0.6 }),
+      row(2, "Misty pines.jpg", { bytes: 4_200_000 }),
+      row(3, "Still lake.heic", { bytes: 2_900_000 }),
+      row(4, "Old pier.tif", {
+        state: "failed",
+        picture: null,
+        bytes: 61_000_000,
+        problem: "The file is damaged, so it was left as it is.",
+      }),
+      row(5, "Warm dunes.jpg", {
+        state: "done",
+        bytes: 2_700_000,
+        madeBytes: 9_800_000,
+        resultName: "Warm dunes (TV 8K).jpg",
+      }),
+    ],
+    waitingMore: 28,
+    doneMore: 14,
+    later: [],
+    night: true,
+    morning: "2026-11-23T07:00",
+    waitsForNight: false,
+    secondsLeft: 360,
+    ...overrides,
+  };
+}
+
+/** Watch folders, as the Recipes board draws them. */
+export const WATCH_FOLDERS: WatchFolder[] = [
+  {
+    id: 1,
+    path: "D:\\Pictures\\To TV",
+    recipe: 1,
+    recipeName: "Holiday prints",
+    results: "D:\\Pictures\\To TV\\Done",
+    watching: true,
+    connected: true,
+    ranAt: new Date(new Date().setHours(14, 2, 0, 0)).toISOString(),
+    ranOn: 6,
+    problem: null,
+  },
+  {
+    id: 2,
+    path: "F:\\Phone dump",
+    recipe: 1,
+    recipeName: "Holiday prints",
+    results: "F:\\Wallpapers",
+    watching: true,
+    connected: false,
+    ranAt: null,
+    ranOn: 0,
+    problem: null,
+  },
+  {
+    id: 3,
+    path: "E:\\Scans\\New",
+    recipe: 1,
+    recipeName: "Holiday prints",
+    results: "E:\\Prints",
+    watching: false,
+    connected: true,
+    ranAt: null,
+    ranOn: 0,
+    problem: null,
+  },
+];

@@ -57,8 +57,8 @@ export function Stage({
   );
 }
 
-/** The picture larger than its space: scrolled, or dragged, to see round it. */
-function Zoomed(props: {
+/** A picture larger than its space: scrolled, or dragged, to see round it. */
+export function Zoomed(props: {
   address: string | null;
   name: string;
   width: number;

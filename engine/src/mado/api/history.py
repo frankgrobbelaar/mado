@@ -5,15 +5,19 @@ it; and the quarantine, what waits there on each drive, and emptying one."""
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path, PureWindowsPath
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import FileResponse
 
-from mado import history
-from mado.api.common import ApiModel, Database, SetAside
+from mado import batches, history
+from mado.api.common import ApiModel, Copies, Database, Paths, SetAside
 from mado.api.jobs import PictureRef
+from mado.core.batch import at_night
+from mado.core.files import kind_of
 from mado.history import Entry, UndoError
-from mado.previews import version
+from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError, decode
+from mado.previews import THUMBNAIL, Source, save_copy, version
 from mado.quarantine import DAYS, by_drive, empty
 
 router = APIRouter()
@@ -46,11 +50,49 @@ class EntryOut(ApiModel):
     picture: PictureRef | None  # a picture to show beside it, while the library has one
     can_undo: bool  # "Take it away", "Put back"
     can_redo: bool  # "Put it back", for a picture taken away; "Replace it again"
+    batch: int | None  # the batch it was made in, which History shows as one line
+
+
+class BatchLine(ApiModel):
+    """A batch as History's one line for it: what it made, and what undoes all of it."""
+
+    id: int
+    name: str  # "Holiday prints"
+    source: str  # where its pictures came from: "Holiday"
+    watch: str | None  # the watch folder that made it: "To TV"
+    how: Literal["new", "replace"]
+    made_for: str | None
+    look: str | None
+    purpose: str | None  # what its size made them for: "tv"
+    into: str  # where they went: "Holiday › Edited"
+    made: int  # its pictures made, not taken away or put back
+    undone: int  # those taken away, or put back
+    failed: list[str]  # the pictures that didn't work
+    overnight: bool  # made at night
+    can_undo: bool  # "Take them away", "Put the originals back"
+    can_redo: bool
+    working: bool  # some of its pictures are still in the queue: undone as a whole once done
+    drive: str | None  # where what it set aside waits: "D:"
+    aside_until: str | None  # the day the clear-out takes it
+    picture: PictureRef | None
 
 
 class HistoryOut(ApiModel):
     entries: list[EntryOut]  # newest first
     older: str | None  # the day the next page starts before; None: that's all
+    batches: list[BatchLine]  # the batches its lines were made in
+
+
+class BatchUndone(ApiModel):
+    done: int  # lines undone (or done again)
+    problems: list[str]  # why any couldn't be, picture by picture
+
+
+class MadeToday(ApiModel):
+    id: int  # its History line
+    name: str  # the original's, without its extension
+    made_for: str | None  # "TV 8K"
+    look: str | None  # "Warm film at 60%"
 
 
 class ClearHistory(ApiModel):
@@ -83,7 +125,87 @@ def what_mado_did(
     `before` ("2026-11-15", the page's `older`) asks for the days before that one, and `q` for
     what names a picture or folder."""
     found = history.page(conn, before=before, query=q)
-    return HistoryOut(entries=[_out(conn, each) for each in found.entries], older=found.older)
+    batch_ids = list(dict.fromkeys(each.batch_id for each in found.entries if each.batch_id))
+    lines = [_batch_line(conn, each) for each in batch_ids]
+    return HistoryOut(
+        entries=[_out(conn, each) for each in found.entries],
+        older=found.older,
+        batches=[line for line in lines if line is not None],
+    )
+
+
+@router.post("/history/batches/{batch_id}/undo")
+def undo_batch(batch_id: int, conn: Database, quarantine: SetAside) -> BatchUndone:
+    """Undoes a whole batch: its new pictures taken away (into quarantine), or its originals put
+    back. Each picture's own line says why one couldn't be. Not while some of its pictures are
+    still in the queue: what's made after would be left as it is."""
+    _done_with(conn, batch_id)
+    done, problems = history.undo_batch(conn, quarantine, batch_id, _now())
+    return BatchUndone(done=done, problems=problems)
+
+
+@router.post("/history/batches/{batch_id}/redo")
+def redo_batch(batch_id: int, conn: Database, quarantine: SetAside) -> BatchUndone:
+    """Undoes a batch's undo: its new pictures put back, or its originals replaced again."""
+    _done_with(conn, batch_id)
+    done, problems = history.redo_batch(conn, quarantine, batch_id, _now())
+    return BatchUndone(done=done, problems=problems)
+
+
+@router.get("/history/today")
+def made_today(conn: Database) -> list[MadeToday]:
+    """The pictures made today, newest first, for Home."""
+    today = _now().date().isoformat()
+    rows = conn.execute(
+        """SELECT id, name, made_for, look FROM history
+           WHERE kind IN ('made', 'replaced') AND undone_at IS NULL AND substr(at, 1, 10) = ?
+           ORDER BY at DESC, id DESC LIMIT 12""",
+        (today,),
+    ).fetchall()
+    return [
+        MadeToday(
+            id=row["id"],
+            name=PureWindowsPath(row["name"]).stem,
+            made_for=row["made_for"],
+            look=row["look"],
+        )
+        for row in rows
+    ]
+
+
+_THUMBNAIL: dict[int | str, dict[str, Any]] = {200: {"content": {"image/webp": {}}}}
+
+
+@router.get("/history/{entry_id}/thumbnail", response_class=FileResponse, responses=_THUMBNAIL)
+def made_thumbnail(entry_id: int, conn: Database, paths: Paths, copies: Copies) -> FileResponse:
+    """A thumbnail of the picture a line made (WebP): the library's, or made now from the picture
+    itself when it's outside the library. Only a picture Mado made."""
+    found = history.entry(conn, entry_id)
+    if found is None or not found.result or found.undone_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That picture isn't there any more.")
+    result = Path(found.result)
+    row = conn.execute(
+        "SELECT * FROM pictures WHERE path = ? AND gone_at IS NULL AND read_at IS NOT NULL",
+        (str(result),),
+    ).fetchone()
+    try:
+        if row is not None:
+            made = copies.thumbnail(Source.of(row))
+        else:
+            stat = result.stat()
+            made = (
+                paths.cache / "made" / f"{entry_id}-{version(stat.st_mtime_ns, stat.st_size)}.webp"
+            )
+            if not made.is_file():
+                image = decode(result, kind_of(result.name) or "picture", longest=THUMBNAIL)
+                save_copy(image, made, "WEBP", quality=80, method=4)
+    except OSError, PictureGoneError, UnreadableError, NeedsFfmpegError:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "That picture isn't there any more."
+        ) from None
+    return FileResponse(
+        made, media_type="image/webp", headers={"Cache-Control": "private, max-age=86400"}
+    )
 
 
 @router.post("/history/{entry_id}/undo")
@@ -163,6 +285,95 @@ def _out(conn: sqlite3.Connection, found: Entry) -> EntryOut:
         picture=_picture(conn, found),
         can_undo=can_undo,
         can_redo=can_redo,
+        batch=found.batch_id,
+    )
+
+
+def _working(conn: sqlite3.Connection, batch_id: int) -> bool:
+    """Whether some of a batch's pictures are still in the queue."""
+    found = conn.execute(
+        "SELECT 1 FROM jobs WHERE batch_id = ? AND state IN ('queued', 'running') LIMIT 1",
+        (batch_id,),
+    ).fetchone()
+    return found is not None
+
+
+def _done_with(conn: sqlite3.Connection, batch_id: int) -> None:
+    if _working(conn, batch_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Some of its pictures are still in the queue. Once they're made, or taken out of "
+            "the queue, this undoes all of it.",
+        )
+
+
+def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
+    """A batch's one line in History."""
+    row = conn.execute(
+        """SELECT b.*, w.path AS watch_path FROM batches AS b
+           LEFT JOIN watch_folders AS w ON w.id = b.watch_id WHERE b.id = ?""",
+        (batch_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    # Counted by SQLite: a batch can hold thousands of lines.
+    counts = conn.execute(
+        """SELECT COUNT(*) FILTER (WHERE h.undone_at IS NULL) AS made,
+                  COUNT(*) FILTER (WHERE h.undone_at IS NOT NULL) AS undone,
+                  COUNT(*) FILTER (WHERE h.undone_at IS NULL AND (
+                      (h.kind = 'made' AND h.result IS NOT NULL)
+                      OR (h.kind = 'replaced' AND h.aside IS NOT NULL AND h.cleared_at IS NULL)
+                  )) AS undoable,
+                  COUNT(*) FILTER (WHERE h.undone_at IS NOT NULL AND h.aside IS NOT NULL
+                                   AND h.cleared_at IS NULL) AS redoable
+           FROM history AS h JOIN jobs AS j ON j.id = h.job_id WHERE j.batch_id = ?""",
+        (batch_id,),
+    ).fetchone()
+    aside = conn.execute(
+        """SELECT h.aside, h.aside_at FROM history AS h JOIN jobs AS j ON j.id = h.job_id
+           WHERE j.batch_id = ? AND h.aside IS NOT NULL AND h.cleared_at IS NULL
+           ORDER BY h.id DESC LIMIT 1""",
+        (batch_id,),
+    ).fetchone()
+    newest = history.of_batch(conn, batch_id, limit=10)
+    steps, saving = batches.kept_steps(row["steps"])
+    failed = [
+        Path(each["source"]).name
+        for each in conn.execute(
+            "SELECT source FROM jobs WHERE batch_id = ? AND state = 'failed' ORDER BY position",
+            (batch_id,),
+        )
+    ]
+    order = batches.first_order(conn, batch_id)
+    made_for, look = order.get("label"), order.get("look")
+    started = row["started_at"]
+    try:
+        overnight = started is not None and at_night(datetime.fromisoformat(started))
+    except ValueError:
+        overnight = False
+    watch = row["watch_path"]
+    return BatchLine(
+        id=batch_id,
+        name=row["name"],
+        source=row["source"],
+        watch=PureWindowsPath(watch).name if watch else None,
+        how="replace" if saving.get("how") == "replace" else "new",
+        made_for=made_for if isinstance(made_for, str) else None,
+        look=look if isinstance(look, str) else None,
+        purpose=batches.purpose_of(conn, steps),
+        into=batches.into_words(saving, row["shared"]),
+        made=counts["made"],
+        undone=counts["undone"],
+        failed=failed,
+        overnight=overnight,
+        can_undo=counts["undoable"] > 0,
+        can_redo=counts["redoable"] > 0,
+        working=_working(conn, batch_id),
+        drive=str(aside["aside"])[:2] if aside else None,
+        aside_until=_until(aside["aside_at"]) if aside else None,
+        picture=next(
+            (found for each in newest if (found := _picture(conn, each)) is not None), None
+        ),
     )
 
 

@@ -88,13 +88,19 @@ Rules of thumb:
 ## The window
 
 - **The rail** (`components/shell/nav-rail.tsx`), 80 px wide down the left: the mark at the top
-  (drag it to move the window), Mado's places under it with their icon over their name, the lit
-  one raised, and Settings at its foot.
+  (drag it to move the window), Mado's places under it with their icon over their name (Home, the
+  Library, the Queue, History), the lit one raised, and Settings at its foot. The Queue's badge,
+  a volt pill in the mono at its corner, says how far the batch being made has got ("37%"), or
+  how many pictures wait. Many at once lights the Library; Recipes lights the Queue.
 - **The title bar** (`title-bar.tsx`), a slim strip over the page with the window's buttons; a
   page without the rail (Setup) gives it the mark and a name.
 - **The status bar** (`status-bar.tsx`), 32 px at the foot in the mono: how the engine is, Mado's
-  version, what it's doing with the library ("Watching 3 folders", "Reading 212 of 4,812"), and
-  "Your pictures stay on this PC".
+  version, what it's making ("Graphics card working · Holiday prints 18 of 48"), what it's doing
+  with the library ("Watching 3 folders", "Reading 212 of 4,812"), and "Your pictures stay on
+  this PC".
+- **Dropping pictures** (`shell/drop-zone.tsx`): anywhere on the window. While they're over it, a
+  dashed card over the page says what dropping does; dropped, one picture from the library opens
+  its page and anything else Many at once. What isn't a picture is said in a note at the foot.
 
 ## Components
 
@@ -112,7 +118,14 @@ Built so far, in `app/src/components/`:
 | `mado-logo.tsx` | The mark, in its own colours |
 
 Settings' light-or-dark choice (`features/settings/look-choice.tsx`) is three cards, each with a
-little picture of the window in its scheme. New primitives start from shadcn/ui (accessible, built
+little picture of the window in its scheme.
+
+Many at once's own (`features/batch/`): `StepsPanel` (a batch's steps, numbered, each with its
+icon, what it does and Change; "Add a step"; "or start from" a recipe's pill; the Recipes link),
+`RecipeLine` (steps as chips joined by arrows, a look's strength in the accent mono), the step
+cards (`step-dialogs.tsx`: the Size tab's devices, screens and prints; the Looks tab's looks and
+touches; how they're saved) and `SeeFirst` (three pictures before and after with a white line
+between them, opened at Fit, 100% or 400%). New primitives start from shadcn/ui (accessible, built
 on Radix) and are restyled to the tokens; see [stack/tailwind.md](stack/tailwind.md).
 
 ## Patterns
@@ -153,6 +166,18 @@ on Radix) and are restyled to the tokens; see [stack/tailwind.md](stack/tailwind
 - **The small things**: a drive unplugged, not enough space, a file in use, a crash, a failed job,
   a name already taken, offline. Each message names the problem, says what Mado already did, and
   offers the next step.
+- **A batch's steps** (Many at once, a recipe): numbered in the order they're made, each with
+  what it does in a line and Change, which opens the picture page's own choices in a card; Save
+  last; "Add a step" dashed for one it hasn't yet. The right column holds When (radios), Saving
+  (new pictures or the originals replaced, and where, in a line) and What it takes (time, space,
+  what's free, how it was timed), then the one primary button, "Put 48 in the queue".
+- **The queue's rows**: a table, its pictures by their shape (being made pulses, waiting is
+  hollow, done is solid, didn't work is hatched with its reason in a sentence and Try again);
+  "now", "next" and "+28 more" in the mono; ticks only on what waits, which a toolbar above moves
+  next, to the end or out. A drive without room is a card in the queue's place: what it needs,
+  "Make the 11 that fit now", emptying its quarantine (asked again), or waiting. With nothing
+  waiting, a batch whose pictures didn't all work stays, "is done" in its line, with Try again
+  on each and Clear where Pause and Cancel all were.
 
 ## Words
 

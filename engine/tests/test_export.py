@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mado import __version__, db, history, own_looks
+from mado import __version__, db, history, own_looks, recipes, watching
 from mado.config import DataPaths
 from mado.core.cube import read
 from mado.core.grids import blended
@@ -50,9 +50,12 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
             "mado.db",
             "manifest.json",
             "pictures.csv",
+            "recipes.json",
             "settings.json",
+            "watch-folders.json",
         ]
         assert json.loads(zipped.read("looks.json")) == []
+        assert json.loads(zipped.read("recipes.json")) == []
         assert json.loads(zipped.read("settings.json")) == {"set_up": True}
         assert json.loads(zipped.read("manifest.json")) == {
             "app": "Mado",
@@ -197,3 +200,42 @@ def test_your_looks_are_in_the_export_as_files_any_app_opens(paths: DataPaths, t
     ]
     assert cube.title == "Holiday: warm"
     assert np.allclose(cube.grid, blended(warm.grid, 0.6), atol=1e-4)
+
+
+def test_recipes_and_watch_folders_are_in_the_export(paths: DataPaths, tmp_path: Path):
+    inbox = tmp_path / "To TV"
+    inbox.mkdir()
+    with closing(db.connect(paths.database)) as conn:
+        db.migrate(conn)
+        kept = recipes.kept(
+            conn,
+            "Holiday prints",
+            [{"step": "size", "size": "tv-8k"}],
+            {"how": "new", "format": "JPEG", "quality": 95, "folder": "Edited"},
+            NOW,
+        )
+        watching.added(conn, inbox, kept.id, Path("Done"), NOW)
+
+    archive = export_data(paths, tmp_path / "exports", now=NOW)
+
+    assert archive is not None
+    with zipfile.ZipFile(archive) as zipped:
+        listed = json.loads(zipped.read("recipes.json"))
+        watched = json.loads(zipped.read("watch-folders.json"))
+    assert listed == [
+        {
+            "name": "Holiday prints",
+            "steps": [{"step": "size", "size": "tv-8k"}],
+            "saving": {"how": "new", "format": "JPEG", "quality": 95, "folder": "Edited"},
+            "used": 0,
+            "usedAt": None,
+        }
+    ]
+    assert watched == [
+        {
+            "folder": str(inbox),
+            "recipe": "Holiday prints",
+            "results": str(inbox / "Done"),
+            "watching": True,
+        }
+    ]

@@ -120,4 +120,63 @@ MIGRATIONS: Final[tuple[str, ...]] = (
 
     ALTER TABLE history ADD COLUMN look TEXT;  -- what it was made with: "Warm film at 60%"
     """,
+    # 5. Many at once: recipes (steps kept by name), watch folders (a folder, its recipe and where
+    # results go, with what each has taken), and batches, each a picture's job in the queue,
+    # which takes them in its own order.
+    """
+    CREATE TABLE recipes (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,  -- never given again, as batches name it
+        name      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        steps     TEXT NOT NULL,     -- JSON: the steps in order, each a kind and its choices
+        saving    TEXT NOT NULL,     -- JSON: how it saves
+        used      INTEGER NOT NULL DEFAULT 0,  -- batches made from it
+        used_at   TEXT,              -- the latest
+        added_at  TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE watch_folders (
+        id         INTEGER PRIMARY KEY,
+        path       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        recipe_id  INTEGER NOT NULL REFERENCES recipes (id) ON DELETE CASCADE,
+        results    TEXT NOT NULL,    -- where its new pictures go
+        watching   INTEGER NOT NULL DEFAULT 1 CHECK (watching IN (0, 1)),
+        added_at   TEXT NOT NULL,
+        since      TEXT NOT NULL,    -- it takes what arrives after this (it was turned on)
+        problem    TEXT              -- why it couldn't put its pictures in the queue, lately
+    ) STRICT;
+
+    CREATE TABLE watched (           -- what a watch folder took, or found there as it began
+        watch_id  INTEGER NOT NULL REFERENCES watch_folders (id) ON DELETE CASCADE,
+        path      TEXT NOT NULL COLLATE NOCASE,
+        size      INTEGER NOT NULL,
+        modified  INTEGER NOT NULL,  -- nanoseconds since 1970
+        taken     INTEGER NOT NULL CHECK (taken IN (0, 1)),  -- 0: there before, left alone
+        at        TEXT NOT NULL,
+        PRIMARY KEY (watch_id, path)
+    ) STRICT;
+
+    CREATE TABLE batches (
+        id          INTEGER PRIMARY KEY,
+        name        TEXT NOT NULL,     -- what it's called: its recipe's name, or where it's from
+        source      TEXT NOT NULL,     -- where its pictures came from: "Holiday"
+        shared      TEXT,              -- the folder its pictures share, when they do
+        recipe_id   INTEGER REFERENCES recipes (id) ON DELETE SET NULL,
+        watch_id    INTEGER REFERENCES watch_folders (id) ON DELETE SET NULL,
+        steps       TEXT NOT NULL,     -- JSON: its steps and how it saves
+        seen_first  INTEGER NOT NULL DEFAULT 0 CHECK (seen_first IN (0, 1)),
+        starts      TEXT NOT NULL CHECK (starts IN ('now', 'tonight', 'after')),
+        added_at    TEXT NOT NULL,
+        started_at  TEXT,              -- its first picture began
+        finished_at TEXT,              -- nothing of it waits any more
+        seen_at     TEXT,              -- Home's card for it was seen
+        cleared_at  TEXT               -- what didn't work of it was cleared from the Queue
+    ) STRICT;
+
+    ALTER TABLE jobs ADD COLUMN batch_id INTEGER REFERENCES batches (id) ON DELETE CASCADE;
+    ALTER TABLE jobs ADD COLUMN position INTEGER NOT NULL DEFAULT 0;  -- its place in the queue
+    ALTER TABLE jobs ADD COLUMN bytes INTEGER;  -- the picture it's made from, as it was asked
+    ALTER TABLE jobs ADD COLUMN made_bytes INTEGER;  -- the picture it saved
+    UPDATE jobs SET position = id;
+    CREATE INDEX jobs_by_batch ON jobs (batch_id, state, position);
+    """,
 )

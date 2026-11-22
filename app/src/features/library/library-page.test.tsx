@@ -15,7 +15,12 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 /** Where the page is now: its address and query, to see where a click led. */
 function Address() {
   const location = useLocation();
-  return <p data-testid="address">{`${location.pathname}${location.search}`}</p>;
+  return (
+    <>
+      <p data-testid="address">{`${location.pathname}${location.search}`}</p>
+      <p data-testid="state">{JSON.stringify(location.state)}</p>
+    </>
+  );
 }
 
 function renderLibrary(at = "/library", picked: string | null = null) {
@@ -34,6 +39,7 @@ function renderLibrary(at = "/library", picked: string | null = null) {
             <Routes>
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/library/pictures/:id" element={<p>A picture</p>} />
+              <Route path="/batch" element={<p>Many at once</p>} />
             </Routes>
             <Address />
           </MemoryRouter>
@@ -388,5 +394,37 @@ describe("LibraryPage", () => {
     screen.getByRole("button", { name: "Try again" }).click();
 
     expect(await screen.findByRole("link", { name: "Harbour at dusk" })).toBeInTheDocument();
+  });
+
+  it("makes ticked pictures many at once", async () => {
+    library();
+    renderLibrary("/library?folder=1");
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Tick Harbour at dusk" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Tick Little sail" }));
+    const bar = screen.getByRole("toolbar", { name: "Ticked pictures" });
+    fireEvent.click(within(bar).getByRole("button", { name: "Many at once…" }));
+
+    expect(await screen.findByText("Many at once")).toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
+      pick: { how: "ticked", ids: [11, 12] },
+    });
+  });
+
+  it("makes a whole folder many at once from its menu, and what a search found", async () => {
+    library();
+    renderLibrary("/library?folder=1&dir=2026");
+
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "More for 2026" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(screen.queryByRole("menuitem", { name: "Take out of your library…" })).toBeNull();
+    (await screen.findByRole("menuitem", { name: "Many at once…" })).click();
+
+    expect(await screen.findByText("Many at once")).toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
+      pick: { how: "folder", folder: 1, dir: "2026" },
+    });
   });
 });

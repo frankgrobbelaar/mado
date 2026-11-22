@@ -7,6 +7,7 @@ routes as an APIRouter in its own module, included below.
 
 import logging
 import secrets
+import sqlite3
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, closing
 from datetime import datetime
@@ -20,7 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from mado import __version__, db, hardware
+from mado import __version__, db, hardware, watching
 from mado.ai import Ai
 from mado.api import (
     backups,
@@ -33,12 +34,16 @@ from mado.api import (
     making,
     pc,
     pictures,
+    queue,
     records,
     scan,
     settings,
     tools,
 )
+from mado.api import batches as batches_api
+from mado.api import recipes as recipes_api
 from mado.backups import restore_asked
+from mado.batches import Picture
 from mado.care import Care
 from mado.config import DataPaths
 from mado.core.models import BEST_PHOTO
@@ -52,10 +57,12 @@ from mado.pictures import Command
 from mado.previews import Previews
 from mado.quarantine import Quarantine
 from mado.rescue import Damage, damage
+from mado.samples import Samples
 from mado.scan import Scanner
 from mado.system import own_command
 from mado.tools import Tools
 from mado.watch import Watcher
+from mado.watching import Watch, WatchFolders
 
 # The app's own pages: the installed app, and the Vite dev server in development.
 APP_ORIGINS = ["http://tauri.localhost", "http://localhost:1420"]
@@ -160,13 +167,21 @@ def create_app(
             watcher.start()  # catches up on what changed while Mado was closed, then watches
         care: Care = running.state.care
         making_: Jobs = running.state.jobs
-        making_.start()  # a job Mado's closing cut short starts again
+        with closing(db.connect(paths.database)) as conn:
+            running.state.samples.tidy(conn)  # what an earlier run left in the cache goes
+        making_.start()  # a job Mado's closing cut short starts again, and batches carry on
+        folders = WatchFolders(paths, take, now=_now) if watch else None
+        running.state.watch_folders = folders
+        if folders is not None:
+            folders.start()  # takes what arrived while Mado was closed, then looks every few s
         if work:
             care.start()  # tonight's backup, and the daily clear-out of the quarantine
             running.state.pc.refresh()  # what this PC can do, checked when it needs to be
         yield
         if work:
             care.stop()
+        if folders is not None:
+            folders.stop()
         making_.stop()  # after the tile it's on
         if watcher is not None:
             watcher.stop()
@@ -198,10 +213,25 @@ def create_app(
     app.state.sight = Sight(decoder)
     app.state.jobs = Jobs(
         paths,
-        Maker(app.state.ai, app.state.quarantine, decoder, now=_now),
+        Maker(
+            app.state.ai,
+            app.state.quarantine,
+            decoder,
+            now=_now,
+            kept=paths.cache / "samples" / "kept",
+        ),
         app.state.quarantine,
         now=_now,
+        notify=notify,
     )
+    # See it first's pictures, made by the jobs' worker before the queue's.
+    app.state.samples = Samples(paths, app.state.ai, decoder, wake=app.state.jobs.wake)
+    app.state.jobs.before_the_queue(app.state.samples)
+    app.state.watch_folders = None  # set while it watches
+
+    def take(conn: sqlite3.Connection, folder: Watch, found: list[Picture]) -> None:
+        watching.queue_up(conn, app.state.jobs, app.state.ai, folder, found, _now())
+
     app.state.pc = PcCheck(
         paths,
         check or check_in_own_process(own_command()),
@@ -232,6 +262,9 @@ def create_app(
         making,
         looks,
         jobs,
+        batches_api,
+        queue,
+        recipes_api,
         history,
         pc,
         data,

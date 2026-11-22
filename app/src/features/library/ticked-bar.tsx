@@ -9,11 +9,20 @@ import { cn } from "@/lib/utils";
 const MOST_FOLDERS = 3; // Explorer opens a window for each folder: more than this is a nuisance
 
 /**
- * What can be done with the ticked pictures now: show them in Explorer, copy their paths, or
- * clear the ticks. The tools that change pictures join it as Mado's next pieces are built. A
- * toolbar: Tab reaches it once, and the arrow keys go along its buttons.
+ * What can be done with the ticked pictures now: make them many at once, show them in Explorer,
+ * copy their paths, or clear the ticks. A toolbar: Tab reaches it once, and the arrow keys go
+ * along its buttons.
  */
-export function TickedBar({ ticked, onClear }: { ticked: PictureItem[]; onClear: () => void }) {
+export function TickedBar({
+  ticked,
+  onClear,
+  onBatch,
+}: {
+  ticked: PictureItem[];
+  onClear: () => void;
+  /** Many at once with them: only those that can be made (not camera RAW, not broken). */
+  onBatch: () => void;
+}) {
   const [note, setNote] = useState<{ text: string; problem: boolean } | null>(null);
   const days = new Set(ticked.map((picture) => picture.takenAt.slice(0, 10))).size;
   const folders = new Set(ticked.map((picture) => split(picture.path)[1].toLowerCase())).size;
@@ -47,6 +56,16 @@ export function TickedBar({ ticked, onClear }: { ticked: PictureItem[]; onClear:
         from {days} {days === 1 ? "day" : "days"}
       </span>
       <div className="ml-auto flex flex-wrap gap-2">
+        <Toolbar.Button asChild>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!ticked.some((picture) => picture.state === "ready")}
+            onClick={onBatch}
+          >
+            Many at once…
+          </Button>
+        </Toolbar.Button>
         {folders <= MOST_FOLDERS && (
           <Toolbar.Button asChild>
             <Button size="sm" className="font-medium" onClick={show}>

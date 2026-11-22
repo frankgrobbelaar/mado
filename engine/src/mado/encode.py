@@ -8,6 +8,7 @@ Its colours keep the original's profile, so a phone's wide colours stay wide; no
 turned into sRGB first, never just stripped, so they look the same.
 """
 
+import errno
 import io
 from pathlib import Path
 from typing import Any
@@ -22,10 +23,21 @@ _PIXEL_X, _PIXEL_Y = 0xA002, 0xA003
 _PILLOW = {"JPEG": "JPEG", "PNG": "PNG", "WebP": "WEBP", "AVIF": "AVIF"}
 # Pillow's colour management, whose types are partly unknown to Pyright: called through Any.
 _CMS: Any = ImageCms
+_FULL = (112, 39)  # Windows' disk full, and handle disk full
 
 
 class SaveError(Exception):
-    """A picture that couldn't be saved, or didn't come out right, with a sentence saying why."""
+    """A picture that couldn't be saved, or didn't come out right, with a sentence saying why.
+    `full`: its drive filled up as it was written."""
+
+    def __init__(self, sentence: str, *, full: bool = False) -> None:
+        super().__init__(sentence)
+        self.full = full
+
+
+def full(error: OSError) -> bool:
+    """Whether an error is a drive filling up."""
+    return error.errno == errno.ENOSPC or getattr(error, "winerror", None) in _FULL
 
 
 def prepared_exif(
@@ -113,7 +125,9 @@ def save(
     try:
         picture.save(path, format=_PILLOW[format_], **options)
     except OSError as error:
-        raise SaveError(f"Mado couldn't write {path.name}: {error.strerror or error}.") from error
+        raise SaveError(
+            f"Mado couldn't write {path.name}: {error.strerror or error}.", full=full(error)
+        ) from error
     except (ValueError, KeyError) as error:
         raise SaveError(f"Mado couldn't save it as {format_}: {error}.") from error
 

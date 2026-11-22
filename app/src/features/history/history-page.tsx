@@ -13,14 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import { Segmented } from "@/components/ui/segmented";
 import {
+  type BatchLine,
   type HistoryEntry,
   pictureAddress,
+  useBatchUndo,
   useClearHistory,
   useHistory,
   useHistoryAction,
   usePictureImage,
 } from "@/lib/engine";
-import { madeWith, size, split, stem, versionOf } from "@/lib/format";
+import { count, madeWith, size, split, stem, versionOf } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 
 const KEEP = [
@@ -45,6 +47,14 @@ export function HistoryPage() {
   const [clearing, setClearing] = useState(false);
   const [cleared, setCleared] = useState<number | null>(null);
   const entries = history.data?.pages.flatMap((page) => page.entries) ?? [];
+  const batches = new Map(
+    (history.data?.pages.flatMap((page) => page.batches ?? []) ?? []).map((line) => [
+      line.id,
+      line,
+    ]),
+  );
+  const undoBatch = useBatchUndo();
+  const [undone, setUndone] = useState<string[]>([]);
   const answered = history.data !== undefined;
 
   return (
@@ -88,10 +98,18 @@ export function HistoryPage() {
           <PanelSkeleton rows={2} />
         </Loading>
       )}
-      {act.isError && (
+      {(act.isError || undoBatch.isError) && (
         <p role="alert" className="text-13 text-broken-fg">
-          {act.error.message}
+          {act.error?.message ?? undoBatch.error?.message}
         </p>
+      )}
+      {undone.length > 0 && (
+        <div role="alert" className="flex flex-col gap-1 text-13 text-broken-fg">
+          <span>Some of them couldn't be, so they're as they were:</span>
+          {undone.slice(0, 5).map((why) => (
+            <span key={why}>{why}</span>
+          ))}
+        </div>
       )}
       {answered && entries.length === 0 && asked && (
         <p className="text-13 text-fg-muted">Nothing in History goes by “{asked}”.</p>
@@ -114,15 +132,32 @@ export function HistoryPage() {
             <span className="font-normal text-13 text-fg-faint">{dayLabel(day)[1]}</span>
           </h2>
           <ul>
-            {onDay.map((each) => (
-              <Line
-                key={each.id}
-                entry={each}
-                busy={act.isPending}
-                onUndo={() => act.mutate({ path: `/history/${each.id}/undo` })}
-                onRedo={() => act.mutate({ path: `/history/${each.id}/redo` })}
-              />
-            ))}
+            {grouped(onDay).map((each) =>
+              "lines" in each ? (
+                <Batched
+                  key={`batch-${each.batch}`}
+                  line={batches.get(each.batch)}
+                  lines={each.lines}
+                  busy={act.isPending || undoBatch.isPending}
+                  onBatch={(way) =>
+                    undoBatch.mutate(
+                      { path: `/history/batches/${each.batch}/${way}` },
+                      { onSuccess: (done) => setUndone(done.problems) },
+                    )
+                  }
+                  onUndo={(id) => act.mutate({ path: `/history/${id}/undo` })}
+                  onRedo={(id) => act.mutate({ path: `/history/${id}/redo` })}
+                />
+              ) : (
+                <Line
+                  key={each.id}
+                  entry={each}
+                  busy={act.isPending}
+                  onUndo={() => act.mutate({ path: `/history/${each.id}/undo` })}
+                  onRedo={() => act.mutate({ path: `/history/${each.id}/redo` })}
+                />
+              ),
+            )}
           </ul>
         </section>
       ))}
@@ -183,6 +218,150 @@ function Line(props: {
       )}
     </li>
   );
+}
+
+/** A day's lines with each batch's folded into one, where its newest line is. */
+function grouped(
+  lines: HistoryEntry[],
+): (HistoryEntry | { batch: number; lines: HistoryEntry[] })[] {
+  const found: (HistoryEntry | { batch: number; lines: HistoryEntry[] })[] = [];
+  const seen = new Map<number, { batch: number; lines: HistoryEntry[] }>();
+  for (const line of lines) {
+    if (line.batch === null) {
+      found.push(line);
+      continue;
+    }
+    const group = seen.get(line.batch);
+    if (group) {
+      group.lines.push(line);
+    } else {
+      const made = { batch: line.batch, lines: [line] };
+      seen.set(line.batch, made);
+      found.push(made);
+    }
+  }
+  return found;
+}
+
+/** A batch as one line, as the History board draws it: what it made and where, what undoes all
+ * of it, and its pictures' own lines under it when asked. */
+function Batched(props: {
+  line: BatchLine | undefined;
+  lines: HistoryEntry[];
+  busy: boolean;
+  onBatch: (way: "undo" | "redo") => void;
+  onUndo: (id: number) => void;
+  onRedo: (id: number) => void;
+}) {
+  const { line, lines } = props;
+  const [open, setOpen] = useState(false);
+  const first = lines[0];
+  if (!line || !first) return null;
+  const [title, detail] = batchWords(line);
+  return (
+    <li className="border-edge border-t">
+      <div className="flex items-center gap-3.5 px-4.5 py-3">
+        <span className="w-11 shrink-0 font-mono text-13 text-fg-faint">{clock(first.at)}</span>
+        <Thumbnail entry={{ ...first, picture: line.picture ?? first.picture }} />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="font-semibold text-14">{title}</span>
+          <span className="text-13 text-fg-muted">
+            {detail}{" "}
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((was) => !was)}
+              className="cursor-pointer text-accent-fg underline-offset-3 hover:underline"
+            >
+              {open
+                ? lines.length === 1
+                  ? "Hide the picture"
+                  : "Hide the pictures"
+                : lines.length === 1
+                  ? "Show the picture"
+                  : `Show the ${count(lines.length)} pictures`}
+            </button>
+          </span>
+        </span>
+        {line.working && <span className="shrink-0 text-13 text-fg-faint">Still being made</span>}
+        {!line.working && line.canUndo && (
+          <Button size="sm" disabled={props.busy} onClick={() => props.onBatch("undo")}>
+            {line.how === "replace" ? "Put the originals back" : "Take them away"}
+          </Button>
+        )}
+        {!line.working && !line.canUndo && line.canRedo && (
+          <Button size="sm" disabled={props.busy} onClick={() => props.onBatch("redo")}>
+            {line.how === "replace" ? "Replace them again" : "Put them back"}
+          </Button>
+        )}
+      </div>
+      {open && (
+        <ul className="border-edge border-t bg-tint/3 pl-6">
+          {lines.map((each) => (
+            <Line
+              key={each.id}
+              entry={each}
+              busy={props.busy}
+              onUndo={() => props.onUndo(each.id)}
+              onRedo={() => props.onRedo(each.id)}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+const FOR: Record<string, string> = {
+  phone: "the phone",
+  tablet: "the tablet",
+  laptop: "the laptop",
+  monitor: "the monitor",
+  ultrawide: "the ultrawide",
+  tv: "the TV",
+  print: "printing",
+  screen: "your screen",
+};
+
+/** What a batch's line says: "Made 47 pictures for the TV overnight", "Holiday prints, as new
+ * pictures in Holiday › Edited · Old pier.tif didn't work". */
+function batchWords(line: BatchLine): [string, string] {
+  const pictures = (n: number) => `${count(n)} ${n === 1 ? "picture" : "pictures"}`;
+  const until = line.asideUntil ? shortDay(line.asideUntil) : null;
+  const waits = `on ${line.drive ?? "its drive"} until ${until ?? "its days are up"}`;
+  const failed =
+    line.failed.length === 1
+      ? ` · ${line.failed[0]} didn't work`
+      : line.failed.length > 1
+        ? ` · ${count(line.failed.length)} didn't work`
+        : "";
+  const forWhat = line.purpose ? ` for ${FOR[line.purpose] ?? "its screen"}` : "";
+  const night = line.overnight ? " overnight" : "";
+  if (line.made === 0 && line.undone > 0) {
+    if (line.how === "replace")
+      return [
+        `Put ${pictures(line.undone)} back`,
+        `Their ${versionOf(line)} versions wait in quarantine ${waits}.`,
+      ];
+    return [
+      `Took away ${pictures(line.undone)} made${forWhat}`,
+      `They wait in quarantine ${waits}.`,
+    ];
+  }
+  const taken = line.undone ? `, ${count(line.undone)} since put back or taken away` : "";
+  if (line.how === "replace") {
+    return [
+      `Replaced ${pictures(line.made)} with their ${versionOf(line)} versions${night}`,
+      `${line.name}; the originals are in quarantine ${waits}${taken}${failed}`,
+    ];
+  }
+  const title = line.watch
+    ? `The watch folder ${line.watch} made ${pictures(line.made)}`
+    : line.purpose
+      ? `Made ${pictures(line.made)}${forWhat}${night}`
+      : `Made ${pictures(line.made)} ${madeWith(line)}${night}`;
+  const where = line.into === "beside the originals" ? "beside the originals" : `in ${line.into}`;
+  return [title, `${line.name}, as new pictures ${where}${taken}${failed}`];
 }
 
 function Thumbnail({ entry }: { entry: HistoryEntry }) {
@@ -300,10 +479,17 @@ function ClearHistory(props: { onClose: () => void; onCleared: (gone: number) =>
 }
 
 /** The lines by their day, newest first. */
+/** The lines by day, newest first; a batch's all on the day of its newest (one made overnight
+ * runs past midnight). */
 function days(entries: HistoryEntry[]): [string, HistoryEntry[]][] {
   const found = new Map<string, HistoryEntry[]>();
+  const batchDays = new Map<number, string>();
   for (const each of entries) {
-    const day = localDay(each.at);
+    let day = localDay(each.at);
+    if (each.batch !== null) {
+      day = batchDays.get(each.batch) ?? day;
+      batchDays.set(each.batch, day);
+    }
     found.set(day, [...(found.get(day) ?? []), each]);
   }
   return [...found];

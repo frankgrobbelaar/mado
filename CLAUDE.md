@@ -8,7 +8,7 @@ own tool: one user, one PC, never commercial, no sign-in. The code is shared und
 licence: anyone may fork it, but the repo takes no contributions. It's the sibling of Kura (an
 anime library) and Maku (TV series and films), and stands on their foundations.
 
-**Where it stands (2026-11-22):** scoped with the owner and the repo set up on Kura's
+**Where it stands (2026-11-23):** scoped with the owner and the repo set up on Kura's
 foundations: CI, the installer, the updater and the downloads page; the window with its engine and
 token, Setup fetching ffmpeg, Settings (light or dark, Start with Windows, updates, nightly backups
 and restoring one, the export), and records damaged past use. The look is Graphite, the owner's
@@ -25,7 +25,12 @@ a time, Fast shipped and Best downloaded when asked; saving as a new picture or 
 original in quarantine; History with undo and put back; This PC tested and timed, as Kura does);
 and looks, the third (the Looks tab: fourteen looks shown as small copies of the picture and on
 the picture itself, strength, six finishing touches drawn by code, hold to see the original, the
-owner's own looks from .cube files or kept mixes; and one recipe for both tabs, made by one Save).
+owner's own looks from .cube files or kept mixes; and one recipe for both tabs, made by one Save);
+and many at once, the fourth (pictures ticked, a folder, a search, or dropped anywhere on the
+window or picked on Home, in the library or not; their steps with Change, See it first, when,
+saving and what it takes; the Queue in the rail with its badge, nights only, pause, cancel all,
+ticked pictures, room on a drive, a drive not connected, carrying on after a stop; recipes and
+watch folders; a notification and Home's Needs you and Made today; History's one line a batch).
 Next: the rest of Mado 1.0, by [What's next](#whats-next).
 
 ## Ground rules
@@ -241,6 +246,71 @@ Everything decided so far. Don't ask again; change only with the owner.
   it. "Only on a part" waits for selection (SAM 2.1), with no control shown; a mask fits as a
   composite of the picture before and after its look. Save stays at the foot of the tools column on
   both tabs. The slider's thumb is the text colour without the board's shadow, which isn't a token.
+- Many at once, as built (2026-11-23, Claude's calls while the owner is away; docs/stack/queue.md):
+  pictures come ticked in the Library ("Many at once…" leads its ticked bar), from a folder's ⋮ menu
+  (inner folders too), beside a search's count, dropped anywhere on the window (Tauri's drag and
+  drop, for paths) or picked on Home ("Pick pictures", "Pick a folder", whose folders inside are
+  looked through, never a quarantine); camera RAW and pictures that won't open are left out, saying
+  why; 10,000 at most, and 50,000 files looked through in what's dropped, what's past either said as
+  left out. One picture in the library opens its page; one outside it opens Many at once alone, as a
+  picture's page is the library's. A batch's steps are a list (`{"step": "size"…}`, room for later
+  kinds), made in Mado's order whatever their order; Change opens the picture page's own choices in
+  a card (the devices, screens and prints, the shape, Fast or Best or as this PC suits, clean first;
+  the looks as small copies of the batch's first library picture, or by name with none, strength,
+  touches, your looks); "Add a step" stays, as the board draws it, disabled once both are in. A size
+  step has no point to crop around: each picture's subject is found as it's made. Saving is the Save
+  dialog's choice for many: new pictures beside the originals, into a folder by name beside each
+  ("Edited", the board's "Holiday › Edited"), or into one folder, JPEG 92 till changed, the owner's
+  Saving default first; or the originals replaced, each into quarantine. See it first makes three,
+  spread across the batch, by itself 0.8 s after the steps settle, through the jobs' worker before
+  the queue (one picture at a time on the card, as everything is, a picture's own Save first); the
+  batch keeps them rather than make them again, each by its own picture's file, whatever its place
+  in the list, and lets a kept copy go once it's saved. What it takes reckons each picture by its
+  pixels (as a photo), this PC's speeds and what See it first found (its time held to a third to
+  three times, its space to a tenth to three times, as bytes a pixel vary far more), See it first's
+  own counted as kept, and the room on the drive most save to, a 256 MB margin kept. "Now" goes
+  ahead of what waits (the picture being made finishes), "After what's in the queue" behind,
+  "Tonight" from 23:00 till 07:00 (the picture being made at 07:00 finishes), and Windows doesn't
+  sleep while a batch's picture is made. A picture's own Save goes ahead of the queue, even paused.
+  Pause stops the picture at its next tile, first in line again; neither a pause nor Mado closing
+  counts as a try, only a crash. Cancel all cancels the batches (asked first), not a picture's own
+  Save, and a batch the owner cancelled that way isn't told of or shown on Home (one picture
+  cancelled, the rest are told). Ticked pictures (those waiting) go next, to the end, or out of the
+  queue (as if never put in; a batch left with none goes); Try again puts one at the end. A drive
+  without room pauses the queue with one notification, and the queue carries on by itself once the
+  first picture waiting there fits; "Make the 11 that fit now" lets those go; "Empty D:'s quarantine
+  first…" asks once more; "Wait for room" leaves it to carry on. A drive that filled while a picture
+  saved waits for 64 MB more than was free then, and for the picture to fit with its margin, as
+  Mado's reckoning was wrong once. A drive not connected waits, one unplugged while its picture is
+  made too (back in line, not a try); a picture open in another app fails with a sentence, to try
+  again. With nothing waiting, the Queue keeps the latest batch done in the last week whose pictures
+  didn't all work, with Try again, till "Clear", as Home's card says "the queue says why". When
+  nothing of a batch waits, a notification ("Holiday prints is done", "48 pictures made for TV 8K ·
+  1 didn't work") leads to Home, whose "Needs you" shows a batch done in the last week (not a watch
+  folder's, which come as pictures arrive) till its "Open folder" (the folder its pictures went to,
+  when they share one; else "Done"); "Made today" shows the newest six, thumbnails from History for
+  pictures outside the library too. Home's board's "Won't open", "Duplicates and bursts" and "Space
+  on D:" wait for their own pieces. History shows a batch as one line in the board's words ("Made 47
+  pictures for the TV overnight", "The watch folder To TV made 6 pictures", "Replaced 48 pictures
+  with their TV 8K versions") with "Take them away" or "Put the originals back" (and back again)
+  once nothing of it waits ("Still being made" till then), each picture's line under "Show the 48
+  pictures"; a batch made overnight is one line, on the day it finished. An undo never comes between
+  a picture's History line and its moves (one lock holds both). The Queue page shows the batch being
+  made, then "Then" for those after it; the rail's badge says how far it's got, else how many wait,
+  and the status bar "Graphics card working · Holiday prints 18 of 48". Recipes are named (60
+  letters, unique), say how often and when they were used ("tonight" while one waits for it), are
+  used on pictures picked or a folder, and edited in a card; one a watch folder runs can't be
+  deleted, nor one of the owner's looks a recipe uses (or pictures waiting are made with). Watch
+  folders look round every 5 s, through their folders, taking a picture once its size and time have
+  held for 5 s and it opens (one that won't for 2 minutes is left alone), never their results folder
+  however it's named (real paths compared) nor any picture Mado wrote (History's and the jobs'
+  results, by path or as the same file), and never through a link to another folder, so nothing
+  loops; a watch folder whose pictures can't go in the queue says why on its row and rests 5 minutes
+  before trying again; what's there as one is watched (or turned on again) is left alone, what
+  arrived while Mado was closed is taken; new pictures join its batch still waiting, else start one
+  behind what waits, saved as new pictures where it says ("Done" inside it at first; never the
+  folder itself). "Big batches wait for the night" (Settings › General › Many at once, off at first)
+  sends one of more than 20 to tonight. The recipes and watch folders join the export.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -355,7 +425,8 @@ Everything decided so far. Don't ask again; change only with the owner.
    screen; looks, finishing touches and the owner's own, on the whole picture or a part; click to
    select, then erase or cut out; many at once, with recipes and the queue; and the choice between
    a new picture and replacing. Built: the library and a picture's page, making it for a screen
-   with saving, and looks on the whole picture (a part comes with selecting).
+   with saving, looks on the whole picture (a part comes with selecting), and many at once with
+   recipes, watch folders and the queue.
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG

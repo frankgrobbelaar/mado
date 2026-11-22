@@ -20,7 +20,7 @@ import { BackupsPanel } from "./backups-panel";
 import { ExportPanel } from "./export-panel";
 import { LookChoice } from "./look-choice";
 import { Panel } from "./panel";
-import { SavingPanel } from "./saving-panel";
+import { ManyAtOncePanel, SavingPanel } from "./saving-panel";
 import { SetAsidePanel } from "./set-aside-panel";
 import { ThisPcPanel, ToolsPanel } from "./this-pc-panel";
 import { WhereItLives } from "./where-it-lives";
@@ -126,6 +126,7 @@ function General() {
         )}
       </Panel>
       <SavingPanel />
+      <ManyAtOncePanel />
     </>
   );
 }

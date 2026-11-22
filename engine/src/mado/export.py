@@ -20,8 +20,8 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
     """Write `Mado export <date>.zip` into `folder` and return its path: the database, its
     settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
     each), History as CSV (each picture made, replaced or taken away, and what waits in
-    quarantine), the owner's looks (listed in JSON, each a .cube file any app opens), and a
-    manifest saying which Mado wrote it.
+    quarantine), the owner's looks (listed in JSON, each a .cube file any app opens), their
+    recipes and watch folders as JSON, and a manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -45,6 +45,8 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             pictures = _pictures(source)
             done = _history(source)
             looks = _looks(source)
+            kept_recipes = _recipes(source)
+            watch_folders = _watch_folders(source)
             schema_version = db.schema_version(source)
 
         manifest = {
@@ -62,8 +64,44 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             archive.writestr("looks.json", json.dumps([each for each, _ in looks], indent=2))
             for listed, text in looks:
                 archive.writestr(str(listed["file"]), text)
+            archive.writestr("recipes.json", json.dumps(kept_recipes, indent=2))
+            archive.writestr("watch-folders.json", json.dumps(watch_folders, indent=2))
             archive.writestr("manifest.json", json.dumps(manifest, indent=2))
     return target
+
+
+def _recipes(conn: sqlite3.Connection) -> list[dict[str, object]]:
+    """The owner's recipes: each one's steps and how it saves, as Mado keeps them."""
+    if not _has_table(conn, "recipes"):
+        return []
+    return [
+        {
+            "name": row["name"],
+            "steps": json.loads(row["steps"]),
+            "saving": json.loads(row["saving"]),
+            "used": row["used"],
+            "usedAt": row["used_at"],
+        }
+        for row in conn.execute("SELECT * FROM recipes ORDER BY id")
+    ]
+
+
+def _watch_folders(conn: sqlite3.Connection) -> list[dict[str, object]]:
+    """The watch folders: each one's folder, its recipe, where its pictures go, on or off."""
+    if not _has_table(conn, "watch_folders"):
+        return []
+    return [
+        {
+            "folder": row["path"],
+            "recipe": row["recipe"],
+            "results": row["results"],
+            "watching": bool(row["watching"]),
+        }
+        for row in conn.execute(
+            """SELECT w.path, w.results, w.watching, r.name AS recipe FROM watch_folders AS w
+               JOIN recipes AS r ON r.id = w.recipe_id ORDER BY w.id"""
+        )
+    ]
 
 
 def _looks(conn: sqlite3.Connection) -> list[tuple[dict[str, object], str]]:

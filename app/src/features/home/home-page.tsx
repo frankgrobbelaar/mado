@@ -1,20 +1,35 @@
-import { Plus } from "lucide-react";
-import { Navigate } from "react-router";
-import { WindowIllustration } from "@/components/empty-state";
+import { Plus, Upload } from "lucide-react";
+import { Link, Navigate } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
 import { Loading, PanelSkeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
+import { useOpenPictures } from "@/features/batch/open";
 import { useAddFolderPicker } from "@/features/library/add-folder";
 import { EmptyLibrary } from "@/features/library/empty-library";
-import { type Library, type Scan, useEngineQuery, useLibrary, useSettings } from "@/lib/engine";
+import {
+  type Batch,
+  type Library,
+  type MadeToday,
+  madeAddress,
+  type Scan,
+  useDoneBatches,
+  useEngineQuery,
+  useLibrary,
+  useMadeToday,
+  usePictureImage,
+  useSeenBatch,
+  useSettings,
+} from "@/lib/engine";
+import { openFolder, useExplorer } from "@/lib/explorer";
 import { count, dayAndTime, size } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // The bar's shares, in the greys the boards give them, in the order the folders were added.
 const SHARES = ["bg-fg", "bg-fg-faint", "bg-control"];
 
-/** Home: the library in numbers, and adding a folder to it. Until setup is done, it leads
- * there. */
+/** Home, as the Home board draws it: the library in numbers, pictures dropped or picked from the
+ * PC to make, what needs the owner (a batch done), what was made today, and adding a folder.
+ * Until setup is done, it leads there. */
 export function HomePage() {
   const settings = useSettings();
   const library = useLibrary();
@@ -59,8 +74,10 @@ export function HomePage() {
       )}
       {found && !empty && (
         <div className="grid grid-cols-1 gap-4 standard:grid-cols-3">
-          <Coming />
+          <DropHere />
           <YourLibrary library={found} />
+          <NeedsYou />
+          <Today />
         </div>
       )}
     </>
@@ -101,25 +118,189 @@ function Figure({ value }: { value: string }) {
   return <span className="font-mono text-fg">{value}</span>;
 }
 
-/** Where the tools go, once they come: said quietly, without pretending to be them. */
-function Coming() {
+/** Pictures from anywhere on the PC: dropped on the window (anywhere on it) or picked. One in
+ * the library opens its page; anything else opens Many at once. */
+function DropHere() {
+  const opening = useOpenPictures();
   return (
     <section
-      aria-labelledby="coming"
-      className="flex animate-fade-up flex-wrap items-center gap-x-8 gap-y-5 rounded-8 border border-edge bg-surface px-7 py-6 standard:col-span-2"
+      aria-labelledby="drop"
+      className="flex min-h-53 animate-fade-up flex-wrap items-center gap-x-8 gap-y-5 rounded-8 border border-dash border-dashed bg-surface px-7 py-6 standard:col-span-2"
     >
-      <WindowIllustration />
+      <span
+        aria-hidden="true"
+        className="flex size-14 shrink-0 items-center justify-center rounded-10 bg-raised text-fg"
+      >
+        <Upload size={26} strokeWidth={1.6} />
+      </span>
       <div className="flex flex-[1_1_300px] flex-col gap-1.5">
-        <h2 id="coming" className="font-semibold text-20">
-          The tools come next
+        <h2 id="drop" className="font-semibold text-20">
+          Drop pictures here
         </h2>
         <p className="text-14 text-fg-muted leading-normal">
-          Making pictures right for a phone, a TV or a print, giving them a look, and cutting
-          something out come in Mado's next pieces. Until then it reads your folders and changes
-          nothing in them.
+          Or pick them from your PC. Make them right for a phone, a TV or a print, or give them a
+          look. They don't need to be in your library.
         </p>
+        <p className="mt-1 font-mono text-12 text-fg-faint">JPEG PNG HEIC WebP AVIF TIFF BMP GIF</p>
+        {opening.problem && (
+          <p role="alert" className="text-13 text-broken-fg">
+            {opening.problem}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="primary"
+          disabled={opening.busy}
+          onClick={() => void opening.choosePictures()}
+        >
+          Pick pictures
+        </Button>
+        <Button disabled={opening.busy} onClick={() => void opening.chooseFolder()}>
+          Pick a folder
+        </Button>
       </div>
     </section>
+  );
+}
+
+/** What needs the owner: a batch done ("Holiday is ready for the TV"), with its folder to open,
+ * which lets it go. Nothing to show, it isn't there. */
+function NeedsYou() {
+  const done = useDoneBatches();
+  const seen = useSeenBatch();
+  const explorer = useExplorer();
+  if (!done.data?.length) return null;
+  return (
+    <section
+      aria-labelledby="needs"
+      className="flex animate-fade-up flex-col rounded-8 border border-edge bg-glass standard:col-span-2"
+    >
+      <h2 id="needs" className="type-eyebrow px-4.5 pt-3.5 pb-2.5">
+        Needs you
+      </h2>
+      {done.data.map((batch) => (
+        <div key={batch.id} className="flex items-center gap-3.5 border-edge border-t px-4.5 py-3">
+          <span aria-hidden="true" className="status-done size-3 shrink-0 rounded-full" />
+          <span className="w-10.5 font-mono text-15">{count(batch.done)}</span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="font-semibold text-15">{readyWords(batch)}</span>
+            <span className="text-13 text-fg-muted">{madeWords(batch)}</span>
+          </span>
+          {batch.folder ? (
+            <Button
+              size="sm"
+              className="bg-transparent font-medium"
+              onClick={() => {
+                const folder = batch.folder;
+                if (!folder) return;
+                explorer.run(() => openFolder(folder));
+                seen.mutate({ path: `/batches/${batch.id}/seen` });
+              }}
+            >
+              Open folder
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="bg-transparent font-medium"
+              onClick={() => seen.mutate({ path: `/batches/${batch.id}/seen` })}
+            >
+              Done
+            </Button>
+          )}
+        </div>
+      ))}
+      {explorer.problem && (
+        <p role="alert" className="border-edge border-t px-4.5 py-2.5 text-13 text-broken-fg">
+          {explorer.problem}
+        </p>
+      )}
+    </section>
+  );
+}
+
+const FOR: Record<string, string> = {
+  phone: "the phone",
+  tablet: "the tablet",
+  laptop: "the laptop",
+  monitor: "the monitor",
+  ultrawide: "the ultrawide",
+  tv: "the TV",
+  screen: "your screen",
+};
+
+/** "Holiday is ready for the TV", "Scans is ready to print", "Holiday has Warm film". */
+export function readyWords(batch: Batch): string {
+  if (batch.purpose === "print") return `${batch.source} is ready to print`;
+  if (batch.purpose) return `${batch.source} is ready for ${FOR[batch.purpose] ?? "its screen"}`;
+  return batch.look ? `${batch.source} has ${batch.look}` : `${batch.source} is ready`;
+}
+
+/** "Made for TV 8K overnight, as new pictures in Holiday › Edited." */
+function madeWords(batch: Batch): string {
+  const what = [
+    batch.madeFor ? `for ${batch.madeFor}` : null,
+    batch.look ? `with ${batch.look}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const started = batch.startedAt ? new Date(batch.startedAt).getHours() : 12;
+  const overnight = started >= 23 || started < 7 ? " overnight" : "";
+  const where =
+    batch.how === "replace"
+      ? "in place of their originals"
+      : batch.into === "beside the originals"
+        ? "as new pictures beside the originals"
+        : `as new pictures in ${batch.into}`;
+  const failed = batch.failed ? ` ${count(batch.failed)} didn't work: the queue says why.` : "";
+  return `Made ${what}${overnight}, ${where}.${failed}`;
+}
+
+/** What was made today, newest first, each with what it was made for. */
+function Today() {
+  const today = useMadeToday();
+  if (!today.data?.length) return null;
+  return (
+    <section
+      aria-labelledby="today"
+      className="flex animate-fade-up flex-col gap-3 rounded-8 border border-edge bg-glass px-4.5 pt-3.5 pb-4 standard:col-span-3"
+    >
+      <div className="flex items-baseline gap-3">
+        <h2 id="today" className="type-eyebrow">
+          Made today
+        </h2>
+        <Link
+          to="/history"
+          className="ml-auto text-13 text-accent-fg underline underline-offset-3 hover:text-accent-fg-hover"
+        >
+          History
+        </Link>
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+        {today.data.slice(0, 6).map((made) => (
+          <Made key={made.id} made={made} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Made({ made }: { made: MadeToday }) {
+  const image = usePictureImage(madeAddress(made.id));
+  const caption = made.madeFor ?? made.look?.replace(/ at \d+%$/, "") ?? "";
+  return (
+    <figure className="m-0 flex min-w-0 flex-col gap-1.5">
+      <span className="relative block h-23 overflow-hidden rounded-4 bg-behind">
+        {image.address && (
+          <img src={image.address} alt="" className="size-full animate-fade-in object-cover" />
+        )}
+      </span>
+      <figcaption className="flex min-w-0 justify-between gap-1.5 text-12">
+        <span className="truncate">{made.name}</span>
+        <span className="shrink-0 font-mono text-fg-muted">{caption}</span>
+      </figcaption>
+    </figure>
   );
 }
 

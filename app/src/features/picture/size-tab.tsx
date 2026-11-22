@@ -213,7 +213,7 @@ export function SizeTab(props: {
   );
 }
 
-function SizeButton(props: { size: MadeSize; chosen: boolean; onPick: () => void }) {
+export function SizeButton(props: { size: MadeSize; chosen: boolean; onPick: () => void }) {
   const { size, chosen } = props;
   return (
     <button
@@ -236,7 +236,7 @@ function SizeButton(props: { size: MadeSize; chosen: boolean; onPick: () => void
   );
 }
 
-function Chip(props: {
+export function Chip(props: {
   name: string;
   pixels: string | null;
   chosen: boolean;
@@ -263,7 +263,7 @@ function Chip(props: {
 }
 
 /** Any other size: pixels, or centimetres printed at 300 dpi. */
-function OtherSize(props: { chosen: boolean; onSize: (id: string) => void }) {
+export function OtherSize(props: { chosen: boolean; onSize: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
@@ -426,7 +426,7 @@ function QualityCard(props: {
 }
 
 /** A model the plan waits for: downloaded the first time it's asked for, its progress here. */
-function Needs(props: {
+export function Needs(props: {
   needs: Need[];
   onFast: (() => void) | null;
   onCrop: (() => void) | null;

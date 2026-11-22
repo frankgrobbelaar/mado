@@ -12,6 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
 } from "@/components/ui/dialog";
+import type { BatchStart } from "@/features/batch/open";
 import {
   type LibraryFolder,
   type Scan,
@@ -121,6 +122,7 @@ function Pictures(props: {
   const ticked = ticks.list === listKey ? ticks.ids : NONE;
   const last = useRef<number | null>(null); // the picture ticked last, where a Shift run starts
   const { onShow } = props;
+  const navigate = useNavigate();
   const [words, setWords] = useState(shown.q);
   const searched = useRef(shown.q); // the search this page last put in the address
 
@@ -187,6 +189,12 @@ function Pictures(props: {
           <TickedBar
             ticked={tickedPictures}
             onClear={() => setTicks({ list: listKey, ids: NONE })}
+            onBatch={() => {
+              const start: BatchStart = {
+                pick: { how: "ticked", ids: tickedPictures.map((picture) => picture.id) },
+              };
+              void navigate("/batch", { state: start });
+            }}
           />
         )}
       </div>
@@ -243,6 +251,7 @@ function Header(props: {
   onShow: (shown: Shown) => void;
 }) {
   const { shown, place, onShow } = props;
+  const navigate = useNavigate();
   const title = place?.name ?? "Library";
   const newest = shown.order === "newest";
   return (
@@ -270,7 +279,23 @@ function Header(props: {
           </>
         )}
       </p>
-      {props.chosen && !shown.dir && <FolderMenu folder={props.chosen} />}
+      {props.chosen && (
+        <FolderMenu folder={props.chosen} dir={shown.dir} path={place?.path ?? props.chosen.path} />
+      )}
+      {shown.q.trim() && (props.total ?? 0) > 0 && (
+        <Button
+          size="sm"
+          className="font-medium"
+          onClick={() => {
+            const start: BatchStart = {
+              pick: { how: "search", folder: shown.folder, dir: shown.dir, q: shown.q.trim() },
+            };
+            void navigate("/batch", { state: start });
+          }}
+        >
+          Many at once…
+        </Button>
+      )}
       <div className="ml-auto flex flex-wrap gap-2">
         <label className="flex h-9 items-center gap-2 rounded-6 border border-field-edge bg-field px-2.5 text-13 text-fg-faint focus-within:border-accent">
           <Search size={15} aria-hidden="true" />
@@ -296,8 +321,9 @@ function Header(props: {
   );
 }
 
-/** A library folder's own menu: show it in Explorer, or take it out of the library. */
-function FolderMenu({ folder }: { folder: LibraryFolder }) {
+/** A folder's own menu: make all its pictures many at once, show it in Explorer, or (a library
+ * folder) take it out of the library. */
+function FolderMenu({ folder, dir, path }: { folder: LibraryFolder; dir: string; path: string }) {
   const [asking, setAsking] = useState(false);
   const explorer = useExplorer();
   const remove = useRemoveFolder();
@@ -306,7 +332,7 @@ function FolderMenu({ folder }: { folder: LibraryFolder }) {
     <>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          aria-label={`More for ${folder.name}`}
+          aria-label={`More for ${dir ? (dir.split("/").at(-1) ?? dir) : folder.name}`}
           className="press inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg-muted hover:bg-tint/8 hover:text-fg"
         >
           <MoreVertical size={16} aria-hidden="true" />
@@ -319,19 +345,33 @@ function FolderMenu({ folder }: { folder: LibraryFolder }) {
           >
             <DropdownMenu.Item
               disabled={!folder.available}
-              onSelect={() => explorer.run(() => openFolder(folder.path))}
+              onSelect={() => {
+                const start: BatchStart = { pick: { how: "folder", folder: folder.id, dir } };
+                void navigate("/batch", { state: start });
+              }}
+              className="cursor-pointer rounded-6 px-3 py-2 font-semibold text-fg-soft outline-none data-disabled:opacity-50 data-highlighted:bg-tint/6 data-highlighted:text-fg"
+            >
+              Many at once…
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              disabled={!folder.available}
+              onSelect={() => explorer.run(() => openFolder(path))}
               className="flex cursor-pointer items-center gap-2 rounded-6 px-3 py-2 font-semibold text-fg-soft outline-none data-disabled:opacity-50 data-highlighted:bg-tint/6 data-highlighted:text-fg"
             >
               <FolderOpen size={15} aria-hidden="true" />
               Show in folder
             </DropdownMenu.Item>
-            <DropdownMenu.Separator className="mx-2 my-1 h-px bg-rule" />
-            <DropdownMenu.Item
-              onSelect={() => setAsking(true)}
-              className="cursor-pointer rounded-6 px-3 py-2 font-semibold text-danger outline-none data-highlighted:bg-tint/6"
-            >
-              Take out of your library…
-            </DropdownMenu.Item>
+            {!dir && (
+              <>
+                <DropdownMenu.Separator className="mx-2 my-1 h-px bg-rule" />
+                <DropdownMenu.Item
+                  onSelect={() => setAsking(true)}
+                  className="cursor-pointer rounded-6 px-3 py-2 font-semibold text-danger outline-none data-highlighted:bg-tint/6"
+                >
+                  Take out of your library…
+                </DropdownMenu.Item>
+              </>
+            )}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>

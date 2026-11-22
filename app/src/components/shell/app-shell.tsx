@@ -2,6 +2,7 @@ import { Outlet, useLocation } from "react-router";
 import { ScreenError } from "@/components/screen-error";
 import { DamagedRecords } from "@/features/records/damaged-records";
 import { useRecords } from "@/lib/engine";
+import { DropZone } from "./drop-zone";
 import { NavRail } from "./nav-rail";
 import { Notices } from "./notices";
 import { Offline } from "./offline";
@@ -12,8 +13,8 @@ import { UpdateCard } from "./update-card";
 /**
  * The window, as Graphite draws it: the rail down the left side, and beside it the title bar,
  * the current page and the status bar. Only the page scrolls: the rail, the title bar and the
- * status bar stay where they are. While Mado's records are damaged, the way back stands in for
- * every page.
+ * status bar stay where they are. Pictures dropped anywhere on it open (DropZone). While Mado's
+ * records are damaged, the way back stands in for every page.
  */
 export function AppShell() {
   const location = useLocation();
@@ -37,6 +38,7 @@ export function AppShell() {
         <StatusBar />
       </div>
       <UpdateCard />
+      {!damage && <DropZone />}
       {/* Notes at the foot of the window, over the page: being offline, and what the engine
         tells of. */}
       <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(30rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">

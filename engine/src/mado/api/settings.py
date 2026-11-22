@@ -19,6 +19,8 @@ class Settings(ApiModel):
     new_pictures: Literal["beside", "folder"] = "beside"
     new_folder: str | None = None
     keep_location: bool = False
+    # Many at once: a watch folder's batch of more than 20 pictures waits for the night.
+    big_batches_at_night: bool = False
 
 
 @router.get("/settings")

@@ -18,6 +18,7 @@ a picture and kept for the engine's life, so the tabs and the job agree.
 
 import json
 import logging
+import shutil
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -49,7 +50,16 @@ from mado.core.touches import named
 from mado.directml import ModelError
 from mado.extend import Filler, canvas_around, extended, squares_needed
 from mado.hardware import Here
-from mado.jobs import PARTIAL, JobError, Stage, note_writing
+from mado.jobs import (
+    PARTIAL,
+    DriveGoneError,
+    JobError,
+    NoRoomError,
+    Stage,
+    drive_of,
+    drive_there,
+    note_writing,
+)
 from mado.looks import seed_of, styled
 from mado.pictures import (
     Command,
@@ -123,6 +133,33 @@ class Saved:
 class SavingError(Exception):
     """The picture was made but couldn't be kept, with a sentence saying why. The original is as
     it was."""
+
+
+class FullError(SavingError):
+    """The drive a picture was being saved to filled up."""
+
+    def __init__(self, folder: Path) -> None:
+        drive = folder.drive or folder.anchor or str(folder)
+        super().__init__(
+            f"There isn't enough space on {drive} for it, so nothing was saved and the original "
+            "is as it was. Free some there, then try again."
+        )
+        self.drive = drive
+
+
+@dataclass(frozen=True)
+class Naming:
+    """What a picture made is called, and what History says of it."""
+
+    width: int
+    height: int
+    named: str  # what its name says it was made for and with: "TV 8K, Warm film"
+    made_for: str | None
+    look: str | None
+
+    @classmethod
+    def of(cls, made: Plan) -> Naming:
+        return cls(made.width, made.height, made.named, made.made_for, made.look)
 
 
 class MissingLookError(ValueError):
@@ -338,45 +375,70 @@ def _sized(
     return result
 
 
-def keep(
+def write(
     result: Image.Image,
     picture: Picture,
-    made: Plan,
+    size: tuple[int, int],
     saving: Saving,
+    path: Path,
     *,
     dpi: int | None,
-    conn: sqlite3.Connection,
-    quarantine: Quarantine,
-    now: datetime,
-    job_id: int | None,
-    writing: Callable[[Path], None] = lambda _path: None,
-) -> Saved:
-    """Saves a picture made to its plan: as a new picture named after what it was made for and
-    with, or in its original's place; a print's says `dpi`. `writing` hears the file it's
-    written to first, so a job cut short knows what to clear away. History's line is written
-    before any picture moves, so a job cut short while saving can be finished or taken back from
-    it (mado/jobs.py). Raises SavingError."""
-    label = made.named
-    extension = EXTENSIONS[saving.format]
-    original = picture.path
+) -> int:
+    """Writes a picture made to `path` as Save would (its format and quality, and what's kept of
+    its original), checks it, and says how many bytes it came to. Raises encode.SaveError."""
     profile = result.info.get("icc_profile")
     kept_profile = profile if isinstance(profile, bytes) else None
     image = result
     if kept_profile is not None and not saving.keep_colours:
         image, kept_profile = encode.in_srgb(result, kept_profile), None
     exif = encode.prepared_exif(
-        read_exif(original, picture.kind),
+        read_exif(picture.path, picture.kind),
         keep_camera=saving.keep_camera,
         keep_location=saving.keep_location,
-        size=(made.width, made.height),
+        size=size,
         dpi=dpi,
     )
+    encode.save(
+        image, path, saving.format, saving.quality, exif=exif, profile=kept_profile, dpi=dpi
+    )
+    encode.check(path, size)
+    return path.stat().st_size
+
+
+def into(saving: Saving, original: Path) -> Path:
+    """The folder a picture made is saved in: beside its original (or in its place), a folder by
+    name beside it ("Edited"), or a folder of its own."""
+    if saving.how == "replace" or saving.folder is None:
+        return original.parent
+    return saving.folder if saving.folder.is_absolute() else original.parent / saving.folder
+
+
+def keep(
+    written: Callable[[Path], int],
+    picture: Picture,
+    naming: Naming,
+    saving: Saving,
+    *,
+    conn: sqlite3.Connection,
+    quarantine: Quarantine,
+    now: datetime,
+    job_id: int | None,
+    writing: Callable[[Path], None] = lambda _path: None,
+) -> Saved:
+    """Saves a picture made: as a new picture named after what it was made for and with, or in
+    its original's place. `written` writes it to the file it's given and says how big it came
+    out (`write`, or a copy of one See it first made); `writing` hears that file first, so a job
+    cut short knows what to clear away. History's line is written before any picture moves, so a
+    job cut short while saving can be finished or taken back from it (mado/jobs.py). Raises
+    SavingError (FullError when the drive filled up)."""
+    label = naming.named
+    extension = EXTENSIONS[saving.format]
+    original = picture.path
+    folder = into(saving, original)
     if saving.how == "new":
-        folder = saving.folder or original.parent
         name = new_name(original.stem, label, extension, lambda each: (folder / each).exists())
         target = folder / name
     else:
-        folder = original.parent
         name = replacement_name(original.name, extension)
         target = folder / name
         if target != original and target.exists():  # another picture has that name
@@ -386,62 +448,57 @@ def keep(
     writing(partial)
     try:
         folder.mkdir(parents=True, exist_ok=True)
-        encode.save(
-            image,
-            partial,
-            saving.format,
-            saving.quality,
-            exif=exif,
-            profile=kept_profile,
-            dpi=dpi,
-        )
-        encode.check(partial, (made.width, made.height))
-        written = partial.stat().st_size
+        size = written(partial)
     except encode.SaveError as error:
         partial.unlink(missing_ok=True)
+        if error.full:
+            raise FullError(folder) from None
         raise SavingError(str(error)) from None
     except OSError as error:
         partial.unlink(missing_ok=True)
+        if encode.full(error):
+            raise FullError(folder) from None
         raise SavingError(_unsaved(folder, error)) from None
-    if saving.how == "new":
-        entry = history.made(
+    with history.MOVES:  # an undo waits till the picture is in place
+        if saving.how == "new":
+            entry = history.made(
+                conn,
+                now=now,
+                job_id=job_id,
+                name=original.name,
+                made_for=naming.made_for,
+                look=naming.look,
+                original=original,
+                result=target,
+            )
+            try:
+                target = _into_place(
+                    partial,
+                    target,
+                    (original.stem, label, extension),
+                    lambda moved: history.renamed(conn, entry, moved),
+                )
+            except MoveError as error:
+                partial.unlink(missing_ok=True)
+                history.forget(conn, entry)
+                raise SavingError(str(error)) from None
+            return Saved(target, entry, size)
+        aside = quarantine.place(original, now)
+        entry = history.replaced(
             conn,
             now=now,
             job_id=job_id,
             name=original.name,
-            made_for=made.made_for,
-            look=made.look,
+            made_for=naming.made_for,
+            look=naming.look,
             original=original,
             result=target,
+            aside=aside,
         )
-        try:
-            target = _into_place(
-                partial,
-                target,
-                (original.stem, label, extension),
-                lambda moved: history.renamed(conn, entry, moved),
-            )
-        except MoveError as error:
-            partial.unlink(missing_ok=True)
-            history.forget(conn, entry)
-            raise SavingError(str(error)) from None
-        return Saved(target, entry, written)
-    aside = quarantine.place(original, now)
-    entry = history.replaced(
-        conn,
-        now=now,
-        job_id=job_id,
-        name=original.name,
-        made_for=made.made_for,
-        look=made.look,
-        original=original,
-        result=target,
-        aside=aside,
-    )
-    _replacing(
-        partial, target, original, aside, quarantine, now, lambda: history.forget(conn, entry)
-    )
-    return Saved(target, entry, written)
+        _replacing(
+            partial, target, original, aside, quarantine, now, lambda: history.forget(conn, entry)
+        )
+        return Saved(target, entry, size)
 
 
 def _into_place(
@@ -649,11 +706,15 @@ class Maker:
         ffmpeg: Callable[[], Command | None],
         *,
         now: Callable[[], datetime],
+        kept: Path | None = None,
     ) -> None:
+        """`kept`: where See it first's pictures wait for their jobs; one is let go once its
+        job has saved it."""
         self._ai = ai
         self._quarantine = quarantine
         self._ffmpeg = ffmpeg
         self._now = now
+        self._kept = kept
 
     def __call__(
         self,
@@ -672,11 +733,27 @@ class Maker:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
+        job_id: int = row["id"]
+        seen_first = _seen_first(order.get("made"), picture)
+        if seen_first is not None:  # See it first made this one already, just as it's asked for
+            sample, naming = seen_first
+            report("saving", 0.0)
+            saved = self._keep(
+                lambda partial: _copied(sample, partial, (naming.width, naming.height)),
+                picture,
+                naming,
+                saving,
+                conn=conn,
+                job_id=job_id,
+            )
+            self._let_go(sample)
+            report("saving", 1.0)
+            return saved.path
         report("reading", 0.0)
         try:
             image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
         except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
-            raise JobError(str(error)) from None
+            raise _drive_gone(picture.path) or JobError(str(error)) from None
         here = self._ai.where()
         made = planned(recipe, see(image, picture), self._ai.starts_on(here))
         if made.empty:
@@ -708,27 +785,113 @@ class Maker:
         if stop():  # cancelled as its last tile was made
             raise StoppedError
         report("saving", 0.0)  # past cancelling from here: a picture half moved helps no one
-        job_id: int = row["id"]
+        dpi = dpi_of(recipe)
+        saved = self._keep(
+            lambda partial: write(
+                result, picture, (made.width, made.height), saving, partial, dpi=dpi
+            ),
+            picture,
+            Naming.of(made),
+            saving,
+            conn=conn,
+            job_id=job_id,
+        )
+        pace = timer.per_megapixel
+        if made.model is not None and pace is not None:
+            hardware.learn(conn, made.model.id, here.place, pace, self._now())
+        report("saving", 1.0)
+        return saved.path
+
+    def _let_go(self, sample: Path) -> None:
+        """See it first's picture, saved: it goes, when it's one Mado keeps for its jobs."""
+        if self._kept is None or sample.parent != self._kept:
+            return
         try:
-            saved = keep(
-                result,
+            sample.unlink(missing_ok=True)
+        except OSError as error:
+            log.warning("Mado couldn't let go of %s: %s", sample, error)
+
+    def _keep(
+        self,
+        written: Callable[[Path], int],
+        picture: Picture,
+        naming: Naming,
+        saving: Saving,
+        *,
+        conn: sqlite3.Connection,
+        job_id: int,
+    ) -> Saved:
+        """Saves a job's picture: a drive that filled up is the queue's to wait for room on."""
+        try:
+            return keep(
+                written,
                 picture,
-                made,
+                naming,
                 saving,
-                dpi=dpi_of(recipe),
                 conn=conn,
                 quarantine=self._quarantine,
                 now=self._now(),
                 job_id=job_id,
                 writing=lambda partial: note_writing(conn, job_id, partial),
             )
+        except FullError as error:
+            raise NoRoomError(error.drive, str(error)) from None
         except SavingError as error:
+            gone = _drive_gone(picture.path, into(saving, picture.path))
+            if gone is not None and history.for_job(conn, job_id) is None:  # nothing moved
+                raise gone from None
             raise JobError(str(error)) from None
-        pace = timer.per_megapixel
-        if made.model is not None and pace is not None:
-            hardware.learn(conn, made.model.id, here.place, pace, self._now())
-        report("saving", 1.0)
-        return saved.path
+
+
+def _drive_gone(*paths: Path) -> DriveGoneError | None:
+    """The drive of the first of these paths that isn't connected any more: a batch's picture
+    waits in line for it rather than failing."""
+    for path in paths:
+        if not drive_there(path):
+            return DriveGoneError(drive_of(path))
+    return None
+
+
+def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
+    """A picture See it first made for this job, as it's asked for now, when it's still there
+    and its original hasn't changed since: what it was written to, and what it's called."""
+    if not isinstance(found, dict):
+        return None
+    made = cast("dict[str, object]", found)
+    source = made.get("source")
+    if not isinstance(source, str) or source.casefold() != str(picture.path).casefold():
+        return None  # made from another picture: this one's made afresh
+    path, version_ = made.get("path"), made.get("version")
+    width, height, named = made.get("width"), made.get("height"), made.get("named")
+    if not (
+        isinstance(path, str)
+        and isinstance(version_, str)
+        and isinstance(width, int)
+        and isinstance(height, int)
+        and isinstance(named, str)
+    ):
+        return None
+    try:
+        stat = picture.path.stat()
+    except OSError:
+        return None
+    if f"{stat.st_mtime_ns:x}-{stat.st_size:x}" != version_ or not Path(path).is_file():
+        return None
+    made_for, look = made.get("madeFor"), made.get("look")
+    return Path(path), Naming(
+        width,
+        height,
+        named,
+        made_for if isinstance(made_for, str) else None,
+        look if isinstance(look, str) else None,
+    )
+
+
+def _copied(sample: Path, partial: Path, size: tuple[int, int]) -> int:
+    """A picture See it first made, copied to where a job writes its picture, and checked."""
+    shutil.copyfile(sample, partial)
+    encode.check(partial, size)
+    return partial.stat().st_size
 
 
 def picture_of(conn: sqlite3.Connection, picture_id: int | None, source: Path) -> Picture:

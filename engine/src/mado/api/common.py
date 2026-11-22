@@ -17,6 +17,7 @@ from mado.making import Sight
 from mado.pc_check import PcCheck
 from mado.previews import Previews
 from mado.quarantine import Quarantine
+from mado.samples import Samples
 from mado.scan import Scanner
 from mado.tools import Tools
 from mado.watch import Watcher
@@ -82,6 +83,11 @@ def _jobs(request: Request) -> Jobs:
     return found
 
 
+def _samples(request: Request) -> Samples:
+    found: Samples = request.app.state.samples
+    return found
+
+
 def _pc(request: Request) -> PcCheck:
     found: PcCheck = request.app.state.pc
     return found
@@ -99,3 +105,4 @@ Seeing = Annotated[Sight, Depends(_sight)]  # what Mado sees in each picture
 SetAside = Annotated[Quarantine, Depends(_quarantine)]
 Working = Annotated[Jobs, Depends(_jobs)]  # the jobs that make pictures
 ThisPc = Annotated[PcCheck, Depends(_pc)]
+FirstLook = Annotated[Samples, Depends(_samples)]  # See it first's pictures

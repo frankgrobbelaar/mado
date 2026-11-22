@@ -39,11 +39,12 @@ fn saved(app: &AppHandle) -> Look {
         .unwrap_or_default()
 }
 
-/// The window's own colour, under the page: the page's window colour (--color-window) in each.
+/// The window's own colour, under the page: the page's window colour (--color-window) in each,
+/// Aluminium's bench in light and Graphite's in dark.
 fn window_colour(theme: Theme) -> Color {
     match theme {
-        Theme::Light => Color(0xf3, 0xef, 0xe6, 0xff),
-        _ => Color(0x0b, 0x0c, 0x0f, 0xff),
+        Theme::Light => Color(0xd3, 0xd4, 0xd7, 0xff),
+        _ => Color(0x2a, 0x2b, 0x2e, 0xff),
     }
 }
 
@@ -117,7 +118,8 @@ mod tests {
 
     #[test]
     fn the_window_is_the_colour_of_the_page() {
-        assert_eq!(window_colour(Theme::Light), Color(0xf3, 0xef, 0xe6, 0xff));
-        assert_eq!(window_colour(Theme::Dark), Color(0x0b, 0x0c, 0x0f, 0xff));
+        // Graphite's bench, and Aluminium's: --color-window in app/src/styles/tokens.css.
+        assert_eq!(window_colour(Theme::Light), Color(0xd3, 0xd4, 0xd7, 0xff));
+        assert_eq!(window_colour(Theme::Dark), Color(0x2a, 0x2b, 0x2e, 0xff));
     }
 }

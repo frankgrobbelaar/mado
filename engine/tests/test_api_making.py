@@ -7,6 +7,7 @@ import json
 import sqlite3
 import threading
 from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from mado import db, making
+from mado import db, history, making
 from mado.config import DataPaths
 from mado.jobs import Jobs
+from mado.pictures import PictureGoneError
 from mado.quarantine import MoveError, Quarantine
 from tests.conftest import add, made
 from tests.drawn import EXIF_IFD, GPS_IFD, TAKEN, draw, exif
@@ -354,6 +356,46 @@ def test_history_has_its_line_before_any_picture_moves(
     assert all(count == 1 for count in seen)  # a crash at any move finds the line
 
 
+def test_an_undo_waits_till_the_picture_being_saved_is_in_place(
+    client: TestClient,
+    library: Library,
+    paths: DataPaths,
+    quarantine: Quarantine,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    picture = library["ids"]["Harbour at dusk.jpg"]
+    real = making.move
+    asked: list[threading.Thread] = []
+    undone: list[str] = []
+
+    def undo(line: int) -> None:
+        with closing(db.connect(paths.database)) as own:
+            try:
+                history.undo(own, quarantine, line, datetime.now().astimezone())
+                undone.append("taken away")
+            except history.UndoError as error:
+                undone.append(str(error))
+
+    def moving(source: Path, target: Path) -> None:
+        if source.name.endswith(".mado-partial") and not asked:
+            with closing(db.connect(paths.database)) as own:
+                line: int = own.execute("SELECT id FROM history").fetchone()["id"]
+            asked.append(threading.Thread(target=undo, args=(line,)))
+            asked[0].start()  # Take it away, pressed as the picture goes into its place
+            asked[0].join(0.3)
+        real(source, target)
+
+    monkeypatch.setattr("mado.making.move", moving)
+    job = client.post(
+        f"/pictures/{picture}/make",
+        json={"recipe": _recipe(), "saving": {"how": "new", "format": "JPEG"}},
+    ).json()
+    assert made(client, job)["state"] == "done"
+    asked[0].join(10)
+
+    assert undone == ["taken away"]  # once it was in place, not before
+
+
 @pytest.mark.parametrize("how", ["new", "replace"])
 def test_a_made_picture_that_cant_go_in_leaves_the_original_and_no_line(
     client: TestClient,
@@ -387,6 +429,50 @@ def test_a_made_picture_that_cant_go_in_leaves_the_original_and_no_line(
         "Harbour at dusk.jpg",
         "Sunny hill.png",
     ]
+
+
+@pytest.mark.parametrize("step", ["decode", "write"], ids=["reading", "saving"])
+def test_a_drive_unplugged_as_a_picture_is_made_says_so_and_saves_nothing(
+    client: TestClient,
+    library: Library,
+    conn: sqlite3.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+    step: str,
+):
+    picture = library["ids"]["Harbour at dusk.jpg"]
+    original = library["folder"] / "Harbour at dusk.jpg"
+    before = original.read_bytes()
+    unplugged = {"yes": False}
+    real = getattr(making, step)
+
+    def unplugging(*args: Any, **kwargs: Any) -> Any:
+        if threading.current_thread().name != "jobs":  # a preview's or a plan's
+            return real(*args, **kwargs)
+        unplugged["yes"] = True
+        if step == "decode":
+            raise PictureGoneError(original)  # as decode says of a file whose drive went
+        raise OSError(21, "The device is not ready")
+
+    monkeypatch.setattr(f"mado.making.{step}", unplugging)
+
+    def there(_path: Path) -> bool:
+        return not unplugged["yes"]
+
+    monkeypatch.setattr("mado.making.drive_there", there)
+    job = client.post(
+        f"/pictures/{picture}/make",
+        json={"recipe": _recipe(), "saving": {"how": "new", "format": "JPEG"}},
+    ).json()
+    done = made(client, job)
+
+    drive = original.drive.upper()
+    assert done["state"] == "failed"
+    assert done["problem"] == (
+        f"{drive} isn't connected any more, so nothing was saved and the original is as it was. "
+        "Connect it and try again."
+    )
+    assert original.read_bytes() == before
+    assert _lines(conn) == []
 
 
 def _cancel_running(app: FastAPI, paths: DataPaths) -> None:
