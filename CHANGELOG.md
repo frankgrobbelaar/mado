@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.1.0 - 2026-11-22
+
 ### Added
 - Make a picture right for a screen or a print: on its page, the Size tab offers a phone, a
   tablet, a laptop, a 4K monitor, an ultrawide and an 8K TV, your own screens (remembered), and
@@ -67,3 +69,4 @@ shows these notes when it offers the update.
   IBM Plex type, the rail down the side and a line of facts at the foot. Its light, Aluminium,
   follows Windows, or choose it in Settings › General, where each choice shows a little picture of
   the window.
+
