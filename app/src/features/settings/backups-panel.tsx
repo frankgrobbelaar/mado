@@ -107,7 +107,7 @@ export function BackupsPanel({ className }: { className?: string }) {
 function Last({ backup, loading }: { backup: Backup | undefined; loading: boolean }) {
   if (loading) return null;
   return (
-    <div className="flex items-center gap-2.5 rounded-16 bg-tint/4 px-3.5 py-3">
+    <div className="flex items-center gap-2.5 rounded-8 bg-tint/4 px-3.5 py-3">
       {backup ? (
         <Check size={18} strokeWidth={3} aria-hidden="true" className="shrink-0 text-accent-fg" />
       ) : (
@@ -117,7 +117,7 @@ function Last({ backup, loading }: { backup: Backup | undefined; loading: boolea
         />
       )}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="font-extrabold text-14">
+        <span className="font-semibold text-14">
           {backup ? `Last backup ${madeAt(backup.made)}` : "No backup yet"}
         </span>
         <span className="text-12 text-fg-muted">
@@ -172,8 +172,8 @@ function Choose(props: {
               value={backup.name}
               aria-label={`${made}${kind ? ` · ${kind}` : ""}, ${size(backup.size)}`}
               className={cn(
-                "press flex min-h-11 cursor-pointer items-center gap-3 rounded-14 px-3 text-left text-14",
-                on ? "bg-accent/10 font-extrabold text-fg" : "font-bold text-fg-soft",
+                "press flex min-h-11 cursor-pointer items-center gap-3 rounded-6 px-3 text-left text-14",
+                on ? "bg-accent/10 font-semibold text-fg" : "font-semibold text-fg-soft",
               )}
             >
               <Dot on={on} />

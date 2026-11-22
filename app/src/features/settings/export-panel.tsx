@@ -79,7 +79,7 @@ export function ExportPanel() {
         ))}
       </ul>
       {done && (
-        <div className="flex flex-wrap items-center gap-2.5 rounded-14 bg-tint/4 px-3.5 py-2.5 text-13">
+        <div className="flex flex-wrap items-center gap-2.5 rounded-6 bg-tint/4 px-3.5 py-2.5 text-13">
           <Check size={16} aria-hidden="true" className="text-accent-fg" />
           <span className="min-w-0 flex-1 font-mono text-12 [overflow-wrap:anywhere]">
             {done.path} · {size(done.size)}
@@ -101,9 +101,9 @@ export function ExportPanel() {
       {chosen && (
         <fieldset
           aria-label={`Import ${split(chosen)[0]}?`}
-          className="flex animate-fade-up flex-col gap-3 rounded-16 border border-edge bg-glass p-4"
+          className="flex animate-fade-up flex-col gap-3 rounded-8 border border-edge bg-glass p-4"
         >
-          <span className="font-extrabold text-14">Import {split(chosen)[0]}?</span>
+          <span className="font-semibold text-14">Import {split(chosen)[0]}?</span>
           <span className="text-13 text-fg-soft">
             Mado's records become the export's, your settings too. Your pictures stay as they are.
             What Mado knows now is backed up first, so you can come back to it from Backups.

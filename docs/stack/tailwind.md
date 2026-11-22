@@ -1,21 +1,21 @@
 # Tailwind, shadcn/ui, icons and fonts (styling)
 
-[Tailwind CSS 4](https://tailwindcss.com) styles the UI from the Cinema tokens. New components
+[Tailwind CSS 4](https://tailwindcss.com) styles the UI from the Graphite tokens. New components
 start from [shadcn/ui](https://ui.shadcn.com) (copied into the repo, built on
-[Radix](https://www.radix-ui.com) primitives) and are restyled to Cinema. Icons are
+[Radix](https://www.radix-ui.com) primitives) and are restyled to Graphite. Icons are
 [Lucide](https://lucide.dev); fonts come from [Fontsource](https://fontsource.org) so they work
 offline.
 
 ## The tokens
 
-`app/src/styles/tokens.css` is Cinema, value for value from the canvas. It is a Tailwind `@theme`
+`app/src/styles/tokens.css` is Graphite, value for value from the Mado Screens canvas's Tokens board. It is a Tailwind `@theme`
 block, so each token becomes classes:
 
 - `--color-accent` → `bg-accent`, `text-accent`, `border-accent`, `fill-accent`, with opacity
   modifiers like `bg-accent/12`.
-- `--text-13` → `text-13`; `--radius-22` → `rounded-22`.
+- `--text-13` → `text-13`; `--radius-8` → `rounded-8`.
 - `--breakpoint-standard` (900 px) and `--breakpoint-wide` (1440 px) → `standard:` and `wide:`.
-- `--ease-cinema`, `--animate-fade-up`… → `ease-cinema`, `animate-fade-up`.
+- `--ease-mado`, `--animate-fade-up`… → `ease-mado`, `animate-fade-up`.
 
 Tailwind's own colours, sizes, radii, shadows and breakpoints are switched off (`--color-*:
 initial`…), so `bg-blue-500` or `text-sm` simply don't exist. Spacing keeps Tailwind's 4 px steps
@@ -23,11 +23,11 @@ initial`…), so `bg-blue-500` or `text-sm` simply don't exist. Spacing keeps Ta
 
 `app/src/styles/global.css` imports Tailwind and the tokens, then adds:
 
-- base styles: dark colour scheme, body font and size, the amber focus ring, thin scrollbars, and
-  no motion when Windows' animation effects are off;
-- `press` (hover and press feedback) and `lift` (cards rising on hover);
-- `status-ready`, `status-converting`, `status-convert`, `status-broken`, `status-missing`;
-- type roles: `type-display`, `type-hero`, `type-title`, `type-heading`, `type-eyebrow`.
+- base styles: light or dark as the window is, body font and size, the accent's focus ring,
+  thin scrollbars, and no motion when Windows' animation effects are off;
+- `press` (hover and press feedback) and `lift` (cards rising a little on hover);
+- status by shape: `status-done`, `status-working`, `status-waiting`, `status-problem`;
+- type roles: `type-display`, `type-title`, `type-heading`, `type-eyebrow`.
 
 When adding a token, also add size and radius names to `fontSizes` and `radii` in
 `app/src/lib/utils.ts` (a test fails if they drift), so `cn()` merges them correctly.
@@ -35,7 +35,7 @@ When adding a token, also add size and radius names to `fontSizes` and `radii` i
 ## cn()
 
 `cn()` (in `lib/utils.ts`) joins class names and resolves conflicts, so a component's defaults
-can be overridden: `cn("text-13", className)`. It uses tailwind-merge, taught Cinema's px-named
+can be overridden: `cn("text-13", className)`. It uses tailwind-merge, taught Graphite's px-named
 scales; without that it would mistake `text-13` for a colour and drop it.
 
 ## shadcn/ui and Radix
@@ -46,10 +46,10 @@ scales; without that it would mistake `text-13` for a colour and drop it.
 cd app; pnpm dlx shadcn@latest add switch
 ```
 
-It lands in `src/components/ui/` as our own code. Then make it Cinema: shadcn's colour names
+It lands in `src/components/ui/` as our own code. Then make it Graphite: shadcn's colour names
 (`bg-primary`, `text-muted-foreground`, `border-input`…) don't exist here, so map them:
 
-| shadcn | Cinema |
+| shadcn | Graphite |
 | --- | --- |
 | `bg-background`, `text-foreground` | `bg-window`, `text-fg` |
 | `bg-primary`, `text-primary-foreground` | `bg-accent`, `text-on-accent` |
@@ -66,7 +66,7 @@ Check the result against the boards and run `pnpm check`. Radix supplies keyboar
 management and ARIA, so keep its structure and change only the styling. The CLI may add CSS to
 `global.css`; keep only what the component needs.
 
-`ui/button.tsx` shows the pattern: shadcn's structure, `cva` variants, Cinema classes.
+`ui/button.tsx` shows the pattern: shadcn's structure, `cva` variants, Graphite classes.
 `ui/switch.tsx` (Settings' toggles) and `ui/segmented.tsx` (one choice from a few, such as Same as
 Windows, Light or Dark) are small wrappers written straight on Radix's Switch and ToggleGroup, with
 no shadcn code in them.
@@ -79,9 +79,10 @@ an `aria-label`.
 
 ## Fonts
 
-`@fontsource-variable/manrope` and `@fontsource-variable/geist-mono` are imported in `main.tsx`,
-so Vite bundles the font files and Mado never fetches fonts from the internet. Families in CSS:
-`"Manrope Variable"` and `"Geist Mono Variable"` (the `font-sans` and `font-mono` tokens).
+`@fontsource-variable/ibm-plex-sans` and `@fontsource/ibm-plex-mono` (weights 400 and 500) are
+imported in `main.tsx`, so Vite bundles the font files and Mado never fetches fonts from the
+internet. Families in CSS: `"IBM Plex Sans Variable"` and `"IBM Plex Mono"` (the `font-sans` and
+`font-mono` tokens). Both are under the SIL Open Font License, which the notices carry.
 
 ## Upgrading
 

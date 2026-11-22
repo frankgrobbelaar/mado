@@ -1,11 +1,12 @@
 import { Link, useLocation } from "react-router";
+import { MadoLogo } from "@/components/mado-logo";
 import { cn } from "@/lib/utils";
-import { sectionOf, sections } from "./sections";
+import { type Section, sectionOf, sections } from "./sections";
 
 /**
- * The main navigation. A column of tiles beside the page; in a compact window (under 900 px) the
- * tiles flow into a row on top. It never scrolls with the page. The section a page sits in stays
- * lit while it's open.
+ * The rail: Mado's mark at the top, its places under it, Settings at its foot. It runs the
+ * window's full height beside the page and never scrolls with it. The place a page sits in stays
+ * lit while it's open. Drag the mark to move the window, as the title bar does.
  */
 export function NavRail() {
   const location = useLocation();
@@ -13,24 +14,42 @@ export function NavRail() {
   return (
     <nav
       aria-label="Main"
-      className="flex shrink-0 flex-col px-2.5 pt-2 pb-3 standard:w-24 standard:pb-5"
+      className="flex w-20 shrink-0 flex-col gap-1 border-chrome-edge border-r bg-chrome px-2 pt-2.5 pb-2.5"
     >
-      <div className="flex flex-wrap gap-1.5">
-        {sections.map(({ path, label, icon: Icon }) => (
-          <Link
-            key={path}
-            to={path}
-            aria-current={path === lit ? "page" : undefined}
-            className={cn(
-              "press relative flex min-h-16 flex-[1_1_72px] flex-col items-center justify-center gap-1 rounded-16 px-1 py-1.5 font-bold text-11",
-              path === lit ? "bg-accent/12 text-accent-fg" : "text-fg-muted",
-            )}
-          >
-            <Icon size={22} strokeWidth={1.8} aria-hidden="true" />
-            {label}
-          </Link>
+      <div data-tauri-drag-region className="mb-2 flex h-12 items-center justify-center">
+        <span className="pointer-events-none flex">
+          <MadoLogo size={36} />
+        </span>
+      </div>
+      {sections
+        .filter((section) => !section.foot)
+        .map((section) => (
+          <Place key={section.path} section={section} lit={section.path === lit} />
         ))}
+      <div className="mt-auto flex flex-col gap-1">
+        {sections
+          .filter((section) => section.foot)
+          .map((section) => (
+            <Place key={section.path} section={section} lit={section.path === lit} />
+          ))}
       </div>
     </nav>
+  );
+}
+
+function Place({ section, lit }: { section: Section; lit: boolean }) {
+  const { path, label, icon: Icon } = section;
+  return (
+    <Link
+      to={path}
+      aria-current={lit ? "page" : undefined}
+      className={cn(
+        "press flex flex-col items-center gap-1 rounded-8 px-1 py-2 font-semibold text-11",
+        lit ? "bg-raised text-fg" : "text-fg-muted hover:bg-tint/6 hover:text-fg",
+      )}
+    >
+      <Icon size={20} strokeWidth={1.7} aria-hidden="true" />
+      {label}
+    </Link>
   );
 }

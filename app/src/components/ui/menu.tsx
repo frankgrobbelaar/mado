@@ -18,7 +18,7 @@ export function RowMenu({ label, children }: { label: string; children: ReactNod
         <DropdownMenu.Content
           align="end"
           sideOffset={4}
-          className="z-60 flex min-w-44 flex-col rounded-16 border border-edge bg-dialog p-1.5 text-13 shadow-float"
+          className="z-60 flex min-w-44 flex-col rounded-8 border border-edge bg-dialog p-1.5 text-13 shadow-float"
         >
           {children}
         </DropdownMenu.Content>
@@ -33,7 +33,7 @@ export function MenuItem(props: { onSelect: () => void; danger?: boolean; childr
     <DropdownMenu.Item
       onSelect={props.onSelect}
       className={cn(
-        "cursor-pointer rounded-10 px-3 py-2 font-bold outline-none data-highlighted:bg-tint/6",
+        "cursor-pointer rounded-10 px-3 py-2 font-semibold outline-none data-highlighted:bg-tint/6",
         props.danger ? "text-danger" : "text-fg-soft data-highlighted:text-fg",
       )}
     >

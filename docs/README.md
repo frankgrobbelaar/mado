@@ -30,7 +30,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Tailwind CSS | 4.3 | Styling, fed by the design tokens | [tailwind.md](stack/tailwind.md) |
 | shadcn/ui, Radix | shadcn 4.21, radix-ui 1.8 | Accessible component starting points | [tailwind.md](stack/tailwind.md) |
 | Lucide | 1.77 | Icons | [tailwind.md](stack/tailwind.md) |
-| Fontsource | 5.3 | Manrope and Geist Mono, bundled for offline use | [tailwind.md](stack/tailwind.md) |
+| Fontsource | 5.3 | IBM Plex Sans and IBM Plex Mono, bundled for offline use | [tailwind.md](stack/tailwind.md) |
 | Python | 3.14 | The engine's language | [python.md](stack/python.md) |
 | uv | 0.13 | Python, packages, lockfile, running tools | [python.md](stack/python.md) |
 | Ruff, Pyright | 0.17, 1.1.414 | Python lint, format and strict types | [python.md](stack/python.md) |

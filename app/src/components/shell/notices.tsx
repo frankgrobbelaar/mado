@@ -55,17 +55,12 @@ export function Notices() {
       onMouseLeave={() => setHeld(false)}
       onFocus={() => setHeld(true)}
       onBlur={() => setHeld(false)}
-      className="flex animate-pop items-center gap-3.5 rounded-18 bg-featured px-4 py-3.5 text-white shadow-toast"
+      className="flex animate-pop items-center gap-3.5 rounded-8 border border-edge bg-raised px-4 py-3 text-fg shadow-toast"
     >
-      <span
-        aria-hidden="true"
-        className="relative size-11 shrink-0 overflow-hidden rounded-12 bg-[#2449b8]"
-      >
-        <span className="absolute -top-2.5 -right-2.5 size-8 rounded-full bg-featured-orb" />
-      </span>
+      <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="font-extrabold">{notice.title}</span>
-        <span className="text-12 text-white/80">{notice.body}</span>
+        <span className="font-semibold">{notice.title}</span>
+        <span className="text-12 text-fg-muted">{notice.body}</span>
       </span>
       {link && (
         <Button
@@ -87,7 +82,7 @@ export function Notices() {
           setNotice(null);
           setHeld(false);
         }}
-        className="press inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/70 hover:text-white"
+        className="press inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-6 text-fg-muted hover:bg-tint/6 hover:text-fg"
       >
         <X size={16} aria-hidden="true" />
       </button>

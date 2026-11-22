@@ -1,6 +1,6 @@
 import type { ReactNode, RefObject } from "react";
 
-/** A glass panel with its heading, and a note beside the heading. */
+/** A panel with its heading, and a note beside the heading. */
 export function Panel(props: {
   id: string;
   title: string;
@@ -14,10 +14,10 @@ export function Panel(props: {
     <section
       ref={props.at}
       aria-labelledby={props.id}
-      className="flex scroll-mt-14 animate-fade-up flex-col gap-3.5 rounded-22 border border-edge bg-glass p-5 shadow-panel"
+      className="flex scroll-mt-14 animate-fade-up flex-col gap-3 rounded-8 border border-edge bg-glass p-4.5"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id={props.id} className="inline-flex items-center gap-2 font-extrabold text-16">
+        <h2 id={props.id} className="inline-flex items-center gap-2 font-semibold text-16">
           {props.icon && (
             <span aria-hidden="true" className="text-accent-fg">
               {props.icon}

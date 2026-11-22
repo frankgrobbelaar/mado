@@ -9,7 +9,7 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 
-// Adapted from shadcn/ui's dialog (MIT, see LICENSE-shadcn.txt), restyled to Cinema: a card over
+// Adapted from shadcn/ui's dialog (MIT, see LICENSE-shadcn.txt), restyled to Graphite: a card over
 // the page it tells more of, below the title bar, the page dimming behind it, with a header
 // (DialogHeader). Escape, the cross or a click beside it closes it; so does the title bar, which
 // keeps working (it lets the pointer through: TitleBar).
@@ -49,7 +49,7 @@ export function DialogContent({
         ref={content}
         data-slot="dialog"
         className={cn(
-          "fixed inset-x-0 top-[calc(3.25rem+6vh)] z-55 mx-auto flex max-h-[calc(100vh-3.25rem-6vh-2rem)] w-[min(40rem,calc(100vw-2rem))] animate-card-in flex-col overflow-hidden rounded-28 border border-edge bg-dialog shadow-dialog outline-none",
+          "fixed inset-x-0 top-[calc(3.25rem+6vh)] z-55 mx-auto flex max-h-[calc(100vh-3.25rem-6vh-2rem)] w-[min(40rem,calc(100vw-2rem))] animate-card-in flex-col overflow-hidden rounded-10 border border-edge bg-dialog shadow-dialog outline-none",
           className,
         )}
         // The card itself takes the focus as it opens, not its first button: the keyboard goes on
@@ -75,7 +75,7 @@ export function DialogContent({
 
 /** A card's heading: what it's about, which names it for screen readers too. */
 export function DialogTitle({ className, ...props }: ComponentProps<typeof Primitive.Title>) {
-  return <Primitive.Title className={cn("font-extrabold leading-tight", className)} {...props} />;
+  return <Primitive.Title className={cn("font-semibold leading-tight", className)} {...props} />;
 }
 
 /** The line under a card's heading. Every card has one. */

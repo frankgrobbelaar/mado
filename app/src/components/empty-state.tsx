@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 
 interface EmptyStateProps {
   title: string;
@@ -13,9 +13,9 @@ interface EmptyStateProps {
 /** A place with nothing in it yet: what it's for and the one next step. */
 export function EmptyState({ title, children, illustration, action, note }: EmptyStateProps) {
   return (
-    <section className="flex animate-fade-up flex-col items-center gap-3 rounded-20 border border-tint/14 border-dashed bg-tint/3 px-5 py-6.5 text-center">
+    <section className="flex animate-fade-up flex-col items-center gap-3 rounded-8 border border-dash border-dashed bg-tint/3 px-5 py-8 text-center">
       {illustration}
-      <h2 className="font-extrabold text-17">{title}</h2>
+      <h2 className="font-semibold text-16">{title}</h2>
       <p className="max-w-md text-13 text-fg-muted">{children}</p>
       {action}
       {note && <p className="text-12 text-fg-faint">{note}</p>}
@@ -23,14 +23,24 @@ export function EmptyState({ title, children, illustration, action, note }: Empt
   );
 }
 
-/** A window's four panes, drifting a little: the "nothing here yet" picture. */
+/** Mado's round window, lit, with a hill seen through it, drifting a little: the "nothing here
+ * yet" picture. */
 export function WindowIllustration() {
+  const clip = `window-${useId().replace(/[^\w-]/g, "")}`;
   return (
-    <div aria-hidden="true" className="grid size-21 grid-cols-2 gap-1.5 p-1.5">
-      <span className="animate-float rounded-8 bg-[#2449b8]" />
-      <span className="animate-float rounded-8 bg-[#c4561d] [animation-delay:300ms]" />
-      <span className="animate-float rounded-8 bg-[#5b2a86] [animation-delay:600ms]" />
-      <span className="animate-float rounded-8 bg-[#1f6f5c] [animation-delay:900ms]" />
-    </div>
+    <svg aria-hidden="true" viewBox="0 0 64 64" className="size-16 animate-float">
+      <defs>
+        <clipPath id={clip}>
+          <circle cx="32" cy="32" r="27" />
+        </clipPath>
+      </defs>
+      <circle cx="32" cy="32" r="27" className="fill-accent" />
+      <path
+        clipPath={`url(#${clip})`}
+        d="M1 43 C14 35 25 35 35 40 C45 46 53 45 63 39 L63 66 L1 66 Z"
+        className="fill-window"
+      />
+      <circle cx="32" cy="32" r="27" fill="none" strokeWidth="2" className="stroke-line-strong" />
+    </svg>
   );
 }

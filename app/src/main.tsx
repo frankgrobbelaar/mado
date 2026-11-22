@@ -1,5 +1,6 @@
-import "@fontsource-variable/manrope";
-import "@fontsource-variable/geist-mono";
+import "@fontsource-variable/ibm-plex-sans";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
 import "./styles/global.css";
 
 import { StrictMode } from "react";

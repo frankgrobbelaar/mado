@@ -12,8 +12,8 @@ anime library) and Maku (TV series and films), and stands on their foundations.
 foundations: CI, the installer, the updater and the downloads page; the window with its engine and
 token, Setup fetching ffmpeg, Settings (light or dark, Start with Windows, updates, nightly backups
 and restoring one, the export), and records damaged past use. Nothing of the pictures yet. The
-look is Graphite, the owner's pick, with Mado's own mark, and every screen is drawn on the Mado
-Screens canvas; next, its tokens in the app, then [What's next](#whats-next).
+look is Graphite, the owner's pick, with Mado's own mark: every screen is drawn on the Mado Screens
+canvas, and the app wears it. Next: Mado 1.0, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -22,8 +22,7 @@ Screens canvas; next, its tokens in the app, then [What's next](#whats-next).
   at the same time, stage only your own files (never `git add -A`).
 - **Never change the look unasked.** Mado's look is Graphite, the owner's pick: its colours,
   type, shapes and motion live in [app/src/styles/tokens.css](app/src/styles/tokens.css) and change
-  only with the owner. Until the screens canvas is done the app still wears Kura's Cinema tokens as
-  a stand-in.
+  only with the owner.
 - **Nothing changes until the owner reviews it.** A tool's result is a new picture beside the
   original unless the owner chooses to replace it; a replaced original or a duplicate goes to
   quarantine (30 days), never straight to deletion. Renames, moves and deletions are proposed
@@ -207,7 +206,10 @@ Everything decided so far. Don't ask again; change only with the owner.
   boards in Graphite, Home, the Library, A picture · Size and Settings › General again in
   Aluminium, and a Tokens board with every colour role in both (Aluminium: window #D3D4D7, panels
   #E4E5E8, text #1A1B1E, the accent #4C7500 with white on it). Settings sits at the rail's foot.
-  Graphite's tokens replace Kura's Cinema stand-in in `tokens.css` from it.
+- Graphite is in the app (2026-11-22, the owner: "build Graphite into the app"): its tokens and
+  Aluminium's in `tokens.css`, IBM Plex Sans and Mono bundled, the rail down the side with the
+  mark, a slim title bar, the status bar, and Setup, Home and Settings restyled; the downloads
+  page wears it too. docs/design.md has the token table.
 - Kura's rules carry over: motion that explains (120 ms hover and press, 200 ms toggles, 320 ms
   panels, one curve `cubic-bezier(.2,.8,.2,1)`, none when Windows' animation effects are off),
   status by shape first, light and dark designed together (as Windows is, or chosen in Settings ›
@@ -280,8 +282,8 @@ Everything decided so far. Don't ask again; change only with the owner.
 
 ## What's next
 
-1. The look: Graphite (picked), the mark (made) and every screen on the Mado Screens canvas
-   (drawn); next, Graphite's and Aluminium's tokens and IBM Plex in the app.
+1. The look: Graphite (picked), the mark (made), every screen on the Mado Screens canvas (drawn),
+   and Graphite in the app (built): done.
 2. Mado 1.0: libraries from folders (every picture read, a grid by date or by folder, the folders
    watched, duplicates and bursts found); the upscaler done properly, with sizes for every device's
    screen; looks, finishing touches and the owner's own, on the whole picture or a part; click to

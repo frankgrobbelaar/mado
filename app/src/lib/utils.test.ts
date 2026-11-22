@@ -9,7 +9,7 @@ function tokenNames(prefix: string) {
 }
 
 describe("cn", () => {
-  it("keeps a Cinema font size next to a Cinema colour", () => {
+  it("keeps a Graphite font size next to a Graphite colour", () => {
     expect(cn("text-13", "text-fg-muted")).toBe("text-13 text-fg-muted");
   });
 
@@ -18,7 +18,7 @@ describe("cn", () => {
   });
 
   it("lets the later of two radii win", () => {
-    expect(cn("rounded-16", "rounded-22")).toBe("rounded-22");
+    expect(cn("rounded-8", "rounded-8")).toBe("rounded-8");
   });
 
   it("drops classes that are switched off", () => {

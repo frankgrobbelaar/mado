@@ -32,7 +32,7 @@ and all of them run locally with the commands in [../development.md](../developm
   `vi.mock("@tauri-apps/api/event", ...)`; stub `fetch` with `vi.stubGlobal` for engine answers.
   `home-page.test.tsx` shows both.
 - Render with a fresh `QueryClient` (retries off) per test.
-- `utils.test.ts` reads `tokens.css` to check `cn()` knows every Cinema size and radius; Vitest is
+- `utils.test.ts` reads `tokens.css` to check `cn()` knows every Graphite size and radius; Vitest is
   told to load that one CSS file (`test.css.include`).
 
 ## Shell (cargo test)

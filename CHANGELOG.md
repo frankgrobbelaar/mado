@@ -16,3 +16,7 @@ shows these notes when it offers the update.
   opens.
 - Mado's own mark, a round window lit in green with a hill seen through it, on its icon, in its
   window and on the downloads page.
+- Mado's own look, Graphite: a mid-grey window that never tints your pictures, one green accent,
+  IBM Plex type, the rail down the side and a line of facts at the foot. Its light, Aluminium,
+  follows Windows, or choose it in Settings › General, where each choice shows a little picture of
+  the window.

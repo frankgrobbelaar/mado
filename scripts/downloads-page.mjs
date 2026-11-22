@@ -208,15 +208,14 @@ export function renderPage(releases, repository = `https://github.com/${REPOSITO
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent(LOGO.replace(' width="32" height="32"', ""))}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
-    --window: #0b0c0f; --glass: rgb(255 255 255 / 0.04); --edge: rgb(255 255 255 / 0.08);
-    --fg: #f4f5f7; --fg-soft: #d7dae0; --fg-muted: #a3a8b3; --fg-faint: #7c818c;
-    --accent: #f2b33d; --on-accent: #1d1300; --accent-fg: #ffd27a; --accent-fg-hover: #ffe1a6;
-    --featured: #13254f; --orb: #f08a24; --sun: #ffcf6b;
-    --sans: Manrope, system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, monospace;
+    --window: #2a2b2e; --glass: #333438; --edge: #46474d; --chrome: #232427;
+    --fg: #f0f0f1; --fg-soft: #d6d7da; --fg-muted: #b4b5ba; --fg-faint: #9a9ba1;
+    --accent: #c9f24d; --on-accent: #172000; --accent-fg: #d6f57a; --accent-fg-hover: #e8fbb0;
+    --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
     --ease: cubic-bezier(.2, .8, .2, 1);
   }
   * { box-sizing: border-box; }
@@ -225,26 +224,27 @@ export function renderPage(releases, repository = `https://github.com/${REPOSITO
   a:hover { color: var(--accent-fg-hover); }
   main, header, footer { width: min(880px, 100% - 32px); margin-inline: auto; }
   header { display: flex; align-items: center; gap: 12px; padding: 28px 0 20px; }
-  header .word { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; }
+  header .word { font-weight: 600; font-size: 20px; }
   header nav { margin-left: auto; }
   header nav a { color: var(--fg-muted); text-decoration: none; font-weight: 600; }
   header nav a:hover { color: var(--fg); }
   main { display: grid; gap: 20px; }
-  .hero { position: relative; overflow: hidden; background: var(--featured); border-radius: 24px;
-    padding: 36px 32px; }
-  .orb { position: absolute; right: -90px; top: -110px; width: 300px; height: 300px;
-    border-radius: 50%; background: var(--orb); }
-  .orb::after { content: ""; position: absolute; left: 70px; bottom: 60px; width: 64px; height: 64px;
-    border-radius: 50%; background: var(--sun); }
+  .hero { position: relative; overflow: hidden; background: var(--chrome); border: 1px solid var(--edge);
+    border-radius: 10px; padding: 36px 32px; }
+  .orb { position: absolute; right: -70px; top: -90px; width: 280px; height: 280px; overflow: hidden;
+    border-radius: 50%; background: var(--accent); }
+  .orb::after { content: ""; position: absolute; left: -20%; right: -20%; bottom: -38%; height: 72%;
+    border-radius: 50%; background: var(--chrome); }
   .hero > *:not(.orb) { position: relative; }
-  .eyebrow { display: inline-block; margin: 0 0 14px; padding: 4px 12px; border-radius: 999px;
-    background: rgb(255 255 255 / 0.1); font-size: 13px; font-weight: 700; }
-  h1 { margin: 0; font-size: clamp(34px, 7vw, 52px); line-height: 1.05; font-weight: 800;
-    letter-spacing: -0.02em; }
+  .eyebrow { display: inline-block; margin: 0 0 14px; padding: 3px 10px; border-radius: 4px;
+    background: rgb(255 255 255 / 0.08); font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--fg-muted); }
+  h1 { margin: 0; font-size: clamp(32px, 6vw, 44px); line-height: 1.1; font-weight: 600;
+    letter-spacing: -0.01em; }
   .lede { margin: 10px 0 0; color: var(--fg-soft); max-width: 34em; }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
   .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
-    padding: 0 22px; border-radius: 999px; font-weight: 800; text-decoration: none;
+    padding: 0 20px; border-radius: 6px; font-weight: 600; text-decoration: none;
     border: 1px solid var(--edge); color: var(--fg); background: var(--glass);
     transition: transform 120ms var(--ease), background 120ms var(--ease); }
   .button:hover { color: var(--fg); background: rgb(255 255 255 / 0.08); }
@@ -254,9 +254,9 @@ export function renderPage(releases, repository = `https://github.com/${REPOSITO
   .button.small { min-height: 36px; padding: 0 16px; font-size: 14px; }
   .file { margin: 16px 0 0; display: grid; gap: 2px; font: 12px/1.6 var(--mono); color: var(--fg-muted); }
   .hash { overflow-wrap: anywhere; color: var(--fg-faint); }
-  .panel { background: var(--glass); border: 1px solid var(--edge); border-radius: 20px; padding: 24px 28px; }
-  h2 { margin: 0 0 6px; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
-  h3 { margin: 18px 0 4px; font-size: 13px; font-weight: 800; text-transform: uppercase;
+  .panel { background: var(--glass); border: 1px solid var(--edge); border-radius: 8px; padding: 24px 28px; }
+  h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
+  h3 { margin: 18px 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;
     letter-spacing: 0.06em; color: var(--fg-muted); }
   ul { margin: 6px 0 0; padding-left: 20px; }
   li { margin: 4px 0; color: var(--fg-soft); }

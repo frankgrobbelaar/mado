@@ -22,12 +22,12 @@ export class ScreenError extends Component<{ children: ReactNode }, State> {
     return (
       <section
         role="alert"
-        className="flex animate-fade-up flex-col gap-3 rounded-18 border border-broken/26 bg-broken/7 px-4.5 py-4"
+        className="flex animate-fade-up flex-col gap-3 rounded-8 border border-broken/26 bg-broken/7 px-4.5 py-4"
       >
         <p>
           <strong>This screen couldn't be shown.</strong> Nothing in your folders was touched.
         </p>
-        <pre className="max-h-40 overflow-auto rounded-12 bg-inset px-3 py-2.5 font-mono text-11 text-fg-muted leading-[1.7]">
+        <pre className="max-h-40 overflow-auto rounded-6 bg-inset px-3 py-2.5 font-mono text-11 text-fg-muted leading-[1.7]">
           {error.message}
         </pre>
         <div className="flex flex-wrap gap-2">

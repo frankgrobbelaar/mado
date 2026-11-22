@@ -4,20 +4,21 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 // Adapted from shadcn/ui's button (MIT, see LICENSE-shadcn.txt).
-// Cinema buttons are pills. One primary (amber) action per view; the rest are secondary or ghost.
+// Graphite's buttons are rectangles with 6px corners. One primary (volt) action per view; the
+// rest are secondary or ghost.
 const buttonVariants = cva(
-  "press inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full font-bold disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
+  "press inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-6 font-semibold disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "bg-accent font-extrabold text-on-accent",
+        primary: "bg-accent text-on-accent",
         secondary: "border border-field-edge bg-field text-fg",
-        ghost: "bg-transparent text-fg-muted",
-        danger: "bg-danger font-extrabold text-on-danger",
+        ghost: "bg-transparent text-fg-muted hover:bg-tint/6 hover:text-fg",
+        danger: "bg-danger text-on-danger",
       },
       size: {
-        md: "min-h-11 px-5 text-14",
-        sm: "min-h-9 px-3.5 text-13",
+        md: "min-h-10 px-4 text-14",
+        sm: "min-h-9 px-3 text-13",
       },
     },
     defaultVariants: { variant: "secondary", size: "md" },

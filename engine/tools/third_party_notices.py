@@ -91,8 +91,8 @@ PYTHON_LICENCES = {
 # Packages that ship as CSS and font files, which Vite's report (JavaScript only) doesn't list.
 STYLES_AND_FONTS = (
     "tailwindcss",
-    "@fontsource-variable/manrope",
-    "@fontsource-variable/geist-mono",
+    "@fontsource-variable/ibm-plex-sans",
+    "@fontsource/ibm-plex-mono",
 )
 
 _LICENCE_FILE = re.compile(

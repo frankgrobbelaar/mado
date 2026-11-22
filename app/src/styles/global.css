@@ -3,7 +3,8 @@
 
 @layer base {
   /* Light or dark as the window is: Windows' own setting, or the owner's choice in Settings
-     (the shell gives the window its theme). Every light-dark() token follows. */
+     (the shell gives the window its theme). Every light-dark() token follows: Graphite in dark,
+     Aluminium in light. */
   html {
     color-scheme: light dark;
   }
@@ -17,14 +18,19 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* The focus ring: the accent, 2px, 2px off the edge, always in sight. */
   :focus-visible {
-    outline: 2px solid var(--color-accent-fg);
-    outline-offset: 3px;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 30%, transparent);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-line) transparent;
+    scrollbar-color: var(--color-line-strong) transparent;
   }
 
   /* Windows' "Animation effects" setting off means no motion at all. */
@@ -44,13 +50,13 @@
 @utility press {
   transition:
     transform 120ms ease-out,
-    filter 150ms ease-out,
+    filter 120ms ease-out,
     background-color 200ms ease-out;
   &:hover {
-    filter: brightness(1.12);
+    filter: brightness(1.08);
   }
   &:active {
-    transform: scale(0.97);
+    transform: scale(0.98);
   }
 }
 
@@ -63,44 +69,37 @@
   top: 0;
   z-index: 20;
   margin-bottom: -1rem;
-  padding-top: 0.375rem;
+  padding-top: 0.5rem;
   padding-bottom: 1rem;
   background: var(--color-window);
 }
 
-/* Cards that rise toward you on hover. */
+/* Cards that rise a little toward you on hover. */
 @utility lift {
-  transition: transform 240ms var(--ease-cinema);
+  transition: transform 200ms var(--ease-mado);
   &:hover {
-    transform: translateY(-5px);
+    transform: translateY(-2px);
   }
 }
 
 /*
- * Status swatches. Each status has its own shape, so it reads without colour too:
- * ready is solid, converting pulses, to convert is solid blue, broken is hatched, missing is hollow.
+ * Status by shape, so it reads without colour too: done is solid, working is the accent
+ * pulsing, waiting is hollow, a problem is hatched.
  */
-@utility status-ready {
-  background: var(--color-ready);
-  /* On paper, amber alone is faint: a darker edge keeps the square in sight. */
-  box-shadow: inset 0 0 0 1px var(--color-ready-edge);
+@utility status-done {
+  background: var(--color-done);
 }
 
-/* Shapes that run together, as a season's bar: no edges between them. */
-@utility status-joined {
-  --color-ready-edge: transparent;
-}
-
-@utility status-converting {
-  background: var(--color-converting);
+@utility status-working {
+  background: var(--color-accent);
   animation: var(--animate-pulse);
 }
 
-@utility status-convert {
-  background: var(--color-convert);
+@utility status-waiting {
+  box-shadow: inset 0 0 0 1.5px var(--color-waiting);
 }
 
-@utility status-broken {
+@utility status-problem {
   background: repeating-linear-gradient(
     135deg,
     var(--color-broken) 0 2px,
@@ -108,40 +107,33 @@
   );
 }
 
-@utility status-missing {
-  box-shadow: inset 0 0 0 1.5px var(--color-missing);
-}
-
-/* Type roles. Use these for headings; use text-13, text-12… for everything else. */
+/* Type roles. Use these for headings; use text-13, text-12… for everything else. Plex Sans at
+   600 for every heading; body text at 400. */
 @utility type-display {
-  font-size: var(--text-50);
-  line-height: 1.04;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-}
-
-@utility type-hero {
-  font-size: var(--text-50);
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-}
-
-@utility type-title {
   font-size: var(--text-32);
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-@utility type-heading {
-  font-size: var(--text-20);
-  font-weight: 800;
+  line-height: 1.15;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
+@utility type-title {
+  font-size: var(--text-24);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+@utility type-heading {
+  font-size: var(--text-16);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+/* A small heading in capitals over a panel's contents: "YOUR LIBRARY". */
 @utility type-eyebrow {
-  font-size: var(--text-13);
-  font-weight: 700;
-  color: var(--color-accent-fg);
+  font-size: var(--text-11);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
 }

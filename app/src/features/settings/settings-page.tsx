@@ -3,11 +3,10 @@ import { Navigate, NavLink, useParams } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
 import { Toggle } from "@/components/toggle";
 import { Button } from "@/components/ui/button";
-import { Segmented } from "@/components/ui/segmented";
 import { type DataSizes, useDataSizes, useHealth } from "@/lib/engine";
 import { size } from "@/lib/format";
 import { openDownloadsPage } from "@/lib/links";
-import { LOOKS, useLook, useSetLook } from "@/lib/look";
+import { useLook, useSetLook } from "@/lib/look";
 import {
   useKeepInTray,
   useSetKeepInTray,
@@ -19,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { AboutPanel } from "./about-panel";
 import { BackupsPanel } from "./backups-panel";
 import { ExportPanel } from "./export-panel";
+import { LookChoice } from "./look-choice";
 import { Panel } from "./panel";
 import { WhereItLives } from "./where-it-lives";
 
@@ -52,8 +52,8 @@ export function SettingsPage() {
               to={`/settings/${key}`}
               className={({ isActive }) =>
                 cn(
-                  "press flex min-h-11 items-center justify-between rounded-14 px-3.5 font-bold text-14",
-                  isActive ? "bg-accent/12 text-accent-fg" : "text-fg-soft",
+                  "press flex min-h-11 items-center justify-between rounded-6 px-3.5 font-semibold text-14",
+                  isActive ? "bg-raised text-fg" : "text-fg-muted hover:bg-tint/6",
                 )
               }
             >
@@ -93,20 +93,7 @@ function General() {
     change.error ?? start.error ?? changeKeep.error ?? keep.error ?? changeLook.error ?? look.error;
   return (
     <Panel title="General">
-      <div className="flex flex-wrap items-center justify-between gap-3.5 rounded-16 border border-edge bg-glass px-4 py-3.5">
-        <span className="flex flex-col gap-0.5">
-          <span className="font-extrabold">Light or dark</span>
-          <span className="text-13 text-fg-muted">
-            With Same as Windows, Mado changes when Windows does.
-          </span>
-        </span>
-        <Segmented
-          label="Light or dark"
-          value={look.data ?? "windows"}
-          options={LOOKS}
-          onChange={(chosen) => changeLook.mutate(chosen)}
-        />
-      </div>
+      <LookChoice value={look.data ?? "windows"} onChange={(chosen) => changeLook.mutate(chosen)} />
       <Toggle
         label="Start Mado when Windows starts"
         text="It waits in the tray from when you sign in, so the nightly backup carries on, and it tells you what it finished."
@@ -135,8 +122,8 @@ const PARTS: {
   color: string;
 }[] = [
   { key: "database", label: "Database", note: "mado.db, one SQLite file", color: "bg-accent" },
-  { key: "backups", label: "Backups", note: "last 7 nights", color: "bg-chart" },
-  { key: "cache", label: "Cache", note: "can be made again", color: "bg-missing" },
+  { key: "backups", label: "Backups", note: "last 7 nights", color: "bg-line-strong" },
+  { key: "cache", label: "Cache", note: "can be made again", color: "bg-waiting" },
   { key: "tools", label: "Tools", note: "ffmpeg", color: "bg-line-strong" },
   { key: "logs", label: "Logs", note: "kept 30 days", color: "bg-control" },
 ];
@@ -158,7 +145,7 @@ function YourData() {
         <BackupsPanel className="flex-[1_1_300px]" />
         <ExportPanel />
       </div>
-      <p className="flex items-start gap-2.5 rounded-20 border border-tint/14 border-dashed px-5 py-4 text-13 text-fg-soft">
+      <p className="flex items-start gap-2.5 rounded-8 border border-tint/14 border-dashed px-5 py-4 text-13 text-fg-soft">
         <Info size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-fg-muted" />
         Uninstalling asks you to export first, and keeps this folder unless you choose to delete it.
         Your pictures are never touched.
@@ -187,7 +174,7 @@ function Breakdown({ sizes }: { sizes: DataSizes }) {
               <span aria-hidden="true" className={cn("size-2 rounded-2", part.color)} />
               {part.label}
             </dt>
-            <dd className="font-extrabold text-14">{size(sizes[part.key])}</dd>
+            <dd className="font-semibold text-14">{size(sizes[part.key])}</dd>
             <dd className="font-mono text-11 text-fg-faint">{part.note}</dd>
           </div>
         ))}

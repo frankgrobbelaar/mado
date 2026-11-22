@@ -20,7 +20,7 @@ app/
     components/         shared UI: ui/ primitives, shell/ (title bar, nav rail, update card)
     features/           screens, one folder per area (home/, settings/, setup/…)
     lib/                engine.tsx (status, API calls, types), updates.ts, utils.ts
-    styles/             tokens.css (Cinema), global.css
+    styles/             tokens.css (Graphite), global.css
     test/setup.ts       Vitest setup
 ```
 

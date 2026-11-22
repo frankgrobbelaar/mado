@@ -16,10 +16,8 @@ export function SetupPage() {
         <main className="mx-auto flex w-full max-w-250 flex-col gap-7 px-6 pt-6 pb-16">
           <header className="flex animate-fade-up flex-col gap-2">
             <span className="type-eyebrow">First run</span>
-            <h1 className="font-extrabold text-44 leading-[1.05] tracking-[-0.03em]">
-              Welcome to Mado
-            </h1>
-            <p className="max-w-170 text-17 text-fg-muted">
+            <h1 className="type-display">Welcome to Mado</h1>
+            <p className="max-w-170 text-16 text-fg-muted">
               One quick step. Nothing on this PC changes until you review it.
             </p>
           </header>

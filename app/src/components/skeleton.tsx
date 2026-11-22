@@ -35,7 +35,7 @@ export function PanelSkeleton({ rows = 4, className }: { rows?: number; classNam
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-3.5 rounded-22 border border-edge bg-glass p-5 shadow-panel",
+        "flex min-w-0 flex-col gap-3.5 rounded-8 border border-edge bg-glass p-5 shadow-panel",
         className,
       )}
     >

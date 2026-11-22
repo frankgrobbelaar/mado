@@ -55,10 +55,10 @@ function ToolRow({ tool }: { tool: Tool }) {
   const percent = tool.size ? Math.round((tool.done / tool.size) * 100) : 0;
 
   return (
-    <div className="flex flex-col gap-3 rounded-16 border border-edge bg-glass px-4 py-3.5">
+    <div className="flex flex-col gap-3 rounded-8 border border-edge bg-glass px-4 py-3.5">
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-0.5">
-          <span className="font-extrabold text-15">
+          <span className="font-semibold text-15">
             {tool.name} <span className="font-normal text-fg-muted">{tool.version}</span>
           </span>
           <span className="text-13 text-fg-muted">{tool.purpose}</span>
@@ -67,7 +67,7 @@ function ToolRow({ tool }: { tool: Tool }) {
           </span>
         </div>
         {tool.state === "ready" && (
-          <span className="inline-flex items-center gap-2 font-bold text-13 text-accent-fg">
+          <span className="inline-flex items-center gap-2 font-semibold text-13 text-accent-fg">
             <Check size={16} strokeWidth={3} aria-hidden="true" />
             Ready
           </span>
@@ -97,7 +97,7 @@ function ToolRow({ tool }: { tool: Tool }) {
           className="h-1.5 overflow-hidden rounded-3 bg-track"
         >
           <div
-            className="h-full rounded-3 bg-accent transition-[width] duration-320 ease-cinema"
+            className="h-full rounded-3 bg-accent transition-[width] duration-320 ease-mado"
             style={{ width: `${percent}%` }}
           />
         </div>

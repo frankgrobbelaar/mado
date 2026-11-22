@@ -16,9 +16,9 @@ foot, and the way back from damaged records. Mado's own screens come from its de
 - Every screen has a board on Mado's design canvas, snapshotted in `docs/design/`. Match it:
   layout, spacing, copy, states. Its inline values map one to one to the tokens in
   `src/styles/tokens.css`.
-- Until the owner picks Mado's look, `src/styles/tokens.css` holds Kura's Cinema tokens as they
-  are. Use only tokens: Tailwind's own palette and scales are switched off on purpose; if a value
-  isn't a token, ask the owner before adding one.
+- `src/styles/tokens.css` is Graphite, the owner's pick, value for value from the Tokens board
+  of the Mado Screens canvas (docs/design/screens/), with Aluminium for light. Never change a
+  value unasked; build every screen to its board.
 - Light and dark come from the same classes: every colour token holds both (`light-dark()`), and
   the page follows the window's theme. So no `white/…` or `black/…` on the interface (`bg-tint/6`,
   `border-rule`, `bg-field`, `bg-well` instead); white and black only on pictures, and in a part
@@ -27,7 +27,7 @@ foot, and the way back from damaged records. Mado's own screens come from its de
 - One primary action per view; the rest are secondary or ghost buttons.
 - Every screen designs its loading, empty and error states: name the problem, say what Mado did,
   offer the next step.
-- Motion: `ease-cinema`, 120 / 200 / 320 ms, `animate-fade-up` for entrances. Reduced motion is
+- Motion: `ease-mado`, 120 / 200 / 320 ms, `animate-fade-up` for entrances. Reduced motion is
   handled globally; don't work around it.
 - Accessible as built: real `<button>` and `<a>`, labels on icon-only buttons, visible focus, a
   keyboard path for everything, `role="alert"` or `role="status"` for messages that appear.

@@ -11,7 +11,7 @@ interface Asked {
 }
 
 const PANEL =
-  "flex animate-fade-up flex-col gap-3 rounded-18 border border-broken/26 bg-broken/7 px-4.5 py-4";
+  "flex animate-fade-up flex-col gap-3 rounded-8 border border-broken/26 bg-broken/7 px-4.5 py-4";
 
 /**
  * Why a screen's data isn't there: the engine isn't running, or it couldn't answer. Names the
@@ -57,7 +57,7 @@ function EngineFailed({ message, details }: { message: string; details: string }
         <strong>Mado's engine isn't running.</strong> {message} Nothing in your folders was touched.
       </p>
       {details && (
-        <pre className="max-h-40 overflow-auto rounded-12 bg-inset px-3 py-2.5 font-mono text-11 text-fg-muted leading-[1.7]">
+        <pre className="max-h-40 overflow-auto rounded-6 bg-inset px-3 py-2.5 font-mono text-11 text-fg-muted leading-[1.7]">
           {details}
         </pre>
       )}

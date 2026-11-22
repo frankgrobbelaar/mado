@@ -46,7 +46,7 @@ How Mado's code is written. The aim is code a newcomer can read top to bottom an
   loading, errors, caching and refetching. Local UI state stays in `useState`. Add a global store
   only when two distant screens truly share client state.
 - Every screen designs its **loading, empty and error** states, following the "small things" board.
-- Style with Tailwind classes built from the Cinema tokens (see [design.md](design.md)). Inline
+- Style with Tailwind classes built from the Graphite tokens (see [design.md](design.md)). Inline
   `style` only for values computed at runtime (a progress width, say).
 - Accessibility is part of done: real `<button>` and `<a>`, labels on icon-only buttons, visible
   focus, keyboard paths, `role="alert"` or `role="status"` for messages that appear.

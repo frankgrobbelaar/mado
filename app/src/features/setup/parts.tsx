@@ -20,10 +20,10 @@ export function Panel(props: {
     <section
       ref={panel}
       aria-labelledby={props.labelledBy}
-      className="flex animate-pop scroll-mt-6 flex-col gap-5 rounded-24 border border-accent/35 bg-raised p-6 shadow-panel"
+      className="flex animate-pop scroll-mt-6 flex-col gap-5 rounded-8 border border-accent/35 bg-raised p-6 shadow-panel"
     >
       <div className="flex flex-col gap-1">
-        <h2 id={props.labelledBy} className="font-extrabold text-24 tracking-[-0.02em]">
+        <h2 id={props.labelledBy} className="font-semibold text-24 tracking-[-0.02em]">
           {props.title}
         </h2>
         {props.intro && <p className="text-14 text-fg-muted">{props.intro}</p>}
