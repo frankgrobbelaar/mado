@@ -19,7 +19,7 @@ Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Coming soon.</b> Mado is being built, and its first version is on its way.</sub>
+  <sub><b>Early days.</b> Mado 0.1 keeps your library and makes pictures right for any screen or print. Looks, editing and many at once are on their way.</sub>
   <br>
   <br>
 </p>
@@ -154,8 +154,10 @@ terms.
 
 ## Download
 
-Coming soon. The first version will be on the [downloads page](https://frankgrobbelaar.github.io/mado/),
-with every version after it and what changed ([CHANGELOG.md](CHANGELOG.md)). Mado installs just for
+Every version is on the [downloads page](https://frankgrobbelaar.github.io/mado/), newest first,
+with what changed ([CHANGELOG.md](CHANGELOG.md)). Mado is in its early days: 0.1 brings your
+library and making pictures right for any screen or print, and each version after it brings more
+of the tour above. Mado installs just for
 you, without asking for an administrator, and updates itself. It isn't code-signed, so SmartScreen
 warns the first time: More info › Run anyway. The installer's first page lists everything Mado
 downloads, such as ffmpeg on the first run; nothing is installed by hand.

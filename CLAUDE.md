@@ -177,7 +177,8 @@ Everything decided so far. Don't ask again; change only with the owner.
   picture in a watch folder. Saving asks the same: new pictures or replace the originals.
 - The README is a tour, as Kura's and Maku's are (the owner, 2026-11-22: "build the README really
   nice as we have for the others"): the mark, a volt "Download for Windows" button (IBM Plex Sans
-  outlines, `docs/readme/download.svg`, "Coming soon" until the first release), six steps with
+  outlines, `docs/readme/download.svg`, "Coming soon" until the first release, then a line saying
+  what the latest version has), six steps with
   pictures, Safe by design, The AI inside, what a PC needs, the siblings. Its pictures
   (`docs/readme/`) are the Mado Screens boards, drawn by code, framed in headless Edge and said to
   be the design; they're retaken from the app as its screens are built.
