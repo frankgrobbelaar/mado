@@ -93,7 +93,8 @@ Rules of thumb:
 - **The title bar** (`title-bar.tsx`), a slim strip over the page with the window's buttons; a
   page without the rail (Setup) gives it the mark and a name.
 - **The status bar** (`status-bar.tsx`), 32 px at the foot in the mono: how the engine is, Mado's
-  version, and "Your pictures stay on this PC".
+  version, what it's doing with the library ("Watching 3 folders", "Reading 212 of 4,812"), and
+  "Your pictures stay on this PC".
 
 ## Components
 
@@ -105,6 +106,7 @@ Built so far, in `app/src/components/`:
 | `ui/segmented.tsx` | One choice from a few side by side, the chosen one raised in a well |
 | `ui/switch.tsx`, `toggle.tsx` | On or off: the switch (the accent when on), and a row with its name and what it does |
 | `empty-state.tsx` | A place with nothing in it yet, with its one next step |
+| `made-up-picture.tsx` | The made-up pictures an empty place shows (alps, dunes, aurora, meadow, lake, bloom), drawn by code as the Pic board draws them |
 | `shell/` | The rail, title bar, status bar, update card and the notes at the window's foot |
 | `mado-logo.tsx` | The mark, in its own colours |
 
@@ -119,6 +121,11 @@ on Radix) and are restyled to the tokens; see [stack/tailwind.md](stack/tailwind
 - **A long job**: stage steps, a bar with the percentage, and "18 min left". Pause is always there.
 - **Review before apply**: the change as before → after, grouped, with counts, one primary button,
   and Undo afterwards in a toast and in History.
+- **Ticks**: a box on each picture of a grid, Shift for a run from the one ticked last, and a bar
+  that says how many, from how many days, and offers only what works on them now.
+- **A page with its own column** (the Library's folders, a picture's tools): the column runs the
+  window's height beside the page, flush to the rail or the edge, and stays put while the page
+  scrolls.
 - **The small things**: a drive unplugged, not enough space, a file in use, a crash, a failed job,
   a name already taken, offline. Each message names the problem, says what Mado already did, and
   offers the next step.

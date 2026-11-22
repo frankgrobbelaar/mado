@@ -42,3 +42,16 @@ def test_a_failing_migration_changes_nothing(tmp_path: Path, monkeypatch: pytest
         tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
         assert "settings" in tables
         assert "half_done" not in tables
+
+
+def test_records_from_before_the_library_gain_it_and_keep_their_settings(tmp_path: Path):
+    with closing(db.connect(tmp_path / "mado.db")) as conn:
+        conn.executescript(f"BEGIN;\n{MIGRATIONS[0]}\nPRAGMA user_version = 1;\nCOMMIT;")
+        conn.execute("INSERT INTO settings VALUES ('set_up', 'true')")
+        conn.commit()
+
+        db.migrate(conn)
+
+        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
+        assert {"folders", "pictures", "scans"} <= tables
+        assert conn.execute("SELECT value FROM settings").fetchone()["value"] == "true"

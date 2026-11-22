@@ -9,7 +9,8 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: the size a purpose needs, the model a picture suits, plans, checks, estimates | `src/mado/core/`, pure functions only (it starts with the first such rule) |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout; later the size a purpose needs, the model a picture suits, plans, checks, estimates | `src/mado/core/`, pure functions only |
+| The library: its folders, the scan, the watcher, reading pictures and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
 | Reaching the world: files, ffmpeg, the graphics card | modules beside `core/`, one per outside thing, each small and replaceable |
 | The API the UI calls | `src/mado/api/<feature>.py`, one `APIRouter` per feature, included in `api/__init__.py` |
 | Shared API pieces | `src/mado/api/common.py` (`ApiModel`, `Paths`, `Database`, `Toolbox`) |
@@ -18,7 +19,7 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 | Background care (tonight's backup) | `src/mado/care.py` |
 | Commands | `src/mado/cli.py` |
 | Build tools that run on the engine's Python (the third-party notices) | `tools/`, tested in `tests/` |
-| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` |
+| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py`; made-up pictures from `tests/drawn.py` and `tests/heif_files.py`, ffmpeg from `tests/fake_ffmpeg.py` |
 
 ## Building a feature
 

@@ -7,7 +7,7 @@ routes as an APIRouter in its own module, included below.
 
 import logging
 import secrets
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, closing
 from datetime import datetime
 from pathlib import Path
@@ -19,13 +19,17 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from mado import __version__, db
-from mado.api import backups, data, health, records, settings, tools
+from mado.api import backups, data, health, library, pictures, records, scan, settings, tools
 from mado.backups import restore_asked
 from mado.care import Care
 from mado.config import DataPaths
 from mado.events import Notify
+from mado.pictures import Command
+from mado.previews import Previews
 from mado.rescue import Damage, damage
+from mado.scan import Scanner
 from mado.tools import Tools
+from mado.watch import Watcher
 
 # The app's own pages: the installed app, and the Vite dev server in development.
 APP_ORIGINS = ["http://tauri.localhost", "http://localhost:1420"]
@@ -42,11 +46,14 @@ def create_app(
     toolbox: Tools | None = None,
     *,
     work: bool = False,
+    watch: bool = False,
     notify: Notify = lambda _title, _body, link=None: None,
+    ffmpeg: Callable[[], Command | None] | None = None,
 ) -> FastAPI:
-    """The API, with its parts. Tests pass their own tools. `work` looks after Mado in the
-    background while the engine runs (mado/care.py): `mado serve` turns it on, and passes
-    `notify`, which tells the app what's worth a notification."""
+    """The API, with its parts. Tests pass their own tools and ffmpeg. `work` looks after Mado
+    in the background while the engine runs (mado/care.py), and `watch` keeps the library
+    current (mado/watch.py): `mado serve` turns both on, and passes `notify`, which tells the app
+    what's worth a notification."""
     expected = token.encode()
 
     def require_token(
@@ -82,12 +89,20 @@ def create_app(
             return
         with closing(db.connect(paths.database)) as conn:
             db.migrate(conn)
+        scanner: Scanner = running.state.scanner
+        watcher = Watcher(paths, scanner) if watch else None
+        running.state.watcher = watcher
+        if watcher is not None:
+            watcher.start()  # catches up on what changed while Mado was closed, then watches
         care: Care = running.state.care
         if work:
             care.start()  # tonight's backup
         yield
         if work:
             care.stop()
+        if watcher is not None:
+            watcher.stop()
+        scanner.stop()  # after the picture it's on
 
     app = FastAPI(
         title="Mado engine",
@@ -98,6 +113,10 @@ def create_app(
     app.state.damage = None  # Mado's records damaged past use, found as the engine starts
     app.state.rescued = False  # a way back was taken: the app starts the engine again
     app.state.tools = toolbox or Tools(paths)
+    # The copies the window shows, made with Mado's ffmpeg for HEIC (tests pass their own).
+    app.state.previews = Previews(paths, ffmpeg or (lambda: app.state.tools.path("ffmpeg")))
+    app.state.scanner = Scanner(paths, app.state.previews)
+    app.state.watcher = None  # set while it watches
     app.state.care = Care(paths, now=_now)
     # The middleware added last runs first: CORS answers the webview's preflight
     # checks, then only requests addressed to this PC get through.
@@ -109,7 +128,7 @@ def create_app(
         allow_headers=["Authorization", "Content-Type"],
     )
     guarded = [Depends(require_token), Depends(require_records)]
-    for part in (health, tools, settings, data, backups, records):
+    for part in (health, tools, settings, library, scan, pictures, data, backups, records):
         app.include_router(part.router, dependencies=guarded)
     return app
 

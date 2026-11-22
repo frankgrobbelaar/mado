@@ -1,11 +1,32 @@
 # ffmpeg (picture and video formats)
 
-[ffmpeg](https://ffmpeg.org) 9.0.2 is the program Mado's tools will lean on for formats the
-engine's own libraries don't read or write well (an iPhone's HEIC, AVIF, JPEG XL), and for the
-short videos a 3D photo becomes. Mado doesn't ship it: Setup downloads one pinned build, from the
-list in [engine/src/mado/downloads.json](../../engine/src/mado/downloads.json), the same list the
-installer shows (see [releasing.md](../releasing.md)). Nothing in Mado runs it yet; the first tool
-that does says how here.
+[ffmpeg](https://ffmpeg.org) 9.0.2 is the program Mado leans on for formats the engine's own
+libraries don't read or write (a phone's HEIC now; JPEG XL and the short videos a 3D photo becomes
+as the tools come). Mado doesn't ship it: Setup downloads one pinned build, from the list in
+[engine/src/mado/downloads.json](../../engine/src/mado/downloads.json), the same list the installer
+shows (see [releasing.md](../releasing.md)).
+
+## What Mado runs it for
+
+| For | Command | Where |
+| --- | --- | --- |
+| A HEIC's pixels, for its thumbnail, its view and its full-size copy | `ffmpeg -v error -nostdin -noautorotate -i <picture> -frames:v 1 [-vf scale=…] -f image2pipe -c:v png -pix_fmt rgb24 -` | `_decode_heif` in [mado/pictures.py](../../engine/src/mado/pictures.py) |
+
+- **Its facts aren't ffmpeg's.** A HEIC's size, turn and Exif come from Mado's own reading of its
+  layout (see [pillow.md](pillow.md#heic-and-heif)), so the library lists a HEIC without ffmpeg.
+- **Mado turns it, not ffmpeg.** `-noautorotate` has ffmpeg decode it as stored; Mado then turns
+  it as the layout's `irot` and `imir` say, the same way it turns every other picture. Checked
+  with a HEIF-family file libavif wrote, turned a quarter round: ffmpeg gives it as stored, and it
+  comes out upright.
+- **The whole picture or none.** A phone's HEIC is a grid of tiles; ffmpeg 7.1 and later puts
+  them together. A decoded picture whose shape isn't the layout's isn't shown as the whole, and
+  says why.
+- **Scaled in ffmpeg** for a thumbnail (`scale='min(iw,512)':'min(ih,512)':
+  force_original_aspect_ratio=decrease`, never larger than it is), so a 12-megapixel picture
+  isn't piped whole for a 512-pixel copy.
+- A run that fails says ffmpeg's last line ("Invalid data found when processing input"), and the
+  picture is listed as one that won't open. `tests/fake_ffmpeg.py` stands in for ffmpeg in the
+  tests.
 
 ## Which build, and why
 

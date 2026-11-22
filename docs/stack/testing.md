@@ -21,6 +21,10 @@ and all of them run locally with the commands in [../development.md](../developm
   the snapshot (`uv run mado openapi openapi.json`) and update the UI's types.
 - For the core: plain functions in, plain values out, with examples from the designs (made-up
   pictures, file names and folders).
+- Pictures are drawn by Pillow in the tests (`tests/drawn.py`: a sky, a hill and a sun, which
+  shows which way up it is), with EXIF written the way a camera writes it; a HEIF is built box by
+  box (`tests/heif_files.py`). ffmpeg is `tests/fake_ffmpeg.py`, which draws a picture instead of
+  decoding one (`MADO_FAKE_SIZE`, `MADO_FAKE_FAIL`). No real photo, anywhere.
 
 ## UI (Vitest and Testing Library)
 

@@ -17,7 +17,7 @@ flowchart LR
     shell -- "starts with a token, stops on exit" --> engine
     ui -- "HTTP on 127.0.0.1 + token" --> engine
     engine --> data
-    engine -. "reads; changes only after review (to come)" .-> pictures
+    engine -. "reads and watches; changes only after review (to come)" .-> pictures
     shell -- "latest.json, signed installer" --> releases
 ```
 
@@ -25,7 +25,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | Setup's downloads, settings, backups, the export, the database; the pictures' tools to come |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows), Setup's downloads, settings, backups, the export, the database; the pictures' tools to come |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -57,6 +57,33 @@ says so once, and the shell tries again by itself after 30 seconds, a minute, 5 
 15. Both sides of this handshake are tested: `engine/tests/test_cli.py` and
 `app/src-tauri/src/engine.rs`.
 
+## The library
+
+The owner adds folders; the engine reads every picture in them and keeps watching. Nothing in
+the folders changes: the library only looks.
+
+```mermaid
+flowchart LR
+    folders[["Library folders"]] -- "walk (finding)" --> records[("pictures table")]
+    records -- "read each new or changed one (reading)" --> pillow["Pillow, or ffmpeg for HEIC"]
+    pillow -- "facts" --> records
+    pillow -- "thumbnails" --> cache[("data folder's cache")]
+    watcher["watchdog"] -. "a picture came, changed or went" .-> scan["the next scan"]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| Folders | `mado/library.py` | Adding a folder (one inside a library folder is refused; one holding library folders takes them in), taking one out, and walking one to record every picture with its size, time and place |
+| Reading | `mado/pictures.py` | A picture's facts (format, size as shown, when it was taken, camera, orientation, a location) from its header and EXIF, and its pixels, turned upright (see [stack/pillow.md](stack/pillow.md)) |
+| The scan | `mado/scan.py` | One at a time, on its own thread: finding (walking every folder: new, changed and gone pictures), then reading what's new or changed, newest file first, making each thumbnail on the way. Everything is saved as it goes, so a scan Mado's closing stops loses nothing |
+| The watcher | `mado/watch.py` | A scan as Mado starts, and one a few seconds after a picture comes, changes or goes (see [stack/watchdog.md](stack/watchdog.md)) |
+| Copies | `mado/previews.py` | A thumbnail (512 px), a view the size of a screen (2560 px) and a full-size copy for a format the window can't show, made once and kept in the cache |
+| Rules | `mado/core/` | What a file is by its name, how folders sit together, EXIF's values in Mado's words, a HEIF's layout: pure functions |
+
+A picture's copies come to the window through the API like everything else, with the token: the
+UI fetches each and shows it as an object URL (`usePictureImage` in `app/src/lib/engine.tsx`),
+thumbnails only as they come near the view, so the grid holds many thousands.
+
 ## Contracts
 
 | Between | How | Kept honest by |
@@ -76,12 +103,20 @@ Change a contract on both sides in the same commit.
 | `GET /tools`, `POST /tools/{id}/download` | What Mado downloads (ffmpeg), its state, and fetching it |
 | `GET /backups`, `POST /backups`, `POST /backups/import`, `POST /backups/{name}/restore` | The backups, one made by hand, importing an export, restoring one as the engine starts again |
 | `GET /data`, `POST /export` | What the data folder holds, by part, and the export zip |
+| `GET /folders`, `POST /folders`, `DELETE /folders/{id}` | The library's folders, each with its counts and the folders inside it as a tree; adding one (which a scan then reads, and the watcher watches); taking one out (its pictures stay where they are) |
+| `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW, what won't open, each folder's share |
+| `GET /scan` | How the latest scan went, or is going: its stage, what it found and read, time left, folders not connected, what came and went |
+| `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`), with each day on it counted whole |
+| `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full; the pictures either side of it in the list it was opened from |
+| `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version) |
+| `POST /pictures/{id}/read` | Reads one picture again now (one that wouldn't open may have been mended) |
 | `GET /records`, `POST /records/restore`, `POST /records/new` | Records damaged past use, and the two ways back |
 
 ## Data
 
 - **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `logs/`
-  (`engine.log`, kept 30 days), `tools/` (ffmpeg), `cache/`, and `backups/` (the last 7 nights,
+  (`engine.log`, kept 30 days), `tools/` (ffmpeg), `cache/` (the pictures' thumbnails and views,
+  and the last few full-size copies: anything in it can go), and `backups/` (the last 7 nights,
   each checked as it's made, and apart from them the last 7 made by hand, before a restore and
   from an export; none is ever written over). `mado/care.py` makes tonight's backup from 03:00 (or
   the first chance after). A backup chosen in Settings is restored as the engine starts again,
@@ -97,7 +132,9 @@ Change a contract on both sides in the same commit.
   first). Either way the damaged file is set aside as it is, never deleted, and the app starts the
   engine again.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
-  with `mado export`). It grows with the schema. Settings imports one too: the database it holds
+  with `mado export`): the database, its settings, the library's folders (`folders.json`) and
+  every picture with what Mado read of it (`pictures.csv`), and a manifest. It grows with the
+  schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.
 

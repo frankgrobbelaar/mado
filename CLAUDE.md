@@ -11,9 +11,15 @@ anime library) and Maku (TV series and films), and stands on their foundations.
 **Where it stands (2026-11-22):** scoped with the owner and the repo set up on Kura's
 foundations: CI, the installer, the updater and the downloads page; the window with its engine and
 token, Setup fetching ffmpeg, Settings (light or dark, Start with Windows, updates, nightly backups
-and restoring one, the export), and records damaged past use. Nothing of the pictures yet. The
-look is Graphite, the owner's pick, with Mado's own mark: every screen is drawn on the Mado Screens
-canvas, and the app wears it. Next: Mado 1.0, by [What's next](#whats-next).
+and restoring one, the export), and records damaged past use. The look is Graphite, the owner's
+pick, with Mado's own mark: every screen is drawn on the Mado Screens canvas, and the app wears
+it. Built and tested: the library and a picture's page, the first piece of Mado 1.0 (folders added
+in Setup, Home or the Library; every picture read with Pillow, a HEIC's facts by Mado's own reader
+and its pixels by ffmpeg, camera RAW listed; the folders watched; thumbnails and screen-sized
+views in the cache; the Library by the day pictures were taken, with the folder tree, search and
+ticks; a picture's page at Fit, 100% or 400% with its neighbours and the arrow keys, its tools
+column a placeholder). Next: making a picture right for a screen, with the upscaler and saving,
+by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -231,9 +237,11 @@ Everything decided so far. Don't ask again; change only with the owner.
 - A pure core behind small interfaces, as in Kura.
 
 **Data**
-- `%LOCALAPPDATA%\Mado`: mado.db, nightly backups (keep 7), logs (30 days), and `tools\` (ffmpeg,
-  downloaded on first run; see docs/stack/ffmpeg.md).
-- Export: one zip (the database, settings and a manifest), growing with the schema.
+- `%LOCALAPPDATA%\Mado`: mado.db, nightly backups (keep 7), logs (30 days), `tools\` (ffmpeg,
+  downloaded on first run; see docs/stack/ffmpeg.md), and `cache\` (each picture's thumbnail and
+  screen-sized view, made again when gone).
+- Export: one zip (the database, settings, the library's folders, every picture with what Mado
+  read of it as CSV, and a manifest), growing with the schema.
 - Records damaged past use: as the engine starts, Mado says so and offers the newest backup that
   opens (with none, new records, as on its first day), keeping the damaged file beside them as it
   is, never deleting it.

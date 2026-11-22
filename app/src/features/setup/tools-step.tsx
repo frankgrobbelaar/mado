@@ -1,26 +1,14 @@
 import { Check } from "lucide-react";
-import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
-import { type Tool, useDownloadTool, useSaveSettings, useSettings, useTools } from "@/lib/engine";
+import { type Tool, useDownloadTool, useTools } from "@/lib/engine";
 import { Footer, Panel } from "./parts";
 
-/** The tools Mado fetches once, checked against the list it ships with; then setup is done. */
-export function ToolsStep() {
+/** The tools Mado fetches once, checked against the list it ships with; then the folders. */
+export function ToolsStep({ onNext }: { onNext: () => void }) {
   const tools = useTools();
-  const stored = useSettings();
-  const save = useSaveSettings();
-  const navigate = useNavigate();
   // What's fetched the first time it's asked for comes then, not now.
   const needed = tools.data?.filter((tool) => tool.when === "setup");
   const ready = needed?.every((tool) => tool.state === "ready") ?? false;
-
-  function finish() {
-    if (!stored.data) return;
-    save.mutate(
-      { path: "/settings", body: { ...stored.data, setUp: true } },
-      { onSuccess: () => void navigate("/", { replace: true }) },
-    );
-  }
 
   return (
     <Panel
@@ -35,14 +23,9 @@ export function ToolsStep() {
           </li>
         ))}
       </ul>
-      {save.isError && (
-        <p role="alert" className="text-13 text-broken-fg">
-          Setup couldn't finish: {save.error.message}
-        </p>
-      )}
       <Footer note="The installer's first page lists everything Mado downloads.">
-        <Button variant="primary" disabled={!ready || save.isPending} onClick={finish}>
-          Finish
+        <Button variant="primary" disabled={!ready} onClick={onNext}>
+          Next: your folders
         </Button>
       </Footer>
     </Panel>

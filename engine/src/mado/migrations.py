@@ -16,4 +16,51 @@ MIGRATIONS: Final[tuple[str, ...]] = (
         value TEXT NOT NULL  -- JSON
     ) STRICT;
     """,
+    # 2. The library: the folders the owner added, every picture found in them with what Mado
+    # read of it, and the scans that keep it current.
+    """
+    CREATE TABLE folders (
+        id        INTEGER PRIMARY KEY,
+        path      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        added_at  TEXT NOT NULL,
+        walked_at TEXT  -- when a scan last looked all through it; NULL until one has
+    ) STRICT;
+
+    CREATE TABLE pictures (
+        id          INTEGER PRIMARY KEY,
+        folder_id   INTEGER NOT NULL REFERENCES folders (id) ON DELETE CASCADE,
+        path        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        dir         TEXT NOT NULL,     -- the folders between its library folder and it: "2026/Trip"
+        name        TEXT NOT NULL,     -- the file's name
+        size        INTEGER NOT NULL,  -- bytes
+        modified    INTEGER NOT NULL,  -- nanoseconds since 1970, as Windows reports it
+        found_at    TEXT NOT NULL,
+        seen_at     TEXT NOT NULL,     -- the last scan that found it
+        gone_at     TEXT,              -- a later scan didn't find it
+        read_at     TEXT,              -- when Mado read it; NULL while it's still to read
+        problem     TEXT,              -- why it won't open, in words
+        raw         INTEGER NOT NULL DEFAULT 0 CHECK (raw IN (0, 1)),  -- camera RAW: not read yet
+        format      TEXT,              -- "JPEG", "HEIC"…; a RAW file's own ("CR3")
+        width       INTEGER,           -- as it's shown, turned the way its orientation says
+        height      INTEGER,
+        taken_at    TEXT NOT NULL,     -- local time, by the camera's clock, else the file's time
+        taken_from  TEXT NOT NULL CHECK (taken_from IN ('camera', 'file')),
+        camera      TEXT,
+        orientation INTEGER,           -- EXIF's 1 to 8
+        located     INTEGER NOT NULL DEFAULT 0 CHECK (located IN (0, 1))  -- it carries a place
+    ) STRICT;
+    CREATE INDEX pictures_by_taken ON pictures (taken_at, id);
+    CREATE INDEX pictures_by_folder ON pictures (folder_id, taken_at, id);
+
+    CREATE TABLE scans (
+        id          INTEGER PRIMARY KEY,
+        started_at  TEXT NOT NULL,
+        finished_at TEXT,
+        state       TEXT NOT NULL CHECK (state IN ('running', 'done', 'failed')),
+        stage       TEXT NOT NULL CHECK (stage IN ('finding', 'reading', 'done')),
+        problem     TEXT,
+        added       INTEGER,  -- pictures it found that weren't there before
+        gone        INTEGER   -- pictures it found gone
+    ) STRICT;
+    """,
 )

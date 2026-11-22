@@ -4,6 +4,8 @@ import { ScreenError } from "@/components/screen-error";
 import { AppShell } from "@/components/shell/app-shell";
 import { UpdateCard } from "@/components/shell/update-card";
 import { HomePage } from "@/features/home/home-page";
+import { LibraryPage } from "@/features/library/library-page";
+import { PicturePage } from "@/features/picture/picture-page";
 import { SettingsPage } from "@/features/settings/settings-page";
 import { SetupPage } from "@/features/setup/setup-page";
 import { EngineProvider } from "@/lib/engine";
@@ -26,6 +28,8 @@ export function App() {
             />
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
+              <Route path="/library" element={<LibraryPage />} />
+              <Route path="/library/pictures/:id" element={<PicturePage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/:section" element={<SettingsPage />} />
             </Route>

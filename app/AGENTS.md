@@ -6,10 +6,12 @@ and [../CLAUDE.md](../CLAUDE.md).
 
 ## Where it stands
 
-The UI is the window's frame and its infrastructure, ready for Mado's screens: the title bar and
-the nav rail (Home and Settings), Setup's Tools step, Home saying honestly that Mado is being
-built, Settings (General, Your data, Updates, About), the update card, the notes at the window's
-foot, and the way back from damaged records. Mado's own screens come from its design canvas.
+The window's frame (the title bar, the nav rail with Home, the Library and Settings, the status
+bar), Setup (Tools, then Your folders), Home (the library in numbers, Add a folder), the Library
+(the folders as a tree, the pictures by the day they were taken, ticks), a picture's page (the
+picture large at Fit, 100% or 400%, its neighbours, the tools column still to come), Settings
+(General, Your data, Updates, About), the update card, the notes at the window's foot, and the way
+back from damaged records. Mado's own screens come from its design canvas.
 
 ## Build to the design
 
@@ -62,6 +64,12 @@ foot, and the way back from damaged records. Mado's own screens come from its de
   (`export const useTools = () => useEngineQuery<Tool[]>("/tools")`), with its type mirroring
   `engine/openapi.json`. Changes use `useEngineAction` and refresh the queries they affect.
 - No `fetch` or `invoke` outside `src/lib/`.
+- Pictures the engine serves (thumbnails, views, a picture at full size) come through
+  `usePictureImage(pictureAddress(picture, "thumbnail"))`: fetched with the token and shown as an
+  object URL, let go when the address goes null. A long grid fetches thumbnails only as they near
+  the view (`features/library/near.ts`).
+- A list's place (its folder, search and order) lives in its address (`shownFrom`,
+  `shownQuery`), so a picture opened from it, its neighbours and Back keep it.
 - Local state stays in components. Add a global store only when two distant screens truly share
   client-side state.
 

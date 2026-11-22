@@ -1,5 +1,7 @@
 """Export: everything Mado knows, in one zip you can open without Mado."""
 
+import csv
+import io
 import json
 import sqlite3
 import tempfile
@@ -14,7 +16,8 @@ from mado.config import DataPaths
 
 def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> Path | None:
     """Write `Mado export <date>.zip` into `folder` and return its path: the database, its
-    settings as JSON and a manifest saying which Mado wrote it.
+    settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
+    each), and a manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -34,6 +37,8 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             source.backup(copy)
             copy.execute("PRAGMA journal_mode = DELETE")  # one self-contained file
             settings = _settings(source)
+            library_folders = _folders(source)
+            pictures = _pictures(source)
             schema_version = db.schema_version(source)
 
         manifest = {
@@ -45,6 +50,8 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
         with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.write(snapshot, "mado.db")
             archive.writestr("settings.json", json.dumps(settings, indent=2))
+            archive.writestr("folders.json", json.dumps(library_folders, indent=2))
+            archive.writestr("pictures.csv", pictures)
             archive.writestr("manifest.json", json.dumps(manifest, indent=2))
     return target
 
@@ -54,6 +61,52 @@ def _settings(conn: sqlite3.Connection) -> dict[str, object]:
         return {}
     rows = conn.execute("SELECT key, value FROM settings ORDER BY key")
     return {row["key"]: json.loads(row["value"]) for row in rows}
+
+
+def _folders(conn: sqlite3.Connection) -> list[dict[str, str]]:
+    """The library's folders, in the order they were added."""
+    if not _has_table(conn, "folders"):
+        return []
+    rows = conn.execute("SELECT path, added_at FROM folders ORDER BY id")
+    return [{"path": row["path"], "addedAt": row["added_at"]} for row in rows]
+
+
+_PICTURE_COLUMNS = (
+    "path", "format", "width", "height", "size", "takenAt", "takenFrom", "camera", "located",
+    "state",
+)  # fmt: skip
+
+
+def _pictures(conn: sqlite3.Connection) -> str:
+    """Every picture in the library, with what Mado read of it, as CSV a spreadsheet opens."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(_PICTURE_COLUMNS)
+    if _has_table(conn, "pictures"):
+        for row in conn.execute("SELECT * FROM pictures WHERE gone_at IS NULL ORDER BY path"):
+            writer.writerow(
+                (
+                    row["path"],
+                    row["format"] or "",
+                    row["width"] or "",
+                    row["height"] or "",
+                    row["size"],
+                    row["taken_at"],
+                    row["taken_from"],
+                    row["camera"] or "",
+                    "yes" if row["located"] else "no",
+                    _state(row),
+                )
+            )
+    return out.getvalue()
+
+
+def _state(row: sqlite3.Row) -> str:
+    if row["raw"]:
+        return "camera RAW, not read yet"
+    if row["problem"]:
+        return f"won't open: {row['problem']}"
+    return "read" if row["read_at"] else "still to read"
 
 
 def _has_table(conn: sqlite3.Connection, name: str) -> bool:

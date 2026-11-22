@@ -1,4 +1,4 @@
-import { House, type LucideIcon, Settings } from "lucide-react";
+import { House, ImageIcon, type LucideIcon, Settings } from "lucide-react";
 
 export interface Section {
   path: string;
@@ -11,6 +11,7 @@ export interface Section {
 /** The places in Mado, in rail order. More join as Mado is built. */
 export const sections: Section[] = [
   { path: "/", label: "Home", icon: House },
+  { path: "/library", label: "Library", icon: ImageIcon },
   { path: "/settings", label: "Settings", icon: Settings, foot: true },
 ];
 

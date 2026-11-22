@@ -14,6 +14,12 @@ export function showInFolder(path: string) {
   return invoke<void>("show_in_folder", { path });
 }
 
+/** Shows several files in Explorer, selected in their folders (a window for each folder), such
+ * as the pictures ticked in the library. */
+export function showFiles(paths: string[]) {
+  return invoke<void>("show_files", { paths });
+}
+
 /** Runs an Explorer action and keeps why it failed, as the shell words it, to show. */
 export function useExplorer() {
   const [problem, setProblem] = useState<string | null>(null);

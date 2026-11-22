@@ -43,6 +43,7 @@ fn main() {
             dialogs::pick_export,
             explorer::open_folder,
             explorer::show_in_folder,
+            explorer::show_files,
             tray::start_with_windows,
             tray::set_start_with_windows,
             tray::keep_in_tray,

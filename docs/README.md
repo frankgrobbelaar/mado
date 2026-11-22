@@ -38,7 +38,9 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | FastAPI, Uvicorn, Pydantic | 0.165, 0.54, 2.14 | The engine's local API | [fastapi.md](stack/fastapi.md) |
 | Typer | 0.29 | The engine's command line | [fastapi.md](stack/fastapi.md) |
 | SQLite | bundled with Python | Mado's one database file | [sqlite.md](stack/sqlite.md) |
-| ffmpeg | 9.0.2 (downloaded on first run) | Picture and video formats for Mado's tools to come | [ffmpeg.md](stack/ffmpeg.md) |
+| Pillow | 13.0 | Reading pictures: their facts and EXIF, and the copies the window shows | [pillow.md](stack/pillow.md) |
+| watchdog | 7.1 | Noticing new, changed and removed pictures in the library's folders | [watchdog.md](stack/watchdog.md) |
+| ffmpeg | 9.0.2 (downloaded on first run) | Decoding a phone's HEIC; more formats for Mado's tools to come | [ffmpeg.md](stack/ffmpeg.md) |
 | PyInstaller | 6.22 | Bundles the engine with its own Python | [pyinstaller.md](stack/pyinstaller.md) |
 | Vitest, Testing Library, pytest | 5.1, 16.3, 9.2 | Tests | [testing.md](stack/testing.md) |
 | GitHub Actions | | CI and releases | [github-actions.md](stack/github-actions.md) |

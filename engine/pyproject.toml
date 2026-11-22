@@ -6,8 +6,10 @@ requires-python = ">=3.14"
 license = "MIT"
 dependencies = [
     "fastapi>=0.165.0",
+    "pillow>=13.0.0",
     "typer>=0.29.2",
     "uvicorn>=0.54.0",
+    "watchdog>=7.1.1",
 ]
 
 [project.scripts]
@@ -51,8 +53,9 @@ select = [
     "PT",      # pytest style
     "RUF",     # ruff's own rules
 ]
-# Ranges are written with an en dash, as in "03:00–07:00", on purpose.
-allowed-confusables = ["–"]
+# Ranges are written with an en dash, as in "03:00–07:00", and sizes with a multiplication
+# sign, as in "4032 × 3024", on purpose.
+allowed-confusables = ["–", "×"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "S603"]  # asserts, test tokens, starting the engine

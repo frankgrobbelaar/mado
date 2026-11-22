@@ -50,6 +50,7 @@ ALLOWED = frozenset(
         "ISC",
         "MIT",
         "MIT-0",
+        "MIT-CMU",  # Pillow's: MIT's terms, as Carnegie Mellon wrote them
         "MPL-2.0",
         "OFL-1.1",
         "PSF-2.0",

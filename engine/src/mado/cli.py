@@ -52,8 +52,9 @@ def serve(
     sock = socket.socket()
     sock.bind(("127.0.0.1", port))
     sock.listen()  # early requests wait in the queue until the server is up
-    # While it runs, the engine looks after Mado in the background (tonight's backup).
-    app = create_app(token, paths, work=True, notify=events.notify)
+    # While it runs, the engine looks after Mado in the background (tonight's backup) and keeps
+    # the library current.
+    app = create_app(token, paths, work=True, watch=True, notify=events.notify)
     # A stop waits this long for open answers to end, then ends them, so Mado's care stops
     # cleanly before the app's patience runs out.
     config = uvicorn.Config(app, log_config=None, access_log=False, timeout_graceful_shutdown=2)

@@ -1,5 +1,15 @@
 import { vi } from "vitest";
-import type { Backups, DataSizes, EngineStatus, Settings } from "@/lib/engine";
+import type {
+  Backups,
+  DataSizes,
+  EngineStatus,
+  Library,
+  LibraryFolder,
+  PictureItem,
+  PicturePage,
+  Scan,
+  Settings,
+} from "@/lib/engine";
 
 /** The engine as tests see it: ready, on a made-up address. */
 export const READY: EngineStatus = {
@@ -47,4 +57,148 @@ export function fakeEngine(answers: Record<string, Answer>) {
   });
   vi.stubGlobal("fetch", fetch);
   return fetch;
+}
+
+/** Three made-up library folders, as the boards draw them. */
+export const FOLDERS: LibraryFolder[] = [
+  {
+    id: 1,
+    path: "D:\\Pictures\\Phone",
+    name: "Phone",
+    addedAt: "2026-11-22T09:00:00+02:00",
+    available: true,
+    looked: true,
+    pictures: 3104,
+    reading: 0,
+    raw: 0,
+    broken: 0,
+    children: [
+      { name: "2026", dir: "2026", pictures: 1840, children: [] },
+      { name: "2025", dir: "2025", pictures: 1264, children: [] },
+    ],
+  },
+  {
+    id: 2,
+    path: "D:\\Pictures\\Camera",
+    name: "Camera",
+    addedAt: "2026-11-22T09:01:00+02:00",
+    available: true,
+    looked: true,
+    pictures: 1422,
+    reading: 0,
+    raw: 318,
+    broken: 0,
+    children: [{ name: "Trip", dir: "Trip", pictures: 400, children: [] }],
+  },
+  {
+    id: 3,
+    path: "E:\\Scans",
+    name: "Scans",
+    addedAt: "2026-11-22T09:02:00+02:00",
+    available: true,
+    looked: true,
+    pictures: 286,
+    reading: 0,
+    raw: 0,
+    broken: 9,
+    children: [],
+  },
+];
+
+export const LIBRARY: Library = {
+  folders: 3,
+  pictures: 4812,
+  size: 38_200_000_000,
+  reading: 0,
+  raw: 318,
+  broken: 9,
+  parts: [
+    { folderId: 1, name: "Phone", pictures: 3104 },
+    { folderId: 2, name: "Camera", pictures: 1422 },
+    { folderId: 3, name: "Scans", pictures: 286 },
+  ],
+};
+
+/** A scan that finished today at 09:14, having found six new pictures. */
+export function scanDone(overrides: Partial<Scan> = {}): Scan {
+  const today = new Date();
+  today.setHours(9, 14, 0, 0);
+  return {
+    state: "done",
+    stage: "done",
+    startedAt: today.toISOString(),
+    finishedAt: today.toISOString(),
+    found: 4812,
+    toRead: 6,
+    read: 6,
+    current: null,
+    secondsLeft: null,
+    unavailable: [],
+    problem: null,
+    added: 6,
+    gone: 0,
+    ...overrides,
+  };
+}
+
+/** A made-up picture in the grid. */
+export function picture(
+  id: number,
+  name: string,
+  takenAt: string,
+  overrides: Partial<PictureItem> = {},
+): PictureItem {
+  return {
+    id,
+    name,
+    path: `D:\\Pictures\\Phone\\${name}`,
+    format: name.toUpperCase().endsWith(".HEIC") ? "HEIC" : "JPEG",
+    state: "ready",
+    width: 4032,
+    height: 3024,
+    size: 3_100_000,
+    takenAt,
+    version: `v${id}`,
+    ...overrides,
+  };
+}
+
+/** Three days of made-up pictures, newest first. */
+export const PICTURES: PictureItem[] = [
+  picture(11, "Harbour at dusk.heic", "2026-11-14T18:42:07"),
+  picture(12, "Little sail.jpg", "2026-11-14T16:05:00"),
+  picture(13, "Spring meadow.heic", "2026-11-14T11:31:00"),
+  picture(21, "Snowfield.jpg", "2026-11-13T10:02:00"),
+  picture(22, "Red canyon.jpg", "2026-11-13T12:30:00", {
+    path: "D:\\Pictures\\Camera\\Red canyon.jpg",
+  }),
+  picture(31, "Green sky.CR3", "2026-11-11T23:51:00", {
+    format: "CR3",
+    state: "raw",
+    width: null,
+    height: null,
+  }),
+  picture(32, "Old pier.tif", "2026-11-11T13:22:00", {
+    format: "TIF",
+    state: "broken",
+    width: null,
+    height: null,
+  }),
+];
+
+/** One page holding `pictures`, its days counted from them. */
+export function page(
+  pictures: PictureItem[],
+  next: string | null = null,
+  total?: number,
+): PicturePage {
+  const days = new Map<string, number>();
+  for (const each of pictures)
+    days.set(each.takenAt.slice(0, 10), (days.get(each.takenAt.slice(0, 10)) ?? 0) + 1);
+  return {
+    pictures,
+    days: [...days].map(([day, count]) => ({ day, pictures: count })),
+    total: total ?? pictures.length,
+    next,
+  };
 }

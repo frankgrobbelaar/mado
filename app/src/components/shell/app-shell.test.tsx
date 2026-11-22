@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EngineProvider } from "@/lib/engine";
-import { fakeEngine, READY } from "@/test/engine";
+import { fakeEngine, LIBRARY, READY, scanDone } from "@/test/engine";
 import { AppShell } from "./app-shell";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -57,5 +57,33 @@ describe("AppShell", () => {
     // thin strip.
     expect(page).toHaveClass("*:shrink-0");
     expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument();
+  });
+
+  it("says at the window's foot what Mado is doing with the library", async () => {
+    shell.invoke.mockImplementation(async (command: string) =>
+      command === "engine_status" ? READY : undefined,
+    );
+    fakeEngine({
+      "/records": () => Response.json(null),
+      "/library": LIBRARY,
+      "/scan": scanDone(),
+    });
+    renderShell();
+
+    expect(await screen.findByText("Watching 3 folders")).toBeInTheDocument();
+  });
+
+  it("says how far a scan has read at the window's foot while it reads", async () => {
+    shell.invoke.mockImplementation(async (command: string) =>
+      command === "engine_status" ? READY : undefined,
+    );
+    fakeEngine({
+      "/records": () => Response.json(null),
+      "/library": LIBRARY,
+      "/scan": scanDone({ state: "running", stage: "reading", read: 212, toRead: 4812 }),
+    });
+    renderShell();
+
+    expect(await screen.findByText("Reading 212 of 4,812")).toBeInTheDocument();
   });
 });

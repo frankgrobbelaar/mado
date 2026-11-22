@@ -44,8 +44,22 @@ tables, give every table a primary key, and add the new data to the export.
 | Table | Since | Holds |
 | --- | --- | --- |
 | `settings` | 1 | The owner's choices (so far whether Setup is done), and what the engine notes for itself (how the last restore went), one JSON value per key |
+| `folders` | 2 | The library's folders: each one's path (unique, in any case), when it was added, and when a scan last looked all through it |
+| `pictures` | 2 | Every picture found in them: its path, the folders between its library folder and it (`dir`, as "2026/Trip"), its name, size and file time; when it was found, last seen and found gone; and what reading it found: format, size as shown, when it was taken (local time, and whether by the camera's clock or the file's), camera, orientation, whether it carries a location, or why it won't open. Camera RAW is kept as `raw`, read as it's found |
+| `scans` | 2 | Each scan: when it started and finished, how it went (`running`, `done`, `failed`), its stage (`finding`, `reading`, `done`), why it stopped, and the pictures it found new and gone |
 
 Each of Mado's tools adds its tables as it's built.
+
+### How the library uses them
+
+- A picture is in the grid once it's read (`read_at`), camera RAW and pictures that won't open
+  included; one still to read waits. Pictures found gone (`gone_at`) stay in the records, so one
+  on a drive that comes back is the same picture again.
+- The grid pages by `(taken_at, id)` (`pictures_by_taken`, and `pictures_by_folder` for a folder),
+  so its pages stay put however many pictures there are.
+- A folder's pictures and those of the folders inside it are those whose `dir` is its own, or
+  starts with it and a "/".
+- A file whose size or time changes is read again, its facts and its copies made anew.
 
 ## Backups and export
 

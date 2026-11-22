@@ -24,6 +24,20 @@ pub fn show_in_folder(app: AppHandle, path: String) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+/// Shows several files in Explorer, selected in their folders (a window for each folder), such
+/// as the pictures ticked in the library. Every one must be there.
+#[tauri::command]
+pub fn show_files(app: AppHandle, paths: Vec<String>) -> Result<(), String> {
+    let files = all_existing(&paths)?;
+    app.opener()
+        .reveal_items_in_dir(files)
+        .map_err(|error| error.to_string())
+}
+
+fn all_existing(paths: &[String]) -> Result<Vec<&str>, String> {
+    paths.iter().map(|path| existing(path)).collect()
+}
+
 fn existing_folder(path: &str) -> Result<&str, String> {
     if Path::new(path).is_dir() {
         Ok(path)
@@ -46,7 +60,7 @@ fn existing(path: &str) -> Result<&str, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{existing, existing_folder};
+    use super::{all_existing, existing, existing_folder};
 
     #[test]
     fn only_a_folder_that_is_there_is_opened() {
@@ -55,6 +69,18 @@ mod tests {
         assert_eq!(existing_folder(here), Ok(here));
         assert!(existing_folder(file).is_err()); // a file would be run, not shown
         assert!(existing_folder("Z:/nowhere/at/all").is_err());
+    }
+
+    #[test]
+    fn several_files_are_shown_only_while_every_one_is_there() {
+        let file = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml").to_string();
+        let build = concat!(env!("CARGO_MANIFEST_DIR"), "/build.rs").to_string();
+        let gone = "Z:/nowhere/IMG_2041.jpg".to_string();
+        assert_eq!(
+            all_existing(&[file.clone(), build.clone()]),
+            Ok(vec![file.as_str(), build.as_str()])
+        );
+        assert!(all_existing(&[file, gone]).is_err());
     }
 
     #[test]

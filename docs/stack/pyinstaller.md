@@ -2,7 +2,7 @@
 
 The installed Mado can't assume Python is on the PC, so [PyInstaller](https://pyinstaller.org)
 bundles the engine with its own Python into a folder: `mado-engine.exe` plus `_internal/` (the
-interpreter, the packages, about 35 MB, 60 files). The installer copies that folder next to
+interpreter and the packages, about 50 MB, Pillow's decoders the largest part). The installer copies that folder next to
 Mado's window as `engine\`.
 
 A folder ("onedir") rather than a single exe because a single exe unpacks itself into a temporary
@@ -29,8 +29,9 @@ dist\mado-engine\mado-engine.exe version
 
 - `Analysis` starts at `__main__.py` and follows imports; `pathex=["src"]` finds the package.
 - `copy_metadata("mado")` includes the package's metadata, which `mado.__version__` reads.
-- Packages that load modules by name (Uvicorn) are covered by the hooks in
-  `pyinstaller-hooks-contrib`, which comes with PyInstaller.
+- Packages that load modules by name (Uvicorn, and Pillow's format plugins) are covered by the
+  hooks in `pyinstaller-hooks-contrib`, which comes with PyInstaller. watchdog needs nothing. A
+  library of every format Mado reads was scanned with the bundled engine to check it.
 - `console=True`: the engine is a console program (the uninstaller and the CLI read its output);
   the shell starts it with no console window.
 - UPX compression is off: it saves little and causes antivirus false alarms.

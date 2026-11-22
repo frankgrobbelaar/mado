@@ -166,6 +166,597 @@
         ]
       }
     },
+    "/folders": {
+      "get": {
+        "summary": "List Folders",
+        "description": "The library's folders, in the order they were added, each with the folders inside it.",
+        "operationId": "list_folders_folders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LibraryFolder"
+                  },
+                  "type": "array",
+                  "title": "Response List Folders Folders Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "New Folder",
+        "description": "Adds a folder to the library, reads it and watches it. Nothing in it changes.",
+        "operationId": "new_folder_folders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewFolder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryFolder"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/folders/{folder_id}": {
+      "delete": {
+        "summary": "Forget Folder",
+        "description": "Takes a folder out of the library, with Mado's copies of its pictures. The pictures\nthemselves stay exactly where they are.",
+        "operationId": "forget_folder_folders__folder_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/library": {
+      "get": {
+        "summary": "Library",
+        "description": "The library in numbers, for Home.",
+        "operationId": "library_library_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Library"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/scan": {
+      "get": {
+        "summary": "Scan",
+        "operationId": "scan_scan_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scan"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/pictures": {
+      "get": {
+        "summary": "Pictures",
+        "description": "A page of the pictures, by the day they were taken: newest first, or oldest. `after` is\nwhere the page before ended.",
+        "operationId": "pictures_pictures_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dir"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "newest",
+                "oldest"
+              ],
+              "type": "string",
+              "default": "newest",
+              "title": "Order"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PicturePage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}": {
+      "get": {
+        "summary": "Picture",
+        "description": "One picture, with everything Mado read of it.",
+        "operationId": "picture_pictures__picture_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PictureDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/neighbours": {
+      "get": {
+        "summary": "Neighbours",
+        "description": "The pictures either side of one, in the list it was opened from.",
+        "operationId": "neighbours_pictures__picture_id__neighbours_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 8,
+              "title": "Count"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dir"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "newest",
+                "oldest"
+              ],
+              "type": "string",
+              "default": "newest",
+              "title": "Order"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Neighbours"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/thumbnail": {
+      "get": {
+        "summary": "Thumbnail",
+        "description": "Its thumbnail, about 512 pixels on its longer side (WebP).",
+        "operationId": "thumbnail_pictures__picture_id__thumbnail_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/view": {
+      "get": {
+        "summary": "View",
+        "description": "It the size of a screen, at most 2560 pixels on its longer side (WebP).",
+        "operationId": "view_pictures__picture_id__view_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/full": {
+      "get": {
+        "summary": "Full",
+        "description": "It at full size: the picture itself when the window can show its format, else a copy it\ncan (PNG).",
+        "operationId": "full_pictures__picture_id__full_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/read": {
+      "post": {
+        "summary": "Read Again",
+        "description": "Reads one picture again now (one that wouldn't open may have been mended since).",
+        "operationId": "read_again_pictures__picture_id__read_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PictureDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/data": {
       "get": {
         "summary": "Your Data",
@@ -569,6 +1160,24 @@
         ],
         "title": "DataSizes"
       },
+      "DayCount": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "title": "Day"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "pictures"
+        ],
+        "title": "DayCount"
+      },
       "ExportRequest": {
         "properties": {
           "folder": {
@@ -599,6 +1208,38 @@
           "size"
         ],
         "title": "Exported"
+      },
+      "FolderNode": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "dir": {
+            "type": "string",
+            "title": "Dir"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/FolderNode"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "dir",
+          "pictures",
+          "children"
+        ],
+        "title": "FolderNode",
+        "description": "A folder inside a library folder."
       },
       "HTTPValidationError": {
         "properties": {
@@ -655,6 +1296,454 @@
         ],
         "title": "ImportRequest"
       },
+      "Library": {
+        "properties": {
+          "folders": {
+            "type": "integer",
+            "title": "Folders"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "reading": {
+            "type": "integer",
+            "title": "Reading"
+          },
+          "raw": {
+            "type": "integer",
+            "title": "Raw"
+          },
+          "broken": {
+            "type": "integer",
+            "title": "Broken"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryPart"
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folders",
+          "pictures",
+          "size",
+          "reading",
+          "raw",
+          "broken",
+          "parts"
+        ],
+        "title": "Library",
+        "description": "The whole library in numbers, for Home."
+      },
+      "LibraryFolder": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "addedAt": {
+            "type": "string",
+            "title": "Addedat"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "looked": {
+            "type": "boolean",
+            "title": "Looked"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          },
+          "reading": {
+            "type": "integer",
+            "title": "Reading"
+          },
+          "raw": {
+            "type": "integer",
+            "title": "Raw"
+          },
+          "broken": {
+            "type": "integer",
+            "title": "Broken"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/FolderNode"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "name",
+          "addedAt",
+          "available",
+          "looked",
+          "pictures",
+          "reading",
+          "raw",
+          "broken",
+          "children"
+        ],
+        "title": "LibraryFolder"
+      },
+      "LibraryPart": {
+        "properties": {
+          "folderId": {
+            "type": "integer",
+            "title": "Folderid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folderId",
+          "name",
+          "pictures"
+        ],
+        "title": "LibraryPart"
+      },
+      "Neighbours": {
+        "properties": {
+          "before": {
+            "items": {
+              "$ref": "#/components/schemas/PictureItem"
+            },
+            "type": "array",
+            "title": "Before"
+          },
+          "after": {
+            "items": {
+              "$ref": "#/components/schemas/PictureItem"
+            },
+            "type": "array",
+            "title": "After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "title": "Neighbours"
+      },
+      "NewFolder": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "NewFolder"
+      },
+      "PictureDetails": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PictureState"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "takenAt": {
+            "type": "string",
+            "title": "Takenat"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "folderId": {
+            "type": "integer",
+            "title": "Folderid"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "dir": {
+            "type": "string",
+            "title": "Dir"
+          },
+          "modifiedAt": {
+            "type": "string",
+            "title": "Modifiedat"
+          },
+          "takenFrom": {
+            "type": "string",
+            "enum": [
+              "camera",
+              "file"
+            ],
+            "title": "Takenfrom"
+          },
+          "camera": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Camera"
+          },
+          "orientation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orientation"
+          },
+          "located": {
+            "type": "boolean",
+            "title": "Located"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "format",
+          "state",
+          "width",
+          "height",
+          "size",
+          "takenAt",
+          "version",
+          "folderId",
+          "folder",
+          "dir",
+          "modifiedAt",
+          "takenFrom",
+          "camera",
+          "orientation",
+          "located",
+          "problem"
+        ],
+        "title": "PictureDetails"
+      },
+      "PictureItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PictureState"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "takenAt": {
+            "type": "string",
+            "title": "Takenat"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "format",
+          "state",
+          "width",
+          "height",
+          "size",
+          "takenAt",
+          "version"
+        ],
+        "title": "PictureItem"
+      },
+      "PicturePage": {
+        "properties": {
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/PictureItem"
+            },
+            "type": "array",
+            "title": "Pictures"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayCount"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pictures",
+          "days",
+          "total",
+          "next"
+        ],
+        "title": "PicturePage"
+      },
+      "PictureState": {
+        "type": "string",
+        "enum": [
+          "ready",
+          "raw",
+          "broken"
+        ]
+      },
       "Restored": {
         "properties": {
           "name": {
@@ -685,6 +1774,136 @@
         ],
         "title": "Restored"
       },
+      "Scan": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/mado__scan__State"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Stage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "found": {
+            "type": "integer",
+            "title": "Found"
+          },
+          "toRead": {
+            "type": "integer",
+            "title": "Toread"
+          },
+          "read": {
+            "type": "integer",
+            "title": "Read"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "secondsLeft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondsleft"
+          },
+          "unavailable": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unavailable"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "added": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added"
+          },
+          "gone": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "stage",
+          "startedAt",
+          "finishedAt",
+          "found",
+          "toRead",
+          "read",
+          "current",
+          "secondsLeft",
+          "unavailable",
+          "problem",
+          "added",
+          "gone"
+        ],
+        "title": "Scan"
+      },
       "Settings": {
         "properties": {
           "setUp": {
@@ -696,14 +1915,12 @@
         "type": "object",
         "title": "Settings"
       },
-      "State": {
+      "Stage": {
         "type": "string",
         "enum": [
-          "missing",
-          "downloading",
-          "unpacking",
-          "ready",
-          "failed"
+          "finding",
+          "reading",
+          "done"
         ]
       },
       "Tool": {
@@ -741,7 +1958,7 @@
             "title": "When"
           },
           "state": {
-            "$ref": "#/components/schemas/State"
+            "$ref": "#/components/schemas/mado__tools__State"
           },
           "done": {
             "type": "integer",
@@ -813,6 +2030,26 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "mado__scan__State": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "running",
+          "done",
+          "failed",
+          "stopped"
+        ]
+      },
+      "mado__tools__State": {
+        "type": "string",
+        "enum": [
+          "missing",
+          "downloading",
+          "unpacking",
+          "ready",
+          "failed"
+        ]
       }
     },
     "securitySchemes": {
