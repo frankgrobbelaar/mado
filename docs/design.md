@@ -3,10 +3,11 @@
 How Mado looks and behaves. The look is **Graphite**, the owner's pick of three on the
 [Mado Looks canvas](https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv): a mid-grey bench, dense
 panels, the slim icon rail on the side, one volt accent, and IBM Plex Sans and Mono; its light is
-Aluminium. Every screen is being drawn in it on the Mado Screens canvas, the source of truth to
-build to, with snapshots you can open locally in [design/](design/README.md). Until it's done the
-app wears Kura's Cinema tokens as a stand-in (the stack pages that say "Cinema" mean those
-tokens). Never change the look unasked.
+Aluminium. Every screen is drawn in it on the
+[Mado Screens canvas](https://claude.ai/artifact/TJcDDQ5XmVTNPMvRdE3Jfb), the source of truth to
+build to, with its Tokens board and snapshots you can open locally in [design/](design/README.md).
+Until its tokens are in `tokens.css` the app wears Kura's Cinema tokens as a stand-in (the stack
+pages that say "Cinema" mean those tokens). Never change the look unasked.
 
 The mark is a round window lit in volt with a hill seen through it, on a graphite tile
 ([app/src-tauri/icons/mado.svg](../app/src-tauri/icons/mado.svg)). It keeps its colours in light

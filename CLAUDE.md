@@ -12,8 +12,8 @@ anime library) and Maku (TV series and films), and stands on their foundations.
 foundations: CI, the installer, the updater and the downloads page; the window with its engine and
 token, Setup fetching ffmpeg, Settings (light or dark, Start with Windows, updates, nightly backups
 and restoring one, the export), and records damaged past use. Nothing of the pictures yet. The
-look is Graphite, the owner's pick, with Mado's own mark; its screens are being drawn on the Mado
-Screens canvas, then built, by [What's next](#whats-next).
+look is Graphite, the owner's pick, with Mado's own mark, and every screen is drawn on the Mado
+Screens canvas; next, its tokens in the app, then [What's next](#whats-next).
 
 ## Ground rules
 
@@ -202,8 +202,12 @@ Everything decided so far. Don't ask again; change only with the owner.
   graphite tile: `app/src-tauri/icons/mado.svg`, the app's icons, `components/mado-logo.tsx`, the
   downloads page and the README. It keeps its colours in light and dark. Not four panes: a window
   of four squares is too near Microsoft's Windows logo.
-- Every screen is drawn on the Mado Screens canvas (Graphite and Aluminium, being drawn), the source
-  of truth to build to; then Graphite's tokens replace Kura's Cinema stand-in in `tokens.css`.
+- Every screen is drawn on the [Mado Screens](https://claude.ai/artifact/TJcDDQ5XmVTNPMvRdE3Jfb)
+  canvas (2026-11-22; snapshots in `docs/design/screens*`), the source of truth to build to: 20
+  boards in Graphite, Home, the Library, A picture · Size and Settings › General again in
+  Aluminium, and a Tokens board with every colour role in both (Aluminium: window #D3D4D7, panels
+  #E4E5E8, text #1A1B1E, the accent #4C7500 with white on it). Settings sits at the rail's foot.
+  Graphite's tokens replace Kura's Cinema stand-in in `tokens.css` from it.
 - Kura's rules carry over: motion that explains (120 ms hover and press, 200 ms toggles, 320 ms
   panels, one curve `cubic-bezier(.2,.8,.2,1)`, none when Windows' animation effects are off),
   status by shape first, light and dark designed together (as Windows is, or chosen in Settings ›
@@ -276,8 +280,8 @@ Everything decided so far. Don't ask again; change only with the owner.
 
 ## What's next
 
-1. The look: Graphite (picked) and the mark (made); every screen drawn on the Mado Screens canvas
-   (as Kura Workflows was), then Graphite's tokens and IBM Plex in the app.
+1. The look: Graphite (picked), the mark (made) and every screen on the Mado Screens canvas
+   (drawn); next, Graphite's and Aluminium's tokens and IBM Plex in the app.
 2. Mado 1.0: libraries from folders (every picture read, a grid by date or by folder, the folders
    watched, duplicates and bursts found); the upscaler done properly, with sizes for every device's
    screen; looks, finishing touches and the owner's own, on the whole picture or a part; click to

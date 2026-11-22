@@ -14,6 +14,7 @@ import vm from "node:vm";
 // Mado's canvases by name, each added here as it's drawn.
 const CANVASES = {
   looks: "https://claude.ai/artifact/3te6hjNWp42cxk5EXcsDXv",
+  screens: "https://claude.ai/artifact/TJcDDQ5XmVTNPMvRdE3Jfb",
 };
 const out = join(dirname(fileURLToPath(import.meta.url)), "..", "docs", "design");
 const today = new Date().toISOString().slice(0, 10);
