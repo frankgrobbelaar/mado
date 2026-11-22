@@ -165,6 +165,12 @@ Everything decided so far. Don't ask again; change only with the owner.
   or overnight, the time and space worked out first, pause, cancel all); recipes, a saved chain of
   steps ("4K, then Warm film at 60%, then JPEG into Edited") run on any batch or on every new
   picture in a watch folder. Saving asks the same: new pictures or replace the originals.
+- The README is a tour, as Kura's and Maku's are (the owner, 2026-11-22: "build the README really
+  nice as we have for the others"): the mark, a volt "Download for Windows" button (IBM Plex Sans
+  outlines, `docs/readme/download.svg`, "Coming soon" until the first release), six steps with
+  pictures, Safe by design, The AI inside, what a PC needs, the siblings. Its pictures
+  (`docs/readme/`) are the Mado Screens boards, drawn by code, framed in headless Edge and said to
+  be the design; they're retaken from the app as its screens are built.
 - Everything happens on the PC: nothing is uploaded, AI included. Mado works on pictures already
   on the PC and never searches for, downloads or shares pictures.
 - The AI models are small, on the allowed licences, measured on the owner's PC before one is

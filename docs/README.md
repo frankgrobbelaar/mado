@@ -11,7 +11,8 @@ Coding agents start at [AGENTS.md](../AGENTS.md); each area (`engine/`, `app/`, 
 | [conventions.md](conventions.md) | How we write code: Python, TypeScript, Rust, tests, commits |
 | [design.md](design.md) | UI and UX rules, Mado's look and its tokens, patterns |
 | [releasing.md](releasing.md) | Versions, the installer, updates, third-party notices, the signing key |
-| [design/](design/) | Every screen from the design canvas, as pages you can open |
+| [design/](design/) | Every screen from the design canvases, as pages you can open |
+| [readme/](readme/) | The README's pictures: the designed screens, every picture in them drawn by code |
 
 ## The stack
 
