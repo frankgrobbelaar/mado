@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.6.0 - 2026-11-23
+
 ### Added
 - Pictures from anywhere: one picture from outside your library opens on its own page, with Size,
   Looks, Edit and Save as for one in it. Where the library's breadcrumb would be, it shows the
