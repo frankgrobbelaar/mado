@@ -285,7 +285,11 @@ def test_a_model_that_cant_run_rests_reading_till_its_next_woken(
     app = made_app(paths, quarantine, describer=broken)
     headers = {"Authorization": f"Bearer {TOKEN}"}
     with TestClient(app, base_url="http://127.0.0.1", headers=headers) as client:
+        # Paused while the scan reads the folder: its end tries a reader that couldn't run once
+        # more, so a first try made while it read would be followed by a second.
+        assert client.post("/search/pause").status_code == 200
         add(client, library(tmp_path / "Phone", "red", "green", "blue"))
+        assert client.post("/search/resume").status_code == 200
         read_all(client)
 
         assert broken.pictures == 1  # not tried on every picture
