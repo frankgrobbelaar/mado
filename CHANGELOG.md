@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.9.0 - 2026-11-23
+
 ### Added
 - Search by describing a picture: the Library's search box finds pictures by what they show
   ("a red boat on the sea", "snowy mountain"), the closest first, as well as by their names. A
