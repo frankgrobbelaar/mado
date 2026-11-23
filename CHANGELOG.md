@@ -36,10 +36,10 @@ shows these notes when it offers the update.
 - The Library tags a picture kept from a group, as its board draws it: "burst of 5", "2 copies".
   A click opens the review at that group.
 - The small things: a file Mado can't read (it says the formats it reads), a path gone or a drive
-  not connected, a picture too big to paste (over 67 megapixels, all Windows' clipboard hands the window), pictures among other files (it
-  takes the pictures and says what it left out), a picture waiting in quarantine (opened to look
-  at only), camera RAW from outside (shown as the library shows it), and the same picture opened
-  twice (one page).
+  not connected, a picture too big to paste (over 67 megapixels, all Windows' clipboard hands the
+  window), pictures among other files (it takes the pictures and says what it left out), a picture
+  waiting in quarantine (opened to look at only), camera RAW from outside (shown as the library
+  shows it), and the same picture opened twice (one page).
 
 ### Fixed
 - A library folder holding Mado's own data folder no longer reads Mado's cache as pictures, and

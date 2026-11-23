@@ -312,15 +312,15 @@ Change a contract on both sides in the same commit.
 
 - **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `logs/`
   (`engine.log`, kept 30 days), `tools/` (ffmpeg, and the AI models fetched when asked), `pasted/`
-  (pictures pasted from the clipboard, till a month after last opened), `cache/` (the pictures' thumbnails and views,
-  the last few full-size copies, and each edit's mask in `cache/edits`, by picture and version,
-  let go after a month unedited: anything in it can go, a mask made again from its clicks), and `backups/` (the last 7 nights,
-  each checked as it's made, and apart from them the last 7 made by hand, before a restore and
-  from an export; none is ever written over). `mado/care.py` makes tonight's backup from 03:00 (or
-  the first chance after). A backup chosen in Settings is restored as the engine starts again,
-  before anything opens the database, once it checks out; what Mado knew till then is backed up
-  first, and kept even when it doesn't check out. Development uses `engine/.dev-data`, so it never
-  touches the real folder.
+  (pictures pasted from the clipboard, till a month after last opened), `cache/` (the pictures'
+  thumbnails and views, the last few full-size copies, and each edit's mask in `cache/edits`, by
+  picture and version, let go after a month unedited: anything in it can go, a mask made again from
+  its clicks), and `backups/` (the last 7 nights, each checked as it's made, and apart from them the
+  last 7 made by hand, before a restore and from an export; none is ever written over).
+  `mado/care.py` makes tonight's backup from 03:00 (or the first chance after). A backup chosen in
+  Settings is restored as the engine starts again, before anything opens the database, once it
+  checks out; what Mado knew till then is backed up first, and kept even when it doesn't check out.
+  Development uses `engine/.dev-data`, so it never touches the real folder.
 - **The database** is SQLite, upgraded in place by migrations (see [stack/sqlite.md](stack/sqlite.md)).
   A database written by a newer Mado is refused, not damaged. Records damaged past use (a disk
   fault, a power cut mid-write: `mado/rescue.py`) are found as the engine starts, before anything
