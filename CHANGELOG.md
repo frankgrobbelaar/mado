@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.8.0 - 2026-11-23
+
 ### Added
 - Camera RAW is read, where it was only listed: CR3, NEF, ARW, DNG and the rest show by the day
   they were taken, with their camera and their size as shown, and every tool works on them as on
