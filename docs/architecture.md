@@ -26,7 +26,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows), making pictures right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts), making pictures right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -84,6 +84,31 @@ flowchart LR
 A picture's copies come to the window through the API like everything else, with the token: the
 UI fetches each and shows it as an object URL (`usePictureImage` in `app/src/lib/engine.tsx`),
 thumbnails only as they come near the view, so the grid holds many thousands.
+
+## Looking after the library
+
+Duplicates and bursts are found in the background, from the thumbnails the scan made, and
+reviewed on a page of their own; Home's Needs you also lists the pictures that won't open, and
+its Space card the room on the drives the library uses. docs/stack/duplicates.md has the
+fingerprints, the thresholds and what was measured.
+
+```mermaid
+flowchart LR
+    scan["a scan ends"] -- wakes --> finder["the finder (mado/duplicates.py)"]
+    finder -- "fingerprints from each thumbnail; digests; sharpness" --> prints[("prints")]
+    prints --> groups["groups (mado/core/duplicates.py)"]
+    groups -- "/duplicates" --> review["the review"]
+    review -- "/duplicates/aside" --> aside["each picture checked, then into its drive's quarantine"]
+    aside --> history[("History: a line each, one line a review")]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/likeness.py`, `mado/core/duplicates.py` | Pure: fingerprints, sharpness, close fingerprints in buckets; the groups, what's never grouped, which to keep |
+| The finder | `mado/duplicates.py` | Looking at each picture once it's read and again once it changes, on a thread of its own; the groups kept in memory; the owner's choices and "not the same"; setting the rest aside, each picture checked first |
+| Won't open | `mado/api/library.py`, `mado/api/pictures.py` | The pictures that won't open, but those marked as damaged; marking one (`pictures.damaged`, cleared once its file changes) |
+| Space | `mado/api/library.py` | Each drive the library's folders are on: free, the pictures, quarantine, what the queue wants there |
+| In use | `mado/jobs.py` | A picture open in another app waits and is tried again by itself (docs/stack/queue.md) |
 
 ## Making a picture right for a screen
 
@@ -181,7 +206,11 @@ Change a contract on both sides in the same commit.
 | `GET /backups`, `POST /backups`, `POST /backups/import`, `POST /backups/{name}/restore` | The backups, one made by hand, importing an export, restoring one as the engine starts again |
 | `GET /data`, `POST /export` | What the data folder holds, by part, and the export zip |
 | `GET /folders`, `POST /folders`, `DELETE /folders/{id}` | The library's folders, each with its counts and the folders inside it as a tree; adding one (which a scan then reads, and the watcher watches); taking one out (its pictures stay where they are) |
-| `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW, what won't open, each folder's share |
+| `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW, what won't open (and how many of those are marked as damaged), each folder's share |
+| `GET /library/wont-open`, `POST /pictures/{id}/damaged` | The pictures that won't open, each with why, those marked as damaged left out; marking one as damaged |
+| `GET /space` | The drives the library is on, the one with the most of it first: free, the pictures, quarantine, what the queue wants there |
+| `GET /duplicates` | The groups of duplicates and bursts, a page at a time (`kind`, `offset`, `limit`), each with its pictures, the ones kept, and whether it can be set aside now; how far looking has got; what setting every group aside would set aside and free; the latest review, when it was put back whole |
+| `PUT /duplicates/{key}/keep`, `POST /duplicates/{key}/not-same`, `POST /duplicates/aside` | Which of a group to keep, of its pictures as shown; a group not the same; setting aside the rest of groups as the review showed them (each one's pictures and kept ones), or of every group of a kind as long as none changed since (`version`, else 409), and what was left as it was and why |
 | `GET /scan` | How the latest scan went, or is going: its stage, what it found and read, time left, folders not connected, what came and went |
 | `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`), with each day on it counted whole |
 | `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full; the pictures either side of it in the list it was opened from |
@@ -197,6 +226,7 @@ Change a contract on both sides in the same commit.
 | `POST /looks/import`, `POST /looks` | Importing a `.cube` file as a look; keeping the mix on the Looks tab (a look, its strength and its touches) as one |
 | `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are; not while a recipe uses it, or pictures waiting in the queue are made with it) |
 | `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | Pictures' own Saves (a picture's, or those under way; the queue's are `/queue`'s): stage, progress, time left, what they saved, why they didn't work; Cancel |
+| `GET /jobs/held`, `POST /jobs/{id}/try-now`, `POST /jobs/{id}/skip` | The pictures waiting while they're open in another app, the queue's and Saves'; trying one again now; skipping one |
 | `POST /batches/pictures` | The pictures a batch would be made of: ticked (`ids`), a folder's (`folder`, `dir`), what a search found (`q`), or the pictures in files and folders dropped or picked (`paths`), with those left out and why |
 | `POST /batches/takes` | What a batch would take: about how long, how much space and what's free where it's saved, by this PC's speeds and what See it first found; its steps in words, where its pictures go, a name they'd take, and the downloads it waits for |
 | `POST /batches/samples`, `GET /batches/samples/{id}`, `DELETE /batches/samples/{id}`, `GET /batches/samples/{id}/{index}/{side}` | See it first: three pictures made in full, not saved (`round` asks for three others); how they're coming on; letting them go; each one before and after (WebP) or as made |
@@ -207,6 +237,7 @@ Change a contract on both sides in the same commit.
 | `GET /watch-folders`, `POST /watch-folders`, `PUT /watch-folders/{id}`, `DELETE /watch-folders/{id}` | The watch folders: each one's recipe, where its new pictures go, on or off, connected, when it last took pictures, and why its pictures couldn't go in the queue lately; adding (what's there already left alone), changing, turning off and on, and stopping watching one |
 | `GET /history`, `POST /history/{id}/undo`, `POST /history/{id}/redo`, `POST /history/clear` | History a week of days at a time (`before`, `q`), with the batches its lines were made in; taking a new picture away or putting a replaced original back, newest first; putting a picture taken away back, or replacing an original again; clearing History |
 | `POST /history/batches/{id}/undo`, `/redo`, `GET /history/today`, `GET /history/{id}/thumbnail` | A whole batch taken away or its originals put back, and done again, once nothing of it waits (409 till then); what was made today, for Home; a thumbnail of a picture a line made, in the library or not |
+| `POST /history/reviews/{id}/undo` | Every picture a review of duplicates and bursts set aside put back, each where it was |
 | `GET /quarantine`, `POST /quarantine/empty` | What waits in quarantine on each drive; emptying one now |
 | `GET /pc`, `POST /pc/test` | This PC: its card, processor and memory, where the models run, each kind at each quality with its time, what each starts on; testing it again |
 | `GET /records`, `POST /records/restore`, `POST /records/new` | Records damaged past use, and the two ways back |
@@ -237,7 +268,7 @@ Change a contract on both sides in the same commit.
   into one.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
-  picture with what Mado read of it (`pictures.csv`), History (`history.csv`), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), and a manifest. It grows with the
+  picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), History (`history.csv`, with each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

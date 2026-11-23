@@ -30,8 +30,12 @@ and many at once, the fourth (pictures ticked, a folder, a search, or dropped an
 window or picked on Home, in the library or not; their steps with Change, See it first, when,
 saving and what it takes; the Queue in the rail with its badge, nights only, pause, cancel all,
 ticked pictures, room on a drive, a drive not connected, carrying on after a stop; recipes and
-watch folders; a notification and Home's Needs you and Made today; History's one line a batch).
-Next: the rest of Mado 1.0, by [What's next](#whats-next).
+watch folders; a notification and Home's Needs you and Made today; History's one line a batch);
+and looking after the library, the fifth (duplicates and bursts found from the thumbnails in the
+background and reviewed on a page of their own, the rest set aside into quarantine under one line
+of History; the pictures that won't open, to try again or mark as damaged; the space on the
+drives the library uses; a picture open in another app waiting while the queue goes on). Next:
+the rest of Mado 1.0, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -282,19 +286,21 @@ Everything decided so far. Don't ask again; change only with the owner.
   first…" asks once more; "Wait for room" leaves it to carry on. A drive that filled while a picture
   saved waits for 64 MB more than was free then, and for the picture to fit with its margin, as
   Mado's reckoning was wrong once. A drive not connected waits, one unplugged while its picture is
-  made too (back in line, not a try); a picture open in another app fails with a sentence, to try
-  again. With nothing waiting, the Queue keeps the latest batch done in the last week whose pictures
-  didn't all work, with Try again, till "Clear", as Home's card says "the queue says why". When
+  made too (back in line, not a try); a picture open in another app waits too (looking after the
+  library, below). With nothing waiting, the Queue keeps the latest batch done in the last week
+  whose pictures didn't all work, with Try again, till "Clear", as Home's card says "the queue says
+  why". When
   nothing of a batch waits, a notification ("Holiday prints is done", "48 pictures made for TV 8K ·
   1 didn't work") leads to Home, whose "Needs you" shows a batch done in the last week (not a watch
   folder's, which come as pictures arrive) till its "Open folder" (the folder its pictures went to,
   when they share one; else "Done"); "Made today" shows the newest six, thumbnails from History for
   pictures outside the library too. Home's board's "Won't open", "Duplicates and bursts" and "Space
-  on D:" wait for their own pieces. History shows a batch as one line in the board's words ("Made 47
-  pictures for the TV overnight", "The watch folder To TV made 6 pictures", "Replaced 48 pictures
-  with their TV 8K versions") with "Take them away" or "Put the originals back" (and back again)
-  once nothing of it waits ("Still being made" till then), each picture's line under "Show the 48
-  pictures"; a batch made overnight is one line, on the day it finished. An undo never comes between
+  on D:" came with looking after the library (below). History shows a batch as one line in the
+  board's words ("Made 47 pictures for the TV overnight", "The watch folder To TV made 6
+  pictures", "Replaced 48 pictures with their TV 8K versions") with "Take them away" or "Put the
+  originals back" (and back again) once nothing of it waits ("Still being made" till then), each
+  picture's line under "Show the 48 pictures"; a batch made overnight is one line, on the day it
+  finished. An undo never comes between
   a picture's History line and its moves (one lock holds both). The Queue page shows the batch being
   made, then "Then" for those after it; the rail's badge says how far it's got, else how many wait,
   and the status bar "Graphics card working · Holiday prints 18 of 48". Recipes are named (60
@@ -311,6 +317,51 @@ Everything decided so far. Don't ask again; change only with the owner.
   behind what waits, saved as new pictures where it says ("Done" inside it at first; never the
   folder itself). "Big batches wait for the night" (Settings › General › Many at once, off at first)
   sends one of more than 20 to tonight. The recipes and watch folders join the export.
+- Looking after the library, as built (2026-11-23, Claude's calls while the owner is away;
+  docs/stack/duplicates.md): duplicates and bursts are found by the engine on a thread of its own as
+  each scan ends, from the thumbnail the scan made, so nothing is decoded twice (not the view the
+  size of a screen: the cache holds that only for pictures opened). A 64-bit pHash finds candidates
+  in buckets (within 6 bits) and a 256-bit pHash confirms them (within 10), shapes within 1%:
+  measured on made-up scenes, copies at 50% and 25%, JPEG 60 to 95, PNG, WebP and sharpened came
+  within 4 and 6 bits, a crop of 2% or more each side 14 or more on the finer, other scenes 18 and
+  98 at least (a crop under 2% may group: it's practically the same picture). Files sharing a size
+  are told by their bytes' blake2b. Bursts are the same camera, folder and size, each within 2 s of
+  a neighbour and 12 bits, and keep the sharpest by the Laplacian's variance on a 1024 px grey copy
+  of the picture itself (on the thumbnail blurs ranked wrongly, at full size the grain drowned
+  them). Never grouped: camera RAW, pictures that won't open, a quarantine, pictures the owner said
+  aren't the same (asked again once a file changes), and History's families (no group holds an
+  original and what Mado made from it, or two made from one). Duplicates keep the most pixels, then
+  the larger file of its format, a name that isn't a copy's, the older file; a burst compares its
+  shots each with its copies as one (a sharpened export never outranks its original), and each group
+  says which rule decided. The groups are kept in memory and found again after each change. The
+  review is a page of its own (`/duplicates`, Home's place lit), drawn from the Queue, History and
+  Library boards as none exists: groups newest first, 30 at a time, All, Duplicates or Bursts; a
+  click keeps another, a tick keeps more than one (one is always kept), a tile's corner opens it big
+  beside the one kept at Fit or 100% (the two moving together), Not the same, Set aside per group,
+  and the one primary "Set aside 212, freeing 1.4 GB" (of the kind shown). Setting aside names what
+  the review showed (each group's pictures and kept ones; all of a kind, the groups' version, else
+  nothing moves), so a picture that joined since is never set aside unseen; keeping writes choices
+  only for the pictures shown. Each picture set aside gets its History line (kind `aside`, with the
+  one kept) before it moves, under one review line ("Set aside 211 duplicates and bursts, freeing
+  1.4 GB", Put them back; each its own Put back, no redo: the review lists them again). Each is
+  checked first (its size and time as compared, there, its drive connected, not the kept one's own
+  file under another name) and left with a sentence otherwise, as is one open in another app, and a
+  whole group when its kept picture isn't there as it was; the library forgets it (`gone_at`) till
+  it's put back, when a scan finds it as it was (put back on its own, it's kept); only the 30-day
+  clear-out deletes. Won't open: Home's row counts those not marked as damaged; See which opens a
+  card of the small things board's cards (Show in folder, Try again, Mark as damaged, which a
+  picture's page has too); the mark clears once a scan finds the file changed; a picture another app
+  held while it was read is read again a minute on instead, and Try again on one says so. Space: the
+  drive with most of the library's pictures (free, the pictures, quarantine, what the queue wants
+  there; not connected says so), a line for each other. A picture open in another app (to read, or
+  its original to move as it's replaced, which is asked before the picture is made): its job waits,
+  tried again every 30 s for 10 minutes and then counted as not working, with the small things
+  board's note at the window's foot: Try again now (its ten minutes afresh) and Skip it (not
+  working, to try again later). Measured on the owner's PC with 4,950 made-up pictures (60 exact
+  copies, 150 saved again, 60 bursts of five, 40 gentle crops planted): finding took 46 s after a
+  240 s scan and found the 270 groups planted and nothing else, the sharp shot kept in all 60 bursts
+  and the original in all 210 duplicates. The Library board's "burst of 5" and "2 copies" tags on
+  the grid aren't built.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -425,8 +476,9 @@ Everything decided so far. Don't ask again; change only with the owner.
    screen; looks, finishing touches and the owner's own, on the whole picture or a part; click to
    select, then erase or cut out; many at once, with recipes and the queue; and the choice between
    a new picture and replacing. Built: the library and a picture's page, making it for a screen
-   with saving, looks on the whole picture (a part comes with selecting), and many at once with
-   recipes, watch folders and the queue.
+   with saving, looks on the whole picture (a part comes with selecting), many at once with
+   recipes, watch folders and the queue, and looking after the library (duplicates and bursts,
+   the pictures that won't open, space, a picture open in another app).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG

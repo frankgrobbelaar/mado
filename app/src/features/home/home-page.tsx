@@ -1,5 +1,6 @@
 import { Plus, Upload } from "lucide-react";
-import { Link, Navigate } from "react-router";
+import { useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
 import { Loading, PanelSkeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
   madeAddress,
   type Scan,
   useDoneBatches,
+  useDuplicateCounts,
   useEngineQuery,
   useLibrary,
   useMadeToday,
@@ -23,18 +25,22 @@ import {
 import { openFolder, useExplorer } from "@/lib/explorer";
 import { count, dayAndTime, size } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { SpaceCard } from "./space-card";
+import { WontOpen } from "./wont-open";
 
 // The bar's shares, in the greys the boards give them, in the order the folders were added.
 const SHARES = ["bg-fg", "bg-fg-faint", "bg-control"];
 
 /** Home, as the Home board draws it: the library in numbers, pictures dropped or picked from the
- * PC to make, what needs the owner (a batch done), what was made today, and adding a folder.
- * Until setup is done, it leads there. */
+ * PC to make, what needs the owner (duplicates and bursts to review, pictures that won't open, a
+ * batch done), the space on the drives the library uses, what was made today, and adding a
+ * folder. Until setup is done, it leads there. */
 export function HomePage() {
   const settings = useSettings();
   const library = useLibrary();
   const scan = useEngineQuery<Scan>("/scan");
   const adding = useAddFolderPicker();
+  const [seeing, setSeeing] = useState(false);
 
   if (settings.data && !settings.data.setUp) return <Navigate to="/setup" replace />;
   const found = library.data;
@@ -76,10 +82,13 @@ export function HomePage() {
         <div className="grid grid-cols-1 gap-4 standard:grid-cols-3">
           <DropHere />
           <YourLibrary library={found} />
-          <NeedsYou />
+          <NeedsYou library={found} onSeeWhich={() => setSeeing(true)} />
+          <SpaceCard />
           <Today />
         </div>
       )}
+      {/* Apart from Needs you, which goes once nothing needs the owner: the card stays to say so. */}
+      {seeing && <WontOpen onClose={() => setSeeing(false)} />}
     </>
   );
 }
@@ -164,13 +173,18 @@ function DropHere() {
   );
 }
 
-/** What needs the owner: a batch done ("Holiday is ready for the TV"), with its folder to open,
- * which lets it go. Nothing to show, it isn't there. */
-function NeedsYou() {
+/** What needs the owner, as the Home board draws it: duplicates and bursts to review (and how far
+ * looking for them has got), pictures that won't open, and a batch done ("Holiday is ready for
+ * the TV") with its folder to open, which lets it go. Nothing to show, it isn't there. */
+function NeedsYou({ library, onSeeWhich }: { library: Library; onSeeWhich: () => void }) {
   const done = useDoneBatches();
   const seen = useSeenBatch();
+  const duplicates = useDuplicateCounts().data;
   const explorer = useExplorer();
-  if (!done.data?.length) return null;
+  const navigate = useNavigate();
+  const unopened = Math.max(library.broken - library.damaged, 0);
+  const review = duplicates && (duplicates.pictures > 0 || duplicates.looking !== null);
+  if (!done.data?.length && !review && unopened === 0) return null;
   return (
     <section
       aria-labelledby="needs"
@@ -179,7 +193,49 @@ function NeedsYou() {
       <h2 id="needs" className="type-eyebrow px-4.5 pt-3.5 pb-2.5">
         Needs you
       </h2>
-      {done.data.map((batch) => (
+      {review && duplicates && (
+        <div className="flex items-center gap-3.5 border-edge border-t px-4.5 py-3">
+          <span
+            aria-hidden="true"
+            className={cn(
+              "size-3 shrink-0 rounded-full",
+              duplicates.looking ? "status-working" : "status-waiting",
+            )}
+          />
+          <span className="w-10.5 font-mono text-15">{count(duplicates.pictures)}</span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="font-semibold text-15">Duplicates and bursts</span>
+            <span className="text-13 text-fg-muted">
+              {duplicates.looking
+                ? `Still looking: ${count(duplicates.looking.looked)} of ${count(duplicates.looking.of)} looked at. Keep the sharpest of each; the rest wait in quarantine.`
+                : "Keep the sharpest of each; the rest wait in quarantine for 30 days."}
+            </span>
+          </span>
+          <Button
+            size="sm"
+            className="border-0 bg-fg text-window"
+            onClick={() => void navigate("/duplicates")}
+          >
+            Review
+          </Button>
+        </div>
+      )}
+      {unopened > 0 && (
+        <div className="flex items-center gap-3.5 border-edge border-t px-4.5 py-3">
+          <span aria-hidden="true" className="status-problem size-3 shrink-0 rounded-2" />
+          <span className="w-10.5 font-mono text-15">{count(unopened)}</span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="font-semibold text-15">Won't open</span>
+            <span className="text-13 text-fg-muted">
+              Their files are damaged or were only half copied. They're left as they are.
+            </span>
+          </span>
+          <Button size="sm" className="bg-transparent font-medium" onClick={onSeeWhich}>
+            See which
+          </Button>
+        </div>
+      )}
+      {done.data?.map((batch) => (
         <div key={batch.id} className="flex items-center gap-3.5 border-edge border-t px-4.5 py-3">
           <span aria-hidden="true" className="status-done size-3 shrink-0 rounded-full" />
           <span className="w-10.5 font-mono text-15">{count(batch.done)}</span>

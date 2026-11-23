@@ -26,6 +26,7 @@ from mado.ai import Ai
 from mado.api import (
     backups,
     data,
+    duplicates,
     health,
     history,
     jobs,
@@ -48,6 +49,7 @@ from mado.care import Care
 from mado.config import DataPaths
 from mado.core.models import BEST_PHOTO
 from mado.directml import Sessions
+from mado.duplicates import Finder
 from mado.events import Notify
 from mado.hardware import Here
 from mado.jobs import Jobs
@@ -166,6 +168,8 @@ def create_app(
         if watcher is not None:
             watcher.start()  # catches up on what changed while Mado was closed, then watches
         care: Care = running.state.care
+        finder: Finder = running.state.finder
+        finder.start()  # groups what was looked at before, then looks at what's new
         making_: Jobs = running.state.jobs
         with closing(db.connect(paths.database)) as conn:
             running.state.samples.tidy(conn)  # what an earlier run left in the cache goes
@@ -186,6 +190,7 @@ def create_app(
         if watcher is not None:
             watcher.stop()
         scanner.stop()  # after the picture it's on
+        finder.stop()
 
     app = FastAPI(
         title="Mado engine",
@@ -198,7 +203,14 @@ def create_app(
     app.state.tools = toolbox or Tools(paths)
     # The copies the window shows, made with Mado's ffmpeg for HEIC (tests pass their own).
     app.state.previews = Previews(paths, ffmpeg or (lambda: app.state.tools.path("ffmpeg")))
-    app.state.scanner = Scanner(paths, app.state.previews)
+    # Duplicates and bursts, looked for as each scan ends.
+    app.state.finder = Finder(
+        paths,
+        app.state.previews,
+        ffmpeg or (lambda: app.state.tools.path("ffmpeg")),
+        now=_now,
+    )
+    app.state.scanner = Scanner(paths, app.state.previews, ended=app.state.finder.wake)
     app.state.watcher = None  # set while it watches
     app.state.quarantine = quarantine or Quarantine()
     app.state.care = Care(paths, app.state.quarantine, now=_now)
@@ -265,6 +277,7 @@ def create_app(
         batches_api,
         queue,
         recipes_api,
+        duplicates,
         history,
         pc,
         data,

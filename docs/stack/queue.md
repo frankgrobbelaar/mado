@@ -72,13 +72,28 @@ Queue's card and the notification say the same figure: what's wanted past what's
 margin kept (`Room.more`). "Empty D:'s quarantine first" empties it (asked
 again) and resumes. Mado never puts new pictures on another drive.
 
+## A picture open in another app
+
+When another app has a picture open, so Mado can't read it or move its original into quarantine to
+replace it (`HeldError`, from `pictures.InUseError` or `quarantine.InUseMoveError`), its job goes
+back in line, its try given back, and waits (`held_since`, `held_until`, `held_why`) while the
+others go on: it's tried again by itself every 30 s (`HOLD_EVERY`) for 10 minutes (`HOLD_FOR`) from
+when it was first found so, then counts as not working, with a sentence. The worker rests till the
+next such picture is due (one due that still can't go, the queue paused say, is no reason to look
+sooner). A replace asks first whether the original can be moved (`quarantine.movable`, Windows'
+sharing rules), so a picture isn't made on the card again every 30 s only to find it can't go in; a
+Cancel asked for as it's found open wins. `GET /jobs/held` lists them for the note at the window's
+foot ("Harbour at dusk.jpg is open in another app"); Try again now (`try-now`) tries one at once,
+its ten minutes afresh; Skip it (`skip`) marks it as not working, to try again later. A picture's
+own Save waits the same way, without holding up the queue.
+
 ## A picture that doesn't work
 
-A picture that won't open, has gone, or is open in another app (its original can't be read, or
-moved to quarantine) fails with a sentence saying so, and its batch goes on. Try again puts it
-back at the end of the queue. With nothing waiting, the Queue keeps the latest batch done in the
-last week whose pictures didn't all work (`finished`), so Home's "the queue says why" holds,
-till Clear (`POST /queue/clear`, `batches.cleared_at`) or Try again; History still says which.
+A picture that won't open, or has gone, fails with a sentence saying so, and its batch goes on. Try
+again puts it back at the end of the queue. With nothing waiting, the Queue keeps the latest batch
+done in the last week whose pictures didn't all work (`finished`), so Home's "the queue says why"
+holds, till Clear (`POST /queue/clear`, `batches.cleared_at`) or Try again; History still says
+which.
 
 History undoes a whole batch only once nothing of it waits (`409` while it does, its line
 `working`: "Still being made"), as what's made after would be left as it is. A picture's own line

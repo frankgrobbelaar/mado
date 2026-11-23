@@ -1,14 +1,19 @@
-"""The library: its folders (adding and forgetting them, each as a tree of the folders inside it)
-and what it holds in numbers, for Home."""
+"""The library: its folders (adding and forgetting them, each as a tree of the folders inside it),
+what it holds in numbers, the pictures that won't open, and the room on the drives it's on, for
+Home."""
 
+import shutil
 import sqlite3
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from fastapi import APIRouter, HTTPException, Response, status
 
-from mado.api.common import ApiModel, Copies, Database, Scans, Watching
+from mado.api.common import ApiModel, Copies, Database, Finding, Scans, Watching
+from mado.jobs import drive_of, needed_on
 from mado.library import FolderError, add_folder, folders, remove_folder
+from mado.previews import version
+from mado.quarantine import by_drive
 
 router = APIRouter()
 
@@ -56,8 +61,39 @@ class Library(ApiModel):
     size: int  # bytes, every picture found
     reading: int  # found and still to read
     raw: int
-    broken: int
+    broken: int  # won't open
+    damaged: int  # of those, marked as damaged by the owner: not asked about again
     parts: list[LibraryPart]  # each library folder's pictures, in the order they were added
+
+
+class Unopened(ApiModel):
+    """A picture that won't open."""
+
+    id: int
+    name: str
+    path: str
+    folder: str  # the folder it's in
+    format: str | None
+    size: int
+    problem: str  # why, in a sentence
+    version: str
+
+
+class WontOpen(ApiModel):
+    pictures: list[Unopened]  # those not marked as damaged, newest file first
+    damaged: int  # marked as damaged, so not listed
+
+
+class DriveSpace(ApiModel):
+    """Room on a drive the library uses."""
+
+    drive: str  # "D:"
+    connected: bool
+    free: int | None  # bytes; None while it isn't connected
+    total: int | None
+    pictures: int  # bytes of the library's pictures on it
+    quarantine: int  # bytes waiting in its quarantine
+    queue: int  # bytes the pictures waiting in the queue want there
 
 
 @router.get("/folders")
@@ -112,7 +148,9 @@ def new_folder(body: NewFolder, conn: Database, scanner: Scans, watcher: Watchin
 
 
 @router.delete("/folders/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
-def forget_folder(folder_id: int, conn: Database, copies: Copies, watcher: Watching) -> Response:
+def forget_folder(
+    folder_id: int, conn: Database, copies: Copies, watcher: Watching, finder: Finding
+) -> Response:
     """Takes a folder out of the library, with Mado's copies of its pictures. The pictures
     themselves stay exactly where they are."""
     forgotten = remove_folder(conn, folder_id)
@@ -121,6 +159,7 @@ def forget_folder(folder_id: int, conn: Database, copies: Copies, watcher: Watch
     copies.forget(forgotten)
     if watcher is not None:
         watcher.follow()
+    finder.regroup(conn)  # its pictures leave their groups
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -132,7 +171,9 @@ def library(conn: Database) -> Library:
                    COALESCE(SUM(size), 0) AS size,
                    COUNT(*) FILTER (WHERE read_at IS NULL) AS reading,
                    COUNT(*) FILTER (WHERE {_LISTED} AND raw = 1) AS raw,
-                   COUNT(*) FILTER (WHERE {_LISTED} AND problem IS NOT NULL) AS broken
+                   COUNT(*) FILTER (WHERE {_LISTED} AND problem IS NOT NULL) AS broken,
+                   COUNT(*) FILTER (WHERE {_LISTED} AND problem IS NOT NULL AND damaged = 1)
+                       AS damaged
             FROM pictures WHERE gone_at IS NULL"""  # noqa: S608 - a fixed fragment
     ).fetchone()
     listed = {
@@ -150,6 +191,7 @@ def library(conn: Database) -> Library:
         reading=totals["reading"],
         raw=totals["raw"],
         broken=totals["broken"],
+        damaged=totals["damaged"],
         parts=[
             LibraryPart(
                 folder_id=folder.id,
@@ -159,6 +201,80 @@ def library(conn: Database) -> Library:
             for folder in found
         ],
     )
+
+
+@router.get("/library/wont-open")
+def wont_open(conn: Database) -> WontOpen:
+    """The pictures that won't open, but those the owner marked as damaged: each with why. They
+    were left exactly as they are."""
+    rows = conn.execute(
+        f"""SELECT id, name, path, format, size, modified, problem FROM pictures
+            WHERE {_LISTED} AND problem IS NOT NULL AND damaged = 0
+            ORDER BY modified DESC, id"""  # noqa: S608 - a fixed fragment
+    ).fetchall()
+    marked: int = conn.execute(
+        f"""SELECT COUNT(*) FROM pictures
+            WHERE {_LISTED} AND problem IS NOT NULL AND damaged = 1"""  # noqa: S608 - fixed
+    ).fetchone()[0]
+    return WontOpen(
+        pictures=[
+            Unopened(
+                id=row["id"],
+                name=row["name"],
+                path=row["path"],
+                folder=str(PureWindowsPath(row["path"]).parent),
+                format=row["format"],
+                size=row["size"],
+                problem=row["problem"],
+                version=version(row["modified"], row["size"]),
+            )
+            for row in rows
+        ],
+        damaged=marked,
+    )
+
+
+@router.get("/space")
+def space(conn: Database) -> list[DriveSpace]:
+    """The drives the library's folders are on, the one with the most of its pictures first:
+    what's free, what the pictures use, what waits in quarantine and what the queue wants."""
+    used: dict[str, int] = {}
+    for folder in folders(conn):
+        used.setdefault(drive_of(folder.path), 0)
+    for row in conn.execute(
+        "SELECT f.path, COALESCE(SUM(p.size), 0) AS size FROM folders AS f"
+        " LEFT JOIN pictures AS p ON p.folder_id = f.id AND p.gone_at IS NULL GROUP BY f.id"
+    ):
+        drive = drive_of(Path(row["path"]))
+        used[drive] = used.get(drive, 0) + row["size"]
+    aside = {drive.casefold(): size for drive, size in by_drive(conn).items()}
+    found: list[DriveSpace] = []
+    for drive, size in sorted(used.items(), key=lambda each: (-each[1], each[0])):
+        connected, free, total = _room(drive)
+        found.append(
+            DriveSpace(
+                drive=drive,
+                connected=connected,
+                free=free,
+                total=total,
+                pictures=size,
+                quarantine=aside.get(drive.casefold(), 0),
+                queue=needed_on(conn, drive),
+            )
+        )
+    return found
+
+
+def _room(drive: str) -> tuple[bool, int | None, int | None]:
+    """Whether a drive is connected, and its free and whole bytes."""
+    root = Path(f"{drive}\\")
+    if not root.exists():
+        return False, None, None
+    try:
+        usage = shutil.disk_usage(root)
+    except OSError:
+        return True, None, None
+    return True, usage.free, usage.total
 
 
 class _Node:

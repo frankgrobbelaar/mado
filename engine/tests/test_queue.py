@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from mado.config import DataPaths
-from mado.jobs import Jobs, NewBatch, NoRoomError, Stage, recover
+from mado.jobs import HOLD_EVERY, HOLD_FOR, HeldError, Jobs, NewBatch, NoRoomError, Stage, recover
 from mado.quarantine import Quarantine
 from mado.upscale import StoppedError
 
@@ -584,3 +584,153 @@ def test_a_drive_unplugged_mid_picture_puts_it_back_to_wait(
 
     assert _states(conn, batch) == [("Pier.jpg", "queued")]
     assert conn.execute("SELECT attempts FROM jobs").fetchone()[0] == 0
+
+
+def _held_on(names: set[str], tmp_path: Path, record: list[str]) -> Callable[..., Path]:
+    """Work that finds the pictures in `names` open in another app, as long as they're in it."""
+
+    def work(_conn: sqlite3.Connection, row: sqlite3.Row, *_rest: object) -> Path:
+        name = Path(row["source"]).name
+        record.append(name)
+        if name in names:
+            raise HeldError(name, "replace")
+        made = tmp_path / "made" / f"{Path(name).stem} (TV 8K).jpg"
+        made.parent.mkdir(exist_ok=True)
+        made.write_bytes(b"x" * 10)
+        return made
+
+    return work
+
+
+def test_a_picture_open_in_another_app_waits_while_the_others_go_then_is_tried_again(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    clock = Clock(DAY)
+    record: list[str] = []
+    held = {"Pier.jpg"}
+    jobs = _jobs(paths, _held_on(held, tmp_path, record), now=clock)
+    batch = _batch(jobs, conn, tmp_path, ["Pier.jpg", "Sail.jpg"])
+
+    _run(jobs)
+
+    assert record == ["Pier.jpg", "Sail.jpg"]
+    assert _states(conn, batch) == [("Pier.jpg", "queued"), ("Sail.jpg", "done")]
+    row = conn.execute("SELECT * FROM jobs WHERE source LIKE '%Pier.jpg'").fetchone()
+    assert row["problem"] == (
+        "Pier.jpg is open in another app. Mado can't replace it while it's open. Close it there "
+        "and Mado tries again by itself."
+    )
+    assert (row["held_why"], row["attempts"]) == ("replace", 0)  # not counted as a try
+    assert datetime.fromisoformat(row["held_until"]) == DAY + HOLD_EVERY
+    assert conn.execute("SELECT finished_at FROM batches").fetchone()[0] is None
+
+    _run(jobs)  # not yet due
+    assert record == ["Pier.jpg", "Sail.jpg"]
+
+    held.clear()  # closed in the other app
+    clock.moment = DAY + HOLD_EVERY
+    _run(jobs)
+    assert record == ["Pier.jpg", "Sail.jpg", "Pier.jpg"]
+    assert _states(conn, batch) == [("Pier.jpg", "done"), ("Sail.jpg", "done")]
+    done = conn.execute("SELECT held_since, held_until FROM jobs").fetchall()
+    assert all(row["held_since"] is None and row["held_until"] is None for row in done)
+
+
+def test_a_picture_open_in_another_app_for_ten_minutes_counts_as_not_working(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    clock = Clock(DAY)
+    record: list[str] = []
+    told = Told()
+    jobs = _jobs(paths, _held_on({"Pier.jpg"}, tmp_path, record), now=clock, told=told)
+    batch = _batch(jobs, conn, tmp_path, ["Pier.jpg"])
+    _run(jobs)
+
+    while clock.moment < DAY + HOLD_FOR:
+        clock.moment += HOLD_EVERY
+        _run(jobs)
+
+    assert len(record) == round(HOLD_FOR / HOLD_EVERY) + 1  # every 30 s for 10 minutes
+    assert _states(conn, batch) == [("Pier.jpg", "failed")]
+    problem = conn.execute("SELECT problem FROM jobs").fetchone()[0]
+    assert problem.startswith("Pier.jpg was open in another app for 10 minutes")
+    assert told.said[-1][0] == "Holiday prints didn't work"
+
+
+def test_try_again_now_and_skip_it(paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path):
+    clock = Clock(DAY)
+    record: list[str] = []
+    held = {"Pier.jpg", "Sail.jpg"}
+    jobs = _jobs(paths, _held_on(held, tmp_path, record), now=clock)
+    batch = _batch(jobs, conn, tmp_path, ["Pier.jpg", "Sail.jpg", "Dunes.jpg"])
+    _run(jobs)
+    ids = {
+        Path(row["source"]).name: row["id"] for row in conn.execute("SELECT id, source FROM jobs")
+    }
+
+    held.discard("Pier.jpg")
+    assert jobs.try_now(conn, ids["Pier.jpg"])
+    assert jobs.skip(conn, ids["Sail.jpg"])
+    _run(jobs)
+
+    assert _states(conn, batch) == [
+        ("Pier.jpg", "done"),
+        ("Sail.jpg", "failed"),
+        ("Dunes.jpg", "done"),
+    ]
+    skipped = conn.execute("SELECT problem FROM jobs WHERE id = ?", (ids["Sail.jpg"],)).fetchone()
+    assert skipped[0].startswith("You skipped Sail.jpg while it was open in another app")
+    assert not jobs.try_now(conn, ids["Dunes.jpg"])  # it wasn't waiting
+    assert not jobs.skip(conn, ids["Dunes.jpg"])
+    assert jobs.retry(conn, ids["Sail.jpg"])  # Try again, as for any that didn't work
+
+
+def test_a_pictures_own_save_open_in_another_app_waits_without_holding_up_the_queue(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    clock = Clock(DAY)
+    record: list[str] = []
+    jobs = _jobs(paths, _held_on({"Rose.jpg"}, tmp_path, record), now=clock)
+    own = jobs.add(conn, None, tmp_path / "Rose.jpg", {"recipe": {}, "saving": {}})
+    _batch(jobs, conn, tmp_path, ["Pier.jpg"])
+
+    _run(jobs)
+
+    assert record == ["Rose.jpg", "Pier.jpg"]
+    state = conn.execute("SELECT state, held_why FROM jobs WHERE id = ?", (own,)).fetchone()
+    assert tuple(state) == ("queued", "replace")
+
+
+def test_the_worker_rests_its_while_when_a_picture_due_again_cant_go_yet(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    clock = Clock(DAY)
+    jobs = _jobs(paths, _made(tmp_path), now=clock)
+    _batch(jobs, conn, tmp_path, ["Pier.jpg"])
+    jobs.pause(conn)  # it waits all night, say
+    with conn:
+        conn.execute(
+            "UPDATE jobs SET held_since = ?, held_until = ?",
+            ((DAY - HOLD_EVERY * 3).isoformat(), (DAY - HOLD_EVERY).isoformat()),
+        )
+    assert jobs._rest() == 30.0  # pyright: ignore[reportPrivateUsage]
+
+    with conn:
+        conn.execute("UPDATE jobs SET held_until = ?", ((DAY + HOLD_EVERY / 3).isoformat(),))
+    assert jobs._rest() == pytest.approx(10.0)  # pyright: ignore[reportPrivateUsage]
+
+
+def test_a_picture_cancelled_as_it_was_found_open_in_another_app_stays_cancelled(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    def work(job_conn: sqlite3.Connection, row: sqlite3.Row, *_rest: object) -> Path:
+        jobs.cancel(job_conn, row["id"])  # Cancel, clicked while it was read
+        raise HeldError(Path(row["source"]).name, "read")
+
+    jobs = _jobs(paths, work)
+    own = jobs.add(conn, None, tmp_path / "Rose.jpg", {"recipe": {}, "saving": {}})
+
+    _run(jobs)
+
+    row = conn.execute("SELECT state, held_until FROM jobs WHERE id = ?", (own,)).fetchone()
+    assert tuple(row) == ("cancelled", None)

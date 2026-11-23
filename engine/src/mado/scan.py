@@ -23,7 +23,14 @@ from mado.config import DataPaths
 from mado.core.files import Kind
 from mado.core.library import time_left
 from mado.library import Unread, find_pictures, folders, save_facts, save_problem, unread
-from mado.pictures import Facts, NeedsFfmpegError, PictureGoneError, UnreadableError, read_facts
+from mado.pictures import (
+    Facts,
+    InUseError,
+    NeedsFfmpegError,
+    PictureGoneError,
+    UnreadableError,
+    read_facts,
+)
 from mado.previews import Previews, Source
 
 log = logging.getLogger(__name__)
@@ -70,11 +77,19 @@ class Scanner:
         *,
         now: Callable[[], datetime] = _now,
         read: Callable[[Path, Kind], Facts] = read_facts,
+        ended: Callable[[], None] = lambda: None,
+        again_after: float = 60.0,
     ) -> None:
+        """`ended` hears when a scan ends, however it ends: what it read is looked at next for
+        duplicates (mado/duplicates.py). A scan that left a picture open in another app scans
+        again `again_after` seconds on, nothing else telling it the app let go."""
         self._paths = paths
         self._previews = previews
         self._now = now
         self._read = read
+        self._ended = ended
+        self._again_after = again_after
+        self._in_use = False  # this scan left a picture open in another app
         self._lock = threading.Lock()
         self._stopping = threading.Event()
         self._thread: threading.Thread | None = None
@@ -101,6 +116,8 @@ class Scanner:
 
     def request(self) -> None:
         """Scans now or, while a scan runs, once it's done: what it may have missed is seen."""
+        if self._stopping.is_set():
+            return
         with self._lock:
             if self._running():
                 self._again = True
@@ -122,6 +139,11 @@ class Scanner:
             self._again = False
         if (thread := self._thread) is not None:
             thread.join(timeout=2)  # the app ends the engine 3 seconds after asking
+
+    @property
+    def running(self) -> bool:
+        """Whether a scan is under way."""
+        return self._busy
 
     def _running(self) -> bool:
         return self._busy
@@ -169,6 +191,12 @@ class Scanner:
                     if self._again and not self._stopping.is_set():
                         self._again = False
                         self._begin()
+                if self._in_use and not self._stopping.is_set():
+                    self._in_use = False
+                    later = threading.Timer(self._again_after, self.request)
+                    later.daemon = True
+                    later.start()
+                self._ended()
 
     def _find(self, conn: sqlite3.Connection, started: str) -> bool:
         """Walks every library folder, including any added while it walks. False when the
@@ -231,6 +259,8 @@ class Scanner:
             pass  # a HEIC's thumbnail is made once ffmpeg is there
         except PictureGoneError:
             pass  # it went as it was read: the next scan sees it gone
+        except InUseError:  # open in another app: nothing's wrong with it, read a minute on
+            self._in_use = True
         except UnreadableError as error:
             save_problem(conn, each.id, str(error), now=self._now())
         except sqlite3.Error:

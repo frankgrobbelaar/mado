@@ -17,9 +17,14 @@ export const sections: Section[] = [
   { path: "/settings", label: "Settings", icon: Settings, foot: true },
 ];
 
-/** Pages that sit in another's place: Many at once is made from the Library's pictures, and the
- * recipes and watch folders feed the queue, as the boards light them. */
-const BELONGS: Record<string, string> = { "/batch": "/library", "/recipes": "/queue" };
+/** Pages that sit in another's place: Many at once is made from the Library's pictures, the
+ * recipes and watch folders feed the queue, as the boards light them, and the review of
+ * duplicates and bursts opens from Home's Needs you. */
+const BELONGS: Record<string, string> = {
+  "/batch": "/library",
+  "/recipes": "/queue",
+  "/duplicates": "/",
+};
 
 /** The section a page sits in, whose place stays lit while it's open: its address's first part. */
 export function sectionOf(pathname: string): string {

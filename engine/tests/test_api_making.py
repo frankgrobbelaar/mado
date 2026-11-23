@@ -19,7 +19,7 @@ from PIL import Image
 from mado import db, history, making
 from mado.config import DataPaths
 from mado.jobs import Jobs
-from mado.pictures import PictureGoneError
+from mado.pictures import InUseError, PictureGoneError
 from mado.quarantine import MoveError, Quarantine
 from tests.conftest import add, made
 from tests.drawn import EXIF_IFD, GPS_IFD, TAKEN, draw, exif
@@ -570,3 +570,96 @@ def test_screens_the_window_couldnt_have_are_refused(client: TestClient):
 
     assert huge.status_code == 422
     assert many.status_code == 422
+
+
+def test_a_save_that_cant_replace_an_original_open_in_another_app_waits_and_tries_again(
+    client: TestClient, library: Library
+):
+    picture = library["ids"]["Harbour at dusk.jpg"]
+    original = library["folder"] / "Harbour at dusk.jpg"
+    before = original.read_bytes()
+    app: Any = client.app
+    jobs: Jobs = app.state.jobs
+
+    with original.open("rb"):  # held open, as another app would
+        job = client.post(
+            f"/pictures/{picture}/make",
+            json={"recipe": _recipe(), "saving": {"how": "replace", "format": "JPEG"}},
+        ).json()
+        assert jobs.wait(120)
+        waiting = client.get(f"/jobs/{job['id']}").json()
+        held = client.get("/jobs/held").json()
+
+    assert waiting["state"] == "queued"
+    assert waiting["heldUntil"] is not None
+    assert "open in another app. Mado can't replace it" in waiting["problem"]
+    assert [(each["job"], each["name"], each["verb"]) for each in held] == [
+        (job["id"], "Harbour at dusk.jpg", "replace")
+    ]
+    assert original.read_bytes() == before
+    assert client.get("/history").json()["entries"] == []
+
+    assert client.post(f"/jobs/{job['id']}/try-now").status_code == 204
+    done = made(client, job)
+
+    assert done["state"] == "done", done["problem"]
+    assert client.get("/jobs/held").json() == []
+    assert client.post(f"/jobs/{job['id']}/try-now").status_code == 409
+
+
+def test_a_save_that_cant_read_its_picture_waits_and_can_be_skipped(
+    client: TestClient, library: Library, monkeypatch: pytest.MonkeyPatch
+):
+    decode = making.decode
+
+    def in_use(path: Path, *args: Any, **options: Any) -> Image.Image:
+        if threading.current_thread().name != "jobs":  # the Size tab's own look at it
+            return decode(path, *args, **options)
+        raise InUseError(f"{path.name} is open in another app, so Mado can't read it.")
+
+    monkeypatch.setattr(making, "decode", in_use)
+    picture = library["ids"]["Sunny hill.png"]
+    app: Any = client.app
+    jobs: Jobs = app.state.jobs
+
+    job = client.post(
+        f"/pictures/{picture}/make",
+        json={"recipe": _recipe(), "saving": {"how": "new", "format": "JPEG"}},
+    ).json()
+    assert jobs.wait(120)
+    [held] = client.get("/jobs/held").json()
+
+    assert (held["name"], held["verb"], held["batch"]) == ("Sunny hill.png", "read", None)
+    assert client.post(f"/jobs/{job['id']}/skip").status_code == 204
+    skipped = client.get(f"/jobs/{job['id']}").json()
+    assert skipped["state"] == "failed"
+    assert skipped["problem"].startswith("You skipped Sunny hill.png")
+    assert client.post(f"/jobs/{job['id']}/skip").status_code == 409
+
+
+def test_a_save_that_cant_replace_its_original_doesnt_make_it_first(
+    client: TestClient, library: Library, monkeypatch: pytest.MonkeyPatch
+):
+    made: list[str] = []
+    decode = making.decode
+
+    def counted(path: Path, *args: Any, **options: Any) -> Image.Image:
+        if threading.current_thread().name == "jobs":
+            made.append(path.name)
+        return decode(path, *args, **options)
+
+    monkeypatch.setattr(making, "decode", counted)
+    picture = library["ids"]["Harbour at dusk.jpg"]
+    original = library["folder"] / "Harbour at dusk.jpg"
+    app: Any = client.app
+    jobs: Jobs = app.state.jobs
+
+    with original.open("rb"):  # held open, as another app would
+        job = client.post(
+            f"/pictures/{picture}/make",
+            json={"recipe": _recipe(), "saving": {"how": "replace", "format": "JPEG"}},
+        ).json()
+        assert jobs.wait(120)
+
+    assert client.get(f"/jobs/{job['id']}").json()["heldUntil"] is not None
+    assert made == []  # not made on the card for nothing, every 30 seconds

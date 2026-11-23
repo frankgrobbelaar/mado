@@ -12,6 +12,7 @@ from pydantic.alias_generators import to_camel
 from mado import db
 from mado.ai import Ai
 from mado.config import DataPaths
+from mado.duplicates import Finder
 from mado.jobs import Jobs
 from mado.making import Sight
 from mado.pc_check import PcCheck
@@ -88,6 +89,11 @@ def _samples(request: Request) -> Samples:
     return found
 
 
+def _finder(request: Request) -> Finder:
+    found: Finder = request.app.state.finder
+    return found
+
+
 def _pc(request: Request) -> PcCheck:
     found: PcCheck = request.app.state.pc
     return found
@@ -106,3 +112,4 @@ SetAside = Annotated[Quarantine, Depends(_quarantine)]
 Working = Annotated[Jobs, Depends(_jobs)]  # the jobs that make pictures
 ThisPc = Annotated[PcCheck, Depends(_pc)]
 FirstLook = Annotated[Samples, Depends(_samples)]  # See it first's pictures
+Finding = Annotated[Finder, Depends(_finder)]  # duplicates and bursts, found in the background

@@ -298,6 +298,58 @@
         ]
       }
     },
+    "/library/wont-open": {
+      "get": {
+        "summary": "Wont Open",
+        "description": "The pictures that won't open, but those the owner marked as damaged: each with why. They\nwere left exactly as they are.",
+        "operationId": "wont_open_library_wont_open_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WontOpen"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/space": {
+      "get": {
+        "summary": "Space",
+        "description": "The drives the library's folders are on, the one with the most of its pictures first:\nwhat's free, what the pictures use, what waits in quarantine and what the queue wants.",
+        "operationId": "space_space_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DriveSpace"
+                  },
+                  "type": "array",
+                  "title": "Response Space Space Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/scan": {
       "get": {
         "summary": "Scan",
@@ -697,6 +749,51 @@
               "image/jpeg": {},
               "image/png": {},
               "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/damaged": {
+      "post": {
+        "summary": "Mark Damaged",
+        "description": "Marks a picture that won't open as damaged: it isn't asked about again, unless its file\nchanges. The picture itself stays exactly as it is.",
+        "operationId": "mark_damaged_pictures__picture_id__damaged_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PictureDetails"
+                }
+              }
             }
           },
           "422": {
@@ -1375,6 +1472,34 @@
         }
       }
     },
+    "/jobs/held": {
+      "get": {
+        "summary": "Held",
+        "description": "The jobs waiting while their pictures are open in another app, the longest first.",
+        "operationId": "held_jobs_held_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Held"
+                  },
+                  "type": "array",
+                  "title": "Response Held Jobs Held Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/jobs/{job_id}": {
       "get": {
         "summary": "Job",
@@ -1405,6 +1530,82 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/try-now": {
+      "post": {
+        "summary": "Try Now",
+        "description": "A picture waiting while it's open in another app is tried again now.",
+        "operationId": "try_now_jobs__job_id__try_now_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/skip": {
+      "post": {
+        "summary": "Skip",
+        "description": "A picture waiting while it's open in another app isn't made after all: it's left as it is,\nto try again later, and the others go on.",
+        "operationId": "skip_jobs__job_id__skip_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -2562,6 +2763,217 @@
         }
       }
     },
+    "/duplicates": {
+      "get": {
+        "summary": "Found",
+        "description": "The groups found, newest first (a page of them: `offset`, `limit`; `kind` for only\nduplicates or only bursts), with what setting all of them of that kind aside would do.\n`limit=0` asks only for the counts (Home).",
+        "operationId": "found_duplicates_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "duplicates",
+                "bursts"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 0,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicatesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/duplicates/{key}/keep": {
+      "put": {
+        "summary": "Keep",
+        "description": "Which of a group to keep, one or more of it: the owner's choice among its pictures as\nthey saw them (`members`); one that joined since is left to Mado.",
+        "operationId": "keep_duplicates__key__keep_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Keep"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/duplicates/{key}/not-same": {
+      "post": {
+        "summary": "Not Same",
+        "description": "A group's pictures aren't the same: Mado doesn't ask again, unless one of them changes.",
+        "operationId": "not_same_duplicates__key__not_same_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/duplicates/aside": {
+      "post": {
+        "summary": "Set Aside",
+        "description": "Sets aside the rest of each group as the review showed it (or of every group of a kind,\nas long as none changed since the review saw them, `version`): each picture into its own\ndrive's quarantine for 30 days, with a line of History, all under one line. A group that\nchanged since it was shown, and a picture that changed since it was compared, is open in\nanother app or is on a drive that isn't connected, is left as it is, and said so.",
+        "operationId": "set_aside_duplicates_aside_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AsideAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsideOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/history": {
       "get": {
         "summary": "What Mado Did",
@@ -2716,6 +3128,51 @@
         }
       }
     },
+    "/history/reviews/{review_id}/undo": {
+      "post": {
+        "summary": "Undo Review",
+        "description": "Puts back every picture a review set aside, newest first, each where it was; the library\nreads them again. Each picture's own line says why one couldn't be.",
+        "operationId": "undo_review_history_reviews__review_id__undo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Review Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchUndone"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/history/today": {
       "get": {
         "summary": "Made Today",
@@ -2788,7 +3245,7 @@
     "/history/{entry_id}/undo": {
       "post": {
         "summary": "Undo",
-        "description": "Takes a new picture away (into quarantine, put back from here), or puts a replaced\noriginal back (the made picture going into quarantine in its place).",
+        "description": "Takes a new picture away (into quarantine, put back from here), puts a replaced original\nback (the made picture going into quarantine in its place), or puts a picture set aside from\nits duplicates back where it was (the library reads it again).",
         "operationId": "undo_history__entry_id__undo_post",
         "security": [
           {
@@ -3344,6 +3801,80 @@
           "download"
         ],
         "title": "AbilityOut"
+      },
+      "AsideAsk": {
+        "properties": {
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ShownGroup"
+                },
+                "type": "array",
+                "maxItems": 100000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/mado__api__duplicates__Kind",
+            "default": "all"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "title": "AsideAsk"
+      },
+      "AsideOut": {
+        "properties": {
+          "review": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "left": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "type": "array",
+            "title": "Left"
+          }
+        },
+        "type": "object",
+        "required": [
+          "review",
+          "pictures",
+          "bytes",
+          "left"
+        ],
+        "title": "AsideOut"
       },
       "Backup": {
         "properties": {
@@ -4210,6 +4741,144 @@
         ],
         "title": "DriveAside"
       },
+      "DriveSpace": {
+        "properties": {
+          "drive": {
+            "type": "string",
+            "title": "Drive"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "free": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          },
+          "quarantine": {
+            "type": "integer",
+            "title": "Quarantine"
+          },
+          "queue": {
+            "type": "integer",
+            "title": "Queue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drive",
+          "connected",
+          "free",
+          "total",
+          "pictures",
+          "quarantine",
+          "queue"
+        ],
+        "title": "DriveSpace",
+        "description": "Room on a drive the library uses."
+      },
+      "DuplicatesOut": {
+        "properties": {
+          "looking": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LookingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupOut"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          },
+          "bursts": {
+            "type": "integer",
+            "title": "Bursts"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "away": {
+            "type": "integer",
+            "title": "Away"
+          },
+          "putBack": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PutBack"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "looking",
+          "groups",
+          "next",
+          "duplicates",
+          "bursts",
+          "pictures",
+          "bytes",
+          "away",
+          "putBack",
+          "version"
+        ],
+        "title": "DuplicatesOut"
+      },
       "Emptied": {
         "properties": {
           "bytes": {
@@ -4251,7 +4920,8 @@
             "enum": [
               "made",
               "replaced",
-              "emptied"
+              "emptied",
+              "aside"
             ],
             "title": "Kind"
           },
@@ -4412,6 +5082,28 @@
               }
             ],
             "title": "Batch"
+          },
+          "keptName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keptname"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review"
           }
         },
         "type": "object",
@@ -4434,7 +5126,9 @@
           "picture",
           "canUndo",
           "canRedo",
-          "batch"
+          "batch",
+          "keptName",
+          "review"
         ],
         "title": "EntryOut"
       },
@@ -4575,6 +5269,180 @@
         "title": "Fraction",
         "description": "A part of the picture, as fractions of its width and height (extending, a canvas starts\nbefore the picture and ends after it)."
       },
+      "GroupOut": {
+        "properties": {
+          "key": {
+            "type": "integer",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "duplicates",
+              "burst"
+            ],
+            "title": "Kind"
+          },
+          "exact": {
+            "type": "boolean",
+            "title": "Exact"
+          },
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/GroupPicture"
+            },
+            "type": "array",
+            "title": "Pictures"
+          },
+          "chosen": {
+            "type": "boolean",
+            "title": "Chosen"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "sharpest",
+              "pixels",
+              "larger",
+              "name",
+              "older"
+            ],
+            "title": "Reason"
+          },
+          "aside": {
+            "type": "integer",
+            "title": "Aside"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "exact",
+          "pictures",
+          "chosen",
+          "reason",
+          "aside",
+          "bytes",
+          "ready",
+          "problem"
+        ],
+        "title": "GroupOut"
+      },
+      "GroupPicture": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "takenAt": {
+            "type": "string",
+            "title": "Takenat"
+          },
+          "takenFrom": {
+            "type": "string",
+            "enum": [
+              "camera",
+              "file"
+            ],
+            "title": "Takenfrom"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "keep": {
+            "type": "boolean",
+            "title": "Keep"
+          },
+          "suggested": {
+            "type": "boolean",
+            "title": "Suggested"
+          },
+          "there": {
+            "type": "string",
+            "enum": [
+              "there",
+              "away",
+              "gone",
+              "changed"
+            ],
+            "title": "There"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "folder",
+          "width",
+          "height",
+          "size",
+          "format",
+          "takenAt",
+          "takenFrom",
+          "version",
+          "keep",
+          "suggested",
+          "there"
+        ],
+        "title": "GroupPicture"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4617,6 +5485,61 @@
         ],
         "title": "Health"
       },
+      "Held": {
+        "properties": {
+          "job": {
+            "type": "integer",
+            "title": "Job"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "verb": {
+            "type": "string",
+            "enum": [
+              "read",
+              "replace"
+            ],
+            "title": "Verb"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since"
+          },
+          "until": {
+            "type": "string",
+            "title": "Until"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "name",
+          "path",
+          "verb",
+          "since",
+          "until",
+          "batch"
+        ],
+        "title": "Held",
+        "description": "A job waiting while its picture is open in another app."
+      },
       "HistoryOut": {
         "properties": {
           "entries": {
@@ -4643,13 +5566,21 @@
             },
             "type": "array",
             "title": "Batches"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewLine"
+            },
+            "type": "array",
+            "title": "Reviews"
           }
         },
         "type": "object",
         "required": [
           "entries",
           "older",
-          "batches"
+          "batches",
+          "reviews"
         ],
         "title": "HistoryOut"
       },
@@ -4844,6 +5775,17 @@
               }
             ],
             "title": "Problem"
+          },
+          "heldUntil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helduntil"
           }
         },
         "type": "object",
@@ -4864,7 +5806,8 @@
           "result",
           "resultName",
           "resultPicture",
-          "problem"
+          "problem",
+          "heldUntil"
         ],
         "title": "Job"
       },
@@ -4877,6 +5820,34 @@
           "failed",
           "cancelled"
         ]
+      },
+      "Keep": {
+        "properties": {
+          "keep": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Keep"
+          },
+          "members": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Members"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keep",
+          "members"
+        ],
+        "title": "Keep"
       },
       "KeepIn": {
         "properties": {
@@ -4956,7 +5927,7 @@
         ],
         "title": "KeptRecipe"
       },
-      "Kind": {
+      "Kind-Output": {
         "type": "string",
         "enum": [
           "photo",
@@ -5009,6 +5980,10 @@
             "type": "integer",
             "title": "Broken"
           },
+          "damaged": {
+            "type": "integer",
+            "title": "Damaged"
+          },
           "parts": {
             "items": {
               "$ref": "#/components/schemas/LibraryPart"
@@ -5025,6 +6000,7 @@
           "reading",
           "raw",
           "broken",
+          "damaged",
           "parts"
         ],
         "title": "Library",
@@ -5195,6 +6171,24 @@
         ],
         "title": "LookStep",
         "description": "A look, with its strength and touches: the Looks tab's choices."
+      },
+      "LookingOut": {
+        "properties": {
+          "looked": {
+            "type": "integer",
+            "title": "Looked"
+          },
+          "of": {
+            "type": "integer",
+            "title": "Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "looked",
+          "of"
+        ],
+        "title": "LookingOut"
       },
       "Looks": {
         "properties": {
@@ -5756,6 +6750,10 @@
               }
             ],
             "title": "Problem"
+          },
+          "damaged": {
+            "type": "boolean",
+            "title": "Damaged"
           }
         },
         "type": "object",
@@ -5778,7 +6776,8 @@
           "camera",
           "orientation",
           "located",
-          "problem"
+          "problem",
+          "damaged"
         ],
         "title": "PictureDetails"
       },
@@ -5976,7 +6975,7 @@
             "title": "Note"
           },
           "kind": {
-            "$ref": "#/components/schemas/Kind"
+            "$ref": "#/components/schemas/Kind-Output"
           },
           "kindGuessed": {
             "type": "boolean",
@@ -6165,6 +7164,25 @@
           "recipe"
         ],
         "title": "PreviewIn"
+      },
+      "PutBack": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "pictures"
+        ],
+        "title": "PutBack",
+        "description": "The latest review, every picture of it put back."
       },
       "Quality": {
         "type": "string",
@@ -6425,6 +7443,91 @@
           "problem"
         ],
         "title": "Restored"
+      },
+      "ReviewLine": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          },
+          "bursts": {
+            "type": "integer",
+            "title": "Bursts"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "back": {
+            "type": "integer",
+            "title": "Back"
+          },
+          "cleared": {
+            "type": "integer",
+            "title": "Cleared"
+          },
+          "canUndo": {
+            "type": "boolean",
+            "title": "Canundo"
+          },
+          "drives": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Drives"
+          },
+          "asideUntil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asideuntil"
+          },
+          "picture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "duplicates",
+          "bursts",
+          "pictures",
+          "bytes",
+          "back",
+          "cleared",
+          "canUndo",
+          "drives",
+          "asideUntil",
+          "picture"
+        ],
+        "title": "ReviewLine",
+        "description": "A review of duplicates and bursts as History's one line for it: what it set aside, and\nwhat puts all of it back."
       },
       "Room": {
         "properties": {
@@ -7196,6 +8299,40 @@
           "extend"
         ]
       },
+      "ShownGroup": {
+        "properties": {
+          "key": {
+            "type": "integer",
+            "title": "Key"
+          },
+          "members": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 2,
+            "title": "Members"
+          },
+          "keep": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Keep"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "members",
+          "keep"
+        ],
+        "title": "ShownGroup",
+        "description": "A group as the review showed it."
+      },
       "SizeIn": {
         "properties": {
           "size": {
@@ -7225,7 +8362,7 @@
           "kind": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Kind"
+                "$ref": "#/components/schemas/mado__core__kind__Kind"
               },
               {
                 "type": "null"
@@ -7333,7 +8470,7 @@
           "kind": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Kind"
+                "$ref": "#/components/schemas/Kind-Output"
               },
               {
                 "type": "null"
@@ -7763,6 +8900,62 @@
         "title": "TouchesIn",
         "description": "Each finishing touch's amount, 0 (off) to 100."
       },
+      "Unopened": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "problem": {
+            "type": "string",
+            "title": "Problem"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "folder",
+          "format",
+          "size",
+          "problem",
+          "version"
+        ],
+        "title": "Unopened",
+        "description": "A picture that won't open."
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -7905,6 +9098,27 @@
         ],
         "title": "WatchOut"
       },
+      "WontOpen": {
+        "properties": {
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/Unopened"
+            },
+            "type": "array",
+            "title": "Pictures"
+          },
+          "damaged": {
+            "type": "integer",
+            "title": "Damaged"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pictures",
+          "damaged"
+        ],
+        "title": "WontOpen"
+      },
       "Words": {
         "properties": {
           "kind": {
@@ -7991,6 +9205,23 @@
           "addedAt"
         ],
         "title": "YourLook"
+      },
+      "mado__api__duplicates__Kind": {
+        "type": "string",
+        "enum": [
+          "all",
+          "duplicates",
+          "bursts"
+        ]
+      },
+      "mado__core__kind__Kind": {
+        "type": "string",
+        "enum": [
+          "photo",
+          "drawing",
+          "pixels",
+          "screenshot"
+        ]
       },
       "mado__scan__State": {
         "type": "string",

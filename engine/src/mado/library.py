@@ -199,7 +199,7 @@ def save_facts(conn: sqlite3.Connection, picture_id: int, found: Facts, *, now: 
     with conn:
         conn.execute(
             """UPDATE pictures
-               SET read_at = ?, problem = NULL, format = ?, width = ?, height = ?,
+               SET read_at = ?, problem = NULL, damaged = 0, format = ?, width = ?, height = ?,
                    taken_at = COALESCE(?, taken_at),
                    taken_from = CASE WHEN ? IS NULL THEN taken_from ELSE 'camera' END,
                    camera = ?, orientation = ?, located = ?
@@ -307,7 +307,7 @@ def _record(
         """UPDATE pictures
            SET folder_id = ?, dir = ?, name = ?, size = ?, modified = ?, seen_at = ?,
                gone_at = NULL, found_at = COALESCE(?, found_at), read_at = ?, problem = NULL,
-               raw = ?, format = ?, width = NULL, height = NULL, taken_at = ?,
+               damaged = 0, raw = ?, format = ?, width = NULL, height = NULL, taken_at = ?,
                taken_from = 'file', camera = NULL, orientation = NULL, located = 0
            WHERE id = ?""",
         (

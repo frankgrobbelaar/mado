@@ -53,6 +53,7 @@ from mado.hardware import Here
 from mado.jobs import (
     PARTIAL,
     DriveGoneError,
+    HeldError,
     JobError,
     NoRoomError,
     Stage,
@@ -63,13 +64,14 @@ from mado.jobs import (
 from mado.looks import seed_of, styled
 from mado.pictures import (
     Command,
+    InUseError,
     NeedsFfmpegError,
     PictureGoneError,
     UnreadableError,
     decode,
     read_exif,
 )
-from mado.quarantine import MoveError, Quarantine, move
+from mado.quarantine import InUseMoveError, MoveError, Quarantine, movable, move
 from mado.upscale import (
     Pixels,
     StoppedError,
@@ -133,6 +135,10 @@ class Saved:
 class SavingError(Exception):
     """The picture was made but couldn't be kept, with a sentence saying why. The original is as
     it was."""
+
+
+class InUseSavingError(SavingError):
+    """The original couldn't be replaced: another app has it open. Nothing was saved."""
 
 
 class FullError(SavingError):
@@ -543,6 +549,8 @@ def _replacing(
     except MoveError as error:
         partial.unlink(missing_ok=True)
         forget()
+        if isinstance(error, InUseMoveError):
+            raise InUseSavingError(str(error)) from None
         raise SavingError(str(error)) from None
     try:
         move(partial, target)
@@ -750,8 +758,12 @@ class Maker:
             report("saving", 1.0)
             return saved.path
         report("reading", 0.0)
+        if saving.how == "replace" and not movable(picture.path):
+            raise HeldError(picture.path.name, "replace")  # asked first: not made for nothing
         try:
             image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
+        except InUseError:  # waits, and is tried again by itself
+            raise HeldError(picture.path.name, "read") from None
         except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
             raise _drive_gone(picture.path) or JobError(str(error)) from None
         here = self._ai.where()
@@ -836,6 +848,8 @@ class Maker:
             )
         except FullError as error:
             raise NoRoomError(error.drive, str(error)) from None
+        except InUseSavingError:  # waits, and is tried again by itself
+            raise HeldError(picture.path.name, "replace") from None
         except SavingError as error:
             gone = _drive_gone(picture.path, into(saving, picture.path))
             if gone is not None and history.for_job(conn, job_id) is None:  # nothing moved

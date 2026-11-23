@@ -8,6 +8,36 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Duplicates and bursts: Mado looks at every picture as it's read, and finds the ones saved more
+  than once (the same file twice, or saved again at another size, quality or format) and bursts
+  (shots a second or two apart). Home's Needs you says how many there are, and how far Mado has
+  got while it's still looking.
+- Review shows each group with the one Mado keeps: a burst's sharpest, otherwise the copy with the
+  most pixels. Click another to keep it instead, tick to keep more than one, open one big beside
+  the one kept at Fit or 100%, or say they're not the same, which Mado remembers unless a file
+  changes. Duplicates and bursts can be shown apart.
+- Set aside the rest of every group at once ("Set aside 212, freeing 1.4 GB"), or one group at a
+  time. Each picture waits in quarantine for 30 days; History shows the whole review as one line,
+  and puts back one picture or all of them. A picture that changed since Mado compared it, is open
+  in another app, or is on a drive that isn't connected is left exactly as it is, and Mado says
+  so.
+- Won't open: Home lists the pictures whose files are damaged or were only half copied. See which
+  shows each with why, to show in its folder, try again, or mark as damaged, so it isn't asked
+  about again unless its file changes. A picture's own page offers Mark as damaged too.
+- Space: Home shows the room on the drive most of your library is on (what's free, what your
+  pictures use, what quarantine holds and what the queue needs), with a line for each other drive
+  the library uses.
+
+### Changed
+- A picture open in another app no longer stops its job. The queue, or a Save, waits and tries
+  again by itself every 30 seconds for 10 minutes while the others go on, and a note at the
+  window's foot says so, with Try again now and Skip it. A Save that would replace it waits before
+  making the picture, not after.
+- A picture another app had open while Mado read it is read again a minute later, rather than
+  listed as one that won't open; Try again on such a picture says it's open elsewhere and leaves
+  it as it was.
+
 ## 0.3.0 - 2026-11-22
 
 ### Added

@@ -18,7 +18,7 @@ from mado.core.grids import blended
 from mado.core.looks import mado_look
 from mado.core.touches import Touches
 from mado.export import export_data
-from mado.library import add_folder, find_pictures, save_facts
+from mado.library import add_folder, find_pictures, folders, save_facts
 from mado.migrations import MIGRATIONS
 from mado.pictures import read_facts
 from tests.drawn import draw, exif
@@ -44,6 +44,7 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
     assert archive == expected
     with zipfile.ZipFile(expected) as zipped:
         assert sorted(zipped.namelist()) == [
+            "duplicates.json",
             "folders.json",
             "history.csv",
             "looks.json",
@@ -239,3 +240,54 @@ def test_recipes_and_watch_folders_are_in_the_export(paths: DataPaths, tmp_path:
             "watching": True,
         }
     ]
+
+
+def test_what_looking_after_the_library_keeps_is_in_the_export(paths: DataPaths, tmp_path: Path):
+    _records_with_one_setting(paths)
+    folder = tmp_path / "Phone"
+    for name in ("Pier.jpg", "Pier (2).jpg", "Old pier.jpg"):
+        draw(folder / name)
+    with closing(db.connect(paths.database)) as conn:
+        add_folder(conn, folder, now=NOW)
+        find_pictures(conn, folders(conn)[0], stamp="2026-11-22T14:00:00")
+        ids = {row["name"]: row["id"] for row in conn.execute("SELECT id, name FROM pictures")}
+        pair = sorted((ids["Pier.jpg"], ids["Pier (2).jpg"]))
+        with conn:
+            conn.execute(
+                "UPDATE pictures SET read_at = 'x', problem = 'The file is damaged.', damaged = 1"
+                " WHERE id = ?",
+                (ids["Old pier.jpg"],),
+            )
+            conn.execute(
+                "INSERT INTO not_same (first, second, versions, at) VALUES (?, ?, 'v', 'x')",
+                pair,
+            )
+            conn.execute(
+                "INSERT INTO reviews (at, duplicates, bursts) VALUES ('2026-11-22T14:00', 1, 0)"
+            )
+        history.aside(
+            conn,
+            now=NOW,
+            name="Pier (3).jpg",
+            original=folder / "Pier (3).jpg",
+            kept=folder / "Pier.jpg",
+            aside=tmp_path / "Mado quarantine" / "2026-11-22" / "Pier (3).jpg",
+            size=1234,
+            review_id=1,
+        )
+
+    archive = export_data(paths, tmp_path / "exports", now=NOW)
+
+    assert archive is not None
+    with zipfile.ZipFile(archive) as zipped:
+        rows = list(csv.DictReader(io.StringIO(zipped.read("history.csv").decode("utf-8"))))
+        kept = json.loads(zipped.read("duplicates.json"))
+        listed = list(csv.DictReader(io.StringIO(zipped.read("pictures.csv").decode("utf-8"))))
+    [line] = rows
+    assert (line["kind"], line["kept"], line["review"]) == ("aside", str(folder / "Pier.jpg"), "1")
+    assert kept["notTheSame"] == [sorted([str(folder / "Pier.jpg"), str(folder / "Pier (2).jpg")])]
+    assert kept["reviews"] == [{"at": "2026-11-22T14:00", "duplicates": 1, "bursts": 0}]
+    states = {row["path"]: row["state"] for row in listed}
+    assert states[str(folder / "Old pier.jpg")] == (
+        "won't open, marked as damaged: The file is damaged."
+    )

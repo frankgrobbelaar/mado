@@ -73,6 +73,7 @@ describe("NavRail", () => {
     ["/queue", "Queue"],
     ["/recipes", "Queue"],
     ["/history", "History"],
+    ["/duplicates", "Home"],
     ["/settings", "Settings"],
     ["/settings/about", "Settings"],
   ])("keeps the place of %s lit: %s", (page, tile) => {

@@ -12,7 +12,7 @@ import pytest
 from mado.config import DataPaths
 from mado.core.files import Kind
 from mado.library import add_folder, find_pictures
-from mado.pictures import Facts, read_facts
+from mado.pictures import Facts, InUseError, read_facts
 from mado.previews import Previews
 from mado.scan import Scanner
 from tests.drawn import draw, exif
@@ -265,3 +265,56 @@ def test_a_scan_that_stopped_with_mado_says_so_rather_than_running(
         )
 
     assert scanner.status().state == "stopped"
+
+
+def test_a_picture_open_in_another_app_is_read_by_a_later_scan_not_marked_as_damaged(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    draw(tmp_path / "Phone" / "Pier.jpg")
+    draw(tmp_path / "Phone" / "Sail.jpg")
+    add_folder(conn, tmp_path / "Phone", now=NOW)
+    held = {"Pier.jpg"}
+
+    def read(path: Path, kind: Kind) -> Facts:
+        if path.name in held:
+            raise InUseError(f"{path.name} is open in another app, so Mado can't read it.")
+        return read_facts(path, kind)
+
+    scanner = Scanner(paths, Previews(paths, ffmpeg=lambda: None), now=lambda: NOW, read=read)
+    scanned(scanner)
+
+    found = pictures(conn)
+    assert found["Pier.jpg"]["read_at"] is None  # still to read
+    assert found["Pier.jpg"]["problem"] is None
+    assert found["Sail.jpg"]["read_at"] is not None
+
+    held.clear()
+    scanned(scanner)
+
+    assert pictures(conn)["Pier.jpg"]["read_at"] is not None
+
+
+def test_a_scan_that_left_a_picture_open_in_another_app_looks_again_by_itself(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    draw(tmp_path / "Phone" / "Pier.jpg")
+    add_folder(conn, tmp_path / "Phone", now=NOW)
+    held = {"Pier.jpg"}
+
+    def read(path: Path, kind: Kind) -> Facts:
+        if path.name in held:
+            held.clear()  # closed in the other app soon after
+            raise InUseError(f"{path.name} is open in another app, so Mado can't read it.")
+        return read_facts(path, kind)
+
+    scanner = Scanner(
+        paths, Previews(paths, ffmpeg=lambda: None), now=lambda: NOW, read=read, again_after=0.05
+    )
+    scanned(scanner)
+
+    for _ in range(100):
+        if pictures(conn)["Pier.jpg"]["read_at"] is not None:
+            break
+        threading.Event().wait(0.05)
+    assert pictures(conn)["Pier.jpg"]["read_at"] is not None
+    scanner.stop()

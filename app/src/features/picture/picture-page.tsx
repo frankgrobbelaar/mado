@@ -17,6 +17,7 @@ import {
   shownQuery,
   useFolders,
   useLooks,
+  useMarkDamaged,
   useNeighbours,
   usePicture,
   usePictureJobs,
@@ -469,6 +470,7 @@ function Unshown(props: {
   children: ReactNode;
 }) {
   const read = useReadAgain();
+  const mark = useMarkDamaged();
   const { picture } = props;
   const raw = picture.state === "raw";
   const broken = picture.state === "broken";
@@ -518,10 +520,26 @@ function Unshown(props: {
             Try again
           </Button>
         )}
+        {broken && !picture.damaged && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={mark.isPending}
+            onClick={() => mark.mutate({ path: `/pictures/${picture.id}/damaged` })}
+          >
+            Mark as damaged
+          </Button>
+        )}
       </span>
-      {(props.problem ?? (read.isError ? read.error.message : null)) && (
+      {broken && picture.damaged && (
+        <p className="text-12 text-fg-muted">
+          Marked as damaged: Mado won't ask about it again, unless its file changes.
+        </p>
+      )}
+      {(props.problem ??
+        (read.isError ? read.error.message : mark.isError ? mark.error.message : null)) && (
         <p role="alert" className="text-12 text-broken-fg">
-          {props.problem ?? read.error?.message}
+          {props.problem ?? read.error?.message ?? mark.error?.message}
         </p>
       )}
     </section>

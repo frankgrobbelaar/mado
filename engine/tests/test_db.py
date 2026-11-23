@@ -93,3 +93,64 @@ def test_records_from_mado_0_2_gain_batches_and_keep_their_jobs_in_line(tmp_path
         assert {"batches", "recipes", "watch_folders", "watched"} <= tables
         jobs = conn.execute("SELECT id, position, batch_id FROM jobs ORDER BY id").fetchall()
         assert [(job["position"], job["batch_id"]) for job in jobs] == [(1, None), (2, None)]
+
+
+def test_records_from_mado_0_3_keep_every_line_of_history_and_learn_to_set_pictures_aside(
+    tmp_path: Path,
+):
+    pier, aside = r"D:\Pier.jpg", r"D:\Mado quarantine\2026-11-22\Pier.jpg"
+    replaced = (
+        "2026-11-22T14:02:00+02:00", "replaced", 1, "Pier.jpg", "TV 8K", pier, pier, aside,
+        "2026-11-22T14:02:00+02:00", "2026-12-22T03:00:00+02:00", "days", None, None,
+        "Warm film at 60%",
+    )  # fmt: skip
+    with closing(db.connect(tmp_path / "mado.db")) as conn:
+        for number, sql in enumerate(MIGRATIONS[:5], start=1):
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        conn.execute(
+            """INSERT INTO jobs (kind, source, recipe, state, queued_at)
+               VALUES ('make', ?, '{}', 'done', '2026-11-22T14:02:00+02:00')""",
+            (pier,),
+        )
+        conn.execute(
+            """INSERT INTO history (at, kind, job_id, name, made_for, original, result, aside,
+                                    aside_at, cleared_at, cleared_by, undone_at, bytes, look)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            replaced,
+        )
+        conn.execute(
+            "INSERT INTO history (at, kind, name, bytes) VALUES (?, 'emptied', 'D:', 1400)",
+            ("2026-11-22T15:00:00+02:00",),
+        )
+        conn.commit()
+
+        assert db.migrate(conn) == len(MIGRATIONS)
+
+        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
+        assert {"prints", "choices", "not_same", "reviews"} <= tables
+        lines = conn.execute("SELECT * FROM history ORDER BY id").fetchall()
+        columns = (
+            "at", "kind", "job_id", "name", "made_for", "original", "result", "aside", "aside_at",
+            "cleared_at", "cleared_by", "undone_at", "bytes", "look",
+        )  # fmt: skip
+        assert tuple(lines[0][column] for column in columns) == replaced
+        assert (lines[0]["kept"], lines[0]["review_id"]) == (None, None)
+        assert (lines[1]["kind"], lines[1]["name"], lines[1]["bytes"]) == ("emptied", "D:", 1400)
+        conn.execute(
+            "INSERT INTO history (at, kind, name, original, kept) VALUES (?, 'aside', ?, ?, ?)",
+            ("2026-11-23T10:00:00+02:00", "Pier (2).jpg", r"D:\Pier (2).jpg", pier),
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO history (at, kind, name) VALUES ('x', 'deleted', 'x')")
+        names = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master")}
+        assert {"history_by_time", "history_by_review"} <= names
+        conn.execute(
+            """INSERT INTO folders (path, added_at) VALUES ('D:\\', '2026-11-22T09:00:00');"""
+        )
+        conn.execute(
+            """INSERT INTO pictures (folder_id, path, dir, name, size, modified, found_at,
+                                     seen_at, taken_at, taken_from)
+               VALUES (1, ?, '', 'Pier.jpg', 10, 1, 'x', 'x', 'x', 'file')""",
+            (pier,),
+        )
+        assert conn.execute("SELECT damaged FROM pictures").fetchone()["damaged"] == 0

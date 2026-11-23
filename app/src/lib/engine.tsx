@@ -192,6 +192,8 @@ const CHANGED_ON_ITS_OWN = [
   "/batches/done",
   "/recipes",
   "/watch-folders",
+  "/duplicates",
+  "/space",
 ];
 
 /** Asks again for what the engine may have changed by itself, once it tells of something. */
@@ -371,7 +373,10 @@ export interface Library {
   size: number;
   reading: number;
   raw: number;
+  /** Won't open. */
   broken: number;
+  /** Of those, marked as damaged by the owner: not asked about again. */
+  damaged: number;
   /** Each library folder's pictures, in the order they were added. */
   parts: { folderId: number; name: string; pictures: number }[];
 }
@@ -448,6 +453,8 @@ export interface PictureDetails extends PictureItem {
   located: boolean;
   /** Why it won't open. */
   problem: string | null;
+  /** The owner marked it as damaged: not asked about again till its file changes. */
+  damaged: boolean;
 }
 
 export interface Neighbours {
@@ -523,7 +530,7 @@ export function useScan() {
     const ended = before !== null && before !== key && !key.endsWith(":running");
     if (ended && caughtUp.get(queries) !== key) {
       caughtUp.set(queries, key);
-      void refresh(["/library", "/folders", "/pictures"]);
+      void refresh(["/library", "/folders", "/pictures", "/duplicates", "/space"]);
       return;
     }
     if (progress !== null) {
@@ -1005,7 +1012,10 @@ export interface Job {
   result: string | null;
   resultName: string | null;
   resultPicture: PictureRef | null;
+  /** Why it didn't work; while it waits, why it waits. */
   problem: string | null;
+  /** Its picture is open in another app: it tries again then. */
+  heldUntil: string | null;
 }
 
 const JOBS = ["/jobs", "/history", "/library", "/folders", "/pictures", "/quarantine"];
@@ -1041,8 +1051,9 @@ export interface HistoryEntry {
   id: number;
   /** Local time, with its offset. */
   at: string;
-  kind: "made" | "replaced" | "emptied";
-  /** The original's file name; the drive, for a quarantine emptied. */
+  /** "aside": set aside from a group of duplicates or a burst. */
+  kind: "made" | "replaced" | "emptied" | "aside";
+  /** The original's file name; the drive, for a quarantine emptied; a picture set aside's own. */
   name: string;
   /** What its size made it for: "TV 8K". */
   madeFor: string | null;
@@ -1065,6 +1076,33 @@ export interface HistoryEntry {
   canRedo: boolean;
   /** The batch it was made in, which History shows as one line. */
   batch: number | null;
+  /** A picture set aside: the one of its group that was kept. */
+  keptName: string | null;
+  /** A picture set aside: the review it was set aside in, which History shows as one line. */
+  review: number | null;
+}
+
+/** A review of duplicates and bursts as History's one line for it. */
+export interface ReviewLine {
+  id: number;
+  at: string;
+  /** Groups of duplicates whose rest it set aside. */
+  duplicates: number;
+  bursts: number;
+  /** Pictures it set aside. */
+  pictures: number;
+  /** What setting them aside freed. */
+  bytes: number;
+  /** Put back since. */
+  back: number;
+  /** Cleared out of quarantine since: after their days, or emptied. */
+  cleared: number;
+  canUndo: boolean;
+  /** Where what it set aside waits: "D:". */
+  drives: string[];
+  asideUntil: string | null;
+  /** A picture it kept. */
+  picture: PictureRef | null;
 }
 
 export interface HistoryPage {
@@ -1073,6 +1111,8 @@ export interface HistoryPage {
   older: string | null;
   /** The batches its lines were made in. */
   batches: BatchLine[];
+  /** The reviews its lines were set aside in. */
+  reviews: ReviewLine[];
 }
 
 /** History, a week of days at a time: `fetchNextPage()` brings the week before. */
@@ -1093,7 +1133,8 @@ export function useHistory(query: string) {
 }
 
 /** Undoes a line: `undo.mutate({ path: "/history/3/undo" })` (or `/redo`). */
-export const useHistoryAction = () => useEngineAction<HistoryEntry>(JOBS);
+export const useHistoryAction = () =>
+  useEngineAction<HistoryEntry>([...JOBS, "/duplicates", "/space"]);
 /** Clears History: `clear.mutate({ path: "/history/clear", body: { keep } })`. */
 export const useClearHistory = () => useEngineAction<{ cleared: number }>(["/history"]);
 
@@ -1508,3 +1549,199 @@ export const madeAddress = (id: number) => `/history/${id}/thumbnail`;
 /** See it first's picture: a copy before or after, or as it was made, in full. */
 export const sampleAddress = (set: string, index: number, side: "before" | "after" | "full") =>
   `/batches/samples/${set}/${index}/${side}`;
+
+// Looking after the library: duplicates and bursts, pictures that won't open, room on the drives,
+// and a picture open in another app.
+
+/** One of a group's pictures. */
+export interface GroupPicture {
+  id: number;
+  name: string;
+  path: string;
+  /** The folder it's in. */
+  folder: string;
+  width: number;
+  height: number;
+  size: number;
+  format: string | null;
+  /** Local time: "2026-11-14T10:02:14". */
+  takenAt: string;
+  takenFrom: "camera" | "file";
+  version: string;
+  /** Kept: as Mado suggests, or as the owner chose. */
+  keep: boolean;
+  /** The one Mado suggests keeping. */
+  suggested: boolean;
+  /** As it was when compared; "away" on a drive that isn't connected; gone or changed since. */
+  there: "there" | "away" | "gone" | "changed";
+}
+
+/** Duplicates (one picture saved more than once) or a burst (shots of one moment). */
+export interface DuplicateGroup {
+  /** Its first picture's number, which names it. */
+  key: number;
+  kind: "duplicates" | "burst";
+  /** Every one the same bytes. */
+  exact: boolean;
+  /** A burst's in time, else biggest first. */
+  pictures: GroupPicture[];
+  /** The owner chose which to keep. */
+  chosen: boolean;
+  /** Pictures setting it aside sets aside now, and what that frees. */
+  aside: number;
+  bytes: number;
+  /** What decided which Mado keeps. */
+  reason: "sharpest" | "pixels" | "larger" | "name" | "older";
+  /** It can be set aside now. */
+  ready: boolean;
+  /** Why not: "F: isn't connected. Connect it to set these aside." */
+  problem: string | null;
+}
+
+export interface Duplicates {
+  /** Still looking: how far it's got. */
+  looking: { looked: number; of: number } | null;
+  /** This page. */
+  groups: DuplicateGroup[];
+  /** Where the next page starts; null on the last. */
+  next: number | null;
+  /** Groups of each kind, in all. */
+  duplicates: number;
+  bursts: number;
+  /** What setting every group aside sets aside now, and frees. */
+  pictures: number;
+  bytes: number;
+  /** Pictures in groups waiting for a drive to be connected. */
+  away: number;
+  /** The latest review, every picture of it put back. */
+  putBack: { at: string; pictures: number } | null;
+  /** The groups and what's kept of them as they are now: setting them all aside names it. */
+  version: string;
+}
+
+/** A group as the review showed it, which setting it aside names: the engine leaves one that
+ * changed since. */
+export interface ShownGroup {
+  key: number;
+  members: number[];
+  keep: number[];
+}
+
+export type DuplicateKind = "all" | "duplicates" | "bursts";
+
+/** What setting aside did. */
+export interface AsideDone {
+  review: number | null;
+  pictures: number;
+  bytes: number;
+  /** What was left as it is, and why. */
+  left: { name: string; why: string }[];
+}
+
+const DUPLICATES = [
+  "/duplicates",
+  "/history",
+  "/library",
+  "/pictures",
+  "/folders",
+  "/quarantine",
+  "/space",
+];
+
+/** The groups found, a page at a time: `fetchNextPage()` brings the next. Asked again every two
+ * seconds while Mado is still looking, and now and then otherwise, for what a scan brings. */
+export function useDuplicates(kind: DuplicateKind) {
+  const engine = useEngine();
+  const path = `/duplicates?kind=${kind}`;
+  return useInfiniteQuery({
+    queryKey: engineKey(engine, path),
+    queryFn: ({ pageParam }) => {
+      if (engine.state !== "ready") throw new EngineError("The engine isn't ready yet.");
+      return callEngine<Duplicates>(engine, `${path}&offset=${pageParam}`);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.next,
+    enabled: engine.state === "ready",
+    refetchInterval: (query) => (query.state.data?.pages[0]?.looking ? 2000 : 20_000),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** What Home tells of duplicates and bursts: the counts alone, asked again while Mado looks, and
+ * now and then otherwise. */
+export const useDuplicateCounts = () =>
+  useEngineQuery<Duplicates>("/duplicates?limit=0", (found) => (found?.looking ? 3000 : 10_000));
+/** Which of a group to keep, of its pictures as shown:
+ * `keep.mutate({ path: "/duplicates/12/keep", body: { keep, members } })`. */
+export const useKeep = () => useEngineAction<DuplicateGroup>(["/duplicates"], "PUT");
+/** A group isn't the same: `notSame.mutate({ path: "/duplicates/12/not-same" })`. */
+export const useNotSame = () => useEngineAction<void>(["/duplicates"]);
+/** Sets aside the rest of groups as shown (`groups`), or of every one of a kind (`groups: null`,
+ * `kind`, and the `version` the review saw). */
+export const useSetAside = () => useEngineAction<AsideDone>(DUPLICATES);
+/** Puts back all a review set aside: `undo.mutate({ path: "/history/reviews/3/undo" })`. */
+export const useReviewUndo = () =>
+  useEngineAction<{ done: number; problems: string[] }>(DUPLICATES);
+
+/** A picture that won't open. */
+export interface Unopened {
+  id: number;
+  name: string;
+  path: string;
+  folder: string;
+  format: string | null;
+  size: number;
+  /** Why, in a sentence. */
+  problem: string;
+  version: string;
+}
+
+export interface WontOpen {
+  /** Those not marked as damaged, newest file first. */
+  pictures: Unopened[];
+  /** Marked as damaged, so not listed. */
+  damaged: number;
+}
+
+export const useWontOpen = (enabled = true) =>
+  useEngineQuery<WontOpen>("/library/wont-open", undefined, enabled);
+/** Marks one as damaged: `mark.mutate({ path: "/pictures/7/damaged" })`. */
+export const useMarkDamaged = () => useEngineAction<PictureDetails>(LIBRARY);
+
+/** Room on a drive the library uses. */
+export interface DriveSpace {
+  /** "D:" */
+  drive: string;
+  connected: boolean;
+  /** Bytes; null while it isn't connected. */
+  free: number | null;
+  total: number | null;
+  /** The library's pictures on it. */
+  pictures: number;
+  /** What waits in its quarantine. */
+  quarantine: number;
+  /** What the pictures waiting in the queue want there. */
+  queue: number;
+}
+
+/** The drives the library is on, the one with the most of it first. */
+export const useSpace = () => useEngineQuery<DriveSpace[]>("/space");
+
+/** A job waiting while its picture is open in another app. */
+export interface Held {
+  job: number;
+  name: string;
+  path: string;
+  /** What Mado can't do while it's open. */
+  verb: "read" | "replace";
+  since: string;
+  /** When it tries again by itself. */
+  until: string;
+  batch: string | null;
+}
+
+/** The jobs waiting while their pictures are open in another app, asked again every few seconds. */
+export const useHeldJobs = () =>
+  useEngineQuery<Held[]>("/jobs/held", (held) => (held?.length ? 2000 : 5000));
+/** Tries one again now (`/jobs/3/try-now`) or skips it (`/jobs/3/skip`). */
+export const useHeldAction = () => useEngineAction<void>(["/jobs", "/queue", "/batches/done"]);

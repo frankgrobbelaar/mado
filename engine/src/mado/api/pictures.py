@@ -12,10 +12,16 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
-from mado.api.common import ApiModel, Copies, Database
+from mado.api.common import ApiModel, Copies, Database, Finding
 from mado.core.files import kind_of
 from mado.library import file_time, save_facts, save_problem
-from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError, read_facts
+from mado.pictures import (
+    InUseError,
+    NeedsFfmpegError,
+    PictureGoneError,
+    UnreadableError,
+    read_facts,
+)
 from mado.previews import Source, version
 
 router = APIRouter()
@@ -64,6 +70,7 @@ class PictureDetails(PictureItem):
     orientation: int | None  # EXIF's 1 to 8
     located: bool  # it carries where it was taken
     problem: str | None  # why it won't open
+    damaged: bool  # the owner marked it as damaged: not asked about again till its file changes
 
 
 class Neighbours(ApiModel):
@@ -209,8 +216,22 @@ def full(picture_id: int, conn: Database, copies: Copies) -> FileResponse:
     return FileResponse(path, media_type=media, headers=_KEEP)
 
 
+@router.post("/pictures/{picture_id}/damaged")
+def mark_damaged(picture_id: int, conn: Database) -> PictureDetails:
+    """Marks a picture that won't open as damaged: it isn't asked about again, unless its file
+    changes. The picture itself stays exactly as it is."""
+    row = _row(conn, picture_id)
+    if not row["problem"]:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "That picture opens now, so there's nothing to mark."
+        )
+    with conn:
+        conn.execute("UPDATE pictures SET damaged = 1 WHERE id = ?", (picture_id,))
+    return _details(conn, _row(conn, picture_id))
+
+
 @router.post("/pictures/{picture_id}/read")
-def read_again(picture_id: int, conn: Database, copies: Copies) -> PictureDetails:
+def read_again(picture_id: int, conn: Database, copies: Copies, finder: Finding) -> PictureDetails:
     """Reads one picture again now (one that wouldn't open may have been mended since)."""
     row = _row(conn, picture_id)
     path = Path(row["path"])
@@ -236,8 +257,11 @@ def read_again(picture_id: int, conn: Database, copies: Copies) -> PictureDetail
             log.warning("Mado couldn't keep the thumbnail of %s: %s", path, error)
         except PictureGoneError as error:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from None
+        except InUseError as error:  # nothing's wrong with it: left as it was
+            raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
         except UnreadableError as error:
             save_problem(conn, picture_id, str(error), now=now)
+    finder.wake()  # looked at as it is now
     return _details(conn, _row(conn, picture_id))
 
 
@@ -301,6 +325,7 @@ def _details(conn: sqlite3.Connection, row: sqlite3.Row) -> PictureDetails:
         orientation=row["orientation"],
         located=bool(row["located"]),
         problem=row["problem"],
+        damaged=bool(row["damaged"]),
     )
 
 

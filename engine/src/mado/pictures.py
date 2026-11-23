@@ -50,6 +50,11 @@ class UnreadableError(Exception):
     """A picture that won't open, with a sentence saying why."""
 
 
+class InUseError(UnreadableError):
+    """A picture another app has open, so Mado can't read it now: nothing's wrong with it, and it
+    opens once that app lets go."""
+
+
 class PictureGoneError(Exception):
     """A picture's file isn't where the library says: moved, deleted, or its drive unplugged."""
 
@@ -100,9 +105,8 @@ def read_facts(path: Path, kind: Kind) -> Facts:
     except Image.DecompressionBombError:
         raise UnreadableError(_too_big(path)) from None
     except OSError as error:
-        raise UnreadableError(
-            _in_use(path, error) or f"{_DAMAGED}: {error.strerror or error}."
-        ) from None
+        _raise_in_use(path, error)
+        raise UnreadableError(f"{_DAMAGED}: {error.strerror or error}.") from None
     except (SyntaxError, ValueError) as error:  # a part of it Pillow won't take, as decode says
         raise UnreadableError(f"{_DAMAGED}: {error}.") from None
     return _facts(name, width, height, found)
@@ -111,14 +115,13 @@ def read_facts(path: Path, kind: Kind) -> Facts:
 _LOCKED = (32, 33)  # Windows' sharing and lock violations: another app has the file open
 
 
-def _in_use(path: Path, error: OSError) -> str | None:
-    """What to say of a picture another app holds open, so Mado can't read it."""
+def _raise_in_use(path: Path, error: OSError) -> None:
+    """Raises InUseError for a picture another app holds open, so Mado can't read it."""
     if getattr(error, "winerror", None) in _LOCKED:
-        return (
+        raise InUseError(
             f"{path.name} is open in another app, so Mado can't read it. Close it there, then "
             "try again."
-        )
-    return None
+        ) from None
 
 
 def decode(
@@ -148,7 +151,8 @@ def decode(
     except Image.DecompressionBombError:
         raise UnreadableError(_too_big(path)) from None
     except OSError as error:
-        raise UnreadableError(_in_use(path, error) or f"{_DAMAGED}: {error}.") from None
+        _raise_in_use(path, error)
+        raise UnreadableError(f"{_DAMAGED}: {error}.") from None
     except (SyntaxError, ValueError) as error:
         raise UnreadableError(f"{_DAMAGED}: {error}.") from None
     if longest is not None:
@@ -213,6 +217,7 @@ def _heif_layout(path: Path) -> tuple[heif.Layout, Image.Exif]:
     except heif.HeifError as error:
         raise UnreadableError(f"{_DAMAGED}: {error}.") from None
     except OSError as error:
+        _raise_in_use(path, error)
         raise UnreadableError(f"{_DAMAGED}: {error.strerror or error}.") from None
     found = Image.Exif()
     tiff = heif.exif_tiff(item) if item else None

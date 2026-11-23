@@ -2,9 +2,11 @@
 
 Each picture made is a line: a new picture beside its original, which History can take away
 (into quarantine, and put back from there till the clear-out), or an original replaced, which
-History puts back (the made picture going into quarantine in its place). Emptying a drive's
-quarantine by hand is a line too; that can't be undone. Clearing History forgets lines, never
-pictures: a line whose picture still waits in quarantine stays, so it can be put back.
+History puts back (the made picture going into quarantine in its place). A picture set aside
+from a group of duplicates or a burst is a line too, put back from there; a review's lines
+are put back together. Emptying a drive's quarantine by hand is a line too; that can't be
+undone. Clearing History forgets lines, never pictures: a line whose picture still waits in
+quarantine stays, so it can be put back.
 """
 
 import sqlite3
@@ -17,7 +19,7 @@ from typing import Literal
 
 from mado.quarantine import MoveError, Quarantine
 
-type Kind = Literal["made", "replaced", "emptied"]
+type Kind = Literal["made", "replaced", "emptied", "aside"]
 
 DAYS_A_PAGE = 7
 # Held while a picture's line is written and its pictures move (mado/making.py), and while a
@@ -42,6 +44,8 @@ class Entry:
     bytes: int | None
     look: str | None = None  # what it was made with: "Warm film at 60%"
     batch_id: int | None = None  # the batch it was made in, when it was
+    kept: str | None = None  # 'aside': the picture of its group that was kept
+    review_id: int | None = None  # 'aside': the review it was set aside in
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,30 @@ def replaced(
 ) -> int:
     """An original replaced by a picture made from it, the original set aside."""
     return _insert(conn, now, "replaced", job_id, name, (made_for, look), original, result, aside)
+
+
+def aside(
+    conn: sqlite3.Connection,
+    *,
+    now: datetime,
+    name: str,
+    original: Path,
+    kept: Path,
+    aside: Path,
+    size: int,
+    review_id: int,
+) -> int:
+    """A picture set aside from a group of duplicates or a burst, the one `kept` beside it."""
+    stamp = now.isoformat(timespec="seconds")
+    with conn:
+        row = conn.execute(
+            """INSERT INTO history (at, kind, name, original, aside, aside_at, bytes, kept,
+                                    review_id)
+               VALUES (?, 'aside', ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+            (stamp, name, str(original), str(aside), stamp, size, str(kept), review_id),
+        ).fetchone()
+    entry_id: int = row["id"]
+    return entry_id
 
 
 def forget(conn: sqlite3.Connection, entry_id: int) -> None:
@@ -147,6 +175,9 @@ def _undo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: 
         raise UndoError("History has no such line any more.")
     if found.undone_at is not None:
         raise UndoError("That's undone already.")
+    if found.kind == "aside":
+        _put_aside_back(conn, quarantine, found, now)
+        return entry(conn, entry_id) or found
     if found.kind != "emptied":
         _first_newer(conn, found, found.result)
     stamp = now.isoformat(timespec="seconds")
@@ -169,6 +200,37 @@ def _undo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: 
     return entry(conn, entry_id) or found
 
 
+def _put_aside_back(
+    conn: sqlite3.Connection, quarantine: Quarantine, found: Entry, now: datetime
+) -> None:
+    """A picture set aside from its group, back where it was. One a stop caught between its
+    line and its move never left: its line is simply undone."""
+    if found.cleared_at is not None:
+        raise UndoError(_gone(found))
+    if not found.aside or not found.original:
+        raise UndoError(_NOTHING_ASIDE)
+    aside_at, original = Path(found.aside), Path(found.original)
+    for path in (aside_at, original):
+        if path.anchor and not Path(path.anchor).exists():
+            drive = PureWindowsPath(path).drive or path.anchor
+            raise UndoError(
+                f"{drive} isn't connected, so Mado can't put {found.name} back. Connect it, "
+                "then try again."
+            )
+    if not aside_at.exists() and original.exists() and Path(aside_at.anchor).exists():
+        _update(conn, found.id, aside=None, aside_at=None, undone_at=_stamp(now))
+        return
+    try:
+        quarantine.put_back(aside_at, original)
+    except MoveError as error:
+        raise UndoError(str(error)) from None
+    _update(conn, found.id, aside=None, aside_at=None, undone_at=_stamp(now))
+
+
+def _stamp(now: datetime) -> str:
+    return now.isoformat(timespec="seconds")
+
+
 def redo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: datetime) -> Entry:
     """Undoes an undo: puts a new picture that was taken away back where it was, or replaces
     an original put back again (the original going into quarantine once more). Raises
@@ -182,7 +244,7 @@ def _redo(conn: sqlite3.Connection, quarantine: Quarantine, entry_id: int, now: 
     if found is None:
         raise UndoError("History has no such line any more.")
     if (
-        found.kind == "emptied"
+        found.kind in ("emptied", "aside")
         or found.undone_at is None
         or not found.aside
         or not found.result
@@ -251,10 +313,39 @@ def redo_batch(
     return done, problems
 
 
+def of_review(conn: sqlite3.Connection, review_id: int, limit: int = -1) -> list[Entry]:
+    """A review's lines, newest first; the newest `limit` of them, when it's given."""
+    return [
+        _entry(row)
+        for row in conn.execute(
+            "SELECT * FROM history WHERE review_id = ? ORDER BY id DESC LIMIT ?",
+            (review_id, limit),
+        )
+    ]
+
+
+def undo_review(
+    conn: sqlite3.Connection, quarantine: Quarantine, review_id: int, now: datetime
+) -> tuple[int, list[str]]:
+    """Puts back every picture a review set aside that can be, newest first. Says how many
+    were, and why any couldn't be."""
+    done, problems = 0, list[str]()
+    for line in of_review(conn, review_id):
+        if line.undone_at is not None or not _can_undo(line):
+            continue
+        try:
+            undo(conn, quarantine, line.id, now)
+        except UndoError as error:
+            problems.append(f"{line.name}: {error}")
+            continue
+        done += 1
+    return done, problems
+
+
 def _can_undo(line: Entry) -> bool:
     if line.kind == "made":
         return line.result is not None
-    return line.kind == "replaced" and line.aside is not None and line.cleared_at is None
+    return line.kind in ("replaced", "aside") and line.aside is not None and line.cleared_at is None
 
 
 def clear(conn: sqlite3.Connection, *, keep: timedelta | None, now: datetime) -> int:
@@ -406,6 +497,8 @@ def _entry(row: sqlite3.Row) -> Entry:
         bytes=row["bytes"],
         look=row["look"],
         batch_id=row["batch_id"] if "batch_id" in row.keys() else None,  # noqa: SIM118 - a Row's
+        kept=row["kept"],
+        review_id=row["review_id"],
     )
 
 
@@ -422,6 +515,7 @@ def _names(found: Entry, words: list[str]) -> bool:
             found.look,
             found.original,
             PureWindowsPath(found.result).name if found.result else None,
+            PureWindowsPath(found.kept).name if found.kept else None,
         )
         if part
     ).casefold()

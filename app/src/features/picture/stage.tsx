@@ -1,4 +1,4 @@
-import { type PointerEvent, type ReactNode, useLayoutEffect, useRef } from "react";
+import { type PointerEvent, type ReactNode, type RefObject, useLayoutEffect, useRef } from "react";
 import { type PictureDetails, pictureAddress, usePictureImage } from "@/lib/engine";
 import { stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,8 @@ export function Stage({
   );
 }
 
-/** A picture larger than its space: scrolled, or dragged, to see round it. */
+/** A picture larger than its space: scrolled, or dragged, to see round it. `area` and `onScroll`
+ * let two of them move together, side by side. */
 export function Zoomed(props: {
   address: string | null;
   name: string;
@@ -65,8 +66,11 @@ export function Zoomed(props: {
   height: number;
   scale: number;
   whole: boolean;
+  area?: RefObject<HTMLDivElement | null>;
+  onScroll?: () => void;
 }) {
-  const area = useRef<HTMLDivElement>(null);
+  const own = useRef<HTMLDivElement>(null);
+  const area = props.area ?? own;
   const dragging = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   // At 100% a pixel of the picture is a pixel of the screen, however Windows scales the window.
   const ratio = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
@@ -79,7 +83,7 @@ export function Zoomed(props: {
     if (!here || props.scale === 0) return;
     here.scrollLeft = (here.scrollWidth - here.clientWidth) / 2;
     here.scrollTop = (here.scrollHeight - here.clientHeight) / 2;
-  }, [props.scale]);
+  }, [props.scale, area]);
 
   function grab(event: PointerEvent<HTMLDivElement>) {
     const here = area.current;
@@ -104,6 +108,7 @@ export function Zoomed(props: {
   return (
     <div
       ref={area}
+      onScroll={props.onScroll}
       onPointerDown={grab}
       onPointerMove={move}
       onPointerUp={() => {

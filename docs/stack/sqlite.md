@@ -50,6 +50,16 @@ tables, give every table a primary key, and add the new data to the export.
 | `jobs` | 3 | Each picture made: its picture and file, its recipe and how it's saved (JSON), how it stands (`queued`, `running`, `done`, `failed`, `cancelled`), its stage and progress, how many times it started, when, the picture it saved (or the `.mado-partial` it's writing, so a job cut short can clear it away) and why it didn't work. The queue of many pictures builds on it |
 | `history` | 3 | What Mado did, for History: a picture made (`made`) or an original replaced (`replaced`), with the original's name and place, what it was made for and where it went; what waits in quarantine for it now (`aside`, and since when: the clear-out counts 30 days from it), when that was cleared out and by what (`cleared_by`: the clear-out's `days`, or the `owner` emptying it), and when it was undone; and a drive's quarantine emptied by hand (`emptied`, with how much went). A job's line is written before its pictures move, so a job cut short while saving is finished or taken back from it. Since 4, the look it was made with (`look`: "Warm film at 60%"), `made_for` being none for a look alone |
 | `looks` | 4 | The owner's own looks: a `.cube` file imported (`cube`) or a mix kept from the Looks tab (`mix`), each with its name (unique in any case), its table's points a side, the table packed small (`grid`: 16-bit steps, each its difference from the one before along red, zlib'd), a mix's touches (JSON) and where it came from (`source`: the file's name, or "Warm film at 60%"). See [looks.md](looks.md) |
+| `recipes`, `watch_folders`, `watched`, `batches` | 5 | Many at once: recipes kept by name, watch folders with what each took, and batches, each picture a job in the queue (`jobs.batch_id`, `position`). See [queue.md](queue.md) |
+| `prints` | 6 | What Mado sees of each picture to tell one from another, as its file was then (size and time): its fingerprint (64 bits, signed), its finer one (32 bytes), a burst shot's sharpness, and, once another file shares its size, its bytes' digest. See [duplicates.md](duplicates.md) |
+| `choices`, `not_same` | 6 | The owner's review of duplicates and bursts: whether they keep each picture they chose about, and pairs they said aren't the same, each with its files' size and time (a change asks again) |
+| `reviews` | 6 | Each setting aside of duplicates and bursts, with how many groups of each kind; its pictures' History lines name it |
+
+Migration 6 also gives `pictures` the owner's mark `damaged` (not asked about again till its file
+changes: a scan that finds it changed clears it), `jobs` its wait on a picture open in another app
+(`held_since`, `held_until`, `held_why`), and remakes `history` (SQLite can't change a check) to
+allow `aside`, a picture set aside from its group, with the picture kept (`kept`) and its review
+(`review_id`); its size is in `bytes`.
 
 Each of Mado's tools adds its tables as it's built. The settings table also holds what the
 engine keeps about this PC (`pc`, `pc_speeds`) and the owner's screens (`screens`), outside the

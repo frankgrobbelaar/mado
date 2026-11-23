@@ -4,7 +4,10 @@ import type {
   Batch,
   BatchPicture,
   DataSizes,
+  DuplicateGroup,
+  Duplicates,
   EngineStatus,
+  GroupPicture,
   HistoryEntry,
   Job,
   KeptRecipe,
@@ -141,6 +144,7 @@ export const LIBRARY: Library = {
   reading: 0,
   raw: 318,
   broken: 9,
+  damaged: 0,
   parts: [
     { folderId: 1, name: "Phone", pictures: 3104 },
     { folderId: 2, name: "Camera", pictures: 1422 },
@@ -388,6 +392,7 @@ export function job(overrides: Partial<Job> = {}): Job {
     resultName: null,
     resultPicture: null,
     problem: null,
+    heldUntil: null,
     ...overrides,
   };
 }
@@ -472,6 +477,8 @@ export function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     canUndo: true,
     canRedo: false,
     batch: null,
+    keptName: null,
+    review: null,
     ...overrides,
   };
 }
@@ -752,3 +759,101 @@ export const WATCH_FOLDERS: WatchFolder[] = [
     problem: null,
   },
 ];
+
+/** One of a group's made-up pictures. */
+export function groupPicture(
+  id: number,
+  name: string,
+  overrides: Partial<GroupPicture> = {},
+): GroupPicture {
+  return {
+    id,
+    name,
+    path: `D:\\Pictures\\Phone\\2026\\${name}`,
+    folder: "D:\\Pictures\\Phone\\2026",
+    width: 4032,
+    height: 3024,
+    size: 3_200_000,
+    format: "JPEG",
+    takenAt: "2026-11-14T10:02:14",
+    takenFrom: "camera",
+    version: `v${id}`,
+    keep: false,
+    suggested: false,
+    there: "there",
+    ...overrides,
+  };
+}
+
+/** A burst of three shots on Snowfield, the sharp one kept. */
+export function burstGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
+  return {
+    key: 41,
+    kind: "burst",
+    exact: false,
+    pictures: [
+      groupPicture(41, "IMG_2041.jpg", { takenAt: "2026-11-14T10:02:14" }),
+      groupPicture(42, "IMG_2042.jpg", {
+        takenAt: "2026-11-14T10:02:15",
+        keep: true,
+        suggested: true,
+      }),
+      groupPicture(43, "IMG_2043.jpg", { takenAt: "2026-11-14T10:02:16" }),
+    ],
+    chosen: false,
+    reason: "sharpest",
+    aside: 2,
+    bytes: 6_400_000,
+    ready: true,
+    problem: null,
+    ...overrides,
+  };
+}
+
+/** Harbour at dusk saved twice: the biggest kept. */
+export function copiesGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
+  return {
+    key: 11,
+    kind: "duplicates",
+    exact: false,
+    pictures: [
+      groupPicture(11, "Harbour at dusk.jpg", {
+        keep: true,
+        suggested: true,
+        takenAt: "2026-11-12T18:42:07",
+      }),
+      groupPicture(12, "Harbour at dusk small.jpg", {
+        path: "D:\\Pictures\\Shared\\Harbour at dusk small.jpg",
+        folder: "D:\\Pictures\\Shared",
+        width: 2016,
+        height: 1512,
+        size: 900_000,
+        takenAt: "2026-11-12T18:42:07",
+      }),
+    ],
+    chosen: false,
+    reason: "pixels",
+    aside: 1,
+    bytes: 900_000,
+    ready: true,
+    problem: null,
+    ...overrides,
+  };
+}
+
+/** The review: a burst and a pair of copies, done looking. */
+export function duplicates(overrides: Partial<Duplicates> = {}): Duplicates {
+  return {
+    looking: null,
+    groups: [burstGroup(), copiesGroup()],
+    next: null,
+    duplicates: 1,
+    bursts: 1,
+    pictures: 3,
+    bytes: 7_300_000,
+    away: 0,
+    putBack: null,
+    version: "found-1",
+    ...overrides,
+  };
+}

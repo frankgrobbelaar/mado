@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type BatchLine, EngineProvider, type HistoryEntry } from "@/lib/engine";
+import { type BatchLine, EngineProvider, type HistoryEntry, type ReviewLine } from "@/lib/engine";
 import { entry, fakeEngine, READY } from "@/test/engine";
 import { HistoryPage } from "./history-page";
 
@@ -64,6 +64,107 @@ describe("History", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     shell.invoke.mockReset();
+  });
+
+  it("shows a review as one line, puts all of it back, and each picture's own line under it", async () => {
+    const lines = ["IMG_2043.jpg", "IMG_2041.jpg"].map((name, at) =>
+      entry({
+        id: 20 + at,
+        kind: "aside",
+        name,
+        madeFor: null,
+        original: `D:\\Pictures\\Phone\\${name}`,
+        result: null,
+        resultName: null,
+        aside: `D:\\Mado quarantine\\2026-11-22\\${name}`,
+        asideUntil: "2026-12-22",
+        keptName: "IMG_2042.jpg",
+        review: 3,
+        bytes: 3_200_000,
+      }),
+    );
+    const review: ReviewLine = {
+      id: 3,
+      at: lines[0]?.at ?? "",
+      duplicates: 1,
+      bursts: 1,
+      pictures: 2,
+      bytes: 1_400_000_000,
+      back: 0,
+      cleared: 0,
+      canUndo: true,
+      drives: ["D:"],
+      asideUntil: "2026-12-22",
+      picture: null,
+    };
+    const fetch = fakeEngine({
+      "/history": { entries: lines, older: null, batches: [], reviews: [review] },
+      "POST /history/reviews/3/undo": { done: 2, problems: [] },
+      "POST /history/20/undo": lines[0],
+    });
+    renderHistory();
+
+    const line = await screen.findByText("Set aside 2 duplicates and bursts, freeing 1.4 GB");
+    const row = line.closest("li") as HTMLElement;
+    expect(row).toHaveTextContent(
+      "Kept the sharpest of each; the rest are in quarantine until 22 Dec.",
+    );
+    fireEvent.click(within(row).getByRole("button", { name: "Show the 2 pictures" }));
+    expect(screen.getByText("Set aside IMG_2043.jpg")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("IMG_2042.jpg was kept; this one is in quarantine on D: until 22 Dec."),
+    ).toHaveLength(2);
+
+    fireEvent.click(within(row).getByRole("button", { name: "Put back all 2" }));
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.filter(([input]) => String(input).endsWith("/history/reviews/3/undo")),
+      ).toHaveLength(1),
+    );
+  });
+
+  it("says when a review was put back whole", async () => {
+    const back = entry({
+      id: 20,
+      kind: "aside",
+      name: "IMG_2043.jpg",
+      madeFor: null,
+      result: null,
+      resultName: null,
+      keptName: "IMG_2042.jpg",
+      review: 3,
+      undoneAt: new Date().toISOString(),
+      canUndo: false,
+    });
+    fakeEngine({
+      "/history": {
+        entries: [back],
+        older: null,
+        batches: [],
+        reviews: [
+          {
+            id: 3,
+            at: back.at,
+            duplicates: 1,
+            bursts: 0,
+            pictures: 1,
+            bytes: 3_200_000,
+            back: 1,
+            cleared: 0,
+            canUndo: false,
+            drives: [],
+            asideUntil: null,
+            picture: null,
+          },
+        ],
+      },
+    });
+    renderHistory();
+
+    const line = await screen.findByText("Put back the 1 duplicate");
+    const row = line.closest("li") as HTMLElement;
+    expect(row).toHaveTextContent("Everything set aside is back where it was");
+    expect(within(row).queryByRole("button", { name: /Put/ })).not.toBeInTheDocument();
   });
 
   it("lists what Mado did by day, newest first, with each line's undo", async () => {

@@ -336,7 +336,10 @@ def _step(stage: str | None, steps: list[str]) -> str:
 
 
 def _waits(row: sqlite3.Row) -> str | None:
-    """Why a picture waiting can't go yet: its drive, or the drive it saves to, isn't connected."""
+    """Why a picture waiting can't go yet: it's open in another app, or its drive, or the drive
+    it saves to, isn't connected."""
+    if row["held_since"]:
+        return "It's open in another app; Mado tries again by itself"
     source = Path(row["source"])
     into = destination(order_of(row["recipe"]), source)
     for path in (source, into):

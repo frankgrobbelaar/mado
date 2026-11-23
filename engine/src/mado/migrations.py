@@ -179,4 +179,80 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     UPDATE jobs SET position = id;
     CREATE INDEX jobs_by_batch ON jobs (batch_id, state, position);
     """,
+    # 6. Looking after the library: what Mado sees of each picture to tell one from another, the
+    # owner's choices in the review of duplicates and bursts (which to keep, pictures that aren't
+    # the same), each setting aside, pictures marked as damaged, and jobs waiting while a
+    # picture is open in another app. History learns 'aside', a picture set aside from its
+    # group with the one kept beside it; SQLite can't change a CHECK, so its table is made again.
+    """
+    CREATE TABLE prints (
+        picture_id INTEGER PRIMARY KEY REFERENCES pictures (id) ON DELETE CASCADE,
+        size       INTEGER NOT NULL,  -- its file as it was looked at
+        modified   INTEGER NOT NULL,
+        hash       INTEGER,           -- its fingerprint: 64 bits, signed (mado/core/likeness.py)
+        fine       BLOB,              -- its finer fingerprint, 256 bits: a copy from a crop
+        sharpness  REAL,              -- the Laplacian's variance, once it's in a burst
+        digest     TEXT,              -- its bytes' blake2b, once another file shares its size
+        at         TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE choices (            -- whether the owner keeps a picture of its group
+        picture_id INTEGER PRIMARY KEY REFERENCES pictures (id) ON DELETE CASCADE,
+        keep       INTEGER NOT NULL CHECK (keep IN (0, 1)),
+        size       INTEGER NOT NULL,  -- its file as it was then: once it changes, Mado asks again
+        modified   INTEGER NOT NULL,
+        at         TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE not_same (           -- two pictures the owner said aren't the same
+        first      INTEGER NOT NULL REFERENCES pictures (id) ON DELETE CASCADE,
+        second     INTEGER NOT NULL REFERENCES pictures (id) ON DELETE CASCADE,
+        versions   TEXT NOT NULL,     -- both files as they were then: once one changes, it's asked
+        at         TEXT NOT NULL,
+        PRIMARY KEY (first, second),
+        CHECK (first < second)
+    ) STRICT;
+
+    CREATE TABLE reviews (            -- one setting aside of duplicates and bursts
+        id         INTEGER PRIMARY KEY,
+        at         TEXT NOT NULL,
+        duplicates INTEGER NOT NULL,  -- the groups of duplicates whose rest it set aside
+        bursts     INTEGER NOT NULL   -- and the bursts
+    ) STRICT;
+
+    -- The owner marked it as damaged: it isn't asked about again till its file changes.
+    ALTER TABLE pictures ADD COLUMN damaged INTEGER NOT NULL DEFAULT 0 CHECK (damaged IN (0, 1));
+    ALTER TABLE jobs ADD COLUMN held_since TEXT;  -- its picture has been open in another app since
+    ALTER TABLE jobs ADD COLUMN held_until TEXT;  -- it tries again then
+    ALTER TABLE jobs ADD COLUMN held_why TEXT CHECK (held_why IN ('read', 'replace'));
+
+    CREATE TABLE history_6 (
+        id          INTEGER PRIMARY KEY,
+        at          TEXT NOT NULL,
+        kind        TEXT NOT NULL CHECK (kind IN ('made', 'replaced', 'emptied', 'aside')),
+        job_id      INTEGER REFERENCES jobs (id) ON DELETE SET NULL,
+        name        TEXT NOT NULL,
+        made_for    TEXT,
+        original    TEXT,              -- 'aside': where it was, which Put back moves it back to
+        result      TEXT,
+        aside       TEXT,
+        aside_at    TEXT,
+        cleared_at  TEXT,
+        cleared_by  TEXT CHECK (cleared_by IN ('days', 'owner')),
+        undone_at   TEXT,              -- 'aside': put back
+        bytes       INTEGER,           -- 'emptied': how much went; 'aside': its size
+        look        TEXT,
+        kept        TEXT,              -- 'aside': the picture of its group that was kept
+        review_id   INTEGER REFERENCES reviews (id) ON DELETE SET NULL
+    ) STRICT;
+    INSERT INTO history_6 (id, at, kind, job_id, name, made_for, original, result, aside,
+                           aside_at, cleared_at, cleared_by, undone_at, bytes, look)
+        SELECT id, at, kind, job_id, name, made_for, original, result, aside, aside_at,
+               cleared_at, cleared_by, undone_at, bytes, look
+        FROM history;
+    DROP TABLE history;
+    ALTER TABLE history_6 RENAME TO history;
+    CREATE INDEX history_by_time ON history (at, id);
+    CREATE INDEX history_by_review ON history (review_id) WHERE review_id IS NOT NULL;
+    """,
 )

@@ -48,6 +48,7 @@ function details(item: PictureItem, overrides: Partial<PictureDetails> = {}): Pi
     camera: "Pixelworks PW-7 Pro",
     orientation: 1,
     located: true,
+    damaged: false,
     problem: null,
     ...overrides,
   };

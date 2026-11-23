@@ -82,6 +82,11 @@ class Previews:
         """Its thumbnail, made now if it hasn't been."""
         return self._copy(picture, "thumbnail", THUMBNAIL, quality=80)
 
+    def kept_thumbnail(self, picture: Source) -> Path | None:
+        """Its thumbnail when the cache holds it; None, rather than making one."""
+        target = self._root / _shelf(picture.id) / f"{picture.id}-{picture.version}-thumbnail.webp"
+        return target if target.is_file() else None
+
     def view(self, picture: Source) -> Path:
         """Its view the size of a screen, made now if it hasn't been."""
         return self._copy(picture, "view", VIEW, quality=88)

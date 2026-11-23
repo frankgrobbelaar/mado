@@ -7,15 +7,17 @@ Mado deletes only what's in one day's folder of a quarantine, whatever its recor
 damaged record, or one an imported export held, never points it at a picture elsewhere.
 """
 
+import ctypes
 import errno
 import logging
 import shutil
 import sqlite3
+import sys
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path, PureWindowsPath
-from typing import Literal
+from typing import Any, Literal
 
 from mado.core.naming import aside_name, in_quarantine, quarantine_root
 
@@ -28,6 +30,10 @@ _PARTIAL = ".mado-partial"
 
 class MoveError(Exception):
     """A picture Mado couldn't move, with a sentence saying why. Nothing was lost."""
+
+
+class InUseMoveError(MoveError):
+    """A picture another app has open, so Mado can't move it now. Nothing was lost."""
 
 
 class Quarantine:
@@ -75,6 +81,24 @@ class Quarantine:
         _tidy(aside.parent)
 
 
+def movable(path: Path) -> bool:
+    """Whether a picture can be moved now: False while another app has it open in a way that
+    stops Mado moving it (Windows' sharing rules), as a replace finds out before it makes the
+    picture rather than after. Anything else is left for the move itself to say."""
+    if sys.platform != "win32":
+        return True
+    kernel: Any = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = ctypes.c_void_p
+    delete, share_all, open_existing, backup_semantics = 0x00010000, 0x7, 3, 0x02000000
+    handle = kernel.CreateFileW(
+        str(path), delete, share_all, None, open_existing, backup_semantics, None
+    )
+    if handle in (None, ctypes.c_void_p(-1).value):
+        return ctypes.get_last_error() not in _IN_USE
+    kernel.CloseHandle(ctypes.c_void_p(handle))
+    return True
+
+
 def move(source: Path, target: Path) -> None:
     """Moves a file, never over another: a rename on the same drive; to another drive, a copy
     beside its new place, checked, put in place, then the original removed. Raises MoveError."""
@@ -89,7 +113,7 @@ def move(source: Path, target: Path) -> None:
         if error.errno == errno.EXDEV or getattr(error, "winerror", None) == 17:
             _copy_across(source, target)
             return
-        raise MoveError(_could_not(source, error)) from error
+        raise _could_not(source, error) from error
 
 
 def _copy_across(source: Path, target: Path) -> None:
@@ -99,19 +123,23 @@ def _copy_across(source: Path, target: Path) -> None:
         if partial.stat().st_size != source.stat().st_size:
             raise MoveError(f"The copy of {source.name} came out the wrong size; it stays put.")
         partial.rename(target)
-        source.unlink()
     except OSError as error:
         partial.unlink(missing_ok=True)
-        raise MoveError(_could_not(source, error)) from error
+        raise _could_not(source, error) from error
+    try:
+        source.unlink()
+    except OSError as error:  # the picture stays where it was: its copy goes, never left unlisted
+        target.unlink(missing_ok=True)
+        raise _could_not(source, error) from error
 
 
-def _could_not(source: Path, error: OSError) -> str:
+def _could_not(source: Path, error: OSError) -> MoveError:
     if getattr(error, "winerror", None) in _IN_USE:
-        return (
+        return InUseMoveError(
             f"{source.name} is open in another app, so Mado can't move it. Close it there, then "
             "try again."
         )
-    return f"Mado couldn't move {source.name}: {error.strerror or error}."
+    return MoveError(f"Mado couldn't move {source.name}: {error.strerror or error}.")
 
 
 def _tidy(day: Path) -> None:

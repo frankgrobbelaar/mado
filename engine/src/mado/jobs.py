@@ -12,10 +12,13 @@ wait (`first`). While it makes a batch's picture, Windows doesn't put the PC to 
 
 Pausing stops the picture being made at its next tile and puts it back first in line, and
 starts no other batch's picture till the queue resumes; a picture's own Save still goes. A
-picture whose drive (or the folder it saves into) isn't connected waits while the others go. A
-drive without room for the next picture pauses the queue, saying what it needs, and the queue
-carries on by itself once there's room; or it makes what fits there while the rest wait. Once
-nothing of a batch waits, Mado tells the owner what it came to (`notify`).
+picture whose drive (or the folder it saves into) isn't connected waits while the others go. So
+does one open in another app, which Mado can't read or replace: it's tried again by itself every
+30 seconds for 10 minutes (HOLD_EVERY, HOLD_FOR) before it counts as not working, and the owner
+can try it again now or skip it. A drive without room for the next picture pauses the queue,
+saying what it needs, and the queue carries on by itself once there's room; or it makes what
+fits there while the rest wait. Once nothing of a batch waits, Mado tells the owner what it came
+to (`notify`).
 
 A job Mado's crashing cut short is started again when the engine next starts, once; cut short
 twice, it's marked failed rather than tried for ever (a clean stop, like a pause, puts it back
@@ -36,7 +39,7 @@ import time
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path, PureWindowsPath
 from typing import Literal, cast
 
@@ -59,6 +62,8 @@ _IDLE = 30.0  # seconds the worker rests with nothing to do; a change wakes it a
 _PAUSED = "queue_paused"  # the settings rows the queue keeps across restarts
 _ROOM = "queue_room"  # {"drive": "D:", "fit": bool}: a drive without room, and what to do
 _ROOM_MADE = 64 * 1024 * 1024  # bytes more than when a drive filled up before it's tried again
+HOLD_EVERY = timedelta(seconds=30)  # a picture open in another app is tried again this often
+HOLD_FOR = timedelta(minutes=10)  # and for this long, before it counts as not working
 _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's whole
     "reading": (0.0, 0.05),
     "shaping": (0.05, 0.2),
@@ -253,8 +258,8 @@ class Jobs:
         if row["state"] == "queued":
             with conn:
                 waited = conn.execute(
-                    "UPDATE jobs SET state = 'cancelled', finished_at = ?"
-                    " WHERE id = ? AND state = 'queued'",
+                    "UPDATE jobs SET state = 'cancelled', finished_at = ?, held_since = NULL,"
+                    " held_until = NULL, held_why = NULL WHERE id = ? AND state = 'queued'",
                     (self._stamp(), job_id),
                 ).rowcount
             if waited:  # it never started: nothing to stop, and a try again starts it afresh
@@ -271,7 +276,8 @@ class Jobs:
         stamp = self._stamp()
         with conn:
             waiting = conn.execute(
-                """UPDATE jobs SET state = 'cancelled', finished_at = ?
+                """UPDATE jobs SET state = 'cancelled', finished_at = ?, held_since = NULL,
+                          held_until = NULL, held_why = NULL
                    WHERE state = 'queued' AND batch_id IS NOT NULL RETURNING batch_id""",
                 (stamp,),
             ).fetchall()
@@ -386,7 +392,8 @@ class Jobs:
             row = conn.execute(
                 """UPDATE jobs SET state = 'queued', position = ?, problem = NULL, result = NULL,
                           attempts = 0, started_at = NULL, finished_at = NULL, stage = NULL,
-                          progress = 0, made_bytes = NULL
+                          progress = 0, made_bytes = NULL, held_since = NULL, held_until = NULL,
+                          held_why = NULL
                    WHERE id = ? AND state IN ('failed', 'cancelled') AND batch_id IS NOT NULL
                    RETURNING batch_id""",
                 (_back(conn), job_id),
@@ -402,6 +409,43 @@ class Jobs:
         with self._lock:  # a cancel or pause it had is over: it starts afresh
             self._cancelled.discard(job_id)
             self._pausing.discard(job_id)
+        self.wake()
+        return True
+
+    def try_now(self, conn: sqlite3.Connection, job_id: int) -> bool:
+        """A picture waiting while it's open in another app is tried again now, its ten minutes
+        afresh. False when it isn't waiting so."""
+        with conn:
+            tried = conn.execute(
+                """UPDATE jobs SET held_until = NULL, held_since = ?
+                   WHERE id = ? AND state = 'queued' AND held_since IS NOT NULL""",
+                (self._stamp(), job_id),
+            ).rowcount
+        if tried:
+            self.wake()
+        return bool(tried)
+
+    def skip(self, conn: sqlite3.Connection, job_id: int) -> bool:
+        """A picture waiting while it's open in another app isn't made after all: it's left as it
+        is, and counts as not working, to try again later. The others go on."""
+        row = conn.execute(
+            "SELECT source, batch_id FROM jobs WHERE id = ? AND state = 'queued'"
+            " AND held_since IS NOT NULL",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        with conn:
+            skipped = conn.execute(
+                """UPDATE jobs SET state = 'failed', finished_at = ?, problem = ?,
+                          held_since = NULL, held_until = NULL, held_why = NULL
+                   WHERE id = ? AND state = 'queued' AND held_since IS NOT NULL""",
+                (self._stamp(), _skipped(Path(row["source"]).name), job_id),
+            ).rowcount
+        if not skipped:  # taken to be made as it was skipped: it goes on
+            return False
+        if row["batch_id"] is not None:
+            self._settle(conn, row["batch_id"])
         self.wake()
         return True
 
@@ -454,7 +498,7 @@ class Jobs:
                 with self._lock:
                     if self._asked == seen:  # nothing was asked for meanwhile
                         self._idle.set()
-                self._wake.wait(_IDLE)
+                self._wake.wait(self._rest())
                 self._wake.clear()
 
     def _next(self) -> bool:
@@ -506,24 +550,44 @@ class Jobs:
         return True
 
     def _own_waits(self) -> bool:
-        """Whether a picture's own Save waits: it goes before See it first's pictures."""
+        """Whether a picture's own Save waits, and may go now: it goes before See it first's
+        pictures."""
         with closing(db.connect(self._paths.database)) as conn:
-            found = conn.execute(
-                "SELECT 1 FROM jobs WHERE state = 'queued' AND batch_id IS NULL LIMIT 1"
-            ).fetchone()
-        return found is not None
+            rows = conn.execute(
+                "SELECT held_until FROM jobs WHERE state = 'queued' AND batch_id IS NULL"
+            ).fetchall()
+        now = self._now()
+        return any(_due(row["held_until"], now) for row in rows)
+
+    def _rest(self) -> float:
+        """Seconds the worker rests with nothing to do: till the next picture waiting while it
+        was open in another app is due, _IDLE at most. One due already that still can't go (the
+        queue paused, a batch for tonight, its drive away) is no reason to look sooner: a resume
+        or a change wakes the worker."""
+        with closing(db.connect(self._paths.database)) as conn:
+            rows = conn.execute(
+                "SELECT held_until FROM jobs WHERE state = 'queued' AND held_until IS NOT NULL"
+            ).fetchall()
+        now = self._now()
+        later = [
+            (moment - now).total_seconds()
+            for row in rows
+            if (moment := _moment(row["held_until"])) is not None and moment > now
+        ]
+        return min(max(min(later, default=_IDLE), 0.2), _IDLE)
 
     def _choose(self, conn: sqlite3.Connection) -> int | None:
         """The job to make now: a picture's own first; then, unless the queue is paused, the
         first batch's picture that may start now (tonight's only at night), whose drives are
         there and which has room. A drive without room pauses the queue, saying so, till there's
         room, or makes what fits there while the rest wait."""
-        own = conn.execute(
-            "SELECT id FROM jobs WHERE state = 'queued' AND batch_id IS NULL"
-            " ORDER BY position, id LIMIT 1"
-        ).fetchone()
-        if own is not None:
-            return own["id"]
+        now = self._now()
+        for own in conn.execute(
+            "SELECT id, held_until FROM jobs WHERE state = 'queued' AND batch_id IS NULL"
+            " ORDER BY position, id"
+        ).fetchall():
+            if _due(own["held_until"], now):
+                return own["id"]
         if self.paused(conn):
             return None
         room = _object(_setting(conn, _ROOM)) or None
@@ -564,11 +628,11 @@ class Jobs:
             return drives[anchor]
 
         for row in conn.execute(
-            """SELECT j.id, j.source, j.recipe, b.starts, b.name
+            """SELECT j.id, j.source, j.recipe, j.held_until, b.starts, b.name
                FROM jobs AS j JOIN batches AS b ON b.id = j.batch_id
                WHERE j.state = 'queued' ORDER BY j.position, j.id"""
         ):
-            if not may_start(starts_of(row["starts"]), now):
+            if not may_start(starts_of(row["starts"]), now) or not _due(row["held_until"], now):
                 continue
             source = Path(row["source"])
             order = _object(json.loads(row["recipe"]))
@@ -699,6 +763,8 @@ class Jobs:
                 self._finish(conn, job_id, "failed", problem=str(error))
             else:  # back in line, waiting for its drive while the others go: not a try
                 self._finish(conn, job_id, "queued", again=True)
+        except HeldError as error:  # open in another app: back in line for a while, not a try
+            self._hold(conn, row, error)
         except Exception as error:
             if not isinstance(error, JobError):
                 log.exception("Making job %d's picture failed", job_id)
@@ -710,6 +776,37 @@ class Jobs:
                 self._live.pop(job_id, None)
                 self._cancelled.discard(job_id)
                 self._pausing.discard(job_id)
+
+    def _hold(self, conn: sqlite3.Connection, row: sqlite3.Row, error: HeldError) -> None:
+        """A picture open in another app: back in line to be tried again in HOLD_EVERY, its try
+        given back, while the others go on; HOLD_FOR after it was first found so, it counts as
+        not working."""
+        job_id: int = row["id"]
+        now = self._now()
+        since = _moment(row["held_since"]) or now
+        clear_partial(conn, job_id)
+        with self._lock:
+            cancelled = job_id in self._cancelled and job_id not in self._pausing
+        if cancelled:  # Cancel was asked for as it was found open: it's over
+            self._finish(conn, job_id, "cancelled")
+            return
+        if now - since >= HOLD_FOR:
+            self._finish(conn, job_id, "failed", problem=_held_too_long(error.name))
+            return
+        with conn:
+            conn.execute(
+                """UPDATE jobs SET state = 'queued', started_at = NULL, stage = NULL,
+                          progress = 0, attempts = MAX(attempts - 1, 0), problem = ?,
+                          held_since = ?, held_until = ?, held_why = ?
+                   WHERE id = ?""",
+                (
+                    str(error),
+                    since.isoformat(timespec="seconds"),
+                    (now + HOLD_EVERY).isoformat(timespec="seconds"),
+                    error.verb,
+                    job_id,
+                ),
+            )
 
     def _finish(
         self,
@@ -736,7 +833,8 @@ class Jobs:
                           progress = CASE WHEN ? = 'done' THEN 1 WHEN ? THEN 0 ELSE progress END,
                           attempts = MAX(attempts - ?, 0), made_bytes = ?,
                           started_at = CASE WHEN ? THEN NULL ELSE started_at END,
-                          stage = CASE WHEN ? THEN NULL ELSE stage END
+                          stage = CASE WHEN ? THEN NULL ELSE stage END,
+                          held_since = NULL, held_until = NULL, held_why = NULL
                    WHERE id = ?""",
                 (
                     state,
@@ -778,6 +876,51 @@ class NoRoomError(JobError):
     def __init__(self, drive: str, sentence: str) -> None:
         super().__init__(sentence)
         self.drive = drive
+
+
+class HeldError(JobError):
+    """The picture a job makes from is open in another app, so Mado can't read it (`verb`
+    "read") or replace it ("replace") now: the job waits and tries again by itself."""
+
+    def __init__(self, name: str, verb: Literal["read", "replace"]) -> None:
+        super().__init__(
+            f"{name} is open in another app. Mado can't {verb} it while it's open. Close it "
+            "there and Mado tries again by itself."
+        )
+        self.name = name
+        self.verb: Literal["read", "replace"] = verb
+
+
+def _held_too_long(name: str) -> str:
+    minutes = round(HOLD_FOR.total_seconds() / 60)
+    return (
+        f"{name} was open in another app for {minutes} minutes, so Mado stopped trying. "
+        "Nothing was saved, and the original is as it was. Close it there, then try again."
+    )
+
+
+def _skipped(name: str) -> str:
+    return (
+        f"You skipped {name} while it was open in another app. Nothing was saved, and the "
+        "original is as it was. Try again makes it."
+    )
+
+
+def _moment(stamp: object) -> datetime | None:
+    if not isinstance(stamp, str) or not stamp:
+        return None
+    try:
+        found = datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    return found if found.tzinfo else found.astimezone()
+
+
+def _due(held_until: object, now: datetime) -> bool:
+    """Whether a job may go now: it isn't waiting on a picture open in another app, or its wait
+    is over."""
+    moment = _moment(held_until)
+    return moment is None or moment <= now
 
 
 class DriveGoneError(JobError):

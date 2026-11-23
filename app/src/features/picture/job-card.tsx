@@ -34,10 +34,19 @@ export function JobCard({ job }: { job: Job }) {
       >
         <div className="flex items-baseline gap-2 text-13">
           <span className="font-semibold">
-            {job.state === "queued" ? "Waiting to start" : STAGES[job.stage ?? "reading"]}
+            {job.state === "queued"
+              ? job.heldUntil
+                ? "Waiting: it's open in another app"
+                : "Waiting to start"
+              : STAGES[job.stage ?? "reading"]}
           </span>
           <span className="ml-auto font-mono text-12">{percent}%</span>
         </div>
+        {job.state === "queued" && job.heldUntil && (
+          <p className="text-12 text-fg-muted leading-normal">
+            Close it there and Mado tries again by itself, every 30 seconds for 10 minutes.
+          </p>
+        )}
         <div
           role="progressbar"
           aria-label={`Making ${name} ${madeWith(job)}`}

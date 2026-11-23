@@ -264,3 +264,122 @@ def test_an_original_emptied_out_by_the_owner_says_so(
 
     with pytest.raises(UndoError, match="You emptied it out of quarantine on 2026-11-23"):
         history.undo(conn, quarantine, line, NOW + timedelta(days=2))
+
+
+def _set_aside(
+    conn: sqlite3.Connection, quarantine: Quarantine, folder: Path, name: str, review: int
+) -> tuple[int, Path]:
+    """A picture set aside from its group, its line first, as a review does it."""
+    picture = draw(folder / name)
+    target = quarantine.place(picture, NOW)
+    line = history.aside(
+        conn,
+        now=NOW,
+        name=name,
+        original=picture,
+        kept=folder / "Tide.jpg",
+        aside=target,
+        size=picture.stat().st_size,
+        review_id=review,
+    )
+    quarantine.set_aside(picture, NOW, to=target)
+    return line, picture
+
+
+def _review(conn: sqlite3.Connection) -> int:
+    with conn:
+        row = conn.execute(
+            "INSERT INTO reviews (at, duplicates, bursts) VALUES (?, 1, 0) RETURNING id",
+            (NOW.isoformat(),),
+        ).fetchone()
+    return row["id"]
+
+
+def test_a_picture_set_aside_from_its_duplicates_is_put_back_where_it_was(
+    conn: sqlite3.Connection, quarantine: Quarantine, tmp_path: Path
+):
+    line, picture = _set_aside(conn, quarantine, tmp_path / "Phone", "Tide (2).jpg", _review(conn))
+    assert not picture.exists()
+
+    back = history.undo(conn, quarantine, line, NOW)
+
+    assert picture.is_file()
+    assert (back.undone_at, back.aside) == (NOW.isoformat(timespec="seconds"), None)
+    with pytest.raises(UndoError, match="undone already"):
+        history.undo(conn, quarantine, line, NOW)
+    with pytest.raises(UndoError, match="nothing to put back"):
+        history.redo(conn, quarantine, line, NOW)
+
+
+def test_a_picture_set_aside_cant_go_back_over_another_or_once_its_cleared_out(
+    conn: sqlite3.Connection, quarantine: Quarantine, tmp_path: Path
+):
+    review = _review(conn)
+    first, picture = _set_aside(conn, quarantine, tmp_path / "Phone", "Tide (2).jpg", review)
+    second, _ = _set_aside(conn, quarantine, tmp_path / "Phone", "Tide (3).jpg", review)
+    draw(picture)  # a new picture by that name since
+
+    with pytest.raises(UndoError, match=r"another Tide \(2\).jpg in its place"):
+        history.undo(conn, quarantine, first, NOW)
+    empty(conn, quarantine, Path(str(tmp_path)).drive or "C:", now=NOW)
+    with pytest.raises(UndoError, match="emptied it out of quarantine"):
+        history.undo(conn, quarantine, second, NOW)
+
+
+def test_a_line_whose_picture_never_moved_is_simply_undone(
+    conn: sqlite3.Connection, quarantine: Quarantine, tmp_path: Path
+):
+    picture = draw(tmp_path / "Phone" / "Tide (2).jpg")
+    line = history.aside(  # written, then Mado stopped before the move
+        conn,
+        now=NOW,
+        name=picture.name,
+        original=picture,
+        kept=tmp_path / "Phone" / "Tide.jpg",
+        aside=quarantine.place(picture, NOW),
+        size=picture.stat().st_size,
+        review_id=_review(conn),
+    )
+
+    back = history.undo(conn, quarantine, line, NOW)
+
+    assert back.undone_at is not None
+    assert picture.is_file()
+
+
+def test_a_review_is_put_back_whole_saying_why_any_couldnt_be(
+    conn: sqlite3.Connection, quarantine: Quarantine, tmp_path: Path
+):
+    review = _review(conn)
+    _, first = _set_aside(conn, quarantine, tmp_path / "Phone", "Tide (2).jpg", review)
+    _, second = _set_aside(conn, quarantine, tmp_path / "Phone", "Tide (3).jpg", review)
+    draw(second)  # in the way
+
+    done, problems = history.undo_review(conn, quarantine, review, NOW)
+
+    assert done == 1
+    assert first.is_file()
+    assert len(problems) == 1
+    assert problems[0].startswith("Tide (3).jpg: There's another")
+    lines = history.of_review(conn, review)
+    assert [each.name for each in lines] == ["Tide (3).jpg", "Tide (2).jpg"]
+    assert history.clear(conn, keep=None, now=NOW) == 1  # what still waits stays
+    assert [each.name for each in history.of_review(conn, review)] == ["Tide (3).jpg"]
+
+
+def test_a_picture_set_aside_on_a_drive_that_isnt_connected_says_so(
+    conn: sqlite3.Connection, quarantine: Quarantine
+):
+    line = history.aside(
+        conn,
+        now=NOW,
+        name="Pier (2).jpg",
+        original=Path(r"Q:\Pictures\Pier (2).jpg"),
+        kept=Path(r"Q:\Pictures\Pier.jpg"),
+        aside=Path(r"Q:\Mado quarantine\2026-11-22\Pier (2).jpg"),
+        size=10,
+        review_id=_review(conn),
+    )
+
+    with pytest.raises(UndoError, match="Q: isn't connected"):
+        history.undo(conn, quarantine, line, NOW)

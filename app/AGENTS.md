@@ -9,7 +9,10 @@ and [../CLAUDE.md](../CLAUDE.md).
 The window's frame (the title bar, the nav rail with Home, the Library, the Queue with its badge,
 History and Settings, the status bar, pictures dropped anywhere on it), Setup (Tools, which can be left while ffmpeg downloads, with This PC; then Your
 folders), Home (the library in numbers, Drop pictures here with Pick pictures and Pick a folder, Needs you
-with a batch done, Made today, Add a folder), the Library (the folders as a tree, the pictures by
+with duplicates and bursts to review, the pictures that won't open in a card, and a batch done,
+Space on the drives, Made today, Add a folder), the review of duplicates and bursts
+(`features/duplicates/`: the groups, keeping another or more than one, Not the same, setting the
+rest aside, a picture big beside the one kept), the Library (the folders as a tree, the pictures by
 the day they were taken, ticks, and Many at once from the ticks, a folder's menu or a search),
 Many at once (`features/batch/`: the steps with Change, See it first, When, Saving, What it
 takes), the Queue (`features/queue/`), Recipes and watch folders (`features/recipes/`), a
@@ -18,10 +21,11 @@ picture's page (the picture large at Fit, 100% or
 and after at full detail when zoomed; the Looks tab, every look as a small copy of the picture,
 its strength, the finishing touches, the owner's own looks, and "Hold to see the original"; one
 Save for both, and the job making it; Edit still to come),
-History (a week at a time, a batch as one line with Take them away, take away and put back,
-replace again), Settings (General with Saving, Your data with
+History (a week at a time, a batch or a review as one line with Take them away or Put them
+back, take away and put back, replace again), Settings (General with Saving, Your data with
 Set aside, Updates, About with This PC and the downloads), the update card, the notes at the
-window's foot, and the way back from damaged records. Mado's own screens come from its design
+window's foot (a picture open in another app among them, `components/shell/in-use.tsx`), and the
+way back from damaged records. Mado's own screens come from its design
 canvas.
 
 ## Build to the design

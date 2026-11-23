@@ -16,11 +16,13 @@ import {
   type BatchLine,
   type HistoryEntry,
   pictureAddress,
+  type ReviewLine,
   useBatchUndo,
   useClearHistory,
   useHistory,
   useHistoryAction,
   usePictureImage,
+  useReviewUndo,
 } from "@/lib/engine";
 import { count, madeWith, size, split, stem, versionOf } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
@@ -37,7 +39,8 @@ type Keep = (typeof KEEP)[number]["value"];
 /**
  * History, as the History board draws it: what Mado did, a week of days at a time, newest
  * first. A new picture can be taken away (into quarantine) and put back; a replaced original
- * put back; and History cleared of what's older than a day, a week or a month.
+ * put back; a review of duplicates and bursts put back whole, or a picture of it; and History
+ * cleared of what's older than a day, a week or a month.
  */
 export function HistoryPage() {
   const [typed, setTyped] = useState("");
@@ -54,6 +57,13 @@ export function HistoryPage() {
     ]),
   );
   const undoBatch = useBatchUndo();
+  const undoReview = useReviewUndo();
+  const reviews = new Map(
+    (history.data?.pages.flatMap((page) => page.reviews ?? []) ?? []).map((line) => [
+      line.id,
+      line,
+    ]),
+  );
   const [undone, setUndone] = useState<string[]>([]);
   const answered = history.data !== undefined;
 
@@ -98,9 +108,9 @@ export function HistoryPage() {
           <PanelSkeleton rows={2} />
         </Loading>
       )}
-      {(act.isError || undoBatch.isError) && (
+      {(act.isError || undoBatch.isError || undoReview.isError) && (
         <p role="alert" className="text-13 text-broken-fg">
-          {act.error?.message ?? undoBatch.error?.message}
+          {act.error?.message ?? undoBatch.error?.message ?? undoReview.error?.message}
         </p>
       )}
       {undone.length > 0 && (
@@ -133,7 +143,21 @@ export function HistoryPage() {
           </h2>
           <ul>
             {grouped(onDay).map((each) =>
-              "lines" in each ? (
+              "lines" in each && !("batch" in each) ? (
+                <Reviewed
+                  key={`review-${each.review}`}
+                  line={reviews.get(each.review)}
+                  lines={each.lines}
+                  busy={act.isPending || undoReview.isPending}
+                  onPutBack={() =>
+                    undoReview.mutate(
+                      { path: `/history/reviews/${each.review}/undo` },
+                      { onSuccess: (done) => setUndone(done.problems) },
+                    )
+                  }
+                  onUndo={(id) => act.mutate({ path: `/history/${id}/undo` })}
+                />
+              ) : "lines" in each ? (
                 <Batched
                   key={`batch-${each.batch}`}
                   line={batches.get(each.batch)}
@@ -201,7 +225,7 @@ function Line(props: {
         <span className="font-semibold text-14">{title}</span>
         <span className="text-13 text-fg-muted">{detail}</span>
       </span>
-      {entry.canUndo && entry.kind === "replaced" && (
+      {entry.canUndo && (entry.kind === "replaced" || entry.kind === "aside") && (
         <Button size="sm" disabled={props.busy} onClick={props.onUndo}>
           Put back
         </Button>
@@ -220,27 +244,151 @@ function Line(props: {
   );
 }
 
-/** A day's lines with each batch's folded into one, where its newest line is. */
-function grouped(
-  lines: HistoryEntry[],
-): (HistoryEntry | { batch: number; lines: HistoryEntry[] })[] {
-  const found: (HistoryEntry | { batch: number; lines: HistoryEntry[] })[] = [];
-  const seen = new Map<number, { batch: number; lines: HistoryEntry[] }>();
+type Folded =
+  | HistoryEntry
+  | { batch: number; lines: HistoryEntry[] }
+  | { review: number; lines: HistoryEntry[] };
+
+/** A day's lines with each batch's, and each review's, folded into one where its newest line is. */
+function grouped(lines: HistoryEntry[]): Folded[] {
+  const found: Folded[] = [];
+  const seen = new Map<string, { lines: HistoryEntry[] }>();
   for (const line of lines) {
-    if (line.batch === null) {
+    const key =
+      line.batch !== null
+        ? `batch-${line.batch}`
+        : line.review !== null
+          ? `review-${line.review}`
+          : null;
+    if (key === null) {
       found.push(line);
       continue;
     }
-    const group = seen.get(line.batch);
+    const group = seen.get(key);
     if (group) {
       group.lines.push(line);
-    } else {
-      const made = { batch: line.batch, lines: [line] };
-      seen.set(line.batch, made);
-      found.push(made);
+      continue;
     }
+    const made =
+      line.batch !== null
+        ? { batch: line.batch, lines: [line] }
+        : { review: line.review ?? 0, lines: [line] };
+    seen.set(key, made);
+    found.push(made);
   }
   return found;
+}
+
+/** A review of duplicates and bursts as one line, as the History board draws it: how many it set
+ * aside and what that freed, Put back for all of it, and each picture's own line under it when
+ * asked. */
+function Reviewed(props: {
+  line: ReviewLine | undefined;
+  lines: HistoryEntry[];
+  busy: boolean;
+  onPutBack: () => void;
+  onUndo: (id: number) => void;
+}) {
+  const { line, lines } = props;
+  const [open, setOpen] = useState(false);
+  const first = lines[0];
+  if (!line || !first) return null;
+  const [title, detail] = reviewWords(line);
+  return (
+    <li className="border-edge border-t">
+      <div className="flex items-center gap-3.5 px-4.5 py-3">
+        <span className="w-11 shrink-0 font-mono text-13 text-fg-faint">{clock(first.at)}</span>
+        <Thumbnail entry={{ ...first, picture: line.picture ?? first.picture }} />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="font-semibold text-14">{title}</span>
+          <span className="text-13 text-fg-muted">
+            {detail}{" "}
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((was) => !was)}
+              className="cursor-pointer text-accent-fg underline-offset-3 hover:underline"
+            >
+              {open
+                ? lines.length === 1
+                  ? "Hide the picture"
+                  : "Hide the pictures"
+                : lines.length === 1
+                  ? "Show the picture"
+                  : `Show the ${count(lines.length)} pictures`}
+            </button>
+          </span>
+        </span>
+        {line.canUndo && (
+          <Button
+            size="sm"
+            disabled={props.busy}
+            onClick={props.onPutBack}
+            aria-label={`Put back all ${count(line.pictures - line.back - line.cleared)}`}
+          >
+            Put back
+          </Button>
+        )}
+      </div>
+      {open && (
+        <ul className="border-edge border-t bg-tint/3 pl-6">
+          {lines.map((each) => (
+            <Line
+              key={each.id}
+              entry={each}
+              busy={props.busy}
+              onUndo={() => props.onUndo(each.id)}
+              onRedo={() => undefined}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/** What a review's line says: "Set aside 211 duplicates and bursts, freeing 1.4 GB", "Kept the
+ * sharpest of each; the rest are in quarantine on D: until 21 Dec"; once all of it is back,
+ * "Put back the 211 duplicates and bursts". */
+function reviewWords(line: ReviewLine): [string, string] {
+  const n = line.pictures;
+  const what =
+    line.duplicates > 0 && line.bursts > 0
+      ? "duplicates and bursts"
+      : line.bursts > 0
+        ? n === 1
+          ? "picture from a burst"
+          : "pictures from bursts"
+        : n === 1
+          ? "duplicate"
+          : "duplicates";
+  const waiting = n - line.back - line.cleared;
+  if (line.back === n) {
+    return [
+      `Put back the ${count(n)} ${what}`,
+      "Everything set aside is back where it was, and the review lists them again.",
+    ];
+  }
+  const title = `Set aside ${count(n)} ${what}, freeing ${size(line.bytes)}`;
+  const since = [
+    line.back ? `${count(line.back)} since put back` : null,
+    line.cleared ? `${count(line.cleared)} since cleared out of quarantine` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const kept = line.duplicates > 0 && line.bursts === 0 ? "the biggest" : "the sharpest";
+  if (waiting === 0) {
+    return [title, `Kept ${kept} of each.${since ? ` ${capital(since)}.` : ""}`];
+  }
+  const until = line.asideUntil ? shortDay(line.asideUntil) : "their days are up";
+  return [
+    title,
+    `Kept ${kept} of each; the rest are in quarantine until ${until}${since ? `, ${since}` : ""}.`,
+  ];
+}
+
+function capital(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** A batch as one line, as the History board draws it: what it made and where, what undoes all
@@ -395,6 +543,19 @@ function words(entry: HistoryEntry): [string, string] {
         `Emptied ${entry.name}'s quarantine${entry.bytes ? `, ${size(entry.bytes)}` : ""}`,
         "You asked to, before its 30 days were up. It can't be put back.",
       ];
+    case "aside":
+      if (entry.undoneAt) return [`Put ${entry.name} back`, "It's back where it was."];
+      if (entry.clearedAt)
+        return [
+          `Set aside ${entry.name}`,
+          entry.clearedBy === "owner"
+            ? "It went when you emptied the quarantine."
+            : "It was cleared out of quarantine after its 30 days.",
+        ];
+      return [
+        `Set aside ${entry.name}`,
+        `${entry.keptName ?? "Another"} was kept; this one is in quarantine on ${drive} until ${until ?? "its days are up"}.`,
+      ];
     case "replaced":
       if (entry.undoneAt)
         return [
@@ -478,17 +639,22 @@ function ClearHistory(props: { onClose: () => void; onCleared: (gone: number) =>
   );
 }
 
-/** The lines by their day, newest first. */
-/** The lines by day, newest first; a batch's all on the day of its newest (one made overnight
- * runs past midnight). */
+/** The lines by day, newest first; a batch's (or a review's) all on the day of its newest (one
+ * made overnight runs past midnight). */
 function days(entries: HistoryEntry[]): [string, HistoryEntry[]][] {
   const found = new Map<string, HistoryEntry[]>();
-  const batchDays = new Map<number, string>();
+  const groupDays = new Map<string, string>();
   for (const each of entries) {
     let day = localDay(each.at);
-    if (each.batch !== null) {
-      day = batchDays.get(each.batch) ?? day;
-      batchDays.set(each.batch, day);
+    const key =
+      each.batch !== null
+        ? `batch-${each.batch}`
+        : each.review !== null
+          ? `review-${each.review}`
+          : null;
+    if (key !== null) {
+      day = groupDays.get(key) ?? day;
+      groupDays.set(key, day);
     }
     found.set(day, [...(found.get(day) ?? []), each]);
   }

@@ -1,6 +1,7 @@
 """History: what Mado did, a week of days at a time, newest first, with its undo (taking a new
-picture away, putting a replaced original back: a picture's changes newest first) and clearing
-it; and the quarantine, what waits there on each drive, and emptying one."""
+picture away, putting a replaced original back: a picture's changes newest first; putting back a
+picture set aside from its duplicates, or all of a review's) and clearing it; and the
+quarantine, what waits there on each drive, and emptying one."""
 
 import sqlite3
 from datetime import datetime, timedelta
@@ -11,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
 from mado import batches, history
-from mado.api.common import ApiModel, Copies, Database, Paths, SetAside
+from mado.api.common import ApiModel, Copies, Database, Finding, Paths, Scans, SetAside
 from mado.api.jobs import PictureRef
 from mado.core.batch import at_night
 from mado.core.files import kind_of
@@ -34,8 +35,8 @@ KEEPS: dict[str, timedelta | None] = {
 class EntryOut(ApiModel):
     id: int
     at: str  # local time, with its offset
-    kind: Literal["made", "replaced", "emptied"]
-    name: str  # the original's file name; the drive, for a quarantine emptied
+    kind: Literal["made", "replaced", "emptied", "aside"]
+    name: str  # the original's file name; the drive, for a quarantine emptied; 'aside': its own
     made_for: str | None  # what its size made it for: "TV 8K"
     look: str | None  # what it was made with: "Warm film at 60%"
     original: str | None
@@ -51,6 +52,8 @@ class EntryOut(ApiModel):
     can_undo: bool  # "Take it away", "Put back"
     can_redo: bool  # "Put it back", for a picture taken away; "Replace it again"
     batch: int | None  # the batch it was made in, which History shows as one line
+    kept_name: str | None  # 'aside': the picture of its group that was kept
+    review: int | None  # 'aside': the review it was set aside in, which History shows as one line
 
 
 class BatchLine(ApiModel):
@@ -77,10 +80,29 @@ class BatchLine(ApiModel):
     picture: PictureRef | None
 
 
+class ReviewLine(ApiModel):
+    """A review of duplicates and bursts as History's one line for it: what it set aside, and
+    what puts all of it back."""
+
+    id: int
+    at: str
+    duplicates: int  # groups of duplicates whose rest it set aside
+    bursts: int  # and bursts
+    pictures: int  # it set aside
+    bytes: int  # what that freed
+    back: int  # put back since
+    cleared: int  # cleared out of quarantine since: after their days, or emptied
+    can_undo: bool  # "Put them back"
+    drives: list[str]  # where what it set aside waits: "D:"
+    aside_until: str | None  # the day the clear-out takes them
+    picture: PictureRef | None  # a picture it kept
+
+
 class HistoryOut(ApiModel):
     entries: list[EntryOut]  # newest first
     older: str | None  # the day the next page starts before; None: that's all
     batches: list[BatchLine]  # the batches its lines were made in
+    reviews: list[ReviewLine]  # the reviews its lines were set aside in
 
 
 class BatchUndone(ApiModel):
@@ -127,10 +149,13 @@ def what_mado_did(
     found = history.page(conn, before=before, query=q)
     batch_ids = list(dict.fromkeys(each.batch_id for each in found.entries if each.batch_id))
     lines = [_batch_line(conn, each) for each in batch_ids]
+    review_ids = list(dict.fromkeys(each.review_id for each in found.entries if each.review_id))
+    reviews = [_review_line(conn, each) for each in review_ids]
     return HistoryOut(
         entries=[_out(conn, each) for each in found.entries],
         older=found.older,
         batches=[line for line in lines if line is not None],
+        reviews=[line for line in reviews if line is not None],
     )
 
 
@@ -149,6 +174,19 @@ def redo_batch(batch_id: int, conn: Database, quarantine: SetAside) -> BatchUndo
     """Undoes a batch's undo: its new pictures put back, or its originals replaced again."""
     _done_with(conn, batch_id)
     done, problems = history.redo_batch(conn, quarantine, batch_id, _now())
+    return BatchUndone(done=done, problems=problems)
+
+
+@router.post("/history/reviews/{review_id}/undo")
+def undo_review(
+    review_id: int, conn: Database, quarantine: SetAside, scanner: Scans, finder: Finding
+) -> BatchUndone:
+    """Puts back every picture a review set aside, newest first, each where it was; the library
+    reads them again. Each picture's own line says why one couldn't be."""
+    done, problems = history.undo_review(conn, quarantine, review_id, _now())
+    if done:
+        scanner.request()
+        finder.wake()
     return BatchUndone(done=done, problems=problems)
 
 
@@ -209,14 +247,38 @@ def made_thumbnail(entry_id: int, conn: Database, paths: Paths, copies: Copies) 
 
 
 @router.post("/history/{entry_id}/undo")
-def undo(entry_id: int, conn: Database, quarantine: SetAside) -> EntryOut:
-    """Takes a new picture away (into quarantine, put back from here), or puts a replaced
-    original back (the made picture going into quarantine in its place)."""
+def undo(
+    entry_id: int, conn: Database, quarantine: SetAside, scanner: Scans, finder: Finding
+) -> EntryOut:
+    """Takes a new picture away (into quarantine, put back from here), puts a replaced original
+    back (the made picture going into quarantine in its place), or puts a picture set aside from
+    its duplicates back where it was (the library reads it again)."""
     try:
         done = history.undo(conn, quarantine, entry_id, _now())
     except UndoError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
+    if done.kind == "aside":
+        _keep_put_back(conn, done)
+        scanner.request()
+        finder.wake()
     return _out(conn, done)
+
+
+def _keep_put_back(conn: sqlite3.Connection, line: Entry) -> None:
+    """A picture put back on its own is one the owner keeps: setting its group aside again
+    leaves it. (A whole review put back is the review as it was, Mado's picks and all.)"""
+    row = conn.execute(
+        "SELECT id, size, modified FROM pictures WHERE path = ?", (line.original,)
+    ).fetchone()
+    if row is None:
+        return
+    with conn:
+        conn.execute(
+            """INSERT INTO choices (picture_id, keep, size, modified, at) VALUES (?, 1, ?, ?, ?)
+               ON CONFLICT (picture_id) DO UPDATE SET keep = 1, size = excluded.size,
+                   modified = excluded.modified, at = excluded.at""",
+            (row["id"], row["size"], row["modified"], _now().isoformat(timespec="seconds")),
+        )
 
 
 @router.post("/history/{entry_id}/redo")
@@ -258,10 +320,10 @@ def _out(conn: sqlite3.Connection, found: Entry) -> EntryOut:
     gone = found.cleared_at is not None
     can_undo = found.undone_at is None and (
         (found.kind == "made" and found.result is not None)
-        or (found.kind == "replaced" and found.aside is not None and not gone)
+        or (found.kind in ("replaced", "aside") and found.aside is not None and not gone)
     )
     can_redo = (
-        found.kind != "emptied"
+        found.kind not in ("emptied", "aside")
         and found.undone_at is not None
         and found.aside is not None
         and not gone
@@ -286,6 +348,8 @@ def _out(conn: sqlite3.Connection, found: Entry) -> EntryOut:
         can_undo=can_undo,
         can_redo=can_redo,
         batch=found.batch_id,
+        kept_name=PureWindowsPath(found.kept).name if found.kept else None,
+        review=found.review_id,
     )
 
 
@@ -377,10 +441,42 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
     )
 
 
+def _review_line(conn: sqlite3.Connection, review_id: int) -> ReviewLine | None:
+    """A review's one line in History."""
+    row = conn.execute("SELECT * FROM reviews WHERE id = ?", (review_id,)).fetchone()
+    if row is None:
+        return None
+    lines = history.of_review(conn, review_id)
+    waiting = [
+        each for each in lines if each.undone_at is None and each.aside and not each.cleared_at
+    ]
+    drives = sorted({PureWindowsPath(each.aside or "").drive.upper() for each in waiting} - {""})
+    until = [day for each in waiting if (day := _until(each.aside_at)) is not None]
+    return ReviewLine(
+        id=review_id,
+        at=row["at"],
+        duplicates=row["duplicates"],
+        bursts=row["bursts"],
+        pictures=len(lines),
+        bytes=sum(each.bytes or 0 for each in lines),
+        back=sum(1 for each in lines if each.undone_at is not None),
+        cleared=sum(1 for each in lines if each.cleared_at is not None),
+        can_undo=bool(waiting),
+        drives=drives,
+        aside_until=max(until) if until else None,
+        picture=next(
+            (found for each in lines[:10] if (found := _picture(conn, each)) is not None), None
+        ),
+    )
+
+
 def _picture(conn: sqlite3.Connection, found: Entry) -> PictureRef | None:
     """The picture to show beside a line: the one made, while it's in the library, else its
-    original."""
-    for path in (found.result, found.original):
+    original; for a picture set aside, itself once it's back, else the one its group kept."""
+    paths = (
+        (found.original, found.kept) if found.kind == "aside" else (found.result, found.original)
+    )
+    for path in paths:
         if not path:
             continue
         row = conn.execute(

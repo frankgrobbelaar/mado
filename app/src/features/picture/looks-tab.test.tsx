@@ -34,6 +34,7 @@ const details: PictureDetails = {
   orientation: 1,
   located: true,
   problem: null,
+  damaged: false,
 };
 
 const blob = () => new Response(new Blob(["made-up picture"], { type: "image/webp" }));

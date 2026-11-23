@@ -12,6 +12,7 @@ from PIL import Image
 
 from mado.api import create_app
 from mado.config import DataPaths
+from mado.pictures import InUseError
 from tests.conftest import TOKEN, add
 from tests.drawn import draw, exif
 from tests.heif_files import exif_item, heif
@@ -301,3 +302,22 @@ def test_reading_a_picture_again_picks_up_a_file_mended_since(client: TestClient
     assert (mended["state"], mended["problem"], mended["format"]) == ("ready", None, "JPEG")
     assert (mended["size"], mended["version"]) != (listed["size"], listed["version"])
     assert client.get(f"/pictures/{listed['id']}/thumbnail").status_code == 200
+
+
+def test_trying_again_a_picture_open_in_another_app_says_so_and_leaves_it_as_it_was(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    draw(tmp_path / "Phone" / "Pier.jpg")
+    add(client, tmp_path / "Phone")
+    [listed] = client.get("/pictures").json()["pictures"]
+
+    def in_use(path: Path, _kind: object) -> object:
+        raise InUseError(f"{path.name} is open in another app, so Mado can't read it.")
+
+    monkeypatch.setattr("mado.api.pictures.read_facts", in_use)
+    response = client.post(f"/pictures/{listed['id']}/read")
+
+    assert response.status_code == 409
+    assert "open in another app" in response.json()["detail"]
+    after = client.get(f"/pictures/{listed['id']}").json()
+    assert (after["state"], after["problem"]) == ("ready", None)

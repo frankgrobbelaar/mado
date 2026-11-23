@@ -4,6 +4,7 @@ import { ScreenError } from "@/components/screen-error";
 import { AppShell } from "@/components/shell/app-shell";
 import { UpdateCard } from "@/components/shell/update-card";
 import { BatchPage } from "@/features/batch/batch-page";
+import { DuplicatesPage } from "@/features/duplicates/duplicates-page";
 import { HistoryPage } from "@/features/history/history-page";
 import { HomePage } from "@/features/home/home-page";
 import { LibraryPage } from "@/features/library/library-page";
@@ -38,6 +39,7 @@ export function App() {
               <Route path="/queue" element={<QueuePage />} />
               <Route path="/recipes" element={<RecipesPage />} />
               <Route path="/history" element={<HistoryPage />} />
+              <Route path="/duplicates" element={<DuplicatesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/:section" element={<SettingsPage />} />
             </Route>

@@ -19,9 +19,10 @@ _UNSAFE = str.maketrans(dict.fromkeys('<>:"/\\|?*', "-"))
 def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> Path | None:
     """Write `Mado export <date>.zip` into `folder` and return its path: the database, its
     settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
-    each), History as CSV (each picture made, replaced or taken away, and what waits in
-    quarantine), the owner's looks (listed in JSON, each a .cube file any app opens), their
-    recipes and watch folders as JSON, and a manifest saying which Mado wrote it.
+    each), History as CSV (each picture made, replaced, taken away or set aside, and what waits
+    in quarantine), the owner's looks (listed in JSON, each a .cube file any app opens), their
+    recipes and watch folders as JSON, what they decided of duplicates and bursts as JSON, and a
+    manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -47,6 +48,7 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             looks = _looks(source)
             kept_recipes = _recipes(source)
             watch_folders = _watch_folders(source)
+            duplicates = _duplicates(source)
             schema_version = db.schema_version(source)
 
         manifest = {
@@ -66,8 +68,36 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
                 archive.writestr(str(listed["file"]), text)
             archive.writestr("recipes.json", json.dumps(kept_recipes, indent=2))
             archive.writestr("watch-folders.json", json.dumps(watch_folders, indent=2))
+            archive.writestr("duplicates.json", json.dumps(duplicates, indent=2))
             archive.writestr("manifest.json", json.dumps(manifest, indent=2))
     return target
+
+
+def _duplicates(conn: sqlite3.Connection) -> dict[str, object]:
+    """What the owner decided of duplicates and bursts: the pictures they said aren't the same
+    (by their paths), which of a group they keep or set aside, and each setting aside."""
+    if not _has_table(conn, "not_same"):
+        return {"notTheSame": [], "choices": [], "reviews": []}
+    pairs = [
+        sorted([row["first"], row["second"]])
+        for row in conn.execute(
+            """SELECT a.path AS first, b.path AS second FROM not_same AS n
+               JOIN pictures AS a ON a.id = n.first JOIN pictures AS b ON b.id = n.second
+               ORDER BY a.path, b.path"""
+        )
+    ]
+    choices = [
+        {"path": row["path"], "keep": bool(row["keep"])}
+        for row in conn.execute(
+            """SELECT p.path, c.keep FROM choices AS c JOIN pictures AS p ON p.id = c.picture_id
+               ORDER BY p.path"""
+        )
+    ]
+    reviews = [
+        {"at": row["at"], "duplicates": row["duplicates"], "bursts": row["bursts"]}
+        for row in conn.execute("SELECT at, duplicates, bursts FROM reviews ORDER BY id")
+    ]
+    return {"notTheSame": pairs, "choices": choices, "reviews": reviews}
 
 
 def _recipes(conn: sqlite3.Connection) -> list[dict[str, object]]:
@@ -190,12 +220,15 @@ _HISTORY_COLUMNS = (
     ("clearedAt", "cleared_at"),
     ("clearedBy", "cleared_by"),
     ("undoneAt", "undone_at"),
+    ("kept", "kept"),
+    ("review", "review_id"),
 )
 
 
 def _history(conn: sqlite3.Connection) -> str:
-    """What Mado did, oldest first, as CSV: each picture made or replaced, what it was made for
-    and with, what waits in quarantine, and what was undone."""
+    """What Mado did, oldest first, as CSV: each picture made, replaced or set aside, what it was
+    made for and with (or the picture kept in its place), what waits in quarantine, and what was
+    undone."""
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(name for name, _column in _HISTORY_COLUMNS)
@@ -203,7 +236,8 @@ def _history(conn: sqlite3.Connection) -> str:
         for row in conn.execute("SELECT * FROM history ORDER BY at, id"):
             kept = row.keys()
             writer.writerow(
-                (row[column] or "") if column in kept else "" for _name, column in _HISTORY_COLUMNS
+                ("" if row[column] is None else row[column]) if column in kept else ""
+                for _name, column in _HISTORY_COLUMNS
             )
     return out.getvalue()
 
@@ -212,7 +246,8 @@ def _state(row: sqlite3.Row) -> str:
     if row["raw"]:
         return "camera RAW, not read yet"
     if row["problem"]:
-        return f"won't open: {row['problem']}"
+        damaged = "damaged" in row.keys() and row["damaged"]  # noqa: SIM118 - a Row's
+        return f"won't open{', marked as damaged' if damaged else ''}: {row['problem']}"
     return "read" if row["read_at"] else "still to read"
 
 

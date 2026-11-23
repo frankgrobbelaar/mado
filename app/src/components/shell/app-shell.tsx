@@ -3,6 +3,7 @@ import { ScreenError } from "@/components/screen-error";
 import { DamagedRecords } from "@/features/records/damaged-records";
 import { useRecords } from "@/lib/engine";
 import { DropZone } from "./drop-zone";
+import { InUse } from "./in-use";
 import { NavRail } from "./nav-rail";
 import { Notices } from "./notices";
 import { Offline } from "./offline";
@@ -39,10 +40,11 @@ export function AppShell() {
       </div>
       <UpdateCard />
       {!damage && <DropZone />}
-      {/* Notes at the foot of the window, over the page: being offline, and what the engine
-        tells of. */}
-      <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(30rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">
+      {/* Notes at the foot of the window, over the page: being offline, a picture open in
+        another app, and what the engine tells of. */}
+      <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(34rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">
         <Offline />
+        {!damage && <InUse />}
         <Notices />
       </div>
     </div>

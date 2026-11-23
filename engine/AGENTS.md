@@ -9,13 +9,14 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive | `src/mado/core/`, pure functions only |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep | `src/mado/core/`, pure functions only |
 | The library: its folders, the scan, the watcher, reading pictures and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
 | Making a picture right for a screen: sessions on the card, the models' files, a tile at a time, extending edges, making and saving | `src/mado/directml.py`, `ai.py`, `upscale.py`, `extend.py`, `making.py`, `encode.py` (see [docs/stack/upscaling.md](../docs/stack/upscaling.md)) |
 | Giving a picture a look: the look's table and the touches laid on it, the owner's looks in the database | `src/mado/looks.py`, `own_looks.py` (see [docs/stack/looks.md](../docs/stack/looks.md)) |
 | The jobs, History and the quarantine | `src/mado/jobs.py`, `history.py`, `quarantine.py` |
 | Many at once: the queue (in the jobs' worker), batches and what they take, See it first, recipes, watch folders | `src/mado/jobs.py`, `batches.py`, `samples.py`, `recipes.py`, `watching.py` (see [docs/stack/queue.md](../docs/stack/queue.md)) |
 | This PC: what it has, its check (in a process of its own), its speeds | `src/mado/hardware.py`, `pc_check.py` (see [docs/stack/hardware.md](../docs/stack/hardware.md)) |
+| Looking after the library: duplicates and bursts found in the background, the owner's choices, setting the rest aside | `src/mado/duplicates.py` (see [docs/stack/duplicates.md](../docs/stack/duplicates.md)); won't open and space in `api/library.py` |
 | The AI models Mado ships, with their licences | `src/mado/assets/` (its README says what each is) |
 | Reaching the world: files, ffmpeg, the graphics card | modules beside `core/`, one per outside thing, each small and replaceable |
 | The API the UI calls | `src/mado/api/<feature>.py`, one `APIRouter` per feature, included in `api/__init__.py` |
@@ -25,7 +26,7 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 | Background care (tonight's backup, the daily clear-out of the quarantine) | `src/mado/care.py` |
 | Commands | `src/mado/cli.py` |
 | Build tools that run on the engine's Python (the third-party notices) | `tools/`, tested in `tests/` |
-| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` (a quarantine of the test's own, the AI models on the processor, a stand-in PC check); made-up pictures from `tests/drawn.py` and `tests/heif_files.py`, ffmpeg from `tests/fake_ffmpeg.py`; the shipped Fast model runs on the processor on tiny pictures |
+| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` (a quarantine of the test's own, the AI models on the processor, a stand-in PC check); made-up pictures from `tests/drawn.py` (`scene`: a landscape different for every seed, for duplicates and bursts) and `tests/heif_files.py`, ffmpeg from `tests/fake_ffmpeg.py`; the shipped Fast model runs on the processor on tiny pictures; a picture held open with Python's `open()` is open in another app, as Windows sees it |
 
 ## Building a feature
 

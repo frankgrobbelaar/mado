@@ -1,6 +1,7 @@
 """The quarantine: setting a picture aside on its own drive, putting it back, the daily
 clear-out after 30 days, and emptying a drive's by hand."""
 
+import errno
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,7 +9,15 @@ from pathlib import Path
 import pytest
 
 from mado import history
-from mado.quarantine import MoveError, Quarantine, by_drive, clear_out, empty, move
+from mado.quarantine import (
+    InUseMoveError,
+    MoveError,
+    Quarantine,
+    by_drive,
+    clear_out,
+    empty,
+    move,
+)
 from tests.drawn import draw
 
 NOW = datetime(2026, 11, 22, 11, 20).astimezone()
@@ -148,3 +157,31 @@ def test_history_knows_whether_the_days_or_the_owner_cleared_a_picture_out(
         "SELECT cleared_by FROM history WHERE kind = 'replaced' ORDER BY id"
     ).fetchall()
     assert [row["cleared_by"] for row in rows] == ["days", "owner"]
+
+
+def test_a_move_to_another_drive_that_cant_finish_leaves_no_copy_behind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    source = draw(tmp_path / "Phone" / "Pier.jpg")
+    target = tmp_path / "Other drive" / "Mado quarantine" / "2026-11-23" / "Pier.jpg"
+    rename, unlink = Path.rename, Path.unlink
+
+    def across(self: Path, to: Path) -> Path:
+        if self == source:
+            raise OSError(errno.EXDEV, "Not the same device")
+        return rename(self, to)
+
+    def held(self: Path, missing_ok: bool = False) -> None:
+        if self == source:  # another app has it open: it can't be removed
+            raise PermissionError(13, "The process cannot access the file", str(self), 32)
+        unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "rename", across)
+    monkeypatch.setattr(Path, "unlink", held)
+
+    with pytest.raises(InUseMoveError):
+        move(source, target)
+
+    assert source.exists()
+    assert not target.exists()  # nothing left in quarantine with no line to clear it out
+    assert list(target.parent.glob("*")) == []

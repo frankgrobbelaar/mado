@@ -6,6 +6,7 @@ import { EngineProvider, type EngineStatus } from "@/lib/engine";
 import {
   batch,
   batchPicture,
+  duplicates,
   FOLDERS,
   fakeEngine,
   LIBRARY,
@@ -43,6 +44,7 @@ function renderHome(
             <Route path="/setup" element={<p>Setup</p>} />
             <Route path="/library/pictures/:id" element={<Where what="A picture's page" />} />
             <Route path="/batch" element={<Where what="Many at once" />} />
+            <Route path="/duplicates" element={<Where what="The review" />} />
           </Routes>
         </MemoryRouter>
       </EngineProvider>
@@ -247,7 +249,8 @@ describe("HomePage", () => {
     });
     renderHome();
 
-    const needs = await screen.findByRole("region", { name: "Needs you" });
+    await screen.findByText("Holiday is ready for the TV");
+    const needs = screen.getByRole("region", { name: "Needs you" });
     expect(needs).toHaveTextContent("48Holiday is ready for the TV");
     expect(needs).toHaveTextContent(
       "Made for TV 8K, with Warm film at 60% overnight, as new pictures in Holiday › Edited.",
@@ -258,6 +261,211 @@ describe("HomePage", () => {
     expect(shell.invoke).toHaveBeenCalledWith("open_folder", {
       path: "D:\\Pictures\\Holiday\\Edited",
     });
+  });
+
+  it("asks for a review of duplicates and bursts, and says how far looking has got", async () => {
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": { ...LIBRARY, broken: 0 },
+      "/scan": scanDone(),
+      "/duplicates": duplicates({ pictures: 212 }),
+    });
+    renderHome();
+
+    await screen.findByText("Duplicates and bursts");
+    const needs = screen.getByRole("region", { name: "Needs you" });
+    expect(needs).toHaveTextContent(
+      "212Duplicates and burstsKeep the sharpest of each; the rest wait in quarantine for 30 days.",
+    );
+    fireEvent.click(within(needs).getByRole("button", { name: "Review" }));
+
+    expect(await screen.findByText("The review at /duplicates")).toBeInTheDocument();
+  });
+
+  it("says looking for duplicates is under way", async () => {
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": { ...LIBRARY, broken: 0 },
+      "/scan": scanDone(),
+      "/duplicates": duplicates({ looking: { looked: 3200, of: 4812 }, pictures: 40 }),
+    });
+    renderHome();
+
+    expect(await screen.findByText(/Still looking: 3,200 of 4,812 looked at/)).toBeInTheDocument();
+  });
+
+  it("lists the pictures that won't open, each to show, try again or mark as damaged", async () => {
+    const fetch = fakeEngine({
+      "/settings": SETTINGS,
+      "/library": { ...LIBRARY, broken: 3, damaged: 1 },
+      "/scan": scanDone(),
+      "/library/wont-open": {
+        pictures: [
+          {
+            id: 32,
+            name: "Old pier.tif",
+            path: "E:\\Scans\\1990\\Old pier.tif",
+            folder: "E:\\Scans\\1990",
+            format: "TIF",
+            size: 61_000_000,
+            problem: "The file is damaged or was only half copied: image file is truncated.",
+            version: "v32",
+          },
+          {
+            id: 33,
+            name: "Torn map.jpg",
+            path: "E:\\Scans\\Torn map.jpg",
+            folder: "E:\\Scans",
+            format: "JPEG",
+            size: 900_000,
+            problem: "Mado can't tell what kind of picture it is.",
+            version: "v33",
+          },
+        ],
+        damaged: 1,
+      },
+      "POST /pictures/32/read": { ...LIBRARY, id: 32, state: "broken" },
+      "POST /pictures/33/damaged": { id: 33, state: "broken", damaged: true },
+    });
+    renderHome();
+
+    await screen.findByRole("button", { name: "See which" });
+    const needs = screen.getByRole("region", { name: "Needs you" });
+    expect(needs).toHaveTextContent(
+      "2Won't openTheir files are damaged or were only half copied. They're left as they are.",
+    );
+    fireEvent.click(within(needs).getByRole("button", { name: "See which" }));
+
+    const card = await screen.findByRole("dialog");
+    await within(card).findByText("Old pier.tif");
+    const items = within(card).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Old pier.tif won't open");
+    expect(items[0]).toHaveTextContent("image file is truncated.");
+    expect(items[0]).toHaveTextContent("In Scans › 1990");
+    expect(card).toHaveTextContent("1 marked as damaged isn't listed.");
+
+    fireEvent.click(
+      within(items[0] as HTMLElement).getByRole("button", { name: "Show in folder" }),
+    );
+    await waitFor(() =>
+      expect(shell.invoke).toHaveBeenCalledWith("show_in_folder", {
+        path: "E:\\Scans\\1990\\Old pier.tif",
+      }),
+    );
+    fireEvent.click(within(items[0] as HTMLElement).getByRole("button", { name: "Try again" }));
+    expect(
+      await within(card).findByText("It still won't open, so Mado left it as it is."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(items[1] as HTMLElement).getByRole("button", { name: "Mark as damaged" }),
+    );
+    await waitFor(() => expect(sent(fetch, "POST", "/pictures/33/damaged")).toHaveLength(1));
+    expect(sent(fetch, "POST", "/pictures/32/read")).toHaveLength(1);
+  });
+
+  it("keeps the card of pictures that won't open while the last is marked, to say so", async () => {
+    let marked = false;
+    const PIER = {
+      id: 32,
+      name: "Old pier.tif",
+      path: "E:\\Scans\\Old pier.tif",
+      folder: "E:\\Scans",
+      format: "TIF",
+      size: 61_000_000,
+      problem: "The file is damaged or was only half copied: image file is truncated.",
+      version: "v32",
+    };
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": () => ({ ...LIBRARY, broken: 1, damaged: marked ? 1 : 0 }),
+      "/scan": scanDone(),
+      "/library/wont-open": () => ({ pictures: marked ? [] : [PIER], damaged: marked ? 1 : 0 }),
+      "POST /pictures/32/damaged": () => {
+        marked = true;
+        return { id: 32, state: "broken", damaged: true };
+      },
+    });
+    renderHome();
+
+    fireEvent.click(await screen.findByRole("button", { name: "See which" }));
+    const card = await screen.findByRole("dialog");
+    fireEvent.click(await within(card).findByRole("button", { name: "Mark as damaged" }));
+
+    expect(
+      await within(card).findByText("Every picture opens now, or you've marked it as damaged."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBe(card);
+    expect(screen.queryByRole("button", { name: "See which" })).not.toBeInTheDocument();
+  });
+
+  it("shows the space on the drive most of the library is on, then the others", async () => {
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": LIBRARY,
+      "/scan": scanDone(),
+      "/space": [
+        {
+          drive: "D:",
+          connected: true,
+          free: 412_000_000_000,
+          total: 1_000_000_000_000,
+          pictures: 38_200_000_000,
+          quarantine: 1_400_000_000,
+          queue: 1_200_000_000,
+        },
+        {
+          drive: "E:",
+          connected: true,
+          free: 120_000_000_000,
+          total: 500_000_000_000,
+          pictures: 4_100_000_000,
+          quarantine: 0,
+          queue: 0,
+        },
+        {
+          drive: "F:",
+          connected: false,
+          free: null,
+          total: null,
+          pictures: 900_000_000,
+          quarantine: 0,
+          queue: 0,
+        },
+      ],
+    });
+    renderHome();
+
+    const space = await screen.findByRole("region", { name: "Space on D:" });
+    expect(space).toHaveTextContent("412 GBfree");
+    expect(space).toHaveTextContent(
+      "Your pictures use 38.2 GB; quarantine holds 1.4 GB. The queue needs 1.2 GB more.",
+    );
+    expect(within(space).getByRole("img")).toHaveAccessibleName("38.2 GB of pictures, 412 GB free");
+    expect(space).toHaveTextContent("E:120 GB free · 4.1 GB of pictures");
+    expect(space).toHaveTextContent("F:not connected");
+  });
+
+  it("says when the drive most of the library is on isn't connected", async () => {
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": LIBRARY,
+      "/scan": scanDone(),
+      "/space": [
+        {
+          drive: "D:",
+          connected: false,
+          free: null,
+          total: null,
+          pictures: 38_200_000_000,
+          quarantine: 0,
+          queue: 0,
+        },
+      ],
+    });
+    renderHome();
+
+    const space = await screen.findByRole("region", { name: "Space on D:" });
+    expect(space).toHaveTextContent("D: isn't connected. Its pictures stay in your library");
   });
 
   it("shows what was made today, each with what it was made for", async () => {

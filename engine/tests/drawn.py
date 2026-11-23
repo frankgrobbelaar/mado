@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 MAKE, MODEL, ORIENTATION, EXIF_IFD, GPS_IFD = 0x010F, 0x0110, 0x0112, 0x8769, 0x8825
 TAKEN = 0x9003  # DateTimeOriginal
@@ -129,3 +129,55 @@ def draw(
         stamp = modified.timestamp()
         os.utime(path, (stamp, stamp))
     return path
+
+
+def scene(
+    seed: int,
+    size: tuple[int, int] = (1600, 1200),
+    *,
+    shift: tuple[float, float] = (0.0, 0.0),
+    grain: float = 3.0,
+    grain_seed: int | None = None,
+    blur: float = 0.0,
+) -> Image.Image:
+    """A made-up landscape, different for every seed: a sky, a sun, hills with uneven ridges and
+    a few shapes on them, with a camera's grain. `shift` moves the camera a little (fractions of
+    the width and height), as between the shots of a burst; `blur` softens it before its grain."""
+    rng = np.random.default_rng(seed)
+    width, height = size
+    pad = 0.05
+    big = (int(width * (1 + 2 * pad)), int(height * (1 + 2 * pad)))
+    rows = np.linspace(0, 1, big[1], dtype=np.float32)[:, None, None]
+    sky = rng.integers(20, 235, 3) * (1 - rows) + rng.integers(60, 255, 3) * rows
+    canvas = Image.fromarray(np.broadcast_to(sky, (big[1], big[0], 3)).astype(np.uint8))
+    pen = ImageDraw.Draw(canvas)
+    x, y, r = rng.uniform(0.1, 0.9) * big[0], rng.uniform(0.1, 0.4) * big[1], big[0] * 0.05
+    pen.ellipse([x - r, y - r, x + r, y + r], fill=tuple(int(v) for v in rng.integers(180, 256, 3)))
+    across = np.linspace(0, 1, 120)
+    for layer in range(int(rng.integers(2, 4))):
+        ridge = (rng.uniform(0.4, 0.7) + 0.08 * layer) * np.ones_like(across)
+        for _ in range(3):
+            ridge += rng.uniform(0.02, 0.08) * np.sin(
+                across * rng.uniform(2, 12) + rng.uniform(0, 6)
+            )
+        points = [
+            (float(a * big[0]), float(b * big[1])) for a, b in zip(across, ridge, strict=True)
+        ]
+        pen.polygon(
+            [(0, big[1]), *points, (big[0], big[1])],
+            fill=tuple(int(v) for v in rng.integers(10, 190, 3)),
+        )
+    for _ in range(int(rng.integers(3, 8))):
+        x, ground = rng.uniform(0.05, 0.95) * big[0], rng.uniform(0.65, 0.95) * big[1]
+        tall, wide = rng.uniform(0.08, 0.25) * big[1], rng.uniform(0.02, 0.06) * big[0]
+        pen.rectangle(
+            [x - wide, ground - tall, x + wide, ground],
+            fill=tuple(int(v) for v in rng.integers(0, 150, 3)),
+        )
+    left, top = int(big[0] * pad + shift[0] * width), int(big[1] * pad + shift[1] * height)
+    canvas = canvas.crop((left, top, left + width, top + height))
+    if blur > 0:
+        canvas = canvas.filter(ImageFilter.GaussianBlur(blur))
+    noise = np.random.default_rng(seed * 31 + 7 if grain_seed is None else grain_seed)
+    grained = np.asarray(canvas, np.float32) + noise.normal(0, grain, (height, width, 1))
+    return Image.fromarray(np.clip(grained, 0, 255).astype(np.uint8))

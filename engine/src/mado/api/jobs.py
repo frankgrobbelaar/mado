@@ -1,5 +1,7 @@
 """The jobs that make pictures: how each is going (its stage, how far, the time left), what it
-saved, and Cancel. The Size tab follows its picture's job; the status bar, any under way."""
+saved, and Cancel. The Size tab follows its picture's job; the status bar, any under way. A job
+whose picture is open in another app waits, and the note at the window's foot says so, with Try
+again now and Skip it."""
 
 import json
 import sqlite3
@@ -41,7 +43,20 @@ class Job(ApiModel):
     result: str | None  # the picture saved
     result_name: str | None
     result_picture: PictureRef | None  # the picture saved, once the library has read it
-    problem: str | None
+    problem: str | None  # why it didn't work; while it waits, why it waits
+    held_until: str | None  # its picture is open in another app: it tries again then
+
+
+class Held(ApiModel):
+    """A job waiting while its picture is open in another app."""
+
+    job: int
+    name: str  # the picture's file name
+    path: str
+    verb: Literal["read", "replace"]  # what Mado can't do while it's open
+    since: str  # when Mado first found it open
+    until: str  # when it tries again by itself
+    batch: str | None  # the batch it's in
 
 
 @router.get("/jobs")
@@ -68,9 +83,49 @@ def jobs_list(
     return [job_of(conn, jobs, row["id"]) for row in rows]
 
 
+@router.get("/jobs/held")
+def held(conn: Database) -> list[Held]:
+    """The jobs waiting while their pictures are open in another app, the longest first."""
+    return [
+        Held(
+            job=row["id"],
+            name=Path(row["source"]).name,
+            path=row["source"],
+            verb="replace" if row["held_why"] == "replace" else "read",
+            since=row["held_since"],
+            until=row["held_until"] or row["held_since"],
+            batch=row["batch"],
+        )
+        for row in conn.execute(
+            """SELECT j.id, j.source, j.held_why, j.held_since, j.held_until, b.name AS batch
+               FROM jobs AS j LEFT JOIN batches AS b ON b.id = j.batch_id
+               WHERE j.state = 'queued' AND j.held_since IS NOT NULL
+               ORDER BY j.held_since, j.id"""
+        )
+    ]
+
+
 @router.get("/jobs/{job_id}")
 def job(job_id: int, conn: Database, jobs: Working) -> Job:
     return job_of(conn, jobs, job_id)
+
+
+@router.post("/jobs/{job_id}/try-now", status_code=status.HTTP_204_NO_CONTENT)
+def try_now(job_id: int, conn: Database, jobs: Working) -> None:
+    """A picture waiting while it's open in another app is tried again now."""
+    if not jobs.try_now(conn, job_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, _NOT_WAITING)
+
+
+@router.post("/jobs/{job_id}/skip", status_code=status.HTTP_204_NO_CONTENT)
+def skip(job_id: int, conn: Database, jobs: Working) -> None:
+    """A picture waiting while it's open in another app isn't made after all: it's left as it is,
+    to try again later, and the others go on."""
+    if not jobs.skip(conn, job_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, _NOT_WAITING)
+
+
+_NOT_WAITING = "That picture isn't waiting any more: it was made, or it's being made now."
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -111,6 +166,7 @@ def job_of(conn: sqlite3.Connection, jobs: Jobs, job_id: int) -> Job:
         result_name=Path(result).name if result else None,
         result_picture=_in_library(conn, result) if result else None,
         problem=row["problem"],
+        held_until=row["held_until"] if row["state"] == "queued" else None,
     )
 
 
