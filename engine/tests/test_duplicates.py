@@ -21,6 +21,7 @@ from mado.library import add_folder
 from mado.previews import Previews
 from mado.scan import Scanner
 from tests.conftest import FFMPEG, add
+from tests.dng_files import dng
 from tests.drawn import exif, scene
 from tests.heif_files import heif
 
@@ -151,7 +152,9 @@ def test_different_scenes_and_a_gentle_crop_arent_duplicates(client: TestClient,
     assert looked(client)["groups"] == []
 
 
-def test_camera_raw_and_a_quarantine_are_never_grouped(client: TestClient, tmp_path: Path):
+def test_camera_raw_waiting_for_its_reader_and_a_quarantine_are_never_grouped(
+    client: TestClient, tmp_path: Path
+):
     raw = tmp_path / "Pictures"
     raw.mkdir()
     (raw / "_MG_0042.CR3").write_bytes(b"raw" * 1000)
@@ -163,6 +166,23 @@ def test_camera_raw_and_a_quarantine_are_never_grouped(client: TestClient, tmp_p
     add(client, aside)
 
     assert looked(client)["groups"] == []
+
+
+def test_copies_of_a_camera_raw_group_but_never_with_its_jpeg(
+    raw_client: TestClient, tmp_path: Path
+):
+    folder = tmp_path / "Camera"
+    shown = scene(9, (900, 600))
+    dng(folder / "_MG_0042.dng", shown)
+    (folder / "Backup").mkdir()
+    shutil.copy2(folder / "_MG_0042.dng", folder / "Backup" / "_MG_0042.dng")
+    save(shown, folder / "_MG_0042.jpg", quality=92)  # the camera's JPEG of the same moment
+    add(raw_client, folder)
+
+    [group] = looked(raw_client)["groups"]
+
+    assert sorted(each["name"] for each in group["pictures"]) == ["_MG_0042.dng", "_MG_0042.dng"]
+    assert all(each["path"].endswith(".dng") for each in group["pictures"])
 
 
 def test_what_mado_made_from_a_picture_is_never_its_duplicate(

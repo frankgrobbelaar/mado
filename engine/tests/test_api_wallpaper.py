@@ -23,10 +23,12 @@ from mado.config import DataPaths
 from mado.core.wallpaper import key_of
 from mado.desktop import FILL, SPAN, Slideshow
 from mado.jobs import PARTIAL, Jobs
+from mado.libraw import Reader
 from mado.quarantine import Quarantine
 from mado.wallpaper import Studio, StudioError
 from tests.conftest import FFMPEG, ON_PROCESSOR, TOKEN, add, fake_check
-from tests.drawn import draw, photo_like
+from tests.dng_files import dng
+from tests.drawn import draw, photo_like, scene
 from tests.fake_desktop import SIDE, STUDIO, TALL, FakeDesktop
 
 
@@ -46,9 +48,12 @@ def desktop(owner: dict[str, Path]) -> FakeDesktop:
     )
 
 
-@pytest.fixture
-def client(
-    paths: DataPaths, quarantine: Quarantine, desktop: FakeDesktop, tmp_path: Path
+def _studio_client(
+    paths: DataPaths,
+    quarantine: Quarantine,
+    desktop: FakeDesktop,
+    tmp_path: Path,
+    reader: Reader | None = None,
 ) -> Iterator[TestClient]:
     app = create_app(
         TOKEN,
@@ -58,12 +63,28 @@ def client(
         here=lambda: ON_PROCESSOR,
         check=fake_check,
         desktop=desktop,
+        reader=reader or Reader(lambda: None),  # a camera RAW's reader, never fetched unasked
     )
     studio: Studio = app.state.wallpaper
     studio.themes = tmp_path / "Themes"  # Windows' own copy of what it shows, made up
     headers = {"Authorization": f"Bearer {TOKEN}"}
     with TestClient(app, base_url="http://127.0.0.1", headers=headers) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def client(
+    paths: DataPaths, quarantine: Quarantine, desktop: FakeDesktop, tmp_path: Path
+) -> Iterator[TestClient]:
+    yield from _studio_client(paths, quarantine, desktop, tmp_path)
+
+
+@pytest.fixture
+def raw_studio(
+    paths: DataPaths, quarantine: Quarantine, desktop: FakeDesktop, tmp_path: Path, reader: Reader
+) -> Iterator[TestClient]:
+    """The studio with an engine that reads camera RAW with LibRaw."""
+    yield from _studio_client(paths, quarantine, desktop, tmp_path, reader)
 
 
 def _library(
@@ -155,6 +176,24 @@ def test_a_picture_for_a_monitor_is_cut_with_its_shape_and_made_as_size_does(
     assert part["area"]["height"] == pytest.approx(64 * 90 / 160 / 48)
     assert part["scale"] == pytest.approx(2.5)
     assert part["warning"] is None
+
+
+def test_a_camera_raw_makes_a_wallpaper_as_any_picture_does(
+    raw_studio: TestClient, desktop: FakeDesktop, tmp_path: Path
+):
+    dng(tmp_path / "Camera" / "Harbour at dusk.dng", scene(4, (320, 180)))
+    add(raw_studio, tmp_path / "Camera")
+    [listed] = raw_studio.get("/pictures").json()["pictures"]
+
+    found = _choose(raw_studio, listed["id"], key_of(STUDIO.id))
+
+    [choice] = found["choices"]
+    assert choice["problem"] is None
+    [part] = found["parts"]
+    assert (part["width"], part["height"]) == (160, 90)
+    raw_studio.post("/wallpaper/set")
+    assert _done(raw_studio)["making"]["state"] == "set"
+    assert len(desktop.sets) == 1
 
 
 def test_a_picture_far_too_small_says_it_will_look_painted(client: TestClient, tmp_path: Path):

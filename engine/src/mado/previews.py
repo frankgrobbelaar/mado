@@ -1,11 +1,12 @@
 """The smaller copies of each picture the window shows, kept in the data folder's cache: a
 thumbnail about 512 pixels for the grid, a view the size of a screen for a picture's page, and a
-copy at full size for a format the window can't show itself (TIFF, HEIC).
+copy at full size for a format the window can't show itself (TIFF, HEIC, camera RAW).
 
 Each is made the first time it's asked for (a scan makes the thumbnails as it reads) and named
 after its picture's version, so a picture that changes gets new ones. They're WebP, with the
 picture's own colour profile, so wide colours stay wide. Anything in the cache can go: it's
-made again.
+made again. A camera RAW's thumbnail comes from the preview its camera kept inside it; its view
+and full size are developed, so its page shows the picture Save makes (mado/core/raw.py).
 """
 
 import secrets
@@ -20,6 +21,7 @@ from PIL import Image
 
 from mado.config import DataPaths
 from mado.core.files import Kind, kind_of
+from mado.libraw import Reader
 from mado.pictures import Command, PictureGoneError, UnreadableError, decode
 
 THUMBNAIL = 512  # pixels on its longer side
@@ -67,10 +69,16 @@ def version(modified: int, size: int) -> str:
 
 
 class Previews:
-    def __init__(self, paths: DataPaths, ffmpeg: Callable[[], Command | None]) -> None:
+    def __init__(
+        self,
+        paths: DataPaths,
+        ffmpeg: Callable[[], Command | None],
+        reader: Reader | None = None,
+    ) -> None:
         self._root = paths.cache / "pictures"
         self._full = paths.cache / "full"
         self._ffmpeg = ffmpeg
+        self.reader = reader  # camera RAW's, once it's there
         # A copy asked for twice at once (a look's small copies, all at once) is made once: each
         # copy's own lock among a few, so copies of other pictures don't wait for it.
         self._making = [threading.Lock() for _ in range(_LOCKS)]
@@ -105,7 +113,13 @@ class Previews:
             return target, "image/png"
         with self._lock_for(target):
             if not target.is_file():
-                image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
+                image = decode(
+                    picture.path,
+                    picture.kind,
+                    longest=None,
+                    ffmpeg=self._ffmpeg(),
+                    reader=self.reader,
+                )
                 save_copy(image, target, "PNG", compress_level=1)
                 self._prune()
         return target, "image/png"
@@ -131,7 +145,13 @@ class Previews:
             return target
         with self._lock_for(target):
             if not target.is_file():  # made meanwhile, by the ask that held the lock
-                image = decode(picture.path, picture.kind, longest=longest, ffmpeg=self._ffmpeg())
+                image = decode(
+                    picture.path,
+                    picture.kind,
+                    longest=longest,
+                    ffmpeg=self._ffmpeg(),
+                    reader=self.reader,
+                )
                 save_copy(image, target, "WEBP", quality=quality, method=4)
         return target
 
@@ -139,8 +159,6 @@ class Previews:
     def _readable(picture: Source) -> None:
         if picture.problem:
             raise UnreadableError(picture.problem)
-        if picture.kind == "raw":
-            raise UnreadableError("Mado can't read camera RAW yet: it lists them as they are.")
 
     def _prune(self) -> None:
         """Keeps the newest few full-size copies."""

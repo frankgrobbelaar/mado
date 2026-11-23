@@ -32,8 +32,26 @@ import type {
   StepWords,
   StudioState,
   Takes,
+  Tool,
+  ToolState,
   WatchFolder,
 } from "@/lib/engine";
+
+/** Mado's camera RAW reader as the engine's downloads list it: `done` bytes of it fetched. */
+export function rawReader(state: ToolState, done = 0, problem: string | null = null): Tool {
+  return {
+    id: "libraw",
+    name: "LibRaw",
+    version: "0.22.3",
+    purpose: "Reads camera RAW pictures.",
+    licence: "LGPL-2.1-only OR CDDL-1.0",
+    size: 3_503_107,
+    when: "asked",
+    state,
+    done: state === "ready" ? 3_503_107 : done,
+    problem,
+  };
+}
 
 /** The engine as tests see it: ready, on a made-up address. */
 export const READY: EngineStatus = {
@@ -158,6 +176,7 @@ export const LIBRARY: Library = {
     { folderId: 3, name: "Scans", pictures: 286 },
   ],
   favourites: 0,
+  rawWaiting: 0,
 };
 
 /** A scan that finished today at 09:14, having found six new pictures. */
@@ -195,6 +214,7 @@ export function picture(
     path: `D:\\Pictures\\Phone\\${name}`,
     format: name.toUpperCase().endsWith(".HEIC") ? "HEIC" : "JPEG",
     state: "ready",
+    raw: false,
     width: 4032,
     height: 3024,
     size: 3_100_000,
@@ -257,10 +277,11 @@ export const PICTURES: PictureItem[] = [
     path: "D:\\Pictures\\Camera\\Red canyon.jpg",
   }),
   picture(31, "Green sky.CR3", "2026-11-11T23:51:00", {
+    path: "D:\\Pictures\\Camera\\Green sky.CR3",
     format: "CR3",
-    state: "raw",
-    width: null,
-    height: null,
+    raw: true,
+    width: 6000,
+    height: 4000,
   }),
   picture(32, "Old pier.tif", "2026-11-11T13:22:00", {
     format: "TIF",
@@ -581,6 +602,7 @@ export function batchPicture(id: number | null, name: string): BatchPicture {
     width: 4032,
     height: 3024,
     version: `v${id ?? name}`,
+    raw: /\.(cr3|nef|arw|dng)$/i.test(name),
   };
 }
 

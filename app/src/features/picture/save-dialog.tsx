@@ -86,7 +86,9 @@ function SaveForm(props: {
   const { picture, plan, recipe, settings } = props;
   const asIs = WRITES.find((each) => each === picture.format) ?? null;
   const pasted = picture.pasted;
-  const [how, setHow] = useState<"new" | "replace">(pasted ? "new" : settings.saveFirst);
+  // A pasted picture has no original to replace, and Mado can't write camera RAW.
+  const newOnly = pasted || picture.raw;
+  const [how, setHow] = useState<"new" | "replace">(newOnly ? "new" : settings.saveFirst);
   const [format, setFormat] = useState<SaveFormat>(plan.format);
   const [quality, setQuality] = useState(plan.formatQuality ?? 92);
   const chosenFolder = settings.newPictures === "folder" ? settings.newFolder : null;
@@ -176,17 +178,24 @@ function SaveForm(props: {
               </>
             }
           />
-          {!pasted && (
-            <Choice
-              chosen={how === "replace"}
-              onChoose={() => setHow("replace")}
-              title="Replace the original"
-              detail={
-                <span className="text-13 text-fg-muted">
-                  The original waits in quarantine for 30 days, and History puts it back.
-                </span>
-              }
-            />
+          {picture.raw ? (
+            <p className="px-1 text-13 text-fg-muted leading-normal">
+              Replacing the original isn't offered: Mado can't write camera RAW, so it saves a new
+              picture and the RAW stays exactly as it is.
+            </p>
+          ) : (
+            !pasted && (
+              <Choice
+                chosen={how === "replace"}
+                onChoose={() => setHow("replace")}
+                title="Replace the original"
+                detail={
+                  <span className="text-13 text-fg-muted">
+                    The original waits in quarantine for 30 days, and History puts it back.
+                  </span>
+                }
+              />
+            )
           )}
         </div>
 

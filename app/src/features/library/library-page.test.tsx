@@ -12,6 +12,7 @@ import {
   page,
   picture,
   READY,
+  rawReader,
   scanDone,
 } from "@/test/engine";
 import { LibraryPage } from "./library-page";
@@ -183,11 +184,29 @@ describe("LibraryPage", () => {
     expect(within(day).getByText("18:42")).toBeInTheDocument();
     expect(within(day).getAllByText("HEIC")).toHaveLength(2);
     const older = screen.getByRole("region", { name: "Wednesday 11 November 2 pictures" });
-    expect(within(older).getByText("RAW")).toBeInTheDocument();
-    expect(within(older).getByText("Not readable yet")).toBeInTheDocument();
+    expect(within(older).getByText("RAW")).toBeInTheDocument(); // read, wearing its tag
     expect(within(older).getByText("Won't open")).toBeInTheDocument();
     expect(asked(fetch, "/pictures")[0]?.searchParams.get("folder")).toBe("1");
     await waitFor(() => expect(asked(fetch, "/pictures/11/thumbnail").length).toBeGreaterThan(0));
+    await waitFor(() => expect(asked(fetch, "/pictures/31/thumbnail").length).toBeGreaterThan(0));
+  });
+
+  it("shows a camera RAW waiting for Mado's RAW reader as the reader comes", async () => {
+    const waiting = PICTURES.map((each) =>
+      each.raw ? { ...each, state: "waiting" as const, width: null, height: null } : each,
+    );
+    let reader = rawReader("downloading", 1_611_429);
+    library({ "/pictures": page(waiting), "/tools": () => [reader] });
+    renderLibrary("/library?folder=1");
+
+    const older = await screen.findByRole("region", { name: "Wednesday 11 November 2 pictures" });
+    expect(await within(older).findByText("Getting the RAW reader · 46%")).toBeInTheDocument();
+    expect(within(older).getByText("RAW")).toBeInTheDocument();
+
+    reader = rawReader("failed", 0, "Mado couldn't download LibRaw: you're offline.");
+    expect(
+      await within(older).findByText("Needs the RAW reader", {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
   });
 
   it("opens a picture with the list it came from in its address", async () => {

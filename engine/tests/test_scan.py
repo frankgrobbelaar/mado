@@ -8,14 +8,17 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from mado.config import DataPaths
 from mado.core.files import Kind
 from mado.library import add_folder, find_pictures
+from mado.libraw import SESSION, Reader
 from mado.pictures import Facts, InUseError, read_facts
 from mado.previews import Previews
-from mado.scan import Scanner
-from tests.drawn import draw, exif
+from mado.scan import RAW_NOTES, STOPPED_ON, Scanner, stopped_on
+from tests.dng_files import dng
+from tests.drawn import draw, exif, scene
 from tests.heif_files import exif_item, heif
 
 NOW = datetime(2026, 11, 22, 9, 14, tzinfo=UTC)
@@ -148,19 +151,92 @@ def test_a_picture_gone_before_it_was_read_counts_as_gone_in_that_scan(
     assert scanner.status().gone == 1
 
 
-def test_camera_raw_is_listed_without_being_read(
-    scanner: Scanner, conn: sqlite3.Connection, paths: DataPaths, tmp_path: Path
+def test_camera_raw_waits_listed_for_its_reader_which_it_asks_for(
+    conn: sqlite3.Connection, paths: DataPaths, tmp_path: Path
 ):
+    asked: list[int] = []
+    reader = Reader(lambda: None, lambda: asked.append(1))
+    scanner = Scanner(paths, Previews(paths, ffmpeg=lambda: None, reader=reader), now=lambda: NOW)
     (tmp_path / "Camera").mkdir()
     (tmp_path / "Camera" / "_MG_0042.CR3").write_bytes(b"raw")
+    (tmp_path / "Camera" / "_MG_0043.CR3").write_bytes(b"raw")
     add_folder(conn, tmp_path / "Camera", now=NOW)
 
     scanned(scanner)
 
     raw = pictures(conn)["_MG_0042.CR3"]
-    assert (raw["raw"], raw["problem"], raw["format"]) == (1, None, "CR3")
-    assert scanner.status().to_read == 0
+    assert (raw["raw"], raw["problem"], raw["format"], raw["width"]) == (1, None, "CR3", None)
+    assert raw["read_at"] is not None  # listed, as it is
+    assert asked == [1]  # the first RAW read asks for the reader, once
     assert list(paths.cache.rglob("*.webp")) == []
+    scanned(scanner)  # waiting RAWs aren't tried again while the reader is away
+    assert asked == [1]
+
+
+def test_camera_raw_an_earlier_mado_listed_waits_and_a_scan_asks_for_the_reader_for_it(
+    conn: sqlite3.Connection, paths: DataPaths, tmp_path: Path
+):
+    # Mado 0.7.0 listed camera RAW as it found it (read, nothing read of it): with no reader
+    # yet, a scan asks for it for them as for a RAW it finds.
+    (tmp_path / "Camera").mkdir()
+    (tmp_path / "Camera" / "_MG_0042.CR3").write_bytes(b"raw")
+    library = add_folder(conn, tmp_path / "Camera", now=NOW)
+    find_pictures(conn, library, stamp=NOW.isoformat())
+    with conn:
+        conn.execute("UPDATE pictures SET read_at = ?, format = 'CR3'", (NOW.isoformat(),))
+    asked: list[int] = []
+    reader = Reader(lambda: None, lambda: asked.append(1))
+    scanner = Scanner(paths, Previews(paths, ffmpeg=lambda: None, reader=reader), now=lambda: NOW)
+
+    scanned(scanner)
+
+    assert asked == [1]
+    assert pictures(conn)["_MG_0042.CR3"]["problem"] is None  # still waiting, as it is
+
+
+def test_camera_raw_is_read_by_its_reader_its_thumbnail_from_its_cameras_preview(
+    conn: sqlite3.Connection, paths: DataPaths, tmp_path: Path, reader: Reader
+):
+    scanner = Scanner(paths, Previews(paths, ffmpeg=lambda: None, reader=reader), now=lambda: NOW)
+    dng(tmp_path / "Camera" / "_MG_0042.dng", scene(4, (900, 600)), orientation=8)
+    add_folder(conn, tmp_path / "Camera", now=NOW)
+
+    scanned(scanner)
+
+    raw = pictures(conn)["_MG_0042.dng"]
+    assert (raw["raw"], raw["problem"], raw["format"]) == (1, None, "DNG")
+    assert (raw["width"], raw["height"], raw["orientation"]) == (900, 600, 8)
+    assert (raw["camera"], raw["taken_at"], raw["taken_from"]) == (
+        "Lumen X100",
+        "2026-11-12T18:42:07",
+        "camera",
+    )
+    [thumbnail] = paths.cache.rglob("*-thumbnail.webp")
+    with Image.open(thumbnail) as small:
+        assert small.size == (512, 341)  # upright
+
+
+def test_a_camera_raw_an_earlier_engine_stopped_on_is_left_as_one_that_wont_open(
+    conn: sqlite3.Connection, paths: DataPaths, tmp_path: Path, libraw_folder: Path
+):
+    camera = tmp_path / "Camera"
+    stopped = dng(camera / "_MG_0042.dng", scene(4, (600, 400)))
+    reading = dng(camera / "_MG_0043.dng", scene(5, (600, 400)))
+    find_pictures(conn, add_folder(conn, camera, now=NOW), stamp=NOW.isoformat())
+    notes = paths.root / RAW_NOTES
+    reader = Reader(lambda: libraw_folder, notes=notes)
+    notes.mkdir(parents=True)
+    # As a crash leaves it: an earlier engine's note of the RAW it was reading; and one of this
+    # engine's own, a RAW being read on another thread now.
+    (notes / "0123456789ab-7.txt").write_text(str(stopped), encoding="utf-8")
+    (notes / f"{SESSION}-1.txt").write_text(str(reading), encoding="utf-8")
+
+    stopped_on(conn, reader, now=NOW)
+
+    found = pictures(conn)
+    assert found["_MG_0042.dng"]["problem"] == STOPPED_ON
+    assert found["_MG_0043.dng"]["problem"] is None
+    assert sorted(note.name for note in notes.iterdir()) == [f"{SESSION}-1.txt"]
 
 
 def test_a_heic_is_read_without_ffmpeg_and_its_thumbnail_waits_for_it(

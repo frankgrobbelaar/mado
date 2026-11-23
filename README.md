@@ -19,7 +19,7 @@ on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library and finds its duplicates and bursts, makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, and finds its duplicates and bursts, makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
@@ -91,11 +91,12 @@ every day from your favourites. Your own wallpaper is kept, and comes back when 
 ### 6. Your library
 
 Add the folders your pictures live in. Mado reads pictures from phones, cameras and scanners, in
-JPEG, HEIC, PNG, WebP, AVIF and more, and keeps the wide colours of newer phones' photos; camera RAW
-is listed, though Mado can't read it yet. It shows them by the day they were taken, watches the
-folders for new ones, and finds duplicates and bursts: you keep the sharpest, and the rest wait in
-quarantine. A picture doesn't have to be in the library: drop it on the window, paste it, or
-right-click it in File Explorer (on Windows 11, under Show more options).
+JPEG, HEIC, PNG, WebP, AVIF, camera RAW and more, and keeps the wide colours of newer phones'
+photos and of a camera's RAW, which it develops with the camera's own white balance and never
+writes over. It shows them by the day they were taken, watches the folders for new ones, and finds
+duplicates and bursts: you keep the sharpest, and the rest wait in quarantine. A picture doesn't
+have to be in the library: drop it on the window, paste it, or right-click it in File Explorer (on
+Windows 11, under Show more options).
 
 ![The Library: your folders, and their pictures by the day they were taken](docs/readme/library.png)
 
@@ -172,7 +173,9 @@ with what changed ([CHANGELOG.md](CHANGELOG.md)). Mado is in its early days, and
 brings more of the tour above. Mado installs just for
 you, without asking for an administrator, and updates itself. It isn't code-signed, so SmartScreen
 warns the first time: More info › Run anyway. The installer's first page lists everything Mado
-downloads, such as ffmpeg on the first run; nothing is installed by hand.
+downloads, such as ffmpeg on the first run, and LibRaw, the camera RAW reader (3.5 MB), the first
+time it reads a RAW; nothing is installed by hand. Both come from where they're published, under
+their own licences (LGPL), and neither ships inside Mado.
 
 ### What your PC needs
 

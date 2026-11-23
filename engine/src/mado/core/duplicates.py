@@ -9,9 +9,11 @@ Mado knows of them (mado/duplicates.py looks).
 - A burst is the same camera in the same folder, each shot within BURST_GAP of the one before,
   the same size, and fingerprints within the looser BURST bits. Only neighbours in time are
   compared.
-- Never grouped: pictures the owner said aren't the same, and two of one family (an original and
-  what Mado made from it, or two Mado made from one original). Groups are joined pair by pair,
-  the most alike first, and a join that would put two such pictures in one group is left out.
+- Never grouped: pictures the owner said aren't the same, two of one family (an original and
+  what Mado made from it, or two Mado made from one original), and a camera RAW with a picture
+  that isn't one: a camera's RAW and its JPEG of one moment are two ways of keeping it, never
+  copies. RAWs group among themselves. Groups are joined pair by pair, the most alike first, and
+  a join that would put two such pictures in one group is left out.
 - Which to keep: a burst's sharpest shot, each shot with its copies counted as one (a sharpened
   export never outranks its own original), and that shot's best copy; a duplicate's most pixels,
   then the larger file of its format, then a name that isn't a copy's ("(2)", "Copy", "- Copy"),
@@ -60,6 +62,7 @@ class Known:
     sharpness: float | None = None
     family: int | None = None  # an original and the pictures Mado made from it share one
     path: str = ""  # where it is
+    raw: bool = False  # a camera RAW: grouped only with RAWs
 
     @property
     def pixels(self) -> int:
@@ -88,7 +91,11 @@ def groups(pictures: Sequence[Known], *, not_same: Collection[tuple[int, int]] =
     """The groups among `pictures`, each of two or more. `not_same` holds pairs of ids (the
     smaller first) the owner said aren't the same."""
     joins = sorted(
-        [*_exact(pictures), *_saved_again(pictures), *_bursts(pictures)],
+        (
+            join
+            for join in (*_exact(pictures), *_saved_again(pictures), *_bursts(pictures))
+            if pictures[join.first].raw == pictures[join.second].raw  # a RAW with RAWs only
+        ),
         key=lambda join: join.rank,
     )
     owner = {(min(a, b), max(a, b)) for a, b in not_same}

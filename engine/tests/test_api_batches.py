@@ -19,13 +19,14 @@ from mado import db, watching
 from mado import samples as samples_module
 from mado.batches import Picture
 from mado.config import DataPaths
-from mado.core.batch import KEPT_SECONDS, MARGIN
+from mado.core.batch import KEPT_SECONDS, MARGIN, recipe_of
 from mado.jobs import Jobs
 from mado.previews import version
 from mado.quarantine import Quarantine
 from mado.upscale import StoppedError
-from tests.conftest import add
-from tests.drawn import draw
+from tests.conftest import add, made
+from tests.dng_files import dng
+from tests.drawn import draw, scene
 
 type Library = dict[str, Any]
 
@@ -37,7 +38,8 @@ STEPS = [{"step": "size", "size": SMALL}]
 
 @pytest.fixture
 def library(client: TestClient, tmp_path: Path) -> Library:
-    """Holiday: three made-up photos, a camera RAW file and one that won't open."""
+    """Holiday: three made-up photos, a camera RAW waiting for Mado's RAW reader and one that
+    won't open."""
     holiday = tmp_path / "Holiday"
     for name in ("Warm dunes.jpg", "Still lake.png", "Night market.jpg"):
         draw(holiday / name, size=(96, 72))
@@ -94,9 +96,110 @@ def test_ticked_pictures_are_picked_with_those_mado_cant_make_left_out_saying_wh
     assert picked["words"] == "ticked in Holiday"
     assert picked["shared"] == str(library["folder"])
     assert picked["leftOut"] == [
-        {"name": "Green sky.CR3", "why": "Mado can't read camera RAW yet."}
+        {
+            "name": "Green sky.CR3",
+            "why": "It's a camera RAW, and Mado is getting its RAW reader: it joins once that's "
+            "here.",
+            "waiting": True,  # it joins once the reader's here, so the page shows it coming
+        }
     ]
     assert picked["bytes"] == sum(each["size"] for each in picked["pictures"])
+
+
+def test_a_batch_takes_camera_raw_and_saves_it_as_new_pictures_only(
+    raw_client: TestClient, tmp_path: Path
+):
+    holiday = tmp_path / "Holiday"
+    dng(holiday / "Green sky.dng", scene(4, (240, 160)), preview=None, thumbnail=False)
+    draw(holiday / "Warm dunes.jpg", size=(96, 72))
+    add(raw_client, holiday)
+
+    picked = _picked(raw_client, how="folder", folder=1)
+
+    assert {each["name"]: each["raw"] for each in picked["pictures"]} == {
+        "Green sky.dng": True,
+        "Warm dunes.jpg": False,
+    }
+    body = {
+        "source": picked["source"],
+        "shared": picked["shared"],
+        "pictures": picked["pictures"],
+        "steps": STEPS,
+        "saving": {**SAVING, "how": "replace"},
+        "starts": "now",
+    }
+    refused = raw_client.post("/batches", json=body)
+    assert refused.status_code == 409
+    assert "can't write camera RAW" in refused.json()["detail"]
+    before = (holiday / "Green sky.dng").read_bytes()
+    _put_in(raw_client, picked)
+    _wait(raw_client)
+
+    [made] = (holiday / "Edited").glob("Green sky*")
+    with Image.open(made) as picture:
+        assert picture.format == "JPEG"  # a developed RAW saves as a photo
+    assert (holiday / "Green sky.dng").read_bytes() == before  # the RAW exactly as it was
+
+
+def test_a_job_never_puts_a_picture_in_a_raws_place_not_even_one_see_it_first_made(
+    raw_client: TestClient, tmp_path: Path
+):
+    camera = tmp_path / "Camera"
+    raw = dng(camera / "Green sky.dng", scene(4, (240, 160)))
+    add(raw_client, camera)
+    [listed] = raw_client.get("/pictures").json()["pictures"]
+    before = raw.read_bytes()
+    seen = draw(tmp_path / "Seen" / "Green sky.jpg", size=(240, 160))
+    stat = raw.stat()
+    order = {  # as a batch's job would carry it, had anything let Replace through
+        "recipe": recipe_of([{"step": "size", "size": SMALL}]),
+        "saving": {**SAVING, "how": "replace"},
+        "label": "256 × 192",
+        "look": None,
+        "edit": None,
+        "made": {
+            "source": str(raw),
+            "path": str(seen),
+            "version": f"{stat.st_mtime_ns:x}-{stat.st_size:x}",
+            "width": 240,
+            "height": 160,
+            "named": "Green sky",
+        },
+    }
+    app: Any = raw_client.app
+    with closing(db.connect(app.state.paths.database)) as conn:
+        conn.row_factory = sqlite3.Row
+        job_id = app.state.jobs.add(conn, listed["id"], raw, order)
+
+    done = made(raw_client, {"id": job_id})
+
+    assert done["state"] == "failed"
+    assert "can't write camera RAW" in done["problem"]
+    assert raw.read_bytes() == before
+    assert not (tmp_path / "Mado quarantine").exists()  # nothing set aside in its place
+
+
+def test_a_camera_raw_mado_is_still_reading_waits_to_join_saying_so(
+    raw_client: TestClient, tmp_path: Path
+):
+    camera = tmp_path / "Camera"
+    dng(camera / "Green sky.dng", scene(4, (240, 160)))
+    add(raw_client, camera)
+    app: Any = raw_client.app
+    with closing(db.connect(app.state.paths.database)) as conn, conn:
+        # As a scan leaves a RAW it listed before the reader came, not yet read again.
+        conn.execute("UPDATE pictures SET width = NULL, height = NULL WHERE raw = 1")
+
+    picked = _picked(raw_client, how="folder", folder=1)
+
+    # The reader's there: it's the scan's turn to read it, and the page asks again till it has.
+    assert picked["leftOut"] == [
+        {
+            "name": "Green sky.dng",
+            "why": "It's a camera RAW Mado is reading now: it joins once it's read.",
+            "waiting": True,
+        }
+    ]
 
 
 def test_a_whole_folder_and_what_a_search_found_are_picked_too(
@@ -117,9 +220,11 @@ def test_a_batch_too_big_or_a_folder_too_full_says_what_was_left_out(
     monkeypatch.setattr("mado.batches.MOST", 2)
     whole = _picked(client, how="folder", folder=library["id"])
     assert len(whole["pictures"]) == 2
-    assert {"name": "1 more picture", "why": "A batch holds 2 at most: make it in another."} in (
-        whole["leftOut"]
-    )
+    assert {
+        "name": "1 more picture",
+        "why": "A batch holds 2 at most: make it in another.",
+        "waiting": False,
+    } in whole["leftOut"]
 
     monkeypatch.setattr("mado.batches.MOST", 10_000)
     monkeypatch.setattr("mado.batches._WALKED", 3)
@@ -133,6 +238,7 @@ def test_a_batch_too_big_or_a_folder_too_full_says_what_was_left_out(
             "name": "The rest of Trip",
             "why": "Mado looks through 3 files at most in a folder dropped or picked: drop the "
             "folders inside it one at a time.",
+            "waiting": False,
         }
     ]
 

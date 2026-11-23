@@ -23,8 +23,16 @@ from mado.config import DataPaths
 from mado.core.files import kind_of
 from mado.core.library import holding, inner_folder
 from mado.core.opening import Found, long_form, not_a_picture, not_there
-from mado.library import folders, record, save_facts, save_problem
-from mado.pictures import InUseError, PictureGoneError, UnreadableError, read_facts
+from mado.library import WAITING, folders, record, save_facts, save_problem, save_waiting
+from mado.libraw import Reader
+from mado.pictures import (
+    InUseError,
+    NeedsReaderError,
+    PictureGoneError,
+    ShortOfMemoryError,
+    UnreadableError,
+    read_facts,
+)
 
 log = logging.getLogger(__name__)
 
@@ -82,11 +90,13 @@ def open_picture(
     now: datetime,
     forget: Callable[[list[int]], None] = lambda _ids: None,
     data: DataPaths | None = None,
+    reader: Reader | None = None,
 ) -> int:
     """The picture at `path`, as Mado knows it, by its number: the library's when it's in a
-    library folder, else one outside the library, read now (or again, when its file changed:
-    `forget` lets the copies of what it was go). In Mado's own folder (`data`), only a paste is
-    opened, and it's always a paste, never the library's. Raises OpenError."""
+    library folder, else one outside the library, read now (a camera RAW by `reader`; or again,
+    when its file changed: `forget` lets the copies of what it was go). In Mado's own folder
+    (`data`), only a paste is opened, and it's always a paste, never the library's. Raises
+    OpenError."""
     kind = kind_of(path.name)
     if kind is None or not path.is_file():
         raise OpenError(why_not(path), 404 if not path.exists() else 422)
@@ -120,10 +130,11 @@ def open_picture(
     if outcome == "changed":
         forget([picture_id])
     unread = conn.execute(
-        "SELECT read_at IS NULL FROM pictures WHERE id = ?", (picture_id,)
+        f"SELECT read_at IS NULL OR {WAITING} FROM pictures WHERE id = ?",  # noqa: S608 - fixed
+        (picture_id,),
     ).fetchone()[0]
     if unread:
-        _read(conn, picture_id, path, now)
+        _read(conn, picture_id, path, now, reader)
     return picture_id
 
 
@@ -171,13 +182,18 @@ def forget(
     return len(going)
 
 
-def _read(conn: sqlite3.Connection, picture_id: int, path: Path, now: datetime) -> None:
+def _read(
+    conn: sqlite3.Connection, picture_id: int, path: Path, now: datetime, reader: Reader | None
+) -> None:
     """Reads a picture's facts now; one that won't open is kept with why, as the library keeps
-    one. Raises OpenError for one open in another app, or gone as it was read."""
+    one, and a camera RAW waits for Mado's RAW reader, asking for it. Raises OpenError for one
+    open in another app, or gone as it was read."""
     kind = kind_of(path.name) or "picture"
     try:
-        save_facts(conn, picture_id, read_facts(path, kind), now=now)
-    except InUseError as error:
+        save_facts(conn, picture_id, read_facts(path, kind, reader), now=now)
+    except NeedsReaderError:
+        save_waiting(conn, picture_id, now=now)  # its page shows the reader coming
+    except (InUseError, ShortOfMemoryError) as error:  # nothing's wrong with it
         raise OpenError(str(error), 409) from None
     except PictureGoneError:
         raise OpenError(not_there(str(path), drive_there(path)), 404) from None

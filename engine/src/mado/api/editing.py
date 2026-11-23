@@ -22,7 +22,7 @@ from mado.directml import ModelError
 from mado.editing import EditingError, picture_key
 from mado.looks import through
 from mado.making import Picture, Sight, picture_of
-from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError
+from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import version
 
 router = APIRouter()
@@ -171,11 +171,6 @@ def opened_picture(
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "That picture isn't in your library any more."
         )
-    if row["raw"]:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "Mado can't read camera RAW yet, so it can't edit it.",
-        )
     now = version(row["modified"], row["size"])
     picture = picture_of(conn, picture_id, Path(row["path"]))
     if asked is not None and asked != now:
@@ -205,7 +200,7 @@ def _opened(
         image = sight.picture(picture, now)
     except PictureGoneError as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from None
-    except NeedsFfmpegError as error:
+    except (NeedsFfmpegError, NeedsReaderError) as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
     except UnreadableError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None

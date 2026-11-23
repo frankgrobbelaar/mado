@@ -7,10 +7,22 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageOps
 
-from mado.pictures import NeedsFfmpegError, UnreadableError, decode, read_facts
-from tests.drawn import draw, exif, picture
+from mado.core.icc import DISPLAY_P3
+from mado.libraw import Reader
+from mado.pictures import (
+    Facts,
+    InUseError,
+    NeedsFfmpegError,
+    NeedsReaderError,
+    UnreadableError,
+    decode,
+    read_exif,
+    read_facts,
+)
+from tests.dng_files import alike, card, dng, truncated
+from tests.drawn import draw, exif, picture, scene
 from tests.heif_files import exif_item, heif
 
 FFMPEG = [sys.executable, str(Path(__file__).parent / "fake_ffmpeg.py")]
@@ -245,12 +257,156 @@ def test_a_heif_ffmpeg_gives_only_a_part_of_isnt_shown_as_the_whole(
         decode(path, "heif", longest=None, ffmpeg=FFMPEG)
 
 
-def test_camera_raw_isnt_decoded_yet(tmp_path: Path):
-    path = tmp_path / "_MG_0042.CR3"
-    path.write_bytes(b"raw")
+def test_a_raws_facts_come_from_its_reader_without_developing_it(tmp_path: Path, reader: Reader):
+    path = dng(tmp_path / "_MG_0042.dng", scene(3, (1200, 800)), orientation=6)
 
-    with pytest.raises(UnreadableError, match="RAW"):
+    found = read_facts(path, "raw", reader)
+
+    assert found == Facts(
+        format="DNG",
+        width=1200,
+        height=800,
+        orientation=6,
+        taken=datetime(2026, 11, 12, 18, 42, 7),
+        camera="Lumen X100",
+        located=False,
+    )
+
+
+def test_a_raw_waits_for_its_reader(tmp_path: Path):
+    path = dng(tmp_path / "_MG_0042.dng", scene(3, (600, 400)))
+
+    with pytest.raises(NeedsReaderError):
+        read_facts(path, "raw")
+    with pytest.raises(NeedsReaderError):
         decode(path, "raw", longest=512)
+
+
+def test_a_raws_thumbnail_is_the_preview_its_camera_kept(tmp_path: Path, reader: Reader):
+    picture_ = scene(3, (1200, 800))
+    kept = ImageOps.invert(picture_)  # unlike the picture, to tell which was shown
+    path = dng(tmp_path / "_MG_0042.dng", picture_, preview=kept)
+
+    small = decode(path, "raw", longest=512, reader=reader)
+
+    assert small.size == (512, 341)
+    assert alike(small, kept) > 0.9 > alike(small, picture_)
+
+
+def test_a_raw_on_its_side_shows_its_preview_upright(tmp_path: Path, reader: Reader):
+    shown = card((1200, 800))
+    path = dng(tmp_path / "_MG_0042.dng", shown, orientation=8)
+
+    small = decode(path, "raw", longest=512, reader=reader)
+
+    assert small.size == (512, 341)
+    assert alike(small, shown) > 0.9
+
+
+def test_a_raw_without_a_preview_is_developed_at_half_size(tmp_path: Path, reader: Reader):
+    shown = scene(3, (1200, 800))
+    path = dng(tmp_path / "_MG_0042.dng", shown, preview=None, thumbnail=False)
+
+    small = decode(path, "raw", longest=512, reader=reader)
+
+    assert small.size == (512, 341)
+    assert small.info["icc_profile"] == DISPLAY_P3  # developed: a camera's colours stay wide
+    assert alike(small, shown) > 0.95
+
+
+def test_a_raws_view_is_developed_so_its_page_shows_what_save_makes(tmp_path: Path, reader: Reader):
+    shown = scene(3, (1200, 800))
+    path = dng(tmp_path / "_MG_0042.dng", shown, preview=ImageOps.invert(shown))
+
+    view = decode(path, "raw", longest=2560, reader=reader)
+
+    assert view.size == (1200, 800)
+    assert alike(view, shown) > 0.95  # the picture developed, not its camera's preview
+
+
+def test_a_raw_at_full_size_is_developed_upright_and_cropped(tmp_path: Path, reader: Reader):
+    path = dng(
+        tmp_path / "_MG_0042.dng", card((1200, 800)), orientation=6, crop=(50, 100, 700, 1000)
+    )
+
+    whole = decode(path, "raw", longest=None, reader=reader)
+
+    assert whole.size == (1000, 700)
+    assert whole.mode == "RGB"
+    assert whole.info["icc_profile"] == DISPLAY_P3
+
+
+def test_a_damaged_raw_reads_its_facts_but_wont_develop(tmp_path: Path, reader: Reader):
+    path = truncated(dng(tmp_path / "_MG_0042.dng", scene(3, (1200, 800)), preview=None))
+
+    assert read_facts(path, "raw", reader).width == 1200  # what it says of itself is all there
+    with pytest.raises(UnreadableError, match="only half copied"):
+        decode(path, "raw", longest=None, reader=reader)
+
+
+def test_a_file_named_as_a_raw_that_isnt_one_wont_open(tmp_path: Path, reader: Reader):
+    path = tmp_path / "_MG_0042.NEF"
+    picture().save(path, "JPEG")
+
+    with pytest.raises(UnreadableError, match="doesn't know"):
+        read_facts(path, "raw", reader)
+
+
+def test_a_raw_open_in_another_app_says_so(tmp_path: Path, reader: Reader):
+    path = dng(tmp_path / "_MG_0042.dng", scene(3, (600, 400)))
+
+    # Another app writing to it (sharing reads and writes, as most do): LibRaw, which opens a
+    # file sharing only reads, can't, and that's no damage of the RAW's. Nothing is written.
+    with path.open("r+b"):
+        with pytest.raises(InUseError, match="open in another app"):
+            read_facts(path, "raw", reader)
+        with pytest.raises(InUseError, match="open in another app"):
+            decode(path, "raw", longest=512, reader=reader)
+    assert read_facts(path, "raw", reader).width == 600
+
+
+def test_while_libraw_reads_a_raw_a_note_says_which_and_goes_after(
+    tmp_path: Path, libraw_folder: Path, monkeypatch: pytest.MonkeyPatch
+):
+    notes = tmp_path / "Mado" / "reading-raw"
+    reader = Reader(lambda: libraw_folder, notes=notes)
+    path = dng(tmp_path / "_MG_0042.dng", scene(3, (600, 400)))
+    library = reader.library()
+    noted: list[str] = []
+    read = library.develop
+
+    def develop(at: Path, *, half: bool) -> Image.Image:  # LibRaw at work on it
+        noted.extend(note.read_text(encoding="utf-8") for note in notes.glob("*.txt"))
+        return read(at, half=half)
+
+    monkeypatch.setattr(library, "develop", develop)
+    decode(path, "raw", longest=None, reader=reader)
+
+    assert noted == [str(path)]  # an engine it stopped would leave this for the next to find
+    assert list(notes.glob("*.txt")) == []
+
+
+def test_a_raw_whose_cameras_preview_is_damaged_is_developed_instead(
+    tmp_path: Path, reader: Reader
+):
+    shown = scene(3, (1200, 800))
+    path = dng(tmp_path / "_MG_0042.dng", shown, preview_cut=0.5)
+
+    small = decode(path, "raw", longest=512, reader=reader)
+
+    assert small.size == (512, 341)
+    assert small.info["icc_profile"] == DISPLAY_P3  # developed
+    assert alike(small, shown) > 0.95
+
+
+def test_a_raws_date_and_camera_go_with_the_pictures_made_from_it(tmp_path: Path, reader: Reader):
+    path = dng(tmp_path / "_MG_0042.dng", scene(3, (600, 400)))
+
+    found = read_exif(path, "raw", reader)
+
+    assert found is not None
+    assert (found[0x010F], found[0x0110]) == ("Lumen", "X100")
+    assert found.get_ifd(0x8769)[0x9003] == "2026:11:12 18:42:07"
 
 
 def _in_use(*_args: object, **_options: object) -> None:

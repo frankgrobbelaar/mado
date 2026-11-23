@@ -25,7 +25,24 @@
       "size": 76972461,
       "sha256": "7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646",
       "keep": "bin",
+      "notices": ["LICENSE.txt"],
       "by": "mado"
+    },
+    {
+      "id": "libraw",
+      "name": "LibRaw",
+      "version": "0.22.3",
+      "purpose": "Reads camera RAW pictures (CR3, NEF, ARW, DNG and the rest): what each says of itself, the preview its camera kept inside it, and the picture developed. Mado fetches it the first time it reads a camera RAW.",
+      "licence": "LGPL-2.1-only OR CDDL-1.0",
+      "home": "https://www.libraw.org",
+      "url": "https://www.libraw.org/data/LibRaw-0.22.3-Win64.zip",
+      "size": 3503107,
+      "sha256": "4e2213a0b10e32199a30b9114a61376cdb40f94df861262b4a6dca659701276b",
+      "keep": "bin",
+      "only": ["libraw.dll"],
+      "notices": ["LICENSE.LGPL", "LICENSE.CDDL", "COPYRIGHT"],
+      "by": "mado",
+      "when": "asked"
     },
     {
       "id": "realesrgan-x4plus",

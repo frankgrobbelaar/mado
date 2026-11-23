@@ -367,10 +367,11 @@ export interface LibraryFolder {
   available: boolean;
   /** A scan has looked all through it since it was added. */
   looked: boolean;
-  /** Listed in the grid: read, camera RAW, or won't open. */
+  /** Listed in the grid: read, camera RAW waiting for its reader, or won't open. */
   pictures: number;
   /** Found and still to read. */
   reading: number;
+  /** Camera RAW. */
   raw: number;
   /** Won't open. */
   broken: number;
@@ -385,6 +386,7 @@ export interface Library {
   /** Bytes, every picture found. */
   size: number;
   reading: number;
+  /** Camera RAW. */
   raw: number;
   /** Won't open. */
   broken: number;
@@ -394,6 +396,8 @@ export interface Library {
   parts: { folderId: number; name: string; pictures: number }[];
   /** Pictures given a heart and there now, from outside the library too. */
   favourites: number;
+  /** Camera RAWs listed while they wait for Mado's RAW reader. */
+  rawWaiting: number;
 }
 
 export type ScanState = "idle" | "running" | "done" | "failed" | "stopped";
@@ -420,8 +424,8 @@ export interface Scan {
   gone: number | null;
 }
 
-/** "raw": listed, not readable yet; "broken": won't open. */
-export type PictureState = "ready" | "raw" | "broken";
+/** "waiting": a camera RAW listed while Mado's RAW reader comes; "broken": won't open. */
+export type PictureState = "ready" | "waiting" | "broken";
 
 export interface PictureItem {
   id: number;
@@ -431,6 +435,8 @@ export interface PictureItem {
   /** "JPEG", "HEIC"…; a RAW file's own ("CR3"). */
   format: string | null;
   state: PictureState;
+  /** A camera RAW: read by Mado's RAW reader, and never written over. */
+  raw: boolean;
   /** As it's shown. */
   width: number | null;
   height: number | null;
@@ -1442,6 +1448,8 @@ export interface BatchPicture {
   width: number;
   height: number;
   version: string;
+  /** A camera RAW: its batch saves new pictures, as Mado can't write RAW. */
+  raw: boolean;
 }
 
 export interface Picked {
@@ -1453,7 +1461,15 @@ export interface Picked {
   shared: string | null;
   /** "ticked in Holiday", "found by “beach”", "dropped from Desktop". */
   words: string;
-  leftOut: { name: string; why: string }[];
+  leftOut: LeftOut[];
+}
+
+/** A picture left out, and why. */
+export interface LeftOut {
+  name: string;
+  why: string;
+  /** A camera RAW, left out only till Mado's RAW reader has read it (asked again till then). */
+  waiting: boolean;
 }
 
 /** A step, or a batch's save, as the steps and a recipe's line say it. */
@@ -1698,7 +1714,7 @@ export interface Opened {
   /** Several pictures, or a folder: Many at once, with them chosen. */
   picked: Picked | null;
   /** Beside one picture, what wasn't taken, and why. */
-  leftOut: { name: string; why: string }[];
+  leftOut: LeftOut[];
 }
 
 /** Opens paths: `open.mutate({ path: "/open", body: { paths, how } })`. */

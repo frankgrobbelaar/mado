@@ -520,7 +520,7 @@ function Nothing(props: {
       <p className="text-13 text-fg-muted">
         {reading
           ? "They show here, by the day they were taken, as Mado reads them."
-          : "Pictures put here show by themselves: Mado watches the folder. It reads JPEG, HEIC, PNG, WebP, AVIF, TIFF, BMP and GIF, and lists camera RAW."}
+          : "Pictures put here show by themselves: Mado watches the folder. It reads JPEG, HEIC, PNG, WebP, AVIF, TIFF, BMP, GIF and camera RAW."}
       </p>
     </section>
   );

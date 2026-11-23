@@ -4,6 +4,7 @@ model, file by file, the first time it's wanted."""
 import hashlib
 import io
 import re
+import sys
 import zipfile
 from dataclasses import replace
 from pathlib import Path
@@ -63,6 +64,7 @@ def test_the_list_says_what_each_download_is_and_where_it_comes_from():
     assert [item.id for item in items] == [
         "webview2",
         "ffmpeg",
+        "libraw",
         "realesrgan-x4plus",
         "lama",
         "sam2.1-hiera-tiny",
@@ -91,6 +93,20 @@ def test_ffmpeg_is_pinned_to_one_build_that_stays_online():
     assert "/autobuild-" in ffmpeg.url
     assert "latest" not in ffmpeg.url
     assert ffmpeg.licence == "LGPL-2.1-or-later"
+    assert ffmpeg.notices == ("LICENSE.txt",)  # its licence comes with it, kept beside it
+
+
+def test_libraw_is_its_own_windows_build_fetched_the_first_time_a_raw_is_read():
+    libraw = next(item for item in manifest() if item.id == "libraw")
+
+    # LibRaw's own build, from its own site: never one built by Mado or anyone else.
+    assert libraw.url == "https://www.libraw.org/data/LibRaw-0.22.3-Win64.zip"
+    assert libraw.version == "0.22.3"
+    assert libraw.size == 3503107
+    assert libraw.sha256 == "4e2213a0b10e32199a30b9114a61376cdb40f94df861262b4a6dca659701276b"
+    assert libraw.licence == "LGPL-2.1-only OR CDDL-1.0"
+    assert (libraw.by, libraw.when, libraw.keep) == ("mado", "asked", "bin")
+    assert libraw.notices == ("LICENSE.LGPL", "LICENSE.CDDL", "COPYRIGHT")
 
 
 def test_the_ai_models_come_from_mados_own_release_the_first_time_theyre_asked_for():
@@ -135,6 +151,7 @@ def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
 
     assert [item.id for item, _ in tools.status()] == [
         "ffmpeg",
+        "libraw",
         "realesrgan-x4plus",
         "lama",
         "sam2.1-hiera-tiny",
@@ -160,6 +177,39 @@ def test_a_tool_is_downloaded_checked_and_unpacked_into_the_data_folder(paths: D
     assert [file.name for file in paths.tools.iterdir()] == ["ffmpeg"]  # no download left behind
 
 
+def test_a_tools_licence_files_are_kept_beside_it(paths: DataPaths):
+    build = archive(
+        {
+            "LibRaw-0.22.3/bin/libraw.dll": b"reader",
+            "LibRaw-0.22.3/bin/dcraw_emu.exe": b"a sample program",  # not used: not kept
+            "LibRaw-0.22.3/LICENSE.LGPL": b"lesser",
+            "LibRaw-0.22.3/LICENSE.CDDL": b"common",
+            "LibRaw-0.22.3/COPYRIGHT": b"notice",
+            "LibRaw-0.22.3/Changelog.txt": b"changes",
+            "LibRaw-0.22.3/src/decoder.cpp": b"code",
+        }
+    )
+    libraw = next(item for item in manifest() if item.id == "libraw")
+    listed = replace(libraw, size=len(build), sha256=hashlib.sha256(build).hexdigest())
+    tools = Tools(paths, items=(listed,), fetch=serving(build))
+
+    downloaded(tools, "libraw")
+
+    folder = tools.folder("libraw")
+    assert folder is not None
+    assert folder == paths.tools / "libraw"
+    assert sorted(file.name for file in folder.iterdir()) == [
+        "COPYRIGHT",
+        "LICENSE.CDDL",
+        "LICENSE.LGPL",
+        "libraw.dll",
+        "mado-download.json",
+    ]
+    assert (folder / "LICENSE.LGPL").read_bytes() == b"lesser"
+    (folder / "COPYRIGHT").unlink()  # one gone: it's fetched again, with its licence
+    assert tools.folder("libraw") is None
+
+
 def test_a_download_that_doesnt_match_the_list_is_thrown_away(paths: DataPaths):
     tampered = BUILD + b"!"
     tools = Tools(paths, items=(listing(BUILD),), fetch=serving(tampered))
@@ -174,6 +224,25 @@ def test_a_download_that_doesnt_match_the_list_is_thrown_away(paths: DataPaths):
     )
     assert tools.path("ffprobe") is None
     assert not any(paths.tools.iterdir())
+
+
+def test_a_download_that_didnt_match_isnt_fetched_again_by_itself_only_when_asked(
+    paths: DataPaths,
+):
+    fetched: list[str] = []
+
+    def tampered(url: str) -> io.BytesIO:
+        fetched.append(url)
+        return io.BytesIO(BUILD + b"!")
+
+    tools = Tools(paths, items=(listing(BUILD),), fetch=tampered)
+    downloaded(tools)
+
+    tools.start("ffmpeg", by_itself=True)  # what waits for it asks again a minute on
+    tools.wait("ffmpeg", timeout=10)
+    assert len(fetched) == 1  # the file online isn't the one listed: not fetched over and over
+    downloaded(tools)  # Try again
+    assert len(fetched) == 2
 
 
 def test_no_connection_says_so_and_a_retry_works(paths: DataPaths):
@@ -233,6 +302,22 @@ def test_a_development_copy_of_ffmpeg_can_stand_in(
     [(_, progress)] = tools.status()
     assert progress.state == "ready"
     assert tools.path("ffprobe") == own / PROGRAM
+
+
+def test_the_installed_engine_never_takes_a_development_copy(
+    paths: DataPaths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    own = tmp_path / "ffmpeg-bin"
+    own.mkdir()
+    (own / PROGRAM).write_bytes(b"probe")
+    monkeypatch.setenv("MADO_FFMPEG_DIR", str(own))
+    monkeypatch.setattr(sys, "frozen", True, raising=False)  # as the installer bundles it
+
+    tools = Tools(paths, items=(listing(BUILD),), fetch=offline)
+
+    [(_, progress)] = tools.status()
+    assert progress.state == "missing"  # only what it downloaded and checked itself
+    assert tools.path("ffprobe") is None
 
 
 class Dropping(io.BytesIO):

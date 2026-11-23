@@ -24,7 +24,7 @@ export function beforeYouInstall(downloads, licence) {
     "",
   ];
   downloads.forEach((item, index) => {
-    const size = item.size ? `, ${Math.round(item.size / 1e6)} MB` : "";
+    const size = item.size ? `, ${megabytes(item.size)} MB` : "";
     const version = item.version === "current" ? "" : ` ${item.version}`;
     lines.push(`${index + 1}. ${item.name}${version}${size}`);
     lines.push(item.purpose);
@@ -49,6 +49,12 @@ export function beforeYouInstall(downloads, licence) {
   const unprintable = [...text].find((character) => character > "~" && character !== "\r");
   if (unprintable) throw new Error(`The installer page can only hold plain ASCII, not "${unprintable}".`);
   return text;
+}
+
+/** A download's size in megabytes, as Mado writes sizes: a tenth under ten, whole above. */
+function megabytes(bytes) {
+  const mb = bytes / 1e6;
+  return mb < 10 ? mb.toFixed(1).replace(/\.0$/, "") : String(Math.round(mb));
 }
 
 /** Each paragraph of a hard-wrapped text as one line, with a blank line after it. */

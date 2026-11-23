@@ -8,9 +8,35 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Camera RAW is read, where it was only listed: CR3, NEF, ARW, DNG and the rest show by the day
+  they were taken, with their camera and their size as shown, and every tool works on them as on
+  any picture: Size, Looks, Edit, Many at once, recipes and watch folders, the wallpaper studio
+  and favourites. The grid's tile comes from the preview the camera kept inside the RAW; the
+  picture's page, its tabs and Save develop the RAW itself, with the camera's white balance, its
+  own crop and turn, into Display P3, so a camera's wide colours stay wide. A RAW is never
+  written: Save makes a new picture beside it, and says why Replace isn't offered.
+- Mado's RAW reader, LibRaw, comes the first time Mado reads a camera RAW: a 3.5 MB download from
+  LibRaw's own site, checked before it's used, as the installer's first page lists it. While it
+  comes, a RAW's tile, its page, a batch and a watch folder say so, with its progress, and why if
+  it didn't come (offline, or not the file the list names), with Try again. Settings › About says
+  whether it's there.
+- Duplicates and bursts look at camera RAW too: copies of a RAW, and bursts of RAWs, are grouped
+  and reviewed as any are. A camera's RAW and its JPEG of the same moment are never taken for
+  copies of each other.
+- A RAW that won't develop (half copied, say) joins the pictures that won't open, and one from a
+  camera Mado's RAW reader doesn't know yet says so.
+
+### Changed
+- Pick pictures offers camera RAW, and Home's drop zone lists it.
+- ffmpeg's licence now comes with it, kept beside it in Mado's tools folder, and
+  THIRD-PARTY-NOTICES.txt names what Mado downloads to the PC, apart from what ships inside it.
+
 ### Fixed
 - Home's Made today says what an edit alone made of a picture (Cut out, Erased, Blurred or Edited)
   beside its name, where it said nothing.
+- Many at once's Saving said "Into ." till a step was picked: it says only that the originals stay
+  as they are till it knows where the new pictures go.
 - The arrows in See it first's sizes, a recipe's steps and a watch folder's line are drawn in
   Mado's own look, where they came in another font.
 

@@ -30,6 +30,7 @@ from mado.core.quality import about_bytes
 from mado.core.recipe import Recipe
 from mado.editing import Editor, picture_key
 from mado.jobs import JobError
+from mado.libraw import Reader
 from mado.looks import seed_of
 from mado.making import (
     Saving,
@@ -42,7 +43,14 @@ from mado.making import (
     waiting_for,
     write,
 )
-from mado.pictures import Command, NeedsFfmpegError, PictureGoneError, UnreadableError, decode
+from mado.pictures import (
+    Command,
+    NeedsFfmpegError,
+    NeedsReaderError,
+    PictureGoneError,
+    UnreadableError,
+    decode,
+)
 from mado.previews import save_copy
 from mado.upscale import StoppedError
 
@@ -106,13 +114,15 @@ class Samples:
         *,
         wake: Callable[[], None],
         editor: Editor | None = None,
+        reader: Reader | None = None,
     ) -> None:
         """`wake` asks the jobs' worker to look for work: three to make; `editor` makes a step
-        that cuts out the subject."""
+        that cuts out the subject; `reader` reads camera RAW."""
         self._paths = paths
         self._folder = paths.cache / "samples"
         self._ai = ai
         self._ffmpeg = ffmpeg
+        self._reader = reader
         self._wake = wake
         self._editor = editor
         self._lock = threading.Lock()
@@ -256,7 +266,13 @@ class Samples:
             if asked.dropped:  # let go as it was made: its files go now
                 self._remove(asked.shown.id)
             return True
-        except (JobError, UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
+        except (
+            JobError,
+            UnreadableError,
+            PictureGoneError,
+            NeedsFfmpegError,
+            NeedsReaderError,
+        ) as error:
             made = replace(sample, state="failed", problem=str(error))
         except Exception:  # the worker must outlive any one picture
             log.exception("See it first couldn't make %s", sample.picture.name)
@@ -276,7 +292,13 @@ class Samples:
         with closing(db.connect(self._paths.database)) as conn:
             picture = picture_of(conn, sample.picture.id, sample.picture.path)
         began = time.monotonic()
-        image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
+        image = decode(
+            picture.path,
+            picture.kind,
+            longest=None,
+            ffmpeg=self._ffmpeg(),
+            reader=self._reader,
+        )
         here = self._ai.where()
         made = planned(asked.recipe, see(image, picture), self._ai.starts_on(here))
         if made.empty:
@@ -308,7 +330,15 @@ class Samples:
         assert full is not None  # noqa: S101 - its saving says its format
         full.parent.mkdir(parents=True, exist_ok=True)
         size = (made.width, made.height)
-        made_bytes = write(result, picture, size, asked.saving, full, dpi=dpi_of(asked.recipe))
+        made_bytes = write(
+            result,
+            picture,
+            size,
+            asked.saving,
+            full,
+            dpi=dpi_of(asked.recipe),
+            reader=self._reader,
+        )
         seconds = time.monotonic() - began
         before = image
         if made.frame.shape == "crop":

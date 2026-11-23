@@ -45,7 +45,11 @@ line; and the Library's tags on a group's kept picture); and the wallpaper studi
 one laid across them all, at exactly each monitor's pixels and set as Windows' own wallpaper or
 saved as pictures; favourites, with a heart on a picture's page and its tile and a view of their
 own in the Library; the wallpaper changed every day from them if wanted; the owner's own kept and
-put back). Next: the rest of Mado 1.0, by [What's next](#whats-next).
+put back); and camera RAW, the ninth (LibRaw's own Windows build downloaded the first time a RAW is
+read and used through its DLL: a RAW's facts without developing it, the grid's thumbnail from its
+camera's preview, its page and every tool on it developed into Display P3, saving only as a new
+picture, RAWs among duplicates and bursts but never with their JPEGs). Next: the rest of Mado 1.0,
+by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -268,8 +272,9 @@ Everything decided so far. Don't ask again; change only with the owner.
   pictures come ticked in the Library ("Many at once…" leads its ticked bar), from a folder's ⋮ menu
   (inner folders too), beside a search's count, dropped anywhere on the window (Tauri's drag and
   drop, for paths) or picked on Home ("Pick pictures", "Pick a folder", whose folders inside are
-  looked through, never a quarantine); camera RAW and pictures that won't open are left out, saying
-  why; 10,000 at most, and 50,000 files looked through in what's dropped, what's past either said as
+  looked through, never a quarantine); pictures that won't open are left out, saying why (camera
+  RAW too while its reader comes, asked again once it's here); 10,000 at most, and 50,000 files
+  looked through in what's dropped, what's past either said as
   left out. One picture in the library opens its page; one outside it opens Many at once alone, as a
   picture's page is the library's. A batch's steps are a list (`{"step": "size"…}`, room for later
   kinds), made in Mado's order whatever their order; Change opens the picture page's own choices in
@@ -342,8 +347,9 @@ Everything decided so far. Don't ask again; change only with the owner.
   are told by their bytes' blake2b. Bursts are the same camera, folder and size, each within 2 s of
   a neighbour and 12 bits, and keep the sharpest by the Laplacian's variance on a 1024 px grey copy
   of the picture itself (on the thumbnail blurs ranked wrongly, at full size the grain drowned
-  them). Never grouped: camera RAW, pictures that won't open, a quarantine, pictures the owner said
-  aren't the same (asked again once a file changes), and History's families (no group holds an
+  them). Never grouped: a camera RAW with a picture that isn't one (RAWs joined with their reader,
+  below), pictures that won't open, a quarantine, pictures the owner said aren't the same (asked
+  again once a file changes), and History's families (no group holds an
   original and what Mado made from it, or two made from one). Duplicates keep the most pixels, then
   the larger file of its format, a name that isn't a copy's, the older file; a burst compares its
   shots each with its copies as one (a sharpened export never outranks its original), and each group
@@ -449,12 +455,12 @@ Everything decided so far. Don't ask again; change only with the owner.
   quarantine; opening its page counts as opening it. Save beside it writes in its own folder;
   Replace sends the original to its drive's quarantine, and History puts it back. A picture in a
   quarantine opens to look at only (the tools' place says so, with Open History; the engine refuses
-  its Save). Camera RAW from outside shows the library's "not readable yet"; a path not there says
-  whether its drive is connected; a long path is reached in Windows' long form when only that
-  reaches it; the same picture opened twice is one page. Paste is Ctrl+V anywhere but a text field:
-  files copied in File Explorer, read by the shell (CF_HDROP through windows-sys, as the Tauri
-  clipboard plugin reads only words and pictures), open as if dropped, asked first as a page sees a
-  copied picture file as a picture too; else a picture on the clipboard (the page's paste event,
+  its Save). Camera RAW from outside is read as the library's is; a path not there says whether
+  its drive is connected; a long path is reached in Windows' long form when only that reaches it;
+  the same picture opened twice is one page. Paste is Ctrl+V anywhere but a text field: files
+  copied in File Explorer, read by the shell (CF_HDROP through windows-sys, as the Tauri clipboard
+  plugin reads only words and pictures), open as if dropped, asked first as a page sees a copied
+  picture file as a picture too; else a picture on the clipboard (the page's paste event,
   PNG) is kept in the data folder's `pasted` as "Pasted 2026-11-23 14.05.png" ("(2)" in the same
   minute), the same bytes again opening the one kept, at most 2^26 pixels (about 67 megapixels: past
   it the window's own clipboard hands a page an empty PNG, measured; it takes 1.2 s at 66), said as
@@ -574,6 +580,65 @@ Everything decided so far. Don't ask again; change only with the owner.
   apps set it. An app that draws its own desktop hides the wallpaper, which the studio's help
   sentence says without naming any. Never set for real while it was built: the first set is the
   owner's (docs/stack/wallpaper.md lists what's untested).
+- Camera RAW, as built (2026-11-23, Claude's calls while the owner is away; docs/stack/libraw.md):
+  LibRaw 0.22.3's own Windows build (`LibRaw-0.22.3-Win64.zip`, 3.5 MB, from libraw.org; LGPL-2.1
+  or CDDL-1.0), listed in `downloads.json` with its licence files kept beside it (ffmpeg's now too,
+  `notices`), never shipped: THIRD-PARTY-NOTICES names what Mado downloads apart from what ships,
+  and a bundle holding LibRaw's or ffmpeg's files stops the build. It's fetched by itself the first
+  time a RAW is read or opened (a scan reading one, its page, a file dropped, a watch folder), again
+  a minute after a try that failed (never by itself after one that didn't match the list), Try
+  again at once; a scan finding RAWs that wait, as 0.7.0 listed them, asks too, as does opening
+  one; Settings › About says whether it's there. Of the zip it keeps only `libraw.dll` and the
+  licence files, and the installed engine never takes a development copy (`MADO_LIBRAW_DIR`).
+  Its DLL through ctypes, not its programs, measured: facts in 0.5 ms against `raw-identify`'s 26
+  ms a process; the programs take paths in the old code page (a folder named in Japanese wouldn't
+  open) and those taking a camera's preview out write it beside the RAW; developing is the same
+  code, 10 to 25% quicker without a process. LibRaw reads inside the engine, a file to a reader of
+  its own, read-only, nothing written; a fault ctypes catches makes the RAW one that won't open,
+  and every read notes its RAW in a file of its own named for the engine's run (`reading-raw`), so
+  one that stopped the engine is marked won't open as the next starts, before anything reads it,
+  never stopping it again (a power cut mid-read marks one too: Try again reads it). A RAW's facts
+  come without developing it (its size as shown, cropped and turned; the camera's clock; the
+  camera; its turn; a place). The grid's
+  thumbnail and a burst's sharpness come from the camera's preview when it's big enough and the
+  picture's shape, else from developing at half size; the view and full size are always developed
+  (the brief asked for the preview there too, but the stage of the Size and Looks tabs is drawn from
+  the view, and the camera's preview is its own rendering: the page would show what Save doesn't
+  make). Developing: the camera's white balance, LibRaw's AHD and brightening, the RAW's own crop
+  (`raw_inset_crops[0]`: a DNG's default crop, a maker's) cut after developing and its turn, at 8
+  bits, the pipeline's depth, into Display P3 rather than sRGB (a camera's colours go past sRGB and
+  Mado keeps a picture's own colours through every tool to the picture saved; P3 is what wide
+  screens and phones show, and 8 bits band far less over it than over Adobe RGB or ProPhoto), with
+  Mado's own Display P3 profile written by code (`core/icc.py`). Half size and the camera's white
+  balance have no C call: they're written into LibRaw's options struct at the place measured for
+  0.22.3 (`_OPTIONS_AT`), only after LibRaw's own setters confirm it. Every tool works on a RAW
+  (Size, Looks, Edit, Many at once, recipes, watch folders, the studio, favourites); Save is always
+  a new picture (JPEG at first, as a photo), Save and Many at once saying why Replace isn't
+  offered, the engine and the job refusing it; a picture made from a RAW carries its date, camera,
+  exposure and lens (its place when kept), written from LibRaw's facts. While the reader comes, a
+  RAW is listed as it is (`waiting`): its tile and page say how the reader's coming (offline and a
+  checksum failure in the download's words, Try again), its page reads it the moment it's there, a
+  batch leaves RAWs out saying why and asks again once it's there, a watch folder waits with them
+  (never given up on), Home counts them, and once it's there a scan reads them. A RAW that won't
+  develop (half copied: tags and preview there, pixels not) joins Won't open when its page asks; one
+  LibRaw doesn't know, or can't unpack (a JPEG XL DNG: this build has no DNG SDK), says so in its
+  own words. Duplicates and bursts take RAWs now, as their thumbnails come from the reader and RAWs
+  are the biggest files to keep twice, but only among RAWs: a camera's RAW and its JPEG of one
+  moment, or a JPEG made from a RAW, are never taken for copies, and the review offers nothing for
+  such a pair. The Library shows RAW and JPEG as two tiles side by side, the RAW wearing its tag:
+  each file stays a picture of its own, as File Explorer shows it, so ticks, Many at once,
+  favourites and History mean the same for each, and nothing is hidden behind another. Pick
+  pictures offers RAW (a test holds its list to the engine's) and Home's drop zone lists it. Tested
+  only through DNG written by code (`tests/dng_files.py`), never a real photo; the other RAW
+  formats are LibRaw's to read. A fresh agent reviewed the whole piece and its twelve findings are
+  fixed, test first: RAWs 0.7.0 listed fetch the reader; a linear DNG's crop follows the size
+  developed; a RAW another app writes to is in use, not damaged; a packing this build can't unpack
+  says so; memory short now passes, never kept as won't open; the job refuses Replace before See it
+  first's shortcut; every read is noted; a refused download isn't fetched over and over; a
+  camera's broken preview is developed instead. Measured on the owner's PC: a 24-megapixel RAW's
+  facts in 0.7 ms, its thumbnail from the camera's preview in 68 ms (352 ms developed), its view in
+  0.43 s and full size in 3.1 s; at 100 megapixels 0.18 s, 1.6 s and 13 s; a scan of 1,000 RAWs as
+  quick as of the same scenes as JPEGs (50 ms each).
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -620,7 +685,8 @@ Everything decided so far. Don't ask again; change only with the owner.
 
 **Data**
 - `%LOCALAPPDATA%\Mado`: mado.db, nightly backups (keep 7), logs (30 days), `tools\` (ffmpeg,
-  downloaded on first run; see docs/stack/ffmpeg.md; and the AI models fetched when asked),
+  downloaded on first run, see docs/stack/ffmpeg.md; LibRaw, the first time a camera RAW is read,
+  see docs/stack/libraw.md; and the AI models fetched when asked; each with its licence files),
   `cache\` (each picture's thumbnail and screen-sized view, made again when gone), and `pasted\`
   (pictures pasted from the clipboard, till a month after they were last opened).
 - Next to the pictures: `Mado quarantine` at the top of each drive, a folder a day, holding
@@ -663,10 +729,12 @@ Everything decided so far. Don't ask again; change only with the owner.
   with `LICENSE.txt`; `engine/tools/third_party_notices.py` writes it from what was actually
   bundled and stops the build on a licence that isn't allowed.
 - **Every download is listed in the installer.** No one installs anything by hand. What isn't
-  inside the installer (WebView2 on a PC without it, ffmpeg, the bigger AI models, from Mado's own
-  prerelease `models-1`) goes in one manifest, `engine/src/mado/downloads.json`: what it's for, version, size, licence, source and
-  checksum. The installer's first page lists it (`scripts/installer-notes.mjs`), Setup downloads
-  Mado's part of it (`engine/src/mado/tools.py`), and Mado downloads nothing that isn't on it.
+  inside the installer (WebView2 on a PC without it, ffmpeg, LibRaw, the bigger AI models, from
+  Mado's own prereleases `models-1` and `models-2`) goes in one manifest,
+  `engine/src/mado/downloads.json`: what it's for, version, size, licence, source and checksum.
+  The installer's first page lists it (`scripts/installer-notes.mjs`), Setup downloads ffmpeg,
+  the rest come the first time they're needed (`engine/src/mado/tools.py`), and Mado downloads
+  nothing that isn't on it.
 - Per-user install (no admin) into `%LOCALAPPDATA%\Programs\Mado`, apart from the data.
 - The update-signing key is `%USERPROFILE%\.tauri\mado-updater.key` (no password, made
   2026-11-22) and the `TAURI_SIGNING_PRIVATE_KEY` repo secret. Lose it and installed copies can't
@@ -693,8 +761,10 @@ Everything decided so far. Don't ask again; change only with the owner.
    recipes, watch folders and the queue, looking after the library (duplicates and bursts,
    the pictures that won't open, space, a picture open in another app, the grid's tags), editing
    by clicking (select, erase and cut out, looks on a part, cutting out in batches and recipes),
-   and pictures from anywhere (a picture from outside the library on a page of its own, paste,
-   File Explorer's "Open in Mado" and Open with, the command line).
+   pictures from anywhere (a picture from outside the library on a page of its own, paste,
+   File Explorer's "Open in Mado" and Open with, the command line), and camera RAW (read by
+   LibRaw, downloaded the first time a RAW is read; every tool on it; RAWs among duplicates and
+   bursts).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles. Built:
    the wallpaper studio, with favourites.

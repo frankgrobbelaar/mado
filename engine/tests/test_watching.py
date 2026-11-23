@@ -14,8 +14,10 @@ if sys.platform == "win32":
 from mado import history, recipes, watching
 from mado.batches import BatchError, Picture
 from mado.config import DataPaths
+from mado.libraw import Reader
 from mado.watching import QUIET, Watch, WatchError, WatchFolders
-from tests.drawn import draw
+from tests.dng_files import dng
+from tests.drawn import draw, scene
 
 NOW = datetime(2026, 11, 22, 14, 2).astimezone()
 
@@ -263,3 +265,50 @@ def test_a_watch_folder_needs_a_results_folder_of_its_own(
     watching.added(conn, inbox, recipe, Path("Done"), NOW)
     with pytest.raises(WatchError, match="already"):
         watching.added(conn, inbox, recipe, Path("Done"), NOW)
+
+
+def test_a_camera_raw_waits_for_mados_raw_reader_saying_so_then_is_taken(
+    paths: DataPaths, conn: sqlite3.Connection, recipe: int, tmp_path: Path, libraw_folder: Path
+):
+    inbox = tmp_path / "To TV"
+    inbox.mkdir()
+    watching.added(conn, inbox, recipe, Path("Done"), NOW)
+    there: dict[str, Path | None] = {"folder": None}
+    taken, clock = Taken(), Clock()
+    reader = Reader(lambda: there["folder"])
+    folders = WatchFolders(paths, taken, now=lambda: NOW, clock=clock, reader=reader)
+    dng(inbox / "Green sky.dng", scene(4, (240, 160)))
+    folders.look()
+    clock.now += QUIET * 2
+
+    assert folders.look() == 0
+    assert [each.problem for each in watching.listed(conn)] == [watching.READER_COMING]
+    clock.now += watching.GIVE_UP * 2
+    assert folders.look() == 0  # never given up on: it opens once the reader is here
+
+    there["folder"] = libraw_folder  # the reader came
+    clock.now += QUIET
+    assert folders.look() == 1
+    assert taken.pictures == [(1, ["Green sky.dng"])]
+    assert [each.problem for each in watching.listed(conn)] == [None]
+
+
+def test_a_watch_folder_stops_saying_the_reader_is_coming_once_no_raw_waits_for_it(
+    paths: DataPaths, conn: sqlite3.Connection, recipe: int, tmp_path: Path
+):
+    inbox = tmp_path / "To TV"
+    inbox.mkdir()
+    watching.added(conn, inbox, recipe, Path("Done"), NOW)
+    taken, clock = Taken(), Clock()
+    folders = WatchFolders(paths, taken, now=lambda: NOW, clock=clock, reader=Reader(lambda: None))
+    raw = dng(inbox / "Green sky.dng", scene(4, (240, 160)))
+    folders.look()
+    clock.now += QUIET * 2
+    folders.look()
+    assert [each.problem for each in watching.listed(conn)] == [watching.READER_COMING]
+
+    raw.unlink()  # taken away before the reader came
+    clock.now += QUIET
+    folders.look()
+
+    assert [each.problem for each in watching.listed(conn)] == [None]

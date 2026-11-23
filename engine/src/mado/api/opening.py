@@ -13,7 +13,7 @@ from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
 from mado import batches, outside, pasting
-from mado.api.batches import LeftOut, Picked, picked_out
+from mado.api.batches import BatchLeftOut, Picked, picked_out
 from mado.api.common import ApiModel, Copies, Database, Paths, SetAside
 from mado.api.pictures import PictureDetails, details
 from mado.core.opening import Entry, nothing_to_open, what_opens
@@ -36,7 +36,7 @@ class OpenIn(ApiModel):
 class Opened(ApiModel):
     picture: PictureDetails | None  # one picture: its page
     picked: Picked | None  # several pictures, or a folder: Many at once, with them chosen
-    left_out: list[LeftOut]  # beside one picture, what wasn't taken, and why
+    left_out: list[BatchLeftOut]  # beside one picture, what wasn't taken, and why
 
 
 @router.post("/open")
@@ -50,20 +50,21 @@ def open_paths(
     entries = [Entry(str(path), outside.found(path)) for path in given]
     match what_opens(entries):
         case "many":
-            found = batches.from_paths(conn, [str(path) for path in given], body.how)
-            return Opened(picture=None, picked=picked_out(found), left_out=[])
+            found = batches.from_paths(conn, [str(path) for path in given], body.how, copies.reader)
+            here = copies.reader is not None and copies.reader.ready()
+            return Opened(picture=None, picked=picked_out(found, reader_here=here), left_out=[])
         case "page":
             one = next(
                 path for path, entry in zip(given, entries, strict=True) if entry.found == "picture"
             )
             left = [
-                LeftOut(name=path.name or str(path), why=outside.why_not(path))
+                BatchLeftOut(name=path.name or str(path), why=outside.why_not(path))
                 for path, entry in zip(given, entries, strict=True)
                 if entry.found != "picture"
             ]
             try:
                 picture_id = outside.open_picture(
-                    conn, one, now=_now(), forget=copies.forget, data=paths
+                    conn, one, now=_now(), forget=copies.forget, data=paths, reader=copies.reader
                 )
             except OpenError as error:
                 raise HTTPException(error.status, str(error)) from None

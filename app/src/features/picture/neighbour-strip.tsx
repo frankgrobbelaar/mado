@@ -44,7 +44,7 @@ export function NeighbourStrip(props: {
                 : "opacity-80 hover:opacity-100",
             )}
           >
-            <Thumbnail picture={item} lazy={false} />
+            <Thumbnail picture={item} lazy={false} small />
           </Link>
         );
       })}

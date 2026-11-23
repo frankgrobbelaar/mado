@@ -111,8 +111,8 @@ export function ToolsColumn(props: {
       >
         {!ready ? (
           <p className="text-13 text-fg-muted leading-normal">
-            {props.picture.state === "raw"
-              ? "Mado can't read camera RAW yet, so it can't make this one for a screen, give it a look or edit it."
+            {props.picture.state === "waiting"
+              ? "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look or edited."
               : "Mado can't open this picture, so it can't make it for a screen, give it a look or edit it."}
           </p>
         ) : props.tool === "edit" ? (

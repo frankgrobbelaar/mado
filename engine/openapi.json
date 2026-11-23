@@ -500,7 +500,7 @@
     "/pictures/{picture_id}": {
       "get": {
         "summary": "Picture",
-        "description": "One picture, with everything Mado read of it. One from outside the library, which no\nscan looks after, is looked at as it is now: read again once its file changed (a Save in its\nplace, say), 404 with why once it went; and it counts as opened again, its month before it's\nforgotten starting afresh.",
+        "description": "One picture, with everything Mado read of it. One from outside the library, which no\nscan looks after, is looked at as it is now: read again once its file changed (a Save in its\nplace, say), 404 with why once it went; and it counts as opened again, its month before it's\nforgotten starting afresh. A camera RAW waiting for Mado's RAW reader asks for it.",
         "operationId": "picture_pictures__picture_id__get",
         "security": [
           {
@@ -703,7 +703,7 @@
     "/pictures/{picture_id}/view": {
       "get": {
         "summary": "View",
-        "description": "It the size of a screen, at most 2560 pixels on its longer side (WebP).",
+        "description": "It the size of a screen, at most 2560 pixels on its longer side (WebP): a camera RAW\ndeveloped, as Save makes it.",
         "operationId": "view_pictures__picture_id__view_get",
         "security": [
           {
@@ -887,7 +887,7 @@
     "/pictures/{picture_id}/read": {
       "post": {
         "summary": "Read Again",
-        "description": "Reads one picture again now (one that wouldn't open may have been mended since).",
+        "description": "Reads one picture again now (one that wouldn't open may have been mended since). A camera\nRAW is read by Mado's RAW reader, which it asks for while it isn't there.",
         "operationId": "read_again_pictures__picture_id__read_post",
         "security": [
           {
@@ -1468,7 +1468,7 @@
       },
       "get": {
         "summary": "Small Copy",
-        "description": "A small copy of the picture in a look, made from its thumbnail: WebP, kept by the window\n(its address carries the picture's version and the look's).",
+        "description": "A small copy of the picture in a look, made from its thumbnail (a camera RAW's from its\nview, developed as its stage shows it, as its thumbnail is its camera's own rendering): WebP,\nkept by the window (its address carries the picture's version and the look's).",
         "operationId": "small_copy_pictures__picture_id__looks__look_id__get",
         "security": [
           {
@@ -4793,6 +4793,29 @@
         ],
         "title": "BatchIn"
       },
+      "BatchLeftOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "waiting": {
+            "type": "boolean",
+            "title": "Waiting",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "why"
+        ],
+        "title": "BatchLeftOut"
+      },
       "BatchLine": {
         "properties": {
           "id": {
@@ -5219,6 +5242,11 @@
           "version": {
             "type": "string",
             "title": "Version"
+          },
+          "raw": {
+            "type": "boolean",
+            "title": "Raw",
+            "default": false
           }
         },
         "type": "object",
@@ -7462,6 +7490,11 @@
             "type": "integer",
             "title": "Favourites",
             "default": 0
+          },
+          "rawWaiting": {
+            "type": "integer",
+            "title": "Rawwaiting",
+            "default": 0
           }
         },
         "type": "object",
@@ -8149,7 +8182,7 @@
           },
           "leftOut": {
             "items": {
-              "$ref": "#/components/schemas/LeftOut"
+              "$ref": "#/components/schemas/BatchLeftOut"
             },
             "type": "array",
             "title": "Leftout"
@@ -8525,7 +8558,7 @@
           },
           "leftOut": {
             "items": {
-              "$ref": "#/components/schemas/LeftOut"
+              "$ref": "#/components/schemas/BatchLeftOut"
             },
             "type": "array",
             "title": "Leftout"
@@ -8654,6 +8687,10 @@
           },
           "state": {
             "$ref": "#/components/schemas/PictureState"
+          },
+          "raw": {
+            "type": "boolean",
+            "title": "Raw"
           },
           "width": {
             "anyOf": [
@@ -8808,6 +8845,7 @@
           "path",
           "format",
           "state",
+          "raw",
           "width",
           "height",
           "size",
@@ -8856,6 +8894,10 @@
           },
           "state": {
             "$ref": "#/components/schemas/PictureState"
+          },
+          "raw": {
+            "type": "boolean",
+            "title": "Raw"
           },
           "width": {
             "anyOf": [
@@ -8919,6 +8961,7 @@
           "path",
           "format",
           "state",
+          "raw",
           "width",
           "height",
           "size",
@@ -8991,7 +9034,7 @@
         "type": "string",
         "enum": [
           "ready",
-          "raw",
+          "waiting",
           "broken"
         ]
       },

@@ -102,7 +102,10 @@ its design canvas.
 ## Components
 
 - Reuse what exists (`Button`, `Toggle`, `EmptyState`, and `EngineProblem` for a screen whose data
-  didn't come) before adding anything.
+  didn't come) before adding anything. Mado's camera RAW reader on its way is
+  `components/raw-reader.tsx` (`useRawReader`, `RawReaderNote`, `useWhenReaderComes`): a RAW
+  waiting for it (`state: "waiting"`) says so on its tile, its page, a batch and Home; a picture's
+  `raw` is never offered Replace.
 - New primitives start from shadcn/ui (`pnpm dlx shadcn@latest add <name>`) and are restyled to
   the tokens. They live in `src/components/ui/` and open with a comment naming shadcn/ui and
   `LICENSE-shadcn.txt`.

@@ -14,7 +14,8 @@ from fastapi.testclient import TestClient
 from mado import db
 from mado.config import DataPaths
 from tests.conftest import add
-from tests.drawn import draw, exif
+from tests.dng_files import dng
+from tests.drawn import draw, exif, scene
 
 
 def test_a_new_library_has_no_folders(client: TestClient):
@@ -106,7 +107,19 @@ def test_home_gets_the_library_in_numbers(client: TestClient, tmp_path: Path):
             {"folderId": camera["id"], "name": "Camera", "pictures": 2},
         ],
         "favourites": 0,
+        "rawWaiting": 1,  # listed as it is while Mado's RAW reader comes
     }
+
+
+def test_home_counts_camera_raw_read_once_its_reader_is_there(
+    raw_client: TestClient, tmp_path: Path
+):
+    dng(tmp_path / "Camera" / "_MG_0042.dng", scene(4, (240, 160)))
+    add(raw_client, tmp_path / "Camera")
+
+    library = raw_client.get("/library").json()
+
+    assert (library["pictures"], library["raw"], library["rawWaiting"]) == (1, 1, 0)
 
 
 def test_a_folder_whose_drive_isnt_connected_says_so(client: TestClient, tmp_path: Path):

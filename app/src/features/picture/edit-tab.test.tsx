@@ -762,6 +762,26 @@ describe("The Edit tab", () => {
     expect(small.length).toBeGreaterThan(0);
   });
 
+  it("shows a camera RAW's small copy of what's picked developed, as its stage is", async () => {
+    // Its thumbnail is its camera's own rendering; the view is the RAW developed.
+    URL.createObjectURL = vi.fn((made: Blob | MediaSource) => `blob:${(made as Blob).size}`);
+    const developed = "the RAW developed";
+    engine({
+      "/pictures/11": { ...details, name: "Harbour at dusk.CR3", raw: true },
+      "/pictures/11/view": () =>
+        new Response(developed, { headers: { "Content-Type": "image/webp" } }),
+    });
+    renderPage();
+    await openEdit();
+    clickAt(await thePicture(), 0.5, 0.5);
+    await screen.findByText("Part 1 · picked with one click");
+
+    await waitFor(() => {
+      const small = document.querySelector('svg[preserveAspectRatio="xMidYMid slice"] image');
+      expect(small?.getAttribute("href")).toBe(`blob:${developed.length}`);
+    });
+  });
+
   it("hides the pointer under the brush only over the picture", async () => {
     engine();
     renderPage();

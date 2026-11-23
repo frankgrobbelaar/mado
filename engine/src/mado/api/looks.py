@@ -20,7 +20,7 @@ from mado.core.looks import Look, built_in
 from mado.core.touches import Touches
 from mado.looks import through
 from mado.own_looks import Kept, LookNameError
-from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError
+from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import Source
 
 router = APIRouter()
@@ -100,8 +100,9 @@ def looks(conn: Database) -> Looks:
 
 @router.get("/pictures/{picture_id}/looks/{look_id}", response_class=Response, responses=_WEBP)
 def small_copy(picture_id: int, look_id: str, conn: Database, copies: Copies) -> Response:
-    """A small copy of the picture in a look, made from its thumbnail: WebP, kept by the window
-    (its address carries the picture's version and the look's)."""
+    """A small copy of the picture in a look, made from its thumbnail (a camera RAW's from its
+    view, developed as its stage shows it, as its thumbnail is its camera's own rendering): WebP,
+    kept by the window (its address carries the picture's version and the look's)."""
     row = conn.execute(
         "SELECT * FROM pictures WHERE id = ? AND gone_at IS NULL", (picture_id,)
     ).fetchone()
@@ -113,13 +114,14 @@ def small_copy(picture_id: int, look_id: str, conn: Database, copies: Copies) ->
     if look is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _GONE)
     try:
-        path = copies.thumbnail(Source.of(row))
+        source = Source.of(row)
+        path = copies.view(source) if row["raw"] else copies.thumbnail(source)
         with Image.open(path) as thumbnail:
             thumbnail.load()
             small = thumbnail.copy()
     except PictureGoneError as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from None
-    except NeedsFfmpegError as error:
+    except (NeedsFfmpegError, NeedsReaderError) as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
     except UnreadableError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None

@@ -75,11 +75,13 @@ from mado.jobs import (
     drive_there,
     note_writing,
 )
+from mado.libraw import Reader
 from mado.looks import seed_of, styled
 from mado.pictures import (
     Command,
     InUseError,
     NeedsFfmpegError,
+    NeedsReaderError,
     PictureGoneError,
     UnreadableError,
     decode,
@@ -235,8 +237,9 @@ class Sight:
     kept for the previews that follow. Each is made under a lock of its own, so two asking at once
     (the Looks tab's picture with its look and without) wait for one making, not make it twice."""
 
-    def __init__(self, ffmpeg: Callable[[], Command | None]) -> None:
+    def __init__(self, ffmpeg: Callable[[], Command | None], reader: Reader | None = None) -> None:
         self._ffmpeg = ffmpeg
+        self.reader = reader  # camera RAW's, once it's there
         self._seen: dict[tuple[str, str], Seen] = {}
         self._decoded: tuple[tuple[str, str], Image.Image] | None = None
         self._extended: tuple[tuple[object, ...], tuple[Pixels, Box, tuple[int, int]]] | None = None
@@ -265,7 +268,13 @@ class Sight:
             with self._lock:
                 if self._decoded is not None and self._decoded[0] == key:
                     return self._decoded[1]
-            image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
+            image = decode(
+                picture.path,
+                picture.kind,
+                longest=None,
+                ffmpeg=self._ffmpeg(),
+                reader=self.reader,
+            )
             with self._lock:
                 self._decoded = (key, image)
             return image
@@ -470,16 +479,18 @@ def write(
     path: Path,
     *,
     dpi: int | None,
+    reader: Reader | None = None,
 ) -> int:
     """Writes a picture made to `path` as Save would (its format and quality, and what's kept of
-    its original), checks it, and says how many bytes it came to. Raises encode.SaveError."""
+    its original: a camera RAW's by `reader`), checks it, and says how many bytes it came to.
+    Raises encode.SaveError."""
     profile = result.info.get("icc_profile")
     kept_profile = profile if isinstance(profile, bytes) else None
     image = result
     if kept_profile is not None and not saving.keep_colours:
         image, kept_profile = encode.in_srgb(result, kept_profile), None
     exif = encode.prepared_exif(
-        read_exif(picture.path, picture.kind),
+        read_exif(picture.path, picture.kind, reader),
         keep_camera=saving.keep_camera,
         keep_location=saving.keep_location,
         size=size,
@@ -864,12 +875,15 @@ class Maker:
         now: Callable[[], datetime],
         kept: Path | None = None,
         editor: Editor | None = None,
+        reader: Reader | None = None,
     ) -> None:
         """`kept`: where See it first's pictures wait for their jobs; one is let go once its
-        job has saved it. `editor` makes a recipe's edits (and a look's part)."""
+        job has saved it. `editor` makes a recipe's edits (and a look's part); `reader` reads
+        camera RAW."""
         self._ai = ai
         self._quarantine = quarantine
         self._ffmpeg = ffmpeg
+        self._reader = reader
         self._now = now
         self._kept = kept
         self._editor = editor
@@ -891,6 +905,8 @@ class Maker:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
+        if saving.how == "replace" and picture.kind == "raw":
+            raise JobError(NO_RAW_REPLACE)  # Mado can't write RAW: never one put in its place
         job_id: int = row["id"]
         seen_first = _seen_first(order.get("made"), picture)
         if seen_first is not None:  # See it first made this one already, just as it's asked for
@@ -911,10 +927,16 @@ class Maker:
         if saving.how == "replace" and not movable(picture.path):
             raise HeldError(picture.path.name, "replace")  # asked first: not made for nothing
         try:
-            image = decode(picture.path, picture.kind, longest=None, ffmpeg=self._ffmpeg())
+            image = decode(
+                picture.path,
+                picture.kind,
+                longest=None,
+                ffmpeg=self._ffmpeg(),
+                reader=self._reader,
+            )
         except InUseError:  # waits, and is tried again by itself
             raise HeldError(picture.path.name, "read") from None
-        except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
+        except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
             raise _drive_gone(picture.path) or JobError(str(error)) from None
         now_version = _file_version(picture.path)
         edited_on = recipe.editing.version if recipe.editing else None
@@ -961,7 +983,13 @@ class Maker:
         dpi = dpi_of(recipe)
         saved = self._keep(
             lambda partial: write(
-                result, picture, (made.width, made.height), saving, partial, dpi=dpi
+                result,
+                picture,
+                (made.width, made.height),
+                saving,
+                partial,
+                dpi=dpi,
+                reader=self._reader,
             ),
             picture,
             Naming.of(made),
@@ -1021,6 +1049,10 @@ class Maker:
 _CHANGED = (
     "{name} changed since you edited it, so the parts you picked may not be where they were. "
     "Nothing was saved, and the picture is as it is now. Open it and edit it again."
+)
+NO_RAW_REPLACE = (
+    "Mado can't write camera RAW, so it saves a new picture beside it: the RAW stays exactly as "
+    "it is."
 )
 
 

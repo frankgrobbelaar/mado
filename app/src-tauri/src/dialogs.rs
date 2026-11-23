@@ -16,12 +16,13 @@ pub async fn pick_folder(app: AppHandle, title: String) -> Result<Option<String>
         .map(|folder| folder.display().to_string()))
 }
 
-/// The pictures Mado makes, as Windows' file picker offers them: phones', cameras', scanners'
-/// and the web's. Camera RAW isn't offered, as Mado can't read it yet; dropped, it's left out
-/// with a sentence saying so.
+/// The pictures Mado makes, as Windows' file picker offers them: phones', cameras' (camera RAW
+/// too, read by the reader Mado downloads the first time it reads one), scanners' and the web's.
+/// Every kind the engine reads (mado/core/files.py), as a test holds it to.
 const PICTURES: &[&str] = &[
-    "jpg", "jpeg", "jpe", "jfif", "png", "heic", "heif", "hif", "webp", "avif", "tif", "tiff",
-    "bmp", "gif",
+    "jpg", "jpeg", "jpe", "jfif", "png", "webp", "avif", "tif", "tiff", "bmp", "dib", "gif",
+    "heic", "heif", "hif", "3fr", "arw", "cr2", "cr3", "crw", "dng", "erf", "iiq", "kdc", "mos",
+    "mrw", "nef", "nrw", "orf", "pef", "raf", "raw", "rw2", "rwl", "sr2", "srf", "srw", "x3f",
 ];
 
 /// Asks for pictures with Windows' file picker, as many as are wanted. Empty when it's
@@ -106,8 +107,30 @@ mod tests {
 
     #[test]
     fn the_picker_offers_every_kind_of_picture_mado_reads() {
-        for kind in ["jpg", "heic", "png", "webp", "avif", "tif"] {
+        for kind in [
+            "jpg", "heic", "png", "webp", "avif", "tif", "cr3", "nef", "dng",
+        ] {
             assert!(PICTURES.contains(&kind), "{kind}");
         }
+    }
+
+    #[test]
+    fn the_picker_offers_exactly_what_the_engine_reads() {
+        let files = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../engine/src/mado/core/files.py"
+        ))
+        .expect("the engine's list of formats");
+        let mut engine: Vec<String> = files
+            .split(['"', '\''])
+            .filter(|word| word.starts_with('.') && word.len() > 2 && word.len() < 7)
+            .filter(|word| word[1..].chars().all(|c| c.is_ascii_alphanumeric()))
+            .map(|word| word[1..].to_string())
+            .collect();
+        engine.sort();
+        engine.dedup();
+        let mut picker: Vec<String> = PICTURES.iter().map(|each| each.to_string()).collect();
+        picker.sort();
+        assert_eq!(picker, engine);
     }
 }

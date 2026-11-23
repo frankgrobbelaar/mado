@@ -11,6 +11,8 @@ from third_party_notices import (
     allowed,
     assets,
     cpp_runtime,
+    downloaded_only,
+    downloaded_parts,
     is_licence_file,
     is_windows_runtime,
     render,
@@ -168,3 +170,33 @@ def test_onnx_runtime_is_shipped_with_microsofts_directml_inside_it():
 
     assert licence == f"MIT AND {MICROSOFT}"
     assert allowed(licence)
+
+
+def test_what_mado_downloads_is_told_apart_from_what_it_ships():
+    found = {part.name: part for part in downloaded_parts()}
+
+    assert list(found)[:2] == ["ffmpeg", "LibRaw"]
+    libraw = found["LibRaw"]
+    assert (libraw.version, libraw.licence) == ("0.22.3", "LGPL-2.1-only OR CDDL-1.0")
+    assert not allowed(libraw.licence)  # Mado couldn't ship it: it never does
+    assert "Not inside Mado" in libraw.texts[0]
+    assert "https://www.libraw.org/data/LibRaw-0.22.3-Win64.zip" in libraw.texts[0]
+    # Each keeps the licence files it comes with: an archive's (its `notices`), or a model's own.
+    for name in ("LibRaw", "ffmpeg", "LaMa"):
+        assert "keeps its licence files beside it" in found[name].texts[0]
+    text = render("0.1.0", {"The installer": []}, list(found.values()))
+    assert "  2. Downloaded to the PC, never shipped:" in text
+    assert text.index("Downloaded to the PC, never shipped") > text.index("1. The installer")
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["libraw.dll", "LibRaw.dll", "ffmpeg.exe", "ffprobe.exe", "avcodec-62.dll", "swscale-9.dll"],
+)
+def test_a_bundle_carrying_what_mado_only_downloads_stops_the_build(name: str):
+    assert downloaded_only(Path(r"C:\build\_internal") / name)
+
+
+@pytest.mark.parametrize("name", ["python314.dll", "onnxruntime.dll", "libjpeg-62.dll", "avif.dll"])
+def test_what_mado_ships_isnt_taken_for_a_download(name: str):
+    assert not downloaded_only(Path(r"C:\build\_internal") / name)

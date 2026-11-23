@@ -10,7 +10,9 @@ next to Mado, and every release carries it (see docs/releasing.md). It lists wha
 - and the installer's own parts.
 
 Every licence must be one Mado can meet by shipping this file (`ALLOWED`). Anything else stops the
-build until someone has checked it, so Mado never ships software it may not share.
+build until someone has checked it, so Mado never ships software it may not share. Apart, after
+them, it names what Mado downloads to the PC (downloads.json), ffmpeg and LibRaw among them, which
+are LGPL: never inside Mado, so a bundle holding one of their files stops the build too.
 
     cd engine; uv run python tools/third_party_notices.py
 """
@@ -31,6 +33,7 @@ from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "app/src-tauri/target/THIRD-PARTY-NOTICES.txt"
+DOWNLOADS = ROOT / "engine/src/mado/downloads.json"  # what Mado downloads to the PC
 ASSETS = ROOT / "engine/src/mado/assets"  # the AI models the engine ships beside its code
 ENGINE_RECORDS = ROOT / "engine/build/mado-engine"  # PyInstaller's records of what it bundled
 UI_REPORT = ROOT / "app/dist/.vite/licenses.json"  # Vite's report of the packages it bundled
@@ -88,6 +91,14 @@ CPP_RUNTIME = re.compile(
     r"(concrt140|msvcp140(_\w+)?|vccorlib140|vcruntime140(_\w+)?)\.dll", re.IGNORECASE
 )
 WINDOWS = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32"
+# The files of what Mado downloads and never ships, under licences it couldn't ship them under
+# (LibRaw's DLL; ffmpeg's programs and libraries, LGPL): found in a bundle, they stop the build.
+DOWNLOADED_ONLY = re.compile(
+    r"(libraw|ffmpeg|ffprobe|av(codec|device|filter|format|util)|sw(resample|scale))"
+    r"([-_.][\w.]+)?\.(dll|exe)",
+    re.IGNORECASE,
+)
+_DOWNLOADED = "Downloaded to the PC, never shipped"
 
 # Python packages whose metadata has no SPDX licence expression, checked by hand.
 PYTHON_LICENCES = {
@@ -143,9 +154,13 @@ def main() -> None:
             "If a licence allows it, add it to ALLOWED (or the package to PYTHON_LICENCES) in "
             "engine/tools/third_party_notices.py."
         )
+    downloaded = downloaded_parts()  # never shipped, so never checked as if they were
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(render(_mado_version(), sections), encoding="utf-8", newline="\n")
-    print(f"Wrote {OUTPUT.relative_to(ROOT)}: {sum(map(len, sections.values()))} parts.")
+    OUTPUT.write_text(render(_mado_version(), sections, downloaded), encoding="utf-8", newline="\n")
+    print(
+        f"Wrote {OUTPUT.relative_to(ROOT)}: {sum(map(len, sections.values()))} parts, and "
+        f"{len(downloaded)} downloaded, never shipped."
+    )
 
 
 def allowed(expression: str) -> bool:
@@ -187,8 +202,13 @@ def allowed(expression: str) -> bool:
         return False
 
 
-def render(version: str, sections: dict[str, list[Part]]) -> str:
-    """The notices as plain text. A licence text already shown is referred to, not repeated."""
+def render(version: str, sections: dict[str, list[Part]], downloaded: Iterable[Part] = ()) -> str:
+    """The notices as plain text. A licence text already shown is referred to, not repeated.
+    What Mado downloads comes last, apart: it isn't inside Mado."""
+    sections = {**sections}
+    fetched = list(downloaded)
+    if fetched:
+        sections[_DOWNLOADED] = fetched
     lines = [
         f"Third-party notices for Mado {version}",
         "",
@@ -206,6 +226,15 @@ def render(version: str, sections: dict[str, list[Part]]) -> str:
     shown: dict[str, str] = {}  # a licence text, without its spacing -> the part that showed it
     for n, (title, parts) in enumerate(sections.items(), 1):
         lines += ["", "=" * 78, f"{n}. {title}", "=" * 78]
+        if title == _DOWNLOADED:
+            lines += [
+                "",
+                "Mado downloads these to the PC the first time it needs them, each from where it's",
+                "published, as the installer's first page lists them. None of them ships inside",
+                "Mado, so their licences (LGPL among them) don't cover Mado's own code, nor Mado's",
+                "theirs. Those that come with licence files keep them beside them in Mado's tools",
+                "folder.",
+            ]
         for part in parts:
             heading = f"{part.name} {part.version}".strip()
             lines += ["", "-" * 78, heading, f"Licence: {part.licence}", f"Source: {part.source}"]
@@ -224,12 +253,55 @@ def render(version: str, sections: dict[str, list[Part]]) -> str:
 # The engine
 
 
+def downloaded_only(file: Path) -> bool:
+    """Whether a file is one of what Mado downloads and never ships: LibRaw's DLL, ffmpeg's
+    programs and libraries."""
+    return DOWNLOADED_ONLY.fullmatch(file.name) is not None
+
+
+def downloaded_parts() -> list[Part]:
+    """What Mado downloads to the PC (engine/src/mado/downloads.json, as the installer lists it),
+    told apart from what ships: each fetched from where it's published and checked, any licence
+    files it comes with (its `notices`) kept beside it."""
+    listed: list[dict[str, Any]] = json.loads(DOWNLOADS.read_text(encoding="utf-8"))["downloads"]
+    found: list[Part] = []
+    for item in listed:
+        if item["by"] != "mado":
+            continue
+        files: list[dict[str, Any]] = item.get("files") or []
+        where = item["url"] or (files[0]["url"] if files else item["home"])
+        when = (
+            "the first time it starts"
+            if item.get("when", "setup") == "setup"
+            else ("the first time it's needed")
+        )
+        checked = f"Not inside Mado: the PC downloads it from {where} {when}, uses it only when its"
+        # Its licence files: an archive's own beside it (`notices`), or among a model's files.
+        licensed = bool(item.get("notices")) or any(
+            str(each["name"]).upper().startswith("LICENSE") for each in files
+        )
+        note = (
+            f"{checked} size and SHA-256 match the list, and keeps its licence files beside it in "
+            "Mado's tools folder."
+            if licensed
+            else f"{checked} size and SHA-256 match the list."
+        )
+        found.append(Part(item["name"], item["version"], item["licence"], item["home"], (note,)))
+    return found
+
+
 def engine_parts() -> list[Part]:
-    """Python, every package that has a file in the engine bundle, and Microsoft's C++ runtime."""
+    """Python, every package that has a file in the engine bundle, and Microsoft's C++ runtime.
+    A file of what Mado only downloads (LibRaw, ffmpeg) stops the build: it's never shipped."""
     owners = _installed_files()
     shipped: dict[str, Distribution] = {}
     runtime: set[str] = set()  # the C++ runtime's files
     for file in _bundled_files():
+        if downloaded_only(file):
+            sys.exit(
+                f"The engine bundle holds {file}, which Mado downloads to the PC and never ships "
+                "(downloads.json): take it out of the bundle."
+            )
         owner = owners.get(os.path.normcase(file))
         if owner is not None:
             shipped[_normalise(owner.name)] = owner

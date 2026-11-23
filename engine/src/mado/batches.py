@@ -45,8 +45,9 @@ from mado.core.sizes import Purpose, SizeError
 from mado.core.touches import named as named_touches
 from mado.core.touches import words as touch_words
 from mado.jobs import Jobs, NewBatch, destination
+from mado.libraw import Reader
 from mado.making import MissingLookError, estimated, recipe_from, screens_kept, waiting_for
-from mado.pictures import PictureGoneError, UnreadableError, read_facts
+from mado.pictures import NeedsReaderError, PictureGoneError, UnreadableError, read_facts
 from mado.previews import version
 
 log = logging.getLogger(__name__)
@@ -162,10 +163,12 @@ def from_favourites(conn: sqlite3.Connection, words: str = "") -> Picked:
     return Picked(_most(pictures, left), "Favourites", str(shared) if shared else None, said, left)
 
 
-def from_paths(conn: sqlite3.Connection, paths: Sequence[str], how: How) -> Picked:
+def from_paths(
+    conn: sqlite3.Connection, paths: Sequence[str], how: How, reader: Reader | None = None
+) -> Picked:
     """Files and folders dropped on the window, picked, pasted or opened from File Explorer:
-    every picture in them, those in the library as it knows them, any other read now. A
-    folder's own folders are looked in too, but never a quarantine."""
+    every picture in them, those in the library as it knows them, any other read now (a camera
+    RAW by `reader`). A folder's own folders are looked in too, but never a quarantine."""
     files: list[Path] = []
     left: list[tuple[str, str]] = []
     for each in paths:
@@ -192,9 +195,6 @@ def from_paths(conn: sqlite3.Connection, paths: Sequence[str], how: How) -> Pick
         if kind is None:
             left.append((path.name, "It isn't a picture Mado makes."))
             continue
-        if kind == "raw":
-            left.append((path.name, "Mado can't read camera RAW yet."))
-            continue
         row = known.get(str(path).casefold())
         if row is not None:
             found = _from_row(row)
@@ -204,8 +204,11 @@ def from_paths(conn: sqlite3.Connection, paths: Sequence[str], how: How) -> Pick
                 pictures.append(found)
             continue
         try:
-            facts = read_facts(path, kind)
+            facts = read_facts(path, kind, reader)
             stat = path.stat()
+        except NeedsReaderError:
+            left.append((path.name, WAITS_FOR_READER))
+            continue
         except (UnreadableError, PictureGoneError, OSError) as error:
             left.append((path.name, str(error)))
             continue
@@ -634,8 +637,8 @@ def _picked(rows: list[sqlite3.Row], how: How, where: str | None) -> Picked:
 
 
 def _from_row(row: sqlite3.Row) -> Picture | None:
-    """A library picture a batch can make: read, not camera RAW, opening."""
-    if row["raw"] or row["problem"] or row["read_at"] is None or not row["width"]:
+    """A library picture a batch can make: read (a camera RAW by Mado's RAW reader), opening."""
+    if row["problem"] or row["read_at"] is None or not row["width"]:
         return None
     return Picture(
         row["id"],
@@ -649,11 +652,19 @@ def _from_row(row: sqlite3.Row) -> Picture | None:
 
 
 def _why(row: sqlite3.Row) -> str:
-    if row["raw"]:
-        return "Mado can't read camera RAW yet."
     if row["problem"]:
         return f"It won't open: {row['problem']}"
+    if row["raw"] and row["read_at"] is not None:
+        return WAITS_FOR_READER
     return "Mado is still reading it."
+
+
+# A camera RAW left out of a batch while Mado's RAW reader comes.
+WAITS_FOR_READER = (
+    "It's a camera RAW, and Mado is getting its RAW reader: it joins once that's here."
+)
+# One left out once the reader's here, till the scan has read it.
+BEING_READ = "It's a camera RAW Mado is reading now: it joins once it's read."
 
 
 def _known(conn: sqlite3.Connection, files: Iterable[Path]) -> dict[str, sqlite3.Row]:

@@ -154,7 +154,12 @@ what was actually bundled:
   Rust's standard library;
 - the UI: Vite's licence report (`app/dist/.vite/licenses.json`), Tailwind's styles, the fonts, and
   the shadcn/ui notice;
-- the installer: NSIS and Tauri's NSIS plugin.
+- the installer: NSIS and Tauri's NSIS plugin;
+- and, apart, after them all: what Mado downloads to the PC (`downloads.json`'s entries Mado
+  fetches: ffmpeg, LibRaw, the AI models), each with its licence and where it's fetched from.
+  None of it ships inside Mado, so its licences (LGPL among them) aren't checked as if they did,
+  and a file of ffmpeg's or LibRaw's found in the engine bundle stops the build
+  (`DOWNLOADED_ONLY`).
 
 The installer puts it next to Mado with `LICENSE.txt`, and the release workflow attaches it to the
 release. If a part's licence isn't on the allowed list (permissive licences, MPL-2.0,

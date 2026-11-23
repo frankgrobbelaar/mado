@@ -1,5 +1,6 @@
 import {
   type ReactNode,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -10,6 +11,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router";
 import { EmptyState, WindowIllustration } from "@/components/empty-state";
 import { EngineProblem } from "@/components/engine-problem";
+import { RawReaderNote, useRawReader, useWhenReaderComes } from "@/components/raw-reader";
 import { Loading, PanelSkeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import {
@@ -83,8 +85,26 @@ function Batch({ start }: { start: BatchStart }) {
   const recipes = useRecipes();
   const [steps, setSteps] = useState<BatchStep[]>([]);
   const [chosenSaving, setSaving] = useState<BatchSaving | null>(null);
+  // Mado can't write camera RAW: a batch with RAWs in it saves new pictures.
+  const raw = (found?.pictures ?? []).some((each) => each.raw);
   // A cut-out with nothing behind it keeps its nothing as PNG (or WebP), whatever was chosen.
-  const saving = savingFor(steps, chosenSaving ?? savingFrom(settings.data));
+  const chosen = savingFor(steps, chosenSaving ?? savingFrom(settings.data));
+  const saving: BatchSaving = raw && chosen.how === "replace" ? { ...chosen, how: "new" } : chosen;
+  // Camera RAWs left out while Mado's RAW reader comes join once it's here: asked again then,
+  // and every few seconds after while the scan reads them.
+  const reader = useRawReader();
+  const readerWaited = found?.leftOut.some((each) => each.waiting) ?? false;
+  const { refetch: pickAgain } = asked;
+  const askAgain = useCallback(() => {
+    if (readerWaited) void pickAgain();
+  }, [readerWaited, pickAgain]);
+  useWhenReaderComes(reader, askAgain);
+  const reading = readerWaited && reader?.state === "ready";
+  useEffect(() => {
+    if (!reading) return;
+    const every = window.setInterval(() => void pickAgain(), 3000);
+    return () => window.clearInterval(every);
+  }, [reading, pickAgain]);
   const [recipe, setRecipe] = useState<number | null>(start.recipe ?? null);
   const [when, setWhen] = useState<Starts>(start.starts ?? "now");
   const [editing, setEditing] = useState<string | null>(null);
@@ -245,9 +265,13 @@ function Batch({ start }: { start: BatchStart }) {
         </Loading>
       )}
       {found && found.leftOut.length > 0 && <LeftOut picked={found} />}
+      {readerWaited && reader?.state !== "ready" && (
+        <RawReaderNote tool={reader} className="max-w-150" />
+      )}
       {found && pictures.length === 0 && (
         <EmptyState title="None of these can be made" illustration={<WindowIllustration />}>
-          Camera RAW and pictures that won't open are left out, as they are. Pick others.
+          Pictures that won't open are left out, as they are, and camera RAW till Mado's RAW reader
+          is here. Pick others.
         </EmptyState>
       )}
 
@@ -306,6 +330,7 @@ function Batch({ start }: { start: BatchStart }) {
             <WhenPanel when={when} onWhen={setWhen} />
             <SavingPanel
               saving={saving}
+              raw={raw}
               into={takes.data?.into ?? null}
               example={takes.data?.example ?? null}
               onSaving={setSaving}
@@ -412,6 +437,7 @@ function Batch({ start }: { start: BatchStart }) {
           saving={saving}
           onSaving={setSaving}
           clear={keepsNothing(steps)}
+          raw={raw}
           onClose={() => setEditing(null)}
         />
       )}
@@ -464,9 +490,11 @@ function WhenPanel(props: { when: Starts; onWhen: (when: Starts) => void }) {
   );
 }
 
-/** Saving: new pictures or the originals replaced, and where they go, in a line. */
+/** Saving: new pictures or the originals replaced, and where they go, in a line. A batch with
+ * camera RAW saves new pictures, and says why. */
 function SavingPanel(props: {
   saving: BatchSaving;
+  raw: boolean;
   into: string | null;
   example: string | null;
   onSaving: (saving: BatchSaving) => void;
@@ -480,30 +508,45 @@ function SavingPanel(props: {
       <h2 id="saving" className="type-eyebrow">
         Saving
       </h2>
-      <Segmented
-        label="Saving"
-        value={saving.how}
-        options={[
-          { value: "new", label: "New pictures" },
-          { value: "replace", label: "Replace the originals" },
-        ]}
-        onChange={(how) => props.onSaving({ ...saving, how })}
-        className="flex [&>button]:flex-1 [&>button]:whitespace-nowrap [&>button]:px-2 [&>button]:text-12"
-      />
+      {props.raw ? (
+        <p className="text-12 text-fg-muted leading-normal">
+          Replacing the originals isn't offered: some are camera RAW, which Mado can't write, so it
+          saves new pictures.
+        </p>
+      ) : (
+        <Segmented
+          label="Saving"
+          value={saving.how}
+          options={[
+            { value: "new", label: "New pictures" },
+            { value: "replace", label: "Replace the originals" },
+          ]}
+          onChange={(how) => props.onSaving({ ...saving, how })}
+          className="flex [&>button]:flex-1 [&>button]:whitespace-nowrap [&>button]:px-2 [&>button]:text-12"
+        />
+      )}
       <p className="text-12 text-fg-muted leading-normal">
         {saving.how === "new" ? (
-          <>
-            {props.into === "beside the originals" ? "Beside the originals" : "Into "}
-            {props.into && props.into !== "beside the originals" && (
-              <span className="font-mono text-fg">{props.into}</span>
-            )}
-            {props.example && (
-              <>
-                , as <span className="font-mono text-fg">{props.example}</span>
-              </>
-            )}
-            . The originals stay as they are.
-          </>
+          props.into ? (
+            <>
+              {props.into === "beside the originals" ? (
+                "Beside the originals"
+              ) : (
+                <>
+                  Into <span className="font-mono text-fg">{props.into}</span>
+                </>
+              )}
+              {props.example && (
+                <>
+                  , as <span className="font-mono text-fg">{props.example}</span>
+                </>
+              )}
+              . The originals stay as they are.
+            </>
+          ) : (
+            // Till what it takes is known (a step picked), it can't say where they go.
+            "The originals stay as they are."
+          )
         ) : (
           "Each picture made takes its original's place; the originals wait in quarantine for 30 days, and History puts them back."
         )}

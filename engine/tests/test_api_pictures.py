@@ -8,13 +8,17 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageOps
 
 from mado.api import create_app
 from mado.config import DataPaths
+from mado.libraw import SESSION, LibRaw, RawError, Reader
 from mado.pictures import InUseError
-from tests.conftest import TOKEN, add
-from tests.drawn import draw, exif
+from mado.quarantine import Quarantine
+from mado.scan import RAW_NOTES, STOPPED_ON
+from tests.conftest import TOKEN, add, made_app
+from tests.dng_files import alike, dng, truncated
+from tests.drawn import draw, exif, scene
 from tests.heif_files import exif_item, heif
 
 type Library = dict[str, Any]
@@ -125,9 +129,124 @@ def test_raw_and_pictures_that_wont_open_are_listed_as_what_they_are(
     (tmp_path / "Camera" / "Old pier.tif").write_text("not a picture", encoding="utf-8")
     add(client, tmp_path / "Camera")
 
-    states = {item["name"]: item["state"] for item in client.get("/pictures").json()["pictures"]}
+    listed = {item["name"]: item for item in client.get("/pictures").json()["pictures"]}
 
-    assert states == {"_MG_0042.CR3": "raw", "Old pier.tif": "broken"}
+    # Without Mado's RAW reader, a camera RAW is listed as it is, waiting for it.
+    assert {name: item["state"] for name, item in listed.items()} == {
+        "_MG_0042.CR3": "waiting",
+        "Old pier.tif": "broken",
+    }
+    assert (listed["_MG_0042.CR3"]["raw"], listed["Old pier.tif"]["raw"]) == (True, False)
+
+
+def test_a_camera_raw_is_read_its_thumbnail_its_cameras_and_its_view_developed(
+    raw_client: TestClient, tmp_path: Path
+):
+    shown = scene(4, (600, 400))
+    dng(tmp_path / "Camera" / "_MG_0042.dng", shown, preview=ImageOps.invert(shown))
+    add(raw_client, tmp_path / "Camera")
+    [listed] = raw_client.get("/pictures").json()["pictures"]
+    page = raw_client.get(f"/pictures/{listed['id']}").json()
+
+    thumbnail = picture_of(raw_client.get(f"/pictures/{listed['id']}/thumbnail"))
+    view = picture_of(raw_client.get(f"/pictures/{listed['id']}/view"))
+    full = raw_client.get(f"/pictures/{listed['id']}/full")
+
+    assert (listed["state"], listed["raw"], listed["format"]) == ("ready", True, "DNG")
+    assert (page["width"], page["height"], page["camera"]) == (600, 400, "Lumen X100")
+    assert page["takenAt"] == "2026-11-12T18:42:07"
+    assert alike(thumbnail, ImageOps.invert(shown)) > 0.9  # from the preview its camera kept
+    assert alike(view, shown) > 0.95  # developed, as Save makes it
+    assert full.headers["content-type"] == "image/png"
+    assert picture_of(full).size == (600, 400)
+
+
+def test_a_camera_raw_that_wont_develop_joins_the_pictures_that_wont_open(
+    raw_client: TestClient, tmp_path: Path
+):
+    # Half copied: what it says of itself and its camera's preview are there, its pixels aren't.
+    truncated(dng(tmp_path / "Camera" / "_MG_0042.dng", scene(4, (600, 400))), keep=0.5)
+    add(raw_client, tmp_path / "Camera")
+    [listed] = raw_client.get("/pictures").json()["pictures"]
+    assert listed["state"] == "ready"
+
+    view = raw_client.get(f"/pictures/{listed['id']}/view")
+
+    assert view.status_code == 422
+    assert "only half copied" in view.json()["detail"]
+    after = raw_client.get(f"/pictures/{listed['id']}").json()
+    assert after["state"] == "broken"
+    [wont] = raw_client.get("/library/wont-open").json()["pictures"]
+    assert wont["id"] == listed["id"]
+
+
+def test_opening_a_camera_raw_that_waits_asks_for_mados_raw_reader(
+    paths: DataPaths, quarantine: Quarantine, tmp_path: Path
+):
+    asked: list[int] = []
+    reader = Reader(lambda: None, lambda: asked.append(1), retry_after=0)
+    (tmp_path / "Camera").mkdir()
+    (tmp_path / "Camera" / "_MG_0042.CR3").write_bytes(b"raw")
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+    with TestClient(
+        made_app(paths, quarantine, reader), base_url="http://127.0.0.1", headers=headers
+    ) as client:
+        add(client, tmp_path / "Camera")
+        [listed] = client.get("/pictures").json()["pictures"]
+        before = len(asked)
+
+        page = client.get(f"/pictures/{listed['id']}").json()
+
+    assert page["state"] == "waiting"
+    assert len(asked) == before + 1  # its page asks for the reader too, as a scan does
+
+
+def test_a_camera_raw_too_big_for_the_memory_free_now_is_left_as_it_was(
+    raw_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    dng(tmp_path / "Camera" / "_MG_0042.dng", scene(4, (600, 400)))
+    add(raw_client, tmp_path / "Camera")
+    [listed] = raw_client.get("/pictures").json()["pictures"]
+
+    def short(*_args: object, **_options: object) -> None:
+        raise RawError(-100007, "develop", "Not enough memory")
+
+    monkeypatch.setattr(LibRaw, "develop", short)
+    view = raw_client.get(f"/pictures/{listed['id']}/view")
+
+    assert view.status_code == 422
+    assert "memory free now" in view.json()["detail"]
+    after = raw_client.get(f"/pictures/{listed['id']}").json()
+    assert (after["state"], after["problem"]) == ("ready", None)  # it passes: not won't open
+
+
+def test_a_camera_raw_an_engine_stopped_on_is_left_as_one_that_wont_open_as_the_next_starts(
+    paths: DataPaths, quarantine: Quarantine, tmp_path: Path, libraw_folder: Path
+):
+    camera = tmp_path / "Camera"
+    stopped = dng(camera / "_MG_0042.dng", scene(4, (600, 400)))
+    notes = paths.root / RAW_NOTES
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+
+    def engine() -> TestClient:
+        reader = Reader(lambda: libraw_folder, notes=notes)
+        return TestClient(
+            made_app(paths, quarantine, reader), base_url="http://127.0.0.1", headers=headers
+        )
+
+    with engine() as client:
+        add(client, camera)
+        # As this engine stops cleanly, a RAW it was reading didn't stop it: its note goes.
+        (notes / f"{SESSION}-8.txt").write_text(str(stopped), encoding="utf-8")
+    assert list(notes.glob("*.txt")) == []
+    (notes / "0123456789ab-7.txt").write_text(str(stopped), encoding="utf-8")  # a crash's
+
+    with engine() as client:
+        [listed] = client.get("/pictures").json()["pictures"]
+        page = client.get(f"/pictures/{listed['id']}").json()
+
+    assert (page["state"], page["problem"]) == ("broken", STOPPED_ON)
+    assert list(notes.glob("*.txt")) == []
 
 
 def test_a_pictures_details_say_everything_mado_read_of_it(client: TestClient, tmp_path: Path):
@@ -211,7 +330,7 @@ def test_full_size_is_the_picture_itself_or_a_copy_the_window_can_show(
     assert picture_of(copy).size == (90, 60)
 
 
-def test_a_picture_that_wont_open_or_isnt_readable_yet_has_no_copies_and_says_why(
+def test_a_picture_that_wont_open_or_waits_for_its_reader_has_no_copies_and_says_why(
     client: TestClient, tmp_path: Path
 ):
     (tmp_path / "Camera").mkdir()
@@ -223,8 +342,9 @@ def test_a_picture_that_wont_open_or_isnt_readable_yet_has_no_copies_and_says_wh
     raw = client.get(f"/pictures/{ids['_MG_0042.CR3']}/view")
     broken = client.get(f"/pictures/{ids['Old pier.jpg']}/thumbnail")
 
-    assert raw.status_code == 422
-    assert "RAW" in raw.json()["detail"]
+    assert raw.status_code == 503  # on its way, not the picture's fault
+    assert "RAW reader" in raw.json()["detail"]
+    assert client.get(f"/pictures/{ids['_MG_0042.CR3']}").json()["state"] == "waiting"
     assert broken.status_code == 422
     assert "not a picture" in broken.json()["detail"]
 
@@ -311,7 +431,7 @@ def test_trying_again_a_picture_open_in_another_app_says_so_and_leaves_it_as_it_
     add(client, tmp_path / "Phone")
     [listed] = client.get("/pictures").json()["pictures"]
 
-    def in_use(path: Path, _kind: object) -> object:
+    def in_use(path: Path, _kind: object, *_reader: object) -> object:
         raise InUseError(f"{path.name} is open in another app, so Mado can't read it.")
 
     monkeypatch.setattr("mado.api.pictures.read_facts", in_use)

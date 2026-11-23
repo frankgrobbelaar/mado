@@ -478,6 +478,7 @@ describe.runIf(SHOTS)("The README's screens", () => {
       width: 4032,
       height: 3024,
       version: `v${100 + at}`,
+      raw: false,
     }));
     const words: StepWords[] = [
       {

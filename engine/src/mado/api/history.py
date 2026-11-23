@@ -17,7 +17,13 @@ from mado.api.jobs import PictureRef
 from mado.core.batch import at_night
 from mado.core.files import kind_of
 from mado.history import Entry, UndoError
-from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError, decode
+from mado.pictures import (
+    NeedsFfmpegError,
+    NeedsReaderError,
+    PictureGoneError,
+    UnreadableError,
+    decode,
+)
 from mado.previews import THUMBNAIL, Source, save_copy, version
 from mado.quarantine import DAYS, by_drive, empty
 
@@ -241,7 +247,7 @@ def made_thumbnail(entry_id: int, conn: Database, paths: Paths, copies: Copies) 
             if not made.is_file():
                 image = decode(result, kind_of(result.name) or "picture", longest=THUMBNAIL)
                 save_copy(image, made, "WEBP", quality=80, method=4)
-    except OSError, PictureGoneError, UnreadableError, NeedsFfmpegError:
+    except OSError, PictureGoneError, UnreadableError, NeedsFfmpegError, NeedsReaderError:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "That picture isn't there any more."
         ) from None

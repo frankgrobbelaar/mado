@@ -8,20 +8,23 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageOps
 
 from mado import previews as mado_previews
 from mado.config import DataPaths
 from mado.core.files import Kind
-from mado.pictures import NeedsFfmpegError, UnreadableError
+from mado.core.icc import DISPLAY_P3
+from mado.libraw import Reader
+from mado.pictures import NeedsFfmpegError, NeedsReaderError, UnreadableError
 from mado.previews import FULL_KEPT, Previews, Source, save_copy
-from tests.drawn import draw, exif, picture
+from tests.dng_files import alike, dng
+from tests.drawn import draw, exif, picture, scene
 from tests.heif_files import heif
 
 FFMPEG = [sys.executable, str(Path(__file__).parent / "fake_ffmpeg.py")]
 
 
-FORMATS = {".jpg": "JPEG", ".png": "PNG", ".tif": "TIFF", ".heic": "HEIC"}
+FORMATS = {".jpg": "JPEG", ".png": "PNG", ".tif": "TIFF", ".heic": "HEIC", ".dng": "DNG"}
 
 
 def source(path: Path, number: int = 1, *, problem: str | None = None, raw: bool = False) -> Source:
@@ -170,15 +173,35 @@ def test_the_oldest_full_size_copy_being_sent_is_kept_for_now(previews: Previews
     assert first.exists()
 
 
-def test_a_picture_that_wont_open_or_isnt_readable_yet_has_no_copies(
+def test_a_picture_that_wont_open_or_waits_for_its_reader_has_no_copies(
     previews: Previews, tmp_path: Path
 ):
     path = draw(tmp_path / "IMG.jpg")
 
     with pytest.raises(UnreadableError, match="half copied"):
         previews.thumbnail(source(path, problem="The file is damaged or was only half copied."))
-    with pytest.raises(UnreadableError, match="RAW"):
+    with pytest.raises(NeedsReaderError):  # a camera RAW, while Mado's RAW reader comes
         previews.view(source(path, raw=True))
+
+
+def test_a_camera_raws_copies_its_thumbnail_its_cameras_its_view_and_full_size_developed(
+    paths: DataPaths, tmp_path: Path, reader: Reader
+):
+    shown = scene(4, (900, 600))
+    path = dng(tmp_path / "_MG_0042.dng", shown, preview=ImageOps.invert(shown))
+    previews = Previews(paths, ffmpeg=lambda: None, reader=reader)
+    raw = source(path, raw=True)
+
+    with Image.open(previews.thumbnail(raw)) as small:
+        assert alike(small, ImageOps.invert(shown)) > 0.9
+    with Image.open(previews.view(raw)) as view:
+        assert view.size == (900, 600)
+        assert view.info["icc_profile"] == DISPLAY_P3  # its colours stay wide in the window
+        assert alike(view, shown) > 0.95
+    whole, kind = previews.full(raw)
+    assert kind == "image/png"
+    with Image.open(whole) as full:
+        assert full.size == (900, 600)
 
 
 def test_a_heif_needs_ffmpeg_for_its_copies(previews: Previews, tmp_path: Path):

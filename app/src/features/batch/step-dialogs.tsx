@@ -328,6 +328,8 @@ export function SavingDialog(props: {
   onClose: () => void;
   /** A cut-out with nothing behind it: only PNG and WebP keep it. */
   clear?: boolean;
+  /** Camera RAW among them: Mado can't write it, so they're saved as new pictures. */
+  raw?: boolean;
 }) {
   const { saving, onSaving } = props;
   const change = (part: Partial<BatchSaving>) => onSaving({ ...saving, ...part });
@@ -349,16 +351,23 @@ export function SavingDialog(props: {
       description="Each picture made is checked before it's kept. Replaced originals wait in quarantine for 30 days, and History puts them back."
       onClose={props.onClose}
     >
-      <Segmented
-        label="Saving"
-        value={saving.how}
-        options={[
-          { value: "new", label: "New pictures" },
-          { value: "replace", label: "Replace the originals" },
-        ]}
-        onChange={(how) => change({ how })}
-        className="flex [&>button]:flex-1"
-      />
+      {props.raw ? (
+        <p className="text-13 text-fg-muted leading-normal">
+          Replacing the originals isn't offered: some are camera RAW, which Mado can't write, so it
+          saves new pictures.
+        </p>
+      ) : (
+        <Segmented
+          label="Saving"
+          value={saving.how}
+          options={[
+            { value: "new", label: "New pictures" },
+            { value: "replace", label: "Replace the originals" },
+          ]}
+          onChange={(how) => change({ how })}
+          className="flex [&>button]:flex-1"
+        />
+      )}
       {saving.how === "new" ? (
         <fieldset className="flex flex-col gap-2 text-13">
           <legend className="pb-1 text-fg-muted">Where they go</legend>

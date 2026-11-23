@@ -1,3 +1,4 @@
+import { READER } from "@/components/raw-reader";
 import { Button } from "@/components/ui/button";
 import { type Pc, type Tool, useDownloadTool, usePc, useTestPc, useTools } from "@/lib/engine";
 import { about, dayAndTime, size } from "@/lib/format";
@@ -201,8 +202,9 @@ function standing(tool: Tool): string {
     case "failed":
       return "didn't come";
     case "missing":
-      return tool.when === "setup"
-        ? "missing: Mado needs it again"
+      if (tool.when === "setup") return "missing: Mado needs it again";
+      return tool.id === READER
+        ? "fetched the first time Mado reads a camera RAW"
         : "fetched the first time it's asked for";
   }
 }

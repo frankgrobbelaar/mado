@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
 import { HeartButton } from "@/components/heart";
+import { RawReaderNote, useRawReader } from "@/components/raw-reader";
 import { useStatusNote } from "@/components/shell/status-note";
 import { Loading, Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
@@ -886,8 +887,8 @@ function OnStage({
   );
 }
 
-/** A picture that can't be shown, in its place: camera RAW, one that won't open, or one Mado
- * couldn't show (why, in the engine's words). */
+/** A picture that can't be shown, in its place: a camera RAW waiting for Mado's RAW reader, one
+ * that won't open, or one Mado couldn't show (why, in the engine's words). */
 function Unshown(props: {
   picture: PictureDetails;
   onShow: () => void;
@@ -897,8 +898,10 @@ function Unshown(props: {
   const read = useReadAgain();
   const mark = useMarkDamaged();
   const { picture } = props;
-  const raw = picture.state === "raw";
+  const waiting = picture.state === "waiting";
   const broken = picture.state === "broken";
+  // A RAW's own sentence says why best: damaged, or a camera its reader doesn't know yet.
+  const rawProblem = broken && picture.raw ? picture.problem : null;
   return (
     <section
       aria-labelledby="unshown"
@@ -910,27 +913,23 @@ function Unshown(props: {
         )}
         <span className="flex flex-col gap-1">
           <h2 id="unshown" className="font-semibold text-15">
-            {raw ? (
-              "Camera RAW isn't readable yet"
-            ) : (
-              <>
-                <span className="font-medium font-mono">{picture.name}</span>{" "}
-                {broken ? "won't open" : "can't be shown"}
-              </>
-            )}
+            <span className="font-medium font-mono">{picture.name}</span>{" "}
+            {waiting ? "waits for Mado's RAW reader" : broken ? "won't open" : "can't be shown"}
           </h2>
           <span className="max-w-150 text-13 text-fg-muted leading-normal">
-            {raw &&
-              `Mado ${picture.outside ? "leaves" : "lists"} ${picture.name}${picture.outside ? "" : " and leaves it"} exactly as it is. Reading camera RAW comes with a reader Mado downloads the first time it's needed.`}
+            {waiting &&
+              "A camera RAW. Mado leaves it exactly as it is, and shows it once its reader is here."}
             {broken &&
-              "The file is damaged or was only half copied. Mado left it exactly as it is and carried on with the others."}
-            {!raw && !broken && props.children}
+              (rawProblem ??
+                "The file is damaged or was only half copied. Mado left it exactly as it is and carried on with the others.")}
+            {!waiting && !broken && props.children}
           </span>
-          {broken && picture.problem && (
+          {broken && picture.problem && !rawProblem && (
             <span className="max-w-150 font-mono text-12 text-fg-faint">{picture.problem}</span>
           )}
         </span>
       </span>
+      {waiting && <ReaderWait picture={picture} />}
       <span className="flex flex-wrap gap-2">
         <Button size="sm" className="font-medium" onClick={props.onShow}>
           Show in folder
@@ -969,6 +968,21 @@ function Unshown(props: {
       )}
     </section>
   );
+}
+
+/** Mado's RAW reader on its way, for a camera RAW waiting for it: once it's here, the RAW is read
+ * there and then, and its page shows it. */
+function ReaderWait({ picture }: { picture: PictureDetails }) {
+  const reader = useRawReader();
+  const { mutate: read } = useReadAgain();
+  const asked = useRef(false);
+  useEffect(() => {
+    if (reader?.state === "ready" && !asked.current) {
+      asked.current = true;
+      read({ path: `/pictures/${picture.id}/read` });
+    }
+  }, [reader?.state, picture.id, read]);
+  return <RawReaderNote tool={reader} className="w-full max-w-150" />;
 }
 
 /** Where an edit's model runs: erasing and cutting out the subject as this PC has them; a part

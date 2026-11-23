@@ -176,6 +176,38 @@ def test_what_mado_made_is_never_a_duplicate_of_its_original_or_of_a_copy_of_it(
     assert found[0].keep == 1
 
 
+def test_a_cameras_raw_and_its_jpeg_of_the_same_moment_are_never_grouped():
+    # Both kept as the camera wrote them: the RAW to develop, the JPEG ready to share.
+    found = groups(
+        [
+            shot(1, 0, format="CR3", size=25_000_000, raw=True, sharpness=50.0),
+            shot(2, 0, format="JPEG", hash=0x1234_5678_9ABC_DEF0, sharpness=50.0),
+            known(3, "Beach.dng", raw=True, digest="abc"),
+            known(4, "Beach.jpg", digest="abc"),  # the same bytes: still never set aside for it
+        ]
+    )
+
+    assert found == []
+
+
+def test_raws_group_among_themselves_copies_and_bursts_alike():
+    found = groups(
+        [
+            known(1, "_MG_0042.CR3", format="CR3", raw=True, digest="abc"),
+            known(2, "_MG_0042 (2).CR3", format="CR3", raw=True, digest="abc"),
+            shot(3, 0, format="NEF", raw=True, sharpness=30.0),
+            shot(
+                4, 1, format="NEF", raw=True, hash=flipped(0x1234_5678_9ABC_DEF0, 9), sharpness=80.0
+            ),
+        ]
+    )
+
+    assert [(group.kind, set(group.members), group.keep) for group in found] == [
+        ("duplicates", {1, 2}, 1),
+        ("burst", {3, 4}, 4),
+    ]
+
+
 def test_the_larger_file_of_one_format_wins_then_a_plain_name_then_the_older_file():
     def keep(*members: Known) -> int:
         return suggested(members, "duplicates").id

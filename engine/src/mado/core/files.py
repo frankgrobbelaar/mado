@@ -1,6 +1,6 @@
-"""What a file is by its name: a picture Mado reads, a HEIF (a phone's HEIC, read with ffmpeg's
-help), a camera RAW it lists but can't read yet, or something else; and the folders a scan never
-looks into."""
+"""What a file is by its name: a picture Pillow reads, a HEIF (a phone's HEIC, read with ffmpeg's
+help), a camera RAW (read by LibRaw, which Mado downloads the first time it reads one), or
+something else; and the folders a scan never looks into."""
 
 from pathlib import PureWindowsPath
 from typing import Literal
@@ -15,7 +15,7 @@ PICTURES = frozenset(
     }
 )  # fmt: skip
 HEIF = frozenset({".heic", ".heif", ".hif"})
-# Cameras' own formats: listed now, readable once Mado has a RAW reader.
+# Cameras' own formats, read by LibRaw (mado/libraw.py).
 RAW = frozenset(
     {
         ".3fr", ".arw", ".cr2", ".cr3", ".crw", ".dng", ".erf", ".iiq", ".kdc", ".mos", ".mrw",

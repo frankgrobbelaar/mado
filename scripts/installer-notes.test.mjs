@@ -23,6 +23,7 @@ describe("the installer's page before installing", () => {
       assert.ok(page.replaceAll(/\s+/g, " ").includes(item.purpose), item.purpose);
     }
     assert.match(page, /2\. ffmpeg 9\.0\.2, 77 MB\r\n/);
+    assert.match(page, /3\. LibRaw 0\.22\.3, 3\.5 MB\r\n/); // a small one to a tenth
     assert.match(page, /SHA-256: [0-9a-f]{64}/);
   });
 

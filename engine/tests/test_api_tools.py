@@ -76,6 +76,7 @@ def test_the_engine_offers_what_it_fetches_itself_and_not_the_installers(paths: 
 
     assert [(tool["id"], tool["when"]) for tool in listed] == [
         ("ffmpeg", "setup"),
+        ("libraw", "asked"),  # the first time a camera RAW is read
         ("realesrgan-x4plus", "asked"),
         ("lama", "asked"),
         ("sam2.1-hiera-tiny", "asked"),

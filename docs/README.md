@@ -43,6 +43,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Looks | Pillow's Color3DLUT, Mado's own code | Looks as tables of colours (Mado's, `.cube` files, mixes kept), finishing touches drawn by code | [looks.md](stack/looks.md) |
 | watchdog | 7.1 | Noticing new, changed and removed pictures in the library's folders | [watchdog.md](stack/watchdog.md) |
 | ffmpeg | 9.0.2 (downloaded on first run) | Decoding a phone's HEIC; more formats for Mado's tools to come | [ffmpeg.md](stack/ffmpeg.md) |
+| LibRaw | 0.22.3 (downloaded the first time a camera RAW is read) | Reading camera RAW: its facts, its camera's preview, the picture developed into Display P3 | [libraw.md](stack/libraw.md) |
 | ONNX Runtime (DirectML) | 1.24.4 | Running the AI models on the graphics card, or the processor | [upscaling.md](stack/upscaling.md) |
 | NumPy | 2.5 | The pictures' pixels as the models take them | [upscaling.md](stack/upscaling.md) |
 | Real-ESRGAN models | general x4v3 and its twin, x4plus anime 6B (shipped); x4plus (downloaded) | Making pictures bigger, Fast and Best | [upscaling.md](stack/upscaling.md) |

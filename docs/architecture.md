@@ -2,8 +2,8 @@
 
 Mado is three programs that work as one: a thin **shell** that owns the window, a **UI** inside it,
 and an **engine** that does the real work. Everything runs on this PC; the only network traffic is
-fetching what the installer lists (ffmpeg, and the bigger AI models when first asked for) and
-checking for updates.
+fetching what the installer lists (ffmpeg; LibRaw the first time a camera RAW is read; the bigger
+AI models when first asked for) and checking for updates.
 
 ```mermaid
 flowchart LR
@@ -66,7 +66,7 @@ the folders changes: the library only looks.
 ```mermaid
 flowchart LR
     folders[["Library folders"]] -- "walk (finding)" --> records[("pictures table")]
-    records -- "read each new or changed one (reading)" --> pillow["Pillow, or ffmpeg for HEIC"]
+    records -- "read each new or changed one (reading)" --> pillow["Pillow; ffmpeg for HEIC; LibRaw for camera RAW"]
     pillow -- "facts" --> records
     pillow -- "thumbnails" --> cache[("data folder's cache")]
     watcher["watchdog"] -. "a picture came, changed or went" .-> scan["the next scan"]
@@ -76,6 +76,7 @@ flowchart LR
 | --- | --- | --- |
 | Folders | `mado/library.py` | Adding a folder (one inside a library folder is refused; one holding library folders takes them in), taking one out, and walking one to record every picture with its size, time and place |
 | Reading | `mado/pictures.py` | A picture's facts (format, size as shown, when it was taken, camera, orientation, a location) from its header and EXIF, and its pixels, turned upright (see [stack/pillow.md](stack/pillow.md)) |
+| Camera RAW | `mado/libraw.py`, `mado/core/raw.py`, `mado/core/icc.py` | LibRaw's DLL through ctypes, downloaded the first time a RAW is read: a RAW's facts without developing it, the preview its camera kept for a small copy, anything bigger developed with the camera's white balance into Display P3, cropped and turned as the RAW says; till the reader is there, a RAW is listed as it is and read once it comes (see [stack/libraw.md](stack/libraw.md)) |
 | The scan | `mado/scan.py` | One at a time, on its own thread: finding (walking every folder: new, changed and gone pictures), then reading what's new or changed, newest file first, making each thumbnail on the way. Everything is saved as it goes, so a scan Mado's closing stops loses nothing |
 | The watcher | `mado/watch.py` | A scan as Mado starts, and one a few seconds after a picture comes, changes or goes (see [stack/watchdog.md](stack/watchdog.md)) |
 | Copies | `mado/previews.py` | A thumbnail (512 px), a view the size of a screen (2560 px) and a full-size copy for a format the window can't show, made once and kept in the cache |
@@ -292,22 +293,22 @@ Change a contract on both sides in the same commit.
 | --- | --- |
 | `GET /health` | Is the engine up, its version, the data folder, the schema version (0 while the records are damaged) |
 | `GET /settings`, `PUT /settings` | The owner's choices: whether Setup is done, Saving, and whether a watch folder's big batch waits for the night |
-| `GET /tools`, `POST /tools/{id}/download` | What Mado downloads (ffmpeg), its state, and fetching it |
+| `GET /tools`, `POST /tools/{id}/download` | What Mado downloads (ffmpeg, LibRaw, the AI models fetched when asked), each one's state, and fetching it |
 | `GET /backups`, `POST /backups`, `POST /backups/import`, `POST /backups/{name}/restore` | The backups, one made by hand, importing an export, restoring one as the engine starts again |
 | `GET /data`, `POST /export` | What the data folder holds, by part (pictures pasted and Mado's wallpapers too), and the export zip |
 | `GET /folders`, `POST /folders`, `DELETE /folders/{id}` | The library's folders, each with its counts and the folders inside it as a tree; adding one (which a scan then reads, and the watcher watches); taking one out (its pictures stay where they are) |
-| `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW, what won't open (and how many of those are marked as damaged), each folder's share, the favourites |
+| `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW (and how many wait for Mado's RAW reader), what won't open (and how many of those are marked as damaged), each folder's share, the favourites |
 | `GET /library/wont-open`, `POST /pictures/{id}/damaged` | The pictures that won't open, each with why, those marked as damaged left out; marking one as damaged |
 | `GET /space` | The drives the library is on, the one with the most of it first: free, the pictures, quarantine, what the queue wants there |
 | `GET /duplicates` | The groups of duplicates and bursts, a page at a time (`kind`, `offset`, `limit`; `reach`, a group the page must hold), each with its pictures, the ones kept, and whether it can be set aside now; how far looking has got; what setting every group aside would set aside and free; the latest review, when it was put back whole |
 | `PUT /duplicates/{key}/keep`, `POST /duplicates/{key}/not-same`, `POST /duplicates/aside` | Which of a group to keep, of its pictures as shown; a group not the same; setting aside the rest of groups as the review showed them (each one's pictures and kept ones), or of every group of a kind as long as none changed since (`version`, else 409), and what was left as it was and why |
 | `GET /scan` | How the latest scan went, or is going: its stage, what it found and read, time left, folders not connected, what came and went |
-| `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`; `favourites`, only the favourites, from outside the library too), with each day on it counted whole, a group's kept picture tagged ("burst of 5", "2 copies"), and each picture's heart |
+| `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`; `favourites`, only the favourites, from outside the library too), with each day on it counted whole, a group's kept picture tagged ("burst of 5", "2 copies"), each picture's heart, and whether it's a camera RAW (`waiting` while Mado's RAW reader comes) |
 | `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full (from outside the library too: where it lives, pasted, in a quarantine; looked at as its file is now, 404 with why once it went; asking counts as opening it); the pictures either side of it in the list it was opened from, none for one from outside |
 | `POST /open` | Paths dropped, picked, pasted or handed over by Windows: one picture as Mado knows it, with what else came and was left out; several, or a folder, as Many at once takes them; 404 or 422, with why, when none of it is a picture |
 | `POST /pasted` | A picture from the clipboard (PNG), kept in the data folder and said as a picture outside the library; the same picture again is the one kept; 413 past 2^26 pixels (about 67 megapixels) |
-| `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version) |
-| `POST /pictures/{id}/read` | Reads one picture again now (one that wouldn't open may have been mended) |
+| `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version); a camera RAW's thumbnail from its camera's preview, its view and full size developed, and one that won't develop marked as one that won't open |
+| `POST /pictures/{id}/read` | Reads one picture again now (one that wouldn't open may have been mended; a camera RAW waiting for its reader, once it's here) |
 | `PUT /pictures/{id}/favourite` | Gives a picture a heart, or takes it back |
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
 | `POST /pictures/{id}/select` | Parts picked with clicks on the picture as its edits so far left it: a click starts a part, an Alt-click takes from the part it's in; each part's name ("Part 1"), its answer and the outline round them all; how long reading the picture took and how long it waited for the card (409 while SAM isn't downloaded, or the picture changed) |
@@ -323,7 +324,7 @@ Change a contract on both sides in the same commit.
 | `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are; not while a recipe uses it, or pictures waiting in the queue are made with it) |
 | `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | Pictures' own Saves (a picture's, or those under way; the queue's are `/queue`'s): stage, progress, time left, what they saved, why they didn't work; Cancel |
 | `GET /jobs/held`, `POST /jobs/{id}/try-now`, `POST /jobs/{id}/skip` | The pictures waiting while they're open in another app, the queue's and Saves'; trying one again now; skipping one |
-| `POST /batches/pictures` | The pictures a batch would be made of: ticked (`ids`), a folder's (`folder`, `dir`), what a search found (`q`), the favourites (with `q`, those it found among them), or the pictures in files and folders dropped or picked (`paths`), with those left out and why |
+| `POST /batches/pictures` | The pictures a batch would be made of: ticked (`ids`), a folder's (`folder`, `dir`), what a search found (`q`), the favourites (with `q`, those it found among them), or the pictures in files and folders dropped or picked (`paths`), with those left out and why (`waiting`: a camera RAW left out only while Mado's RAW reader comes); a batch with camera RAW saves new pictures only (409 for Replace) |
 | `POST /batches/takes` | What a batch would take: about how long, how much space and what's free where it's saved, by this PC's speeds and what See it first found; its steps in words, where its pictures go, a name they'd take, and the downloads it waits for |
 | `POST /batches/samples`, `GET /batches/samples/{id}`, `DELETE /batches/samples/{id}`, `GET /batches/samples/{id}/{index}/{side}` | See it first: three pictures made in full, not saved (`round` asks for three others); how they're coming on; letting them go; each one before and after (WebP) or as made |
 | `POST /batches`, `GET /batches/done`, `POST /batches/{id}/seen` | Putting a batch in the queue (now, after what's in it, or tonight), See it first's pictures kept; the batches done that Home tells of; Home's card for one seen |
@@ -346,10 +347,10 @@ Change a contract on both sides in the same commit.
 ## Data
 
 - **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `logs/`
-  (`engine.log`, kept 30 days), `tools/` (ffmpeg, and the AI models fetched when asked), `pasted/`
-  (pictures pasted from the clipboard, till a month after last opened), `wallpapers/` (the
-  wallpapers Mado made, those showing and the last 3 days', and its copy of the owner's own),
-  `cache/` (the pictures'
+  (`engine.log`, kept 30 days), `tools/` (ffmpeg, LibRaw once a camera RAW is read, and the AI
+  models fetched when asked, each with its licence files), `pasted/` (pictures pasted from the
+  clipboard, till a month after last opened), `wallpapers/` (the wallpapers Mado made, those
+  showing and the last 3 days', and its copy of the owner's own), `cache/` (the pictures'
   thumbnails and views, the last few full-size copies, and each edit's mask in `cache/edits`, by
   picture and version, let go after a month unedited: anything in it can go, a mask made again from
   its clicks), and `backups/` (the last 7 nights, each checked as it's made, and apart from them the

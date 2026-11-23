@@ -45,7 +45,7 @@ tables, give every table a primary key, and add the new data to the export.
 | --- | --- | --- |
 | `settings` | 1 | The owner's choices (so far whether Setup is done), and what the engine notes for itself (how the last restore went), one JSON value per key |
 | `folders` | 2 | The library's folders: each one's path (unique, in any case), when it was added, and when a scan last looked all through it |
-| `pictures` | 2 | Every picture found in them: its path, the folders between its library folder and it (`dir`, as "2026/Trip"), its name, size and file time; when it was found, last seen and found gone; and what reading it found: format, size as shown, when it was taken (local time, and whether by the camera's clock or the file's), camera, orientation, whether it carries a location, or why it won't open. Camera RAW is kept as `raw`, read as it's found |
+| `pictures` | 2 | Every picture found in them: its path, the folders between its library folder and it (`dir`, as "2026/Trip"), its name, size and file time; when it was found, last seen and found gone; and what reading it found: format, size as shown, when it was taken (local time, and whether by the camera's clock or the file's), camera, orientation, whether it carries a location, or why it won't open. Camera RAW is kept as `raw`, read by Mado's RAW reader; while that reader comes, a RAW is listed as it is (`read_at` set, no size: `library.WAITING`) and read once it's there |
 | `scans` | 2 | Each scan: when it started and finished, how it went (`running`, `done`, `failed`), its stage (`finding`, `reading`, `done`), why it stopped, and the pictures it found new and gone |
 | `jobs` | 3 | Each picture made: its picture and file, its recipe and how it's saved (JSON), how it stands (`queued`, `running`, `done`, `failed`, `cancelled`), its stage and progress, how many times it started, when, the picture it saved (or the `.mado-partial` it's writing, so a job cut short can clear it away) and why it didn't work. The queue of many pictures builds on it |
 | `history` | 3 | What Mado did, for History: a picture made (`made`) or an original replaced (`replaced`), with the original's name and place, what it was made for and where it went; what waits in quarantine for it now (`aside`, and since when: the clear-out counts 30 days from it), when that was cleared out and by what (`cleared_by`: the clear-out's `days`, or the `owner` emptying it), and when it was undone; and a drive's quarantine emptied by hand (`emptied`, with how much went). A job's line is written before its pictures move, so a job cut short while saving is finished or taken back from it. Since 4, the look it was made with (`look`: "Warm film at 60%"), `made_for` being none for a look alone |
@@ -81,10 +81,9 @@ settings the window changes.
   History keeps every line whose picture still waits there.
 
 ### How the library uses them
-
-- A picture is in the grid once it's read (`read_at`), camera RAW and pictures that won't open
-  included; one still to read waits. Pictures found gone (`gone_at`) stay in the records, so one
-  on a drive that comes back is the same picture again.
+- A picture is in the grid once it's read (`read_at`), a camera RAW waiting for its reader and
+  pictures that won't open included; one still to read waits. Pictures found gone (`gone_at`)
+  stay in the records, so one on a drive that comes back is the same picture again.
 - The grid pages by `(taken_at, id)` (`pictures_by_taken`, and `pictures_by_folder` for a folder),
   so its pages stay put however many pictures there are.
 - A folder's pictures and those of the folders inside it are those whose `dir` is its own, or

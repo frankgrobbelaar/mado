@@ -29,7 +29,8 @@ from mado.core.batch import StepError
 from mado.core.files import kind_of, skipped_folder
 from mado.core.naming import QUARANTINE
 from mado.jobs import Jobs
-from mado.pictures import PictureGoneError, UnreadableError, read_facts
+from mado.libraw import Reader
+from mado.pictures import NeedsReaderError, PictureGoneError, UnreadableError, read_facts
 from mado.previews import version
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,11 @@ QUIET = 5.0  # seconds a picture's size and time stay the same before it's taken
 LOOK = 5.0  # seconds between looks round the watch folders
 GIVE_UP = 120.0  # seconds a picture that won't open waits before it's left alone
 REST = 300.0  # seconds a watch folder whose pictures couldn't go in waits to try again
+# What a watch folder says while camera RAWs put in it wait for Mado's RAW reader.
+READER_COMING = (
+    "Camera RAWs here wait for Mado's RAW reader, which is on its way: they're taken once it's "
+    "here."
+)
 MOST = 5_000  # files looked at in one watch folder at a look
 BIG = 20  # a watch folder's batch bigger than this waits for the night, if Settings says so
 
@@ -141,12 +147,15 @@ class WatchFolders:
         *,
         now: Callable[[], datetime],
         clock: Callable[[], float] = time.monotonic,
+        reader: Reader | None = None,
     ) -> None:
-        """`take` puts a watch folder's new pictures in the queue (mado/api/__init__.py)."""
+        """`take` puts a watch folder's new pictures in the queue (mado/api/__init__.py);
+        `reader` reads a camera RAW put in one."""
         self._paths = paths
         self._take = take
         self._now = now
         self._clock = clock
+        self._reader = reader
         self._seen: dict[tuple[int, str], tuple[int, int, float]] = {}  # size, time, since
         self._resting: dict[int, float] = {}  # a watch folder's: when it tries again
         self._stopping = threading.Event()
@@ -187,6 +196,7 @@ class WatchFolders:
             )
         }
         ready: list[Picture] = []
+        waiting = 0  # camera RAWs waiting for Mado's RAW reader
         now = self._clock()
         for path in pictures_in(watch.path, watch.results):
             try:
@@ -206,14 +216,21 @@ class WatchFolders:
                 continue
             if now - seen[2] < QUIET:
                 continue
-            picture = _readable(path, mark)
+            try:
+                picture = _readable(path, mark, self._reader)
+            except NeedsReaderError:  # it opens once the reader is here: never given up on
+                waiting += 1
+                continue
             if picture is None:
                 if now - seen[2] >= GIVE_UP:  # it won't open: left alone, as it is
                     log.warning("A watch folder left %s alone: it won't open", path)
                     _note(conn, watch.id, path, mark, taken=False, now=self._now())
                 continue
             ready.append(picture)
+        said = READER_COMING if waiting else None
         if not ready:
+            if said != watch.problem and (said is not None or watch.problem == READER_COMING):
+                _problem(conn, watch.id, said)  # and once none wait, it stops saying so
             return 0
         try:
             self._take(conn, watch, ready)
@@ -228,8 +245,8 @@ class WatchFolders:
             self._resting[watch.id] = self._clock() + REST
             return 0
         self._resting.pop(watch.id, None)
-        if watch.problem is not None:
-            _problem(conn, watch.id, None)
+        if watch.problem != said:
+            _problem(conn, watch.id, said)
         for picture in ready:
             _note(conn, watch.id, picture.path, _mark_of(picture), taken=True, now=self._now())
             self._seen.pop((watch.id, str(picture.path).casefold()), None)
@@ -246,9 +263,9 @@ class WatchFolders:
 
 
 def pictures_in(folder: Path, results: Path) -> list[Path]:
-    """The pictures in a watch folder and the folders in it: its results folder (however it's
-    named), a quarantine, Windows' own folders, links to other folders and camera RAW left
-    out."""
+    """The pictures in a watch folder and the folders in it, camera RAW among them: its results
+    folder (however it's named), a quarantine, Windows' own folders and links to other folders
+    left out."""
     skip = _real(results)
     found: list[Path] = []
     looked = 0
@@ -265,8 +282,7 @@ def pictures_in(folder: Path, results: Path) -> list[Path]:
             looked += 1
             if looked > MOST:
                 return found
-            kind = kind_of(name)
-            if kind is not None and kind != "raw":
+            if kind_of(name) is not None:
                 found.append(Path(here) / name)
     return found
 
@@ -447,15 +463,16 @@ def _linked(path: Path) -> bool:
     return path.is_symlink() or path.is_junction()
 
 
-def _readable(path: Path, mark: tuple[int, int]) -> Picture | None:
-    """A picture done copying, as a batch takes it; None while it won't open yet."""
+def _readable(path: Path, mark: tuple[int, int], reader: Reader | None) -> Picture | None:
+    """A picture done copying, as a batch takes it; None while it won't open yet. Raises
+    NeedsReaderError for a camera RAW while Mado's RAW reader is on its way."""
     kind = kind_of(path.name)
     if kind is None:
         return None
     try:
         with path.open("rb") as file:  # a copy still being written is often locked
             file.read(1)
-        facts = read_facts(path, kind)
+        facts = read_facts(path, kind, reader)
     except OSError, UnreadableError, PictureGoneError:
         return None
     return Picture(

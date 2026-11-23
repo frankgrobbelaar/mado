@@ -12,13 +12,14 @@ from fastapi import APIRouter, HTTPException, Response, status
 from mado import favourites
 from mado.api.common import ApiModel, Copies, Database, Finding, Scans, Watching
 from mado.jobs import drive_of, needed_on
-from mado.library import FolderError, add_folder, folders, remove_folder
+from mado.library import WAITING, FolderError, add_folder, folders, remove_folder
 from mado.previews import version
 from mado.quarantine import by_drive
 
 router = APIRouter()
 
-# In the grid: read, RAW, or won't open; the library's, never a picture opened from outside it.
+# In the grid: read, a camera RAW waiting for its reader, or won't open; the library's, never a
+# picture opened from outside it.
 _LISTED = "gone_at IS NULL AND read_at IS NOT NULL AND folder_id IS NOT NULL"
 
 
@@ -62,11 +63,12 @@ class Library(ApiModel):
     pictures: int  # listed in the grid
     size: int  # bytes, every picture found
     reading: int  # found and still to read
-    raw: int
+    raw: int  # camera RAW
     broken: int  # won't open
     damaged: int  # of those, marked as damaged by the owner: not asked about again
     parts: list[LibraryPart]  # each library folder's pictures, in the order they were added
     favourites: int = 0  # pictures given a heart and there now, from outside the library too
+    raw_waiting: int = 0  # camera RAWs listed while they wait for Mado's RAW reader
 
 
 class Unopened(ApiModel):
@@ -174,6 +176,7 @@ def library(conn: Database) -> Library:
                    COALESCE(SUM(size), 0) AS size,
                    COUNT(*) FILTER (WHERE read_at IS NULL) AS reading,
                    COUNT(*) FILTER (WHERE {_LISTED} AND raw = 1) AS raw,
+                   COUNT(*) FILTER (WHERE {_LISTED} AND {WAITING}) AS raw_waiting,
                    COUNT(*) FILTER (WHERE {_LISTED} AND problem IS NOT NULL) AS broken,
                    COUNT(*) FILTER (WHERE {_LISTED} AND problem IS NOT NULL AND damaged = 1)
                        AS damaged
@@ -193,6 +196,7 @@ def library(conn: Database) -> Library:
         size=totals["size"],
         reading=totals["reading"],
         raw=totals["raw"],
+        raw_waiting=totals["raw_waiting"],
         broken=totals["broken"],
         damaged=totals["damaged"],
         favourites=favourites.count(conn),

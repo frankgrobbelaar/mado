@@ -1,9 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EngineProvider } from "@/lib/engine";
-import { fakeEngine, PICKED, READY, RECIPE, SAMPLES, SETTINGS, SIZES, takes } from "@/test/engine";
+import {
+  batchPicture,
+  fakeEngine,
+  PICKED,
+  READY,
+  RECIPE,
+  rawReader,
+  SAMPLES,
+  SETTINGS,
+  SIZES,
+  takes,
+} from "@/test/engine";
 import { BatchPage } from "./batch-page";
 import type { BatchStart } from "./open";
 
@@ -208,13 +219,98 @@ describe("BatchPage", () => {
       pick: { how: "ticked", ids: [1, 2, 3, 4] },
       picked: {
         ...PICKED,
-        leftOut: [{ name: "Green sky.CR3", why: "Mado can't read camera RAW yet." }],
+        leftOut: [{ name: "Old pier.tif", why: "It won't open.", waiting: false }],
       },
     });
 
     expect(await screen.findByRole("note")).toHaveTextContent(
-      "Left out, as they are: Green sky.CR3 (Mado can't read camera RAW yet).",
+      "Left out, as they are: Old pier.tif (It won't open).",
     );
+    expect(screen.queryByRole("region", { name: "Mado's RAW reader" })).not.toBeInTheDocument();
+  });
+
+  it("leaves camera RAW out while Mado's RAW reader comes, showing it come, then asks again", async () => {
+    const waiting =
+      "It's a camera RAW, and Mado is getting its RAW reader: it joins once that's here.";
+    let reader = rawReader("downloading", 1_611_429);
+    let leftOut = [{ name: "Green sky.CR3", why: waiting, waiting: true }];
+    const fetch = fakeEngine({
+      ...ENGINE,
+      "/tools": () => [reader],
+      "POST /batches/pictures": () => ({ ...PICKED, leftOut }),
+    });
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3, 4] } });
+
+    const note = await screen.findByRole("region", { name: "Mado's RAW reader" });
+    expect(within(note).getByText("Downloading · 46%")).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Green sky.CR3 (It's a camera RAW");
+
+    reader = rawReader("ready");
+    leftOut = [];
+    await waitFor(
+      () =>
+        expect(
+          fetch.mock.calls.filter(([url]) => String(url).endsWith("/batches/pictures")),
+        ).toHaveLength(2),
+      { timeout: 3000 },
+    );
+    await waitFor(() => expect(screen.queryByRole("note")).not.toBeInTheDocument());
+  });
+
+  it("asks again for camera RAW Mado is still reading once its reader is here", async () => {
+    let leftOut = [
+      {
+        name: "Green sky.CR3",
+        why: "It's a camera RAW Mado is reading now: it joins once it's read.",
+        waiting: true,
+      },
+    ];
+    const fetch = fakeEngine({
+      ...ENGINE,
+      "/tools": [rawReader("ready")],
+      "POST /batches/pictures": () => ({ ...PICKED, leftOut }),
+    });
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3, 9] } });
+    const askedFor = () =>
+      fetch.mock.calls.filter(([url]) => String(url).endsWith("/batches/pictures")).length;
+
+    expect(await screen.findByRole("note")).toHaveTextContent("Mado is reading now");
+    expect(screen.queryByRole("region", { name: "Mado's RAW reader" })).not.toBeInTheDocument();
+    leftOut = []; // the scan read it
+    await waitFor(() => expect(askedFor()).toBeGreaterThan(1), { timeout: 5000 });
+    await waitFor(() => expect(screen.queryByRole("note")).not.toBeInTheDocument());
+    const settled = askedFor();
+    await act(async () => {
+      await new Promise((done) => setTimeout(done, 3500));
+    });
+    expect(askedFor()).toBe(settled); // none wait: it stops asking
+  });
+
+  it("saves a batch with camera RAW as new pictures, saying why Replace isn't offered", async () => {
+    fakeEngine({ ...ENGINE, "/settings": { ...SETTINGS, saveFirst: "replace" } });
+    renderBatch({
+      pick: { how: "ticked", ids: [1, 2, 3] },
+      picked: { ...PICKED, pictures: [...PICKED.pictures, batchPicture(9, "Green sky.CR3")] },
+    });
+
+    const saving = await screen.findByRole("region", { name: "Saving" });
+    expect(within(saving).queryByText("Replace the originals")).toBeNull();
+    expect(within(saving).getByText(/Replacing the originals isn't offered/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change save" }));
+    const card = await screen.findByRole("dialog", { name: "How they're saved" });
+    expect(within(card).queryByText("Replace the originals")).toBeNull();
+    expect(within(card).getByText(/Replacing the originals isn't offered/)).toBeInTheDocument();
+    expect(within(card).getByText("Where they go")).toBeInTheDocument();
+  });
+
+  it("says only that the originals stay, till it knows where new pictures go", async () => {
+    fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+
+    const saving = await screen.findByRole("region", { name: "Saving" });
+    expect(within(saving).getByText("The originals stay as they are.")).toBeInTheDocument();
+    expect(saving).not.toHaveTextContent("Into .");
   });
 
   it("asks for the pictures first when it has none", async () => {

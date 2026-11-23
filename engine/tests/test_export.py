@@ -18,7 +18,7 @@ from mado.core.grids import blended
 from mado.core.looks import mado_look
 from mado.core.touches import Touches
 from mado.export import export_data
-from mado.library import add_folder, find_pictures, folders, save_facts
+from mado.library import add_folder, find_pictures, folders, save_facts, save_waiting
 from mado.migrations import MIGRATIONS
 from mado.pictures import read_facts
 from tests.drawn import draw, exif
@@ -81,6 +81,8 @@ def test_the_library_is_in_the_export_readable_without_mado(paths: DataPaths, tm
         find_pictures(conn, folder, stamp=NOW.isoformat())
         [jpeg] = [row["id"] for row in conn.execute("SELECT id FROM pictures WHERE raw = 0")]
         save_facts(conn, jpeg, read_facts(phone / "2026" / "IMG_2041.jpg", "picture"), now=NOW)
+        [raw] = [row["id"] for row in conn.execute("SELECT id FROM pictures WHERE raw = 1")]
+        save_waiting(conn, raw, now=NOW)  # Mado's RAW reader is on its way
 
     archive = export_data(paths, tmp_path / "exports", now=NOW)
 
@@ -94,7 +96,7 @@ def test_the_library_is_in_the_export_readable_without_mado(paths: DataPaths, tm
         (str(phone / "2026" / "IMG_2041.jpg"), "JPEG", "2026-11-12T18:42:07", "yes"),
         (str(phone / "_MG_0042.CR3"), "CR3", rows[1]["takenAt"], "no"),
     ]
-    assert rows[1]["state"] == "camera RAW, not read yet"
+    assert rows[1]["state"] == "camera RAW, waiting for Mado's RAW reader"
 
 
 def test_the_exported_database_opens_on_its_own(paths: DataPaths, tmp_path: Path):

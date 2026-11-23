@@ -301,11 +301,11 @@ def _history(conn: sqlite3.Connection) -> str:
 
 
 def _state(row: sqlite3.Row) -> str:
-    if row["raw"]:
-        return "camera RAW, not read yet"
     if row["problem"]:
         damaged = "damaged" in row.keys() and row["damaged"]  # noqa: SIM118 - a Row's
         return f"won't open{', marked as damaged' if damaged else ''}: {row['problem']}"
+    if row["raw"] and row["read_at"] and row["width"] is None:
+        return "camera RAW, waiting for Mado's RAW reader"
     return "read" if row["read_at"] else "still to read"
 
 

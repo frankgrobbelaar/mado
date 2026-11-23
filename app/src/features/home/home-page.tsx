@@ -151,7 +151,9 @@ function DropHere() {
           Or paste one, or pick them from your PC. Make them right for a phone, a TV or a print,
           give them a look, or cut something out. They don't need to be in your library.
         </p>
-        <p className="mt-1 font-mono text-12 text-fg-faint">JPEG PNG HEIC WebP AVIF TIFF BMP GIF</p>
+        <p className="mt-1 font-mono text-12 text-fg-faint">
+          JPEG PNG HEIC RAW WebP AVIF TIFF BMP GIF
+        </p>
         {opening.problem && (
           <p role="alert" className="text-13 text-broken-fg">
             {opening.problem}
@@ -399,7 +401,10 @@ function YourLibrary({ library }: { library: Library }) {
           <Row key={part.folderId} label={part.name} value={count(part.pictures)} />
         ))}
         {library.reading > 0 && <Row label="Still to read" value={count(library.reading)} />}
-        {library.raw > 0 && <Row label="Camera RAW, not readable yet" value={count(library.raw)} />}
+        {library.raw > 0 && <Row label="Camera RAW" value={count(library.raw)} />}
+        {library.rawWaiting > 0 && (
+          <Row label="Waiting for the RAW reader" value={count(library.rawWaiting)} />
+        )}
         {library.broken > 0 && <Row label="Won't open" value={count(library.broken)} />}
       </dl>
     </section>

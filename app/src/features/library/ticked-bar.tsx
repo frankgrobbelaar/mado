@@ -20,7 +20,8 @@ export function TickedBar({
 }: {
   ticked: PictureItem[];
   onClear: () => void;
-  /** Many at once with them: only those that can be made (not camera RAW, not broken). */
+  /** Many at once with them: only those that can be made (not broken, nor a RAW still waiting
+   * for its reader). */
   onBatch: () => void;
 }) {
   const [note, setNote] = useState<{ text: string; problem: boolean } | null>(null);

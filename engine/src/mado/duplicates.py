@@ -41,6 +41,7 @@ from mado.jobs import drive_of, drive_there
 from mado.pictures import (
     Command,
     NeedsFfmpegError,
+    NeedsReaderError,
     PictureGoneError,
     UnreadableError,
     decode,
@@ -55,9 +56,10 @@ _REST = 300.0  # seconds the thread rests with nothing to look at; a scan ending
 _CHUNK = 64  # pictures looked at between saves
 _GROUP_EVERY = 20.0  # seconds between groupings while a long look goes on
 _READ = 1 << 20  # bytes read at a time for a digest
-# What the review looks at: read, opens, not camera RAW, there.
+# What the review looks at: read (a camera RAW by its reader), opens, there.
 _LISTED = (
-    "p.gone_at IS NULL AND p.read_at IS NOT NULL AND p.problem IS NULL AND p.raw = 0"
+    "p.gone_at IS NULL AND p.read_at IS NOT NULL AND p.problem IS NULL"
+    " AND NOT (p.raw = 1 AND p.width IS NULL)"  # a camera RAW waiting for its reader
     " AND p.folder_id IS NOT NULL"  # the library's, never a picture opened from outside it
 )
 
@@ -252,7 +254,7 @@ class Finder:
                 grey = opened.convert("L")
         except PictureGoneError:
             return None
-        except (UnreadableError, NeedsFfmpegError, OSError, ValueError) as error:
+        except (UnreadableError, NeedsFfmpegError, NeedsReaderError, OSError, ValueError) as error:
             log.info("Mado couldn't look at %s: %s", row["path"], error)
             return (0, b"")
         small = np.asarray(grey.resize((SIDE, SIDE), Image.Resampling.BOX), np.float32)
@@ -301,9 +303,19 @@ class Finder:
             return None
         try:
             image = decode(
-                path, kind_of(path.name) or "picture", longest=SHARP_SIDE, ffmpeg=self._ffmpeg()
+                path,
+                kind_of(path.name) or "picture",
+                longest=SHARP_SIDE,
+                ffmpeg=self._ffmpeg(),
+                reader=self._previews.reader,
             )
-        except (UnreadableError, PictureGoneError, NeedsFfmpegError, OSError) as error:
+        except (
+            UnreadableError,
+            PictureGoneError,
+            NeedsFfmpegError,
+            NeedsReaderError,
+            OSError,
+        ) as error:
             log.info("Mado couldn't measure how sharp %s is: %s", path, error)
             return None
         grey = image.convert("L")
@@ -400,7 +412,8 @@ def _grouped(conn: sqlite3.Connection) -> Found:
     pictures: list[Known] = []
     for row in conn.execute(
         f"""SELECT p.id, p.path, p.name, p.width, p.height, p.size, p.format, p.modified,
-                   p.taken_at, p.taken_from, p.camera, f.hash, f.fine, f.digest, f.sharpness
+                   p.taken_at, p.taken_from, p.camera, p.raw, f.hash, f.fine, f.digest,
+                   f.sharpness
             FROM pictures AS p
             JOIN prints AS f ON f.picture_id = p.id AND f.size = p.size AND f.modified = p.modified
             WHERE {_LISTED} AND f.hash IS NOT NULL"""  # noqa: S608 - a fixed fragment
@@ -426,6 +439,7 @@ def _grouped(conn: sqlite3.Connection) -> Found:
                 sharpness=row["sharpness"],
                 family=families.get(path.casefold()),
                 path=path,
+                raw=bool(row["raw"]),
             )
         )
     found = groups(pictures, not_same=_not_same(conn))

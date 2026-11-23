@@ -78,7 +78,7 @@ from mado.making import (
     split_alpha,
     write,
 )
-from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError
+from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import version
 from mado.quarantine import Quarantine
 from mado.upscale import Pixels, StoppedError, by_pixels, smaller, smoothly, through_model
@@ -528,13 +528,11 @@ class Studio:
         ).fetchone()
         if row is None:
             return None
-        if row["raw"]:
-            return "Mado can't read camera RAW yet, so it can't make a wallpaper from it."
         picture = picture_of(conn, choice.picture_id, Path(row["path"]))
         picture_version = version(row["modified"], row["size"])
         try:
             seen = self._sight.of(picture, picture_version)
-        except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
+        except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
             return str(error) or _UNREAD
         except OSError:
             return _UNREAD
@@ -687,6 +685,7 @@ class Studio:
                 UnreadableError,
                 PictureGoneError,
                 NeedsFfmpegError,
+                NeedsReaderError,
                 encode.SaveError,
             ) as error:
                 _state(conn, asked, "failed", problem=str(error))
@@ -1172,7 +1171,7 @@ class Studio:
             naming = Naming(size[0], size[1], named, made_for, None)
             saved = keep(
                 lambda target, shown=image, at=size, pic=picture: write(
-                    shown, pic, at, chosen, target, dpi=None
+                    shown, pic, at, chosen, target, dpi=None, reader=self._sight.reader
                 ),
                 picture,
                 naming,
@@ -1318,12 +1317,14 @@ class Studio:
         if folder is None:
             rows = conn.execute(
                 """SELECT p.* FROM favourites AS f JOIN pictures AS p ON p.id = f.picture_id
-                   WHERE p.read_at IS NOT NULL AND p.problem IS NULL AND p.raw = 0"""
+                   WHERE p.read_at IS NOT NULL AND p.problem IS NULL
+                     AND NOT (p.raw = 1 AND p.width IS NULL)"""
             ).fetchall()
         else:
             rows = conn.execute(
                 """SELECT * FROM pictures WHERE folder_id = ? AND gone_at IS NULL
-                   AND read_at IS NOT NULL AND problem IS NULL AND raw = 0""",
+                   AND read_at IS NOT NULL AND problem IS NULL
+                   AND NOT (raw = 1 AND width IS NULL)""",
                 (folder,),
             ).fetchall()
         shown = self.shown(conn)

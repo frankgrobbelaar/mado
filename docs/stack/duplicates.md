@@ -34,7 +34,11 @@ and time it was taken from):
    picture itself, 1024 px on its longer side (smaller ones grown to it), kept with the print.
 
 A thumbnail that can't be made (a HEIC before ffmpeg is there) leaves an empty print, tried again
-as the engine next starts and as soon as ffmpeg is there. Home and the review say how far looking
+as the engine next starts and as soon as ffmpeg is there. A camera RAW is looked at once its
+reader has read it (a RAW still waiting for LibRaw isn't looked at): its thumbnail comes from the
+preview its camera kept inside it, and a burst's sharpness from that preview at 1024 px when it's
+that big, else from the RAW developed at half size (see [libraw.md](libraw.md)). Home and the
+review say how far looking
 has got ("Looked at 3,200 of 4,812", of the pictures read so far) while the finder looks or a scan
 reads; a picture it can't look at now (its drive away) never keeps it "looking". A picture another
 app held while the scan read it is left to read, and the scan looks again a minute on.
@@ -54,11 +58,14 @@ in time. Pairs join the most alike first; a join that would put two pictures the
 aren't the same in one group, or two of one family, is left out. A group with a burst's join is
 a burst.
 
-**Never grouped**: camera RAW and pictures that won't open (not looked at), anything in a
-quarantine (any path through a `Mado quarantine` folder), pictures the owner said aren't the same
-(each pair remembered with both files' size and time: a change asks again), and a family:
-History's made and replaced lines join an original and every picture made from it (and from
-those), and no group holds two of one family.
+**Never grouped**: pictures that won't open (not looked at), anything in a quarantine (any path
+through a `Mado quarantine` folder), pictures the owner said aren't the same (each pair
+remembered with both files' size and time: a change asks again), a family (History's made and
+replaced lines join an original and every picture made from it, and from those, and no group
+holds two of one family), and a camera RAW with a picture that isn't one. RAWs group among
+themselves (copies of a RAW, bursts of RAWs, a DNG made from a camera's RAW), and a camera's RAW
+and its JPEG of the same moment, or a JPEG made from a RAW, are never taken for copies: they're
+two ways of keeping one picture, and the review never offers to set one aside for the other.
 
 ## Which to keep
 

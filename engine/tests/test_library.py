@@ -17,6 +17,7 @@ from mado.library import (
     remove_folder,
     save_facts,
     save_problem,
+    save_waiting,
     unread,
 )
 from mado.pictures import Facts
@@ -115,7 +116,7 @@ def test_a_walk_records_every_picture_with_its_size_folder_and_time(
     assert (jpeg["taken_from"], jpeg["read_at"]) == ("file", None)
     assert found_rows["beach.png"]["dir"] == "2026/Trip"
     raw = found_rows["_MG_0042.CR3"]
-    assert (raw["raw"], raw["format"], raw["read_at"]) == (1, "CR3", STAMP)  # nothing to read
+    assert (raw["raw"], raw["format"], raw["read_at"]) == (1, "CR3", None)  # read as any is
     assert folders(conn)[0].walked_at == STAMP
 
 
@@ -206,16 +207,33 @@ def test_pictures_still_to_read_come_newest_file_first(conn: sqlite3.Connection,
     phone = tmp_path / "Phone"
     draw(phone / "older.jpg", modified=datetime(2025, 6, 1, 12, 0))
     draw(phone / "newer.heic", format="PNG", modified=datetime(2026, 11, 1, 12, 0))
-    (phone / "raw.nef").write_bytes(b"raw")
+    draw(phone / "raw.nef", format="PNG", modified=datetime(2026, 11, 2, 12, 0))
     folder = add_folder(conn, phone, now=NOW)
     find_pictures(conn, folder, stamp=STAMP)
 
     waiting = unread(conn)
 
     assert [(each.path.name, each.kind) for each in waiting] == [
+        ("raw.nef", "raw"),
         ("newer.heic", "heif"),
         ("older.jpg", "picture"),
     ]
+
+
+def test_a_camera_raw_listed_while_its_reader_came_is_read_once_its_there(
+    conn: sqlite3.Connection, tmp_path: Path
+):
+    phone = tmp_path / "Phone"
+    draw(phone / "_MG_0042.CR3", format="PNG")
+    folder = add_folder(conn, phone, now=NOW)
+    find_pictures(conn, folder, stamp=STAMP)
+    [raw] = unread(conn)
+
+    save_waiting(conn, raw.id, now=NOW)
+
+    assert rows(conn)["_MG_0042.CR3"]["read_at"] is not None  # listed, as it is
+    assert unread(conn, raws=False) == []  # nothing to read while the reader is away
+    assert [each.id for each in unread(conn)] == [raw.id]  # read once it's there
 
 
 def test_what_reading_found_is_kept_and_a_camera_clock_wins_over_the_files(

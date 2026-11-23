@@ -92,12 +92,26 @@ describe("HomePage", () => {
     expect(within(panel).getByRole("img")).toHaveAccessibleName(
       "Phone 3,104, Camera 1,422, Scans 286",
     );
-    expect(within(panel).getByText("Camera RAW, not readable yet")).toBeInTheDocument();
+    expect(within(panel).getByText("Camera RAW")).toBeInTheDocument();
+    expect(within(panel).queryByText("Waiting for the RAW reader")).not.toBeInTheDocument();
     expect(within(panel).getByText("Won't open")).toBeInTheDocument();
     expect(
       screen.getByText(paragraph("4,812 pictures · 3 folders · 38.2 GB · read today 09:14, 6 new")),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Drop pictures here" })).toBeInTheDocument();
+  });
+
+  it("counts the camera RAWs waiting for Mado's RAW reader", async () => {
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": { ...LIBRARY, rawWaiting: 318 },
+      "/scan": scanDone(),
+    });
+    renderHome();
+
+    const panel = await screen.findByRole("region", { name: "Your library" });
+    const waiting = within(panel).getByText("Waiting for the RAW reader");
+    expect(waiting.nextElementSibling).toHaveTextContent("318");
   });
 
   it("says how far a scan has read while it reads", async () => {

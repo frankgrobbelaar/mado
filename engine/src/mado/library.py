@@ -187,15 +187,46 @@ def find_pictures(
     return Found(pictures, added, tuple(changed), len(gone), tuple(problems))
 
 
-def unread(conn: sqlite3.Connection) -> list[Unread]:
+def unread(conn: sqlite3.Connection, *, raws: bool = True) -> list[Unread]:
     """Pictures still to read, the newest file first: the days the owner looks at first fill in
-    first."""
+    first. With `raws`, the camera RAWs listed while they waited for Mado's RAW reader too (it's
+    there now)."""
     rows = conn.execute(
-        """SELECT id, path, name FROM pictures
-           WHERE read_at IS NULL AND gone_at IS NULL AND folder_id IS NOT NULL
-           ORDER BY modified DESC, id"""
+        f"""SELECT id, path, name FROM pictures
+            WHERE gone_at IS NULL AND folder_id IS NOT NULL
+              AND (read_at IS NULL OR ({int(raws)} AND {WAITING}))
+            ORDER BY modified DESC, id"""  # noqa: S608 - fixed fragments
     ).fetchall()
     return [Unread(row["id"], Path(row["path"]), kind_of(row["name"]) or "picture") for row in rows]
+
+
+# A camera RAW listed while it waits for Mado's RAW reader: found, nothing read of it yet.
+WAITING = "(raw = 1 AND read_at IS NOT NULL AND width IS NULL AND problem IS NULL)"
+
+
+def any_waiting(conn: sqlite3.Connection) -> bool:
+    """Whether any camera RAW in the library waits for Mado's RAW reader."""
+    found = conn.execute(
+        f"""SELECT 1 FROM pictures
+            WHERE gone_at IS NULL AND folder_id IS NOT NULL AND {WAITING} LIMIT 1"""  # noqa: S608 - fixed fragments
+    ).fetchone()
+    return found is not None
+
+
+def save_waiting(conn: sqlite3.Connection, picture_id: int, *, now: datetime) -> None:
+    """Lists a camera RAW while Mado's RAW reader is on its way: in the grid as it is, by its
+    file's time, read once the reader is there."""
+    row = conn.execute("SELECT name FROM pictures WHERE id = ?", (picture_id,)).fetchone()
+    if row is None:
+        return  # its folder left the library meanwhile
+    extension = PureWindowsPath(row["name"]).suffix[1:].upper() or None
+    with conn:
+        conn.execute(
+            """UPDATE pictures SET read_at = ?, problem = NULL, format = ?, width = NULL,
+                                   height = NULL
+               WHERE id = ?""",
+            (now.isoformat(), extension, picture_id),
+        )
 
 
 def save_facts(conn: sqlite3.Connection, picture_id: int, found: Facts, *, now: datetime) -> None:
@@ -278,10 +309,10 @@ def record(
     Returns "added", "changed" or "same", and its number. A picture found gone before and here
     again counts as found now (`found_at`): it's new to the library once more; so does one that
     was outside the library till its folder was added, keeping its number, so its jobs stay its
-    own. A camera RAW file has nothing to read yet, so it's read as it's found."""
+    own. A camera RAW is read as any picture is, by Mado's RAW reader."""
     raw = kind == "raw"
     format_ = path.suffix[1:].upper() if raw else None
-    read = stamp if raw else None
+    read = None
     taken = file_time(modified)
     before = conn.execute(
         "SELECT id, size, modified, gone_at, folder_id FROM pictures WHERE path = ?", (str(path),)

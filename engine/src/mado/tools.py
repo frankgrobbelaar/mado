@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import threading
 import zipfile
 from collections.abc import Callable
@@ -64,6 +65,8 @@ class Download:
     # what needs it.
     when: Literal["setup", "asked"] = "setup"
     files: tuple[File, ...] = ()
+    notices: tuple[str, ...] = ()  # files at the archive's top kept beside it: its licence
+    only: tuple[str, ...] = ()  # of the folder kept, only these files (all of it when empty)
 
 
 def manifest() -> tuple[Download, ...]:
@@ -75,8 +78,13 @@ def manifest() -> tuple[Download, ...]:
 
 def _entry(item: dict[str, Any]) -> Download:
     """One entry of the list, with its files when it comes as several."""
-    listed = {key: value for key, value in item.items() if key != "files"}
-    return Download(**listed, files=tuple(File(**each) for each in item.get("files", [])))
+    listed = {key: value for key, value in item.items() if key not in ("files", "notices", "only")}
+    return Download(
+        **listed,
+        files=tuple(File(**each) for each in item.get("files", [])),
+        notices=tuple(item.get("notices", [])),
+        only=tuple(item.get("only", [])),
+    )
 
 
 type State = Literal["missing", "downloading", "unpacking", "ready", "failed"]
@@ -126,27 +134,42 @@ class Tools:
     """Mado's downloaded tools: which are ready, fetching the rest, and where each program is."""
 
     def __init__(
-        self, paths: DataPaths, items: tuple[Download, ...] | None = None, fetch: Fetch = _fetch
+        self,
+        paths: DataPaths,
+        items: tuple[Download, ...] | None = None,
+        fetch: Fetch = _fetch,
+        *,
+        arrived: Callable[[str], None] = lambda _tool: None,
     ) -> None:
+        """`arrived` hears of each tool once it's downloaded and checked: what waited for it
+        carries on (camera RAWs are read)."""
         listed = manifest() if items is None else items
         self._paths = paths
         self._items = {item.id: item for item in listed if item.by == "mado"}
         self._fetch = fetch
+        self.arrived = arrived
         self._lock = threading.Lock()
         self._progress: dict[str, Progress] = {}
         self._threads: dict[str, threading.Thread] = {}
+        self._refused: set[str] = set()  # downloads that didn't match the list, last time
 
     def status(self) -> list[tuple[Download, Progress]]:
         with self._lock:
             return [(item, self._now(item)) for item in self._items.values()]
 
-    def start(self, tool: str) -> None:
-        """Starts downloading a tool unless it's ready or already on its way."""
+    def start(self, tool: str, *, by_itself: bool = False) -> None:
+        """Starts downloading a tool unless it's ready or already on its way. `by_itself`, as
+        what waits for a tool asks again on its own: not after a download that didn't match the
+        list, which only the owner's Try again fetches again (the file online isn't the one
+        listed, so fetching it over and over would only use the connection)."""
         item = self._items[tool]  # KeyError: not one of Mado's downloads
         with self._lock:
             running = self._threads.get(tool)
             if (running and running.is_alive()) or self._now(item).state == "ready":
                 return
+            if by_itself and tool in self._refused:
+                return
+            self._refused.discard(tool)
             self._progress[tool] = Progress("downloading", 0, item.size or 0)
             thread = threading.Thread(
                 target=self._download, args=(item,), name=f"download-{tool}", daemon=True
@@ -215,6 +238,11 @@ class Tools:
 
     @staticmethod
     def _override(item: Download) -> Path | None:
+        """A development copy standing in (MADO_FFMPEG_DIR, MADO_LIBRAW_DIR): only for an
+        engine run from its source, never the installed one, which uses only what it downloaded
+        and checked itself."""
+        if getattr(sys, "frozen", False):
+            return None
         folder = os.environ.get(f"MADO_{item.id.upper().replace('-', '_')}_DIR")
         return Path(folder) if folder and Path(folder).is_dir() else None
 
@@ -234,6 +262,8 @@ class Tools:
                 finally:
                     archive.unlink(missing_ok=True)
         except DownloadError as error:
+            with self._lock:
+                self._refused.add(item.id)
             self._set(item, "failed", problem=str(error))
         except URLError as error:
             self._set(item, "failed", problem=_offline(item, error.reason))
@@ -252,6 +282,10 @@ class Tools:
             with self._lock:
                 self._progress.pop(item.id, None)
             log.info("Downloaded %s %s", item.name, item.version)
+            try:
+                self.arrived(item.id)
+            except Exception:  # what waited for it asks again on its own
+                log.exception("Telling Mado %s arrived hit a problem", item.name)
 
     def _fetch_files(self, item: Download) -> None:
         """A download that comes as several files: each fetched into a folder beside the tools'
@@ -332,13 +366,19 @@ class Tools:
                             f"The {item.name} download holds an unsafe file name, so Mado didn't "
                             "use it."
                         )
-                    if member.is_dir() or len(parts) < 3 or parts[1] != item.keep:
+                    notice = len(parts) == 2 and parts[1] in item.notices  # its licence, beside it
+                    if member.is_dir() or not (
+                        notice or (len(parts) >= 3 and parts[1] == item.keep)
+                    ):
                         continue  # only the listed folder, below the archive's top folder
-                    target = staging.joinpath(*parts[2:])
+                    if not notice and item.only and parts[-1] not in item.only:
+                        continue  # of that folder, only what Mado uses
+                    kept = parts[1:] if notice else parts[2:]
+                    target = staging.joinpath(*kept)
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with zipped.open(member) as source, target.open("wb") as out:
                         shutil.copyfileobj(source, out)
-                    files.append("/".join(parts[2:]))
+                    files.append("/".join(kept))
             marker = {"version": item.version, "sha256": item.sha256, "files": files}
             (staging / _MARKER).write_text(json.dumps(marker), encoding="utf-8")
             final = self._folder(item)

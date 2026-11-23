@@ -42,7 +42,8 @@ shows (see [releasing.md](../releasing.md)).
 ## Where it lives
 
 `%LOCALAPPDATA%\Mado\tools\ffmpeg\` holds the build's `bin` folder (ffmpeg.exe, ffprobe.exe and
-their DLLs) and `mado-download.json`, which names the build and every file unpacked from it. When
+their DLLs), its licence (`LICENSE.txt`, from the archive's top: `notices` in `downloads.json`)
+and `mado-download.json`, which names the build and every file unpacked from it. When
 `downloads.json` moves to a new build, the next start sees the difference and offers the download
 again; the new build replaces the old one. A file that goes missing (an antivirus, say) makes
 ffmpeg "missing" again, and Setup offers the download.

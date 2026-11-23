@@ -2,13 +2,15 @@
 smaller copies the window shows (mado/previews.py).
 
 Pillow reads most formats by itself. A HEIF (a phone's HEIC) has its facts read from its layout
-and Exif (mado/core/heif.py), and its picture decoded by ffmpeg. Camera RAW is listed, not read,
-until Mado has a RAW reader. Nothing here changes a picture: files are only opened to read.
+and Exif (mado/core/heif.py), and its picture decoded by ffmpeg. A camera RAW is read by LibRaw
+(mado/libraw.py), downloaded the first time one is read: its facts without developing it, a small
+copy from the preview its camera kept inside it, and anything bigger developed (mado/core/raw.py
+says which). Nothing here changes a picture: files are only opened to read.
 """
 
 import io
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -16,8 +18,19 @@ from typing import Any, BinaryIO
 
 from PIL import Image, ImageCms, ImageOps, UnidentifiedImageError
 
-from mado.core import facts, heif
+from mado.core import facts, heif, raw
 from mado.core.files import Kind
+from mado.libraw import (
+    LibRaw,
+    NeedsReaderError,
+    Preview,
+    RawError,
+    RawFacts,
+    Reader,
+    opens_to_read,
+)
+
+__all__ = ["NeedsReaderError"]  # a RAW waiting for its reader, as callers catch it from here
 
 # Pillow refuses pictures over 89 megapixels, a guard for servers taking strangers' files. The
 # owner's own panoramas and scans can be bigger; a gigapixel is about 3 GB to decode.
@@ -31,6 +44,7 @@ _LAYOUT_LIMIT = 16 << 20  # a HEIF layout (its meta box) bigger than this isn't 
 _EXIF_LIMIT = 4 << 20
 _ORIENTATION, _EXIF_IFD, _GPS_IFD = 0x0112, 0x8769, 0x8825
 _MAKE, _MODEL, _TAKEN = 0x010F, 0x0110, 0x9003
+_EXPOSURE, _F_NUMBER, _ISO, _FOCAL, _LENS = 0x829A, 0x829D, 0x8827, 0x920A, 0xA434
 _NAMES = {"MPO": "JPEG", "WEBP": "WebP", "DIB": "BMP"}  # Pillow's names, as people know them
 _TURNS = {
     2: Image.Transpose.FLIP_LEFT_RIGHT,
@@ -53,6 +67,11 @@ class UnreadableError(Exception):
 class InUseError(UnreadableError):
     """A picture another app has open, so Mado can't read it now: nothing's wrong with it, and it
     opens once that app lets go."""
+
+
+class ShortOfMemoryError(UnreadableError):
+    """A camera RAW too big to develop with the memory free now: nothing's wrong with it, so it's
+    never kept as one that won't open."""
 
 
 class PictureGoneError(Exception):
@@ -86,12 +105,24 @@ class Facts:
     located: bool  # it carries where it was taken
 
 
-def read_facts(path: Path, kind: Kind) -> Facts:
-    """What a picture is, read from its header and EXIF, without decoding it."""
+def read_facts(path: Path, kind: Kind, reader: Reader | None = None) -> Facts:
+    """What a picture is, read from its header and EXIF, without decoding it (a camera RAW's by
+    `reader`, without developing it)."""
     if not path.is_file():
         raise PictureGoneError(path)
     if kind == "heif":
         return _heif_facts(path)
+    if kind == "raw":
+        found = _raw(path, reader, lambda library: library.facts(path))
+        return Facts(
+            format=path.suffix[1:].upper(),
+            width=found.width,
+            height=found.height,
+            orientation=raw.orientation(found.flip),
+            taken=found.taken,
+            camera=facts.camera(found.make, found.model),
+            located=found.latitude is not None,
+        )
     try:
         with Image.open(path) as image:
             width, height = image.size
@@ -125,17 +156,25 @@ def _raise_in_use(path: Path, error: OSError) -> None:
 
 
 def decode(
-    path: Path, kind: Kind, *, longest: int | None, ffmpeg: Command | None = None
+    path: Path,
+    kind: Kind,
+    *,
+    longest: int | None,
+    ffmpeg: Command | None = None,
+    reader: Reader | None = None,
 ) -> Image.Image:
     """The picture, decoded and turned the way it's shown, no longer on its longer side than
     `longest` (None: as big as it is; never made bigger), in pixels the window can show: RGB,
     RGBA or grey."""
-    if kind == "raw":
-        raise UnreadableError("Mado can't read camera RAW yet: it lists them as they are.")
     if not path.is_file():
         raise PictureGoneError(path)
     if kind == "heif":
         return _decode_heif(path, longest, ffmpeg)
+    if kind == "raw":
+        shown = _raw(path, reader, lambda library: _developed(library, path, longest))
+        if longest is not None:
+            shown.thumbnail((longest, longest), Image.Resampling.LANCZOS)
+        return shown
     try:
         with Image.open(path) as image:
             if longest is not None:
@@ -229,9 +268,15 @@ def _heif_layout(path: Path) -> tuple[heif.Layout, Image.Exif]:
     return layout, found
 
 
-def read_exif(path: Path, kind: Kind) -> Image.Exif | None:
+def read_exif(path: Path, kind: Kind, reader: Reader | None = None) -> Image.Exif | None:
     """A picture's EXIF as it is, every part of it read in, to carry over to a picture made from
-    it; None when it has none, or it can't be read."""
+    it; None when it has none, or it can't be read. A camera RAW's is written from what its
+    reader read of it: the camera, when it was taken, how, and where."""
+    if kind == "raw":
+        try:
+            return _raw_exif(_raw(path, reader, lambda library: library.facts(path)))
+        except UnreadableError, NeedsReaderError, PictureGoneError:
+            return None
     try:
         if kind == "heif":
             found = _heif_layout(path)[1]
@@ -247,6 +292,124 @@ def read_exif(path: Path, kind: Kind) -> Image.Exif | None:
     except Exception:  # damaged EXIF: the picture made carries none
         return None
     return whole
+
+
+def _raw[T](path: Path, reader: Reader | None, read: Callable[[LibRaw], T]) -> T:
+    """What LibRaw reads of a RAW, its errors in Mado's words, noted while it reads (an engine
+    LibRaw stops is found as the next starts). A RAW another app holds is in use, not damaged;
+    one too big for the memory free now is short of memory; one LibRaw faults on (ctypes turns
+    Windows' fault into OSError) won't open."""
+    if reader is None:
+        raise NeedsReaderError
+    library = reader.library()
+    try:
+        opens_to_read(path)  # another app holding it shows here, before LibRaw takes it for damage
+    except OSError as error:
+        _raise_in_use(path, error)
+        raise UnreadableError(f"{_DAMAGED}: {error.strerror or error}.") from None
+    try:
+        with reader.reading(path):
+            return read(library)
+    except RawError as error:
+        if error.problem.kind == "memory":
+            raise ShortOfMemoryError(error.problem.sentence) from None
+        raise UnreadableError(error.problem.sentence) from None
+    except OSError as error:
+        raise UnreadableError(
+            f"Mado's RAW reader stopped on it ({error}). Mado left it exactly as it is."
+        ) from None
+
+
+def _developed(library: LibRaw, path: Path, longest: int | None) -> Image.Image:
+    """A RAW at a size: its camera's preview, upright, for a small copy when that will do; else
+    developed, at half size when that's big enough. A preview LibRaw won't hand over, or one
+    that won't decode, is no fault of the RAW's: it's developed instead."""
+    found = library.facts(path)
+    shown = (found.width, found.height)
+    preview: Preview | None = None
+    turn: int | None = None
+    if longest is not None and longest <= raw.PREVIEW_UP_TO:
+        try:
+            preview = library.preview(path)
+        except RawError:
+            preview = None
+        turn = raw.preview_turn(preview.size, shown, found.flip) if preview else None
+    upright = None
+    if preview is not None and turn is not None:
+        upright = (preview.size[1], preview.size[0]) if turn & 4 else preview.size
+    way = raw.wanted(upright, shown, longest)
+    if way == "preview" and preview is not None and turn is not None:
+        try:
+            return _from_preview(preview, turn, longest)
+        except UnreadableError:
+            way = raw.wanted(None, shown, longest)
+    return library.develop(path, half=way == "half")
+
+
+def _from_preview(preview: Preview, turn: int, longest: int | None) -> Image.Image:
+    """A camera's preview, decoded (a JPEG at a smaller scale first) and laid out upright."""
+    try:
+        if preview.kind == "jpeg":
+            with Image.open(io.BytesIO(preview.data)) as stored:
+                if longest is not None:
+                    stored.draft("RGB", (longest, longest))
+                stored.load()
+                profile = stored.info.get("icc_profile")
+                image = _showable(stored.convert("RGB"), profile)
+        else:
+            mode = "L" if preview.colors == 1 else "RGB"
+            image = Image.frombytes(mode, preview.size, preview.data)
+    except (OSError, SyntaxError, ValueError) as error:
+        raise UnreadableError(f"{_DAMAGED}: its camera's preview won't open ({error}).") from None
+    step = _TURNS.get(raw.orientation(turn))
+    turned = image.transpose(step) if step is not None else image
+    if "icc_profile" in image.info:
+        turned.info["icc_profile"] = image.info["icc_profile"]
+    return turned
+
+
+def _raw_exif(found: RawFacts) -> Image.Exif | None:
+    """The EXIF a picture made from a RAW carries: the camera, when it was taken, how, and where
+    (encode.py leaves the place out unless the owner keeps it)."""
+    made = Image.Exif()
+    if found.make:
+        made[_MAKE] = found.make
+    if found.model:
+        made[_MODEL] = found.model
+    inner = made.get_ifd(_EXIF_IFD)
+    if found.taken is not None:
+        inner[_TAKEN] = found.taken.strftime("%Y:%m:%d %H:%M:%S")
+    if found.iso > 0:
+        inner[_ISO] = round(found.iso)
+    if found.shutter > 0:
+        inner[_EXPOSURE] = found.shutter
+    if found.aperture > 0:
+        inner[_F_NUMBER] = found.aperture
+    if found.focal > 0:
+        inner[_FOCAL] = found.focal
+    if found.lens:
+        inner[_LENS] = found.lens
+    if found.latitude is not None and found.longitude is not None:
+        gps = made.get_ifd(_GPS_IFD)
+        gps.update(
+            {
+                1: "N" if found.latitude >= 0 else "S",
+                2: _dms(found.latitude),
+                3: "E" if found.longitude >= 0 else "W",
+                4: _dms(found.longitude),
+            }
+        )
+    if not len(made) and not len(inner):
+        return None
+    whole = Image.Exif()
+    whole.load(made.tobytes())
+    return whole
+
+
+def _dms(degrees: float) -> tuple[float, float, float]:
+    whole = abs(degrees)
+    minutes = (whole - int(whole)) * 60
+    return float(int(whole)), float(int(minutes)), round((minutes - int(minutes)) * 60, 4)
 
 
 def _meta_box(file: BinaryIO) -> bytes:

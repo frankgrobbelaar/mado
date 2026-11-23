@@ -12,13 +12,13 @@ repeats, so THIRD-PARTY-NOTICES.txt carries them with it.
 | --- | --- | --- |
 | JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF | Pillow | `kind_of` in `mado/core/files.py` decides by extension |
 | HEIC, HEIF (a phone's) | Mado's own reader and ffmpeg | Pillow has no HEIF decoder; see below |
-| Camera RAW (CR3, NEF, ARW, DNG…) | nothing yet | Listed as found, "not readable yet", till Mado has a RAW reader |
+| Camera RAW (CR3, NEF, ARW, DNG…) | LibRaw, downloaded the first time a RAW is read | Its facts without developing it, a small copy from the camera's own preview, anything bigger developed into Display P3 (see [libraw.md](libraw.md)); Pillow then makes the copies as for any picture |
 
 ## Files
 
 | File | What it does |
 | --- | --- |
-| `mado/pictures.py` | `read_facts` (header and EXIF, no decoding) and `decode` (pixels, turned upright) |
+| `mado/pictures.py` | `read_facts` (header and EXIF, no decoding) and `decode` (pixels, turned upright); a camera RAW's through `mado/libraw.py` |
 | `mado/core/facts.py` | EXIF's values in Mado's words: when it was taken, the camera, which way up, a location |
 | `mado/core/heif.py` | A HEIF's layout: its size, its turn (`irot`, `imir`) and where its Exif is |
 | `mado/previews.py` | The copies the window shows, kept in the data folder's cache |

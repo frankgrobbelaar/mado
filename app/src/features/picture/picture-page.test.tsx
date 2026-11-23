@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EngineProvider, type PictureDetails, type PictureItem } from "@/lib/engine";
-import { FOLDERS, fakeEngine, PICTURES, READY } from "@/test/engine";
+import { FOLDERS, fakeEngine, PICTURES, READY, rawReader } from "@/test/engine";
 import { PicturePage } from "./picture-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -225,17 +225,101 @@ describe("PicturePage", () => {
     expect(clipboard.writeText).toHaveBeenCalledWith("D:\\Pictures\\Phone\\Little sail.jpg");
   });
 
-  it("says camera RAW isn't readable yet, in the picture's place", async () => {
+  it("shows a camera RAW developed, as any picture, wearing what its camera said", async () => {
     engine({
-      "/pictures/31": details(RAW, { camera: null, located: false }),
+      "/pictures/31": details(RAW, { camera: "Lumen X100" }),
+      "/pictures/31/neighbours": { before: [], after: [] },
+      "/pictures/31/view": blob,
+    });
+    renderPicture("/library/pictures/31");
+
+    expect(await screen.findByRole("img", { name: "Green sky" })).toBeInTheDocument();
+    expect(screen.getByText("Lumen X100")).toBeInTheDocument();
+  });
+
+  it("shows Mado's RAW reader coming in a waiting RAW's place, and reads it once it's here", async () => {
+    const waiting = details(RAW, { state: "waiting", width: null, height: null, camera: null });
+    let reader = rawReader("downloading", 1_611_429);
+    const fetch = engine({
+      "/pictures/31": waiting,
+      "/pictures/31/neighbours": { before: [], after: [] },
+      "/tools": () => [reader],
+      "POST /pictures/31/read": details(RAW),
+      "/pictures/31/view": blob,
+    });
+    renderPicture("/library/pictures/31");
+
+    expect(
+      await screen.findByRole("heading", { name: "Green sky.CR3 waits for Mado's RAW reader" }),
+    ).toBeInTheDocument();
+    const note = await screen.findByRole("region", { name: "Mado's RAW reader" });
+    expect(within(note).getByText(/Camera RAW is read by LibRaw \(3\.5 MB\)/)).toBeInTheDocument();
+    expect(within(note).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "46");
+
+    reader = rawReader("ready");
+    await waitFor(() => expect(asked(fetch, "/pictures/31/read")).toHaveLength(1), {
+      timeout: 3000,
+    });
+  });
+
+  it("says why Mado's RAW reader didn't come, and tries again on asking", async () => {
+    const fetch = engine({
+      "/pictures/31": details(RAW, { state: "waiting", width: null, height: null }),
+      "/pictures/31/neighbours": { before: [], after: [] },
+      "/tools": [
+        rawReader(
+          "failed",
+          0,
+          "The LibRaw download didn't match what Mado expects, so Mado didn't use it. Try again; if it happens again, the file online has changed.",
+        ),
+      ],
+      "POST /tools/libraw/download": rawReader("downloading"),
+    });
+    renderPicture("/library/pictures/31");
+
+    const note = await screen.findByRole("region", { name: "Mado's RAW reader" });
+    expect(await within(note).findByRole("alert")).toHaveTextContent(
+      "didn't match what Mado expects",
+    );
+    expect(
+      screen.getByText(
+        "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look or edited.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(note).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(asked(fetch, "/tools/libraw/download")).toHaveLength(1));
+  });
+
+  it("keeps a waiting RAW's tile in the strip to a few words", async () => {
+    const waiting = { ...RAW, state: "waiting" as const, width: null, height: null };
+    engine({
+      "/pictures/12/neighbours": { before: [DUSK], after: [waiting] },
+      "/tools": [rawReader("downloading", 1_611_429)],
+    });
+    renderPicture("/library/pictures/12?folder=1");
+
+    const strip = await screen.findByRole("navigation", { name: /pictures in/i });
+    const tile = within(strip).getByRole("link", { name: "Green sky" });
+    expect(await within(tile).findByText("RAW · 46%")).toHaveAttribute(
+      "title",
+      "Getting the RAW reader · 46%",
+    );
+  });
+
+  it("says a RAW from a camera its reader doesn't know yet won't open, in the reader's words", async () => {
+    const unknown =
+      "Mado's RAW reader doesn't know this kind of RAW file yet (a camera newer than it, say), or it isn't one. Mado left it exactly as it is.";
+    engine({
+      "/pictures/31": details(RAW, { state: "broken", problem: unknown }),
       "/pictures/31/neighbours": { before: [], after: [] },
     });
     renderPicture("/library/pictures/31");
 
     expect(
-      await screen.findByRole("heading", { name: "Camera RAW isn't readable yet" }),
+      await screen.findByRole("heading", { name: "Green sky.CR3 won't open" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/leaves it exactly as it is/)).toBeInTheDocument();
+    expect(screen.getByText(unknown)).toBeInTheDocument();
+    expect(screen.queryByText(/only half copied/)).not.toBeInTheDocument();
   });
 
   it("says a picture won't open, and tries again on asking", async () => {

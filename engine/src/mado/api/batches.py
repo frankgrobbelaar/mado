@@ -12,14 +12,15 @@ from fastapi.responses import FileResponse
 from pydantic import Field
 
 from mado import batches
-from mado.api.common import ApiModel, Database, FirstLook, Models, Toolbox, Working
+from mado.api.common import ApiModel, Copies, Database, FirstLook, Models, Toolbox, Working
 from mado.api.looks import LookIn
 from mado.api.making import Need, SizeIn
 from mado.batches import BatchError, Picture
 from mado.core.batch import Starts, sampled, steps_in_order
+from mado.core.files import kind_of
 from mado.core.models import Quality
 from mado.core.quality import Format
-from mado.making import saving_from
+from mado.making import NO_RAW_REPLACE, saving_from
 from mado.previews import version
 from mado.samples import SampleSet
 
@@ -90,11 +91,13 @@ class BatchPicture(ApiModel):
     width: int
     height: int
     version: str
+    raw: bool = False  # a camera RAW: its batch saves new pictures, as Mado can't write RAW
 
 
-class LeftOut(ApiModel):
+class BatchLeftOut(ApiModel):
     name: str
     why: str
+    waiting: bool = False  # a camera RAW, left out only till Mado's RAW reader has read it
 
 
 class Picked(ApiModel):
@@ -103,7 +106,7 @@ class Picked(ApiModel):
     source: str  # where they're from: "Holiday"
     shared: str | None  # the folder they share
     words: str  # "ticked in Holiday", "found by “beach”", "dropped from Desktop"
-    left_out: list[LeftOut]
+    left_out: list[BatchLeftOut]
 
 
 class Words(ApiModel):
@@ -212,7 +215,7 @@ class BatchOut(ApiModel):
 
 
 @router.post("/batches/pictures")
-def pictures(body: PickIn, conn: Database) -> Picked:
+def pictures(body: PickIn, conn: Database, copies: Copies) -> Picked:
     """The pictures a batch would be made of: those ticked, a folder's, what a search found, or
     the pictures in files and folders dropped or picked, with those left out and why."""
     match body.how:
@@ -227,19 +230,27 @@ def pictures(body: PickIn, conn: Database) -> Picked:
         case "favourites":
             found = batches.from_favourites(conn, body.q)
         case "dropped" | "picked" | "pasted" | "opened":
-            found = batches.from_paths(conn, body.paths, body.how)
-    return picked_out(found)
+            found = batches.from_paths(conn, body.paths, body.how, copies.reader)
+    return picked_out(found, reader_here=copies.reader is not None and copies.reader.ready())
 
 
-def picked_out(found: batches.Picked) -> Picked:
-    """The pictures a batch would be made of, as the API says them."""
+def picked_out(found: batches.Picked, *, reader_here: bool = False) -> Picked:
+    """The pictures a batch would be made of, as the API says them. A camera RAW left out for
+    its reader, once that's here, is left out only till the scan has read it."""
+
+    def left(name: str, why: str) -> BatchLeftOut:
+        if why == batches.WAITS_FOR_READER and reader_here:
+            why = batches.BEING_READ
+        waiting = why in (batches.WAITS_FOR_READER, batches.BEING_READ)
+        return BatchLeftOut(name=name, why=why, waiting=waiting)
+
     return Picked(
         pictures=[_out(each) for each in found.pictures],
         bytes=sum(each.size for each in found.pictures),
         source=found.source,
         shared=found.shared,
         words=found.words,
-        left_out=[LeftOut(name=name, why=why) for name, why in found.left_out],
+        left_out=[left(name, why) for name, why in found.left_out],
     )
 
 
@@ -364,6 +375,8 @@ def put_in(
     steps = steps_of(body.steps)
     saving = body.saving.model_dump(by_alias=True)
     saves_see_through(steps, saving)
+    if body.saving.how == "replace" and any(kind_of(each.name) == "raw" for each in body.pictures):
+        raise HTTPException(status.HTTP_409_CONFLICT, NO_RAW_REPLACE)
     folder = Path(body.saving.folder) if body.saving.folder else None
     if body.saving.how == "new" and folder and folder.is_absolute() and not folder.is_dir():
         raise HTTPException(
@@ -579,6 +592,7 @@ def _out(picture: Picture) -> BatchPicture:
         width=picture.width,
         height=picture.height,
         version=picture.version,
+        raw=kind_of(picture.name) == "raw",
     )
 
 
@@ -593,8 +607,7 @@ def _checked(conn: sqlite3.Connection, each: BatchPicture) -> Picture:
     if each.id is not None:
         row = conn.execute(
             """SELECT id, path, name, size, width, height, modified FROM pictures
-               WHERE id = ? AND gone_at IS NULL AND read_at IS NOT NULL AND problem IS NULL
-                 AND raw = 0""",
+               WHERE id = ? AND gone_at IS NULL AND read_at IS NOT NULL AND problem IS NULL""",
             (each.id,),
         ).fetchone()
         if row is None or not row["width"]:

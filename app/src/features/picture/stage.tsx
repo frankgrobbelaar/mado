@@ -53,9 +53,20 @@ export function Stage({
       height={picture.height ?? 0}
       scale={SCALE[zoom]}
       whole={full.address !== null}
+      bringing={picture.raw ? developing(picture) : undefined}
     />
   );
 }
+
+/** What a camera RAW's full size says while it's developed: a big one takes a while. */
+function developing(picture: PictureDetails): string {
+  const megapixels = ((picture.width ?? 0) * (picture.height ?? 0)) / 1e6;
+  return megapixels >= HUGE
+    ? `Developing the RAW at full size: ${Math.round(megapixels)} megapixels take a while…`
+    : "Developing the RAW at full size…";
+}
+
+const HUGE = 60; // megapixels: past this, developing a RAW at full size takes many seconds
 
 /** A picture larger than its space: scrolled, or dragged, to see round it. `area` and `onScroll`
  * let two of them move together, side by side. */
@@ -66,6 +77,8 @@ export function Zoomed(props: {
   height: number;
   scale: number;
   whole: boolean;
+  /** What it says while the picture at full size is on its way. */
+  bringing?: string;
   area?: RefObject<HTMLDivElement | null>;
   onScroll?: () => void;
 }) {
@@ -140,7 +153,7 @@ export function Zoomed(props: {
           role="status"
           className="absolute top-3 left-3 rounded-4 bg-black/70 px-2.5 py-1 font-semibold text-12 text-white"
         >
-          Bringing the picture at full size…
+          {props.bringing ?? "Bringing the picture at full size…"}
         </span>
       )}
     </div>

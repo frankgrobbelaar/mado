@@ -5,6 +5,13 @@ One scan runs at a time, on a background thread with its own database connection
 learns is saved as it goes, so a scan stopped by Mado closing, or a crash, loses nothing: the
 next one (the watcher starts one as Mado opens, mado/watch.py) reads only what's still to read.
 A scan asked for while one runs follows it. Nothing in the folders changes: a scan only looks.
+
+A camera RAW is read by Mado's RAW reader, which a RAW still to read asks for the first time,
+as does a scan finding RAWs that wait for it: till it's there, the RAW is listed as it is, and
+read by the scan once the reader has come. As LibRaw reads in Mado's own engine, each RAW it
+reads is noted in the data folder while it does (mado/libraw.py, Reader.reading): one that
+stopped the engine is found as the next starts (`stopped_on`) and left as one that won't open,
+rather than stopping it again.
 """
 
 import logging
@@ -22,12 +29,24 @@ from mado import db
 from mado.config import DataPaths
 from mado.core.files import Kind
 from mado.core.library import time_left
-from mado.library import Unread, find_pictures, folders, save_facts, save_problem, unread
+from mado.library import (
+    Unread,
+    any_waiting,
+    find_pictures,
+    folders,
+    save_facts,
+    save_problem,
+    save_waiting,
+    unread,
+)
+from mado.libraw import Reader
 from mado.pictures import (
     Facts,
     InUseError,
     NeedsFfmpegError,
+    NeedsReaderError,
     PictureGoneError,
+    ShortOfMemoryError,
     UnreadableError,
     read_facts,
 )
@@ -37,6 +56,25 @@ log = logging.getLogger(__name__)
 
 type State = Literal["idle", "running", "done", "failed", "stopped"]
 type Stage = Literal["finding", "reading", "done"]
+
+RAW_NOTES = "reading-raw"  # in the data folder: a note of each camera RAW LibRaw reads now
+STOPPED_ON = (
+    "Mado stopped as its RAW reader read this file, so Mado leaves it as one that won't open. "
+    "The file is as it was; a newer reader may read it."
+)
+
+
+def stopped_on(conn: sqlite3.Connection, reader: Reader, *, now: datetime) -> None:
+    """The camera RAWs an earlier engine stopped on as LibRaw read them, by the notes it left:
+    each left as one that won't open before anything reads it again (the engine does this as it
+    starts, before its scan, its duplicates and its queue)."""
+    for path in reader.stopped_on():
+        log.warning("Mado stopped as its RAW reader read %s", path)
+        for row in conn.execute(
+            "SELECT id FROM pictures WHERE path = ? COLLATE NOCASE AND gone_at IS NULL",
+            (str(path),),
+        ).fetchall():
+            save_problem(conn, row["id"], STOPPED_ON, now=now)
 
 
 class ScanBusyError(Exception):
@@ -76,17 +114,22 @@ class Scanner:
         previews: Previews,
         *,
         now: Callable[[], datetime] = _now,
-        read: Callable[[Path, Kind], Facts] = read_facts,
+        read: Callable[[Path, Kind], Facts] | None = None,
         ended: Callable[[], None] = lambda: None,
         again_after: float = 60.0,
     ) -> None:
         """`ended` hears when a scan ends, however it ends: what it read is looked at next for
         duplicates (mado/duplicates.py). A scan that left a picture open in another app scans
-        again `again_after` seconds on, nothing else telling it the app let go."""
+        again `again_after` seconds on, nothing else telling it the app let go. A camera RAW is
+        read by the previews' RAW reader."""
         self._paths = paths
         self._previews = previews
         self._now = now
-        self._read = read
+
+        def with_reader(path: Path, kind: Kind) -> Facts:
+            return read_facts(path, kind, previews.reader)
+
+        self._read: Callable[[Path, Kind], Facts] = read or with_reader
         self._ended = ended
         self._again_after = again_after
         self._in_use = False  # this scan left a picture open in another app
@@ -227,9 +270,12 @@ class Scanner:
         missing = [
             PureWindowsPath(folder.path) for folder in folders(conn) if not folder.path.is_dir()
         ]
+        reader = self._previews.reader
+        if reader is not None and not reader.ready() and any_waiting(conn):
+            reader.ask()  # RAWs listed before (by an earlier Mado, say) wait for it too
         todo = [
             each
-            for each in unread(conn)
+            for each in unread(conn, raws=reader is not None and reader.ready())
             if not any(PureWindowsPath(each.path).is_relative_to(away) for away in missing)
         ]
         self._to_read_live, self._read_live = len(todo), 0
@@ -250,17 +296,22 @@ class Scanner:
     def _read_one(self, conn: sqlite3.Connection, each: Unread) -> None:
         """Reads one picture's facts and makes its thumbnail, which shows it decodes: a picture
         that won't open is kept with why. A thumbnail Mado can't keep (its data folder's drive
-        full) is no fault of the picture's: it's made when it's next asked for."""
+        full) is no fault of the picture's: it's made when it's next asked for. A camera RAW
+        Mado's RAW reader isn't there for yet is listed as it is, asking for the reader."""
         try:
             save_facts(conn, each.id, self._read(each.path, each.kind), now=self._now())
             row = conn.execute("SELECT * FROM pictures WHERE id = ?", (each.id,)).fetchone()
             if row is not None:
                 self._previews.thumbnail(Source.of(row))
+        except NeedsReaderError:
+            save_waiting(conn, each.id, now=self._now())  # read once the reader is here
         except NeedsFfmpegError:
             pass  # a HEIC's thumbnail is made once ffmpeg is there
         except PictureGoneError:
             pass  # it went as it was read: the next scan sees it gone
         except InUseError:  # open in another app: nothing's wrong with it, read a minute on
+            self._in_use = True
+        except ShortOfMemoryError:  # too big for the memory free now: tried again a minute on
             self._in_use = True
         except UnreadableError as error:
             save_problem(conn, each.id, str(error), now=self._now())
@@ -284,7 +335,7 @@ class Scanner:
         found, read, waiting, added, gone = conn.execute(
             f"""SELECT
                   COUNT(*) FILTER (WHERE seen_at = :started AND gone_at IS NULL),
-                  COUNT(*) FILTER (WHERE read_at >= :started AND seen_at = :started AND raw = 0),
+                  COUNT(*) FILTER (WHERE read_at >= :started AND seen_at = :started),
                   COUNT(*) FILTER (WHERE read_at IS NULL AND gone_at IS NULL),
                   {_CHANGES}
                 FROM pictures WHERE folder_id IS NOT NULL""",  # noqa: S608 - fixed, no values

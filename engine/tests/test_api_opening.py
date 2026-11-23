@@ -20,6 +20,7 @@ from mado import db, outside, pasting
 from mado.config import DataPaths
 from mado.export import export_data
 from tests.conftest import add, made
+from tests.dng_files import dng
 from tests.drawn import draw, exif, picture, scene
 
 SMALL = "other-256x192"  # a size the processor makes in a moment
@@ -300,7 +301,7 @@ def test_a_long_path_opens(client: TestClient, tmp_path: Path):
     assert client.get(f"/pictures/{found['picture']['id']}/view").status_code == 200
 
 
-def test_camera_raw_and_a_picture_that_wont_open_open_on_their_page_as_they_are(
+def test_camera_raw_waiting_for_its_reader_and_one_that_wont_open_open_on_their_page(
     client: TestClient, tmp_path: Path
 ):
     raw = tmp_path / "Camera" / "IMG_2041.CR3"
@@ -309,10 +310,32 @@ def test_camera_raw_and_a_picture_that_wont_open_open_on_their_page_as_they_are(
     broken = tmp_path / "Camera" / "Half.jpg"
     broken.write_bytes(b"\xff\xd8\xff not really a picture")
 
-    assert opened(client, raw)["picture"]["state"] == "raw"
+    waiting = opened(client, raw)["picture"]
+    assert (waiting["state"], waiting["raw"]) == ("waiting", True)
     half = opened(client, broken)["picture"]
     assert half["state"] == "broken"
     assert half["problem"]
+
+
+def test_a_camera_raw_from_outside_the_library_is_read_as_the_librarys_are(
+    raw_client: TestClient, tmp_path: Path
+):
+    raw = dng(tmp_path / "Camera" / "IMG_2041.dng", scene(4, (300, 200)), orientation=6)
+
+    page = opened(raw_client, raw)["picture"]
+
+    assert (page["state"], page["raw"], page["outside"]) == ("ready", True, True)
+    assert (page["width"], page["height"], page["camera"]) == (300, 200, "Lumen X100")
+    view = raw_client.get(f"/pictures/{page['id']}/view")
+    assert view.status_code == 200
+    with Image.open(io.BytesIO(view.content)) as shown:
+        assert shown.size == (300, 200)  # developed upright
+    saved = raw_client.post(
+        f"/pictures/{page['id']}/make",
+        json={"recipe": {"size": {"size": SMALL}}, "saving": {"how": "replace", "format": "JPEG"}},
+    )
+    assert saved.status_code == 409
+    assert "can't write camera RAW" in saved.json()["detail"]
 
 
 def test_a_picture_in_a_quarantine_opens_to_look_at_only(client: TestClient, tmp_path: Path):

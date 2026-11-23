@@ -112,10 +112,13 @@ export function EditTab(props: {
   const bestErase = useNeed(props.smeared ? MODELS.best : null);
   const places = usePc().data?.editing;
   const nothing = picked.parts.length === 0;
-  // The small copy "With what you picked" shows: the picture as its edits leave it.
+  // The small copy "With what you picked" shows: the picture as its edits leave it (a camera
+  // RAW's from its view, developed as its stage shows it: its thumbnail is its camera's own).
   const withWhat = tool === "select" && !props.tooBig && !selecting;
   const thumbnail = usePictureImage(
-    withWhat && !props.edit ? pictureAddress(props.picture, "thumbnail") : null,
+    withWhat && !props.edit
+      ? pictureAddress(props.picture, props.picture.raw ? "view" : "thumbnail")
+      : null,
   );
   const edited = usePreview(
     props.picture.id,

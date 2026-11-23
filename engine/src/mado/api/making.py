@@ -61,6 +61,7 @@ from mado.directml import ModelError
 from mado.editing import EditingError, Editor, picture_key
 from mado.looks import Placement, seed_of, styled
 from mado.making import (
+    NO_RAW_REPLACE,
     Picture,
     Seen,
     Sight,
@@ -72,7 +73,7 @@ from mado.making import (
     screens_kept,
     waiting_for,
 )
-from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError
+from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import Previews, Source, version
 from mado.quarantine import Quarantine
 from mado.system import pictures_folder
@@ -378,7 +379,7 @@ def preview(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
     except EditingError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
-    except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
+    except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
         raise _refused(error) from None
     except StoppedError:  # never asked to stop: a preview runs to its end
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The preview stopped.") from None
@@ -726,15 +727,10 @@ def _seen(conn: sqlite3.Connection, sight: Seeing, picture_id: int) -> tuple[Pic
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "That picture isn't in your library any more."
         )
-    if row["raw"]:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "Mado can't read camera RAW yet, so it can't make it.",
-        )
     picture = picture_of(conn, picture_id, Path(row["path"]))
     try:
         seen = sight.of(picture, version(row["modified"], row["size"]))
-    except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
+    except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
         raise _refused(error) from None
     return picture, seen, Source.of(row)
 
@@ -748,15 +744,18 @@ def _may_save(
     conn: sqlite3.Connection, picture_id: int, saving: SavingIn, aside: Quarantine
 ) -> None:
     """Refuses a Save that would write where it mustn't: over a picture waiting in a quarantine,
-    or beside or in place of a pasted one, which lives in Mado's data folder."""
+    beside or in place of a pasted one, which lives in Mado's data folder, or in place of a
+    camera RAW, which Mado can't write."""
     row = conn.execute(
-        "SELECT path, folder_id, pasted FROM pictures WHERE id = ? AND gone_at IS NULL",
+        "SELECT path, folder_id, pasted, raw FROM pictures WHERE id = ? AND gone_at IS NULL",
         (picture_id,),
     ).fetchone()
     if row is None:
         return  # said as gone by what follows
     if row["folder_id"] is None and aside.holds(Path(row["path"])):
         raise HTTPException(status.HTTP_409_CONFLICT, _ASIDE)
+    if row["raw"] and saving.how == "replace":
+        raise HTTPException(status.HTTP_409_CONFLICT, NO_RAW_REPLACE)
     if row["pasted"] and saving.how == "replace":
         raise HTTPException(status.HTTP_409_CONFLICT, _NO_ORIGINAL)
     if row["pasted"] and not saving.folder:
@@ -811,7 +810,7 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
 def _refused(error: Exception) -> HTTPException:
     if isinstance(error, PictureGoneError):
         return HTTPException(status.HTTP_404_NOT_FOUND, str(error))
-    if isinstance(error, NeedsFfmpegError):
+    if isinstance(error, NeedsFfmpegError | NeedsReaderError):
         return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error))
     return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error))
 

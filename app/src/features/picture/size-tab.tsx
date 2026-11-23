@@ -208,9 +208,10 @@ export function SizeTab(props: {
                 : "Pick a screen or a print to see the picture made for it."
             : picture.pasted
               ? "As a new picture in a folder of yours: till then it's only in Mado."
-              : shown?.look
-                ? `As a new picture beside the original, with ${shown.look}, unless you choose to replace it.`
-                : "As a new picture beside the original, unless you choose to replace it."
+              : `As a new picture beside the original${shown?.look ? `, with ${shown.look}` : ""}, ${
+                  // Mado can't write camera RAW: a RAW is never replaced.
+                  picture.raw ? "the RAW staying as it is." : "unless you choose to replace it."
+                }`
         }
       />
     </div>

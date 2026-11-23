@@ -269,6 +269,30 @@ describe("The Size tab", () => {
     expect(screen.getByText("about 25 s left")).toBeInTheDocument();
   });
 
+  it("saves a camera RAW only as a new picture, saying why Replace isn't offered", async () => {
+    const fetch = engine({
+      "/settings": { ...SETTINGS, saveFirst: "replace" },
+      "/pictures/11": { ...details, name: "Harbour at dusk.CR3", format: "CR3", raw: true },
+      "POST /pictures/11/make": job({ state: "queued" }),
+    });
+    renderPicture();
+    await chooseTv();
+    expect(
+      await screen.findByText("As a new picture beside the original, the RAW staying as it is."),
+    ).toBeInTheDocument();
+    await openSave();
+
+    const dialog = await screen.findByRole("dialog", { name: "Save Harbour at dusk" });
+    expect(
+      await within(dialog).findByText(/Replacing the original isn't offered/),
+    ).toHaveTextContent("Mado can't write camera RAW");
+    expect(within(dialog).queryByRole("radio", { name: /Replace the original/ })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(sent(fetch, "POST", "/pictures/11/make")).toHaveLength(1));
+    const [made] = sent(fetch, "POST", "/pictures/11/make") as [{ saving: { how: string } }];
+    expect(made.saving.how).toBe("new");
+  });
+
   it("replaces the original when chosen, saying the original waits in quarantine", async () => {
     const fetch = engine({ "POST /pictures/11/make": job({ how: "replace", state: "queued" }) });
     renderPicture();

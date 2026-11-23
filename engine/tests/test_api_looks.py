@@ -11,14 +11,15 @@ import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from PIL import Image, ImageCms
+from PIL import Image, ImageCms, ImageOps
 
 from mado import db
 from mado.core.grids import identity
 from mado.jobs import Jobs
 from mado.quarantine import Quarantine
 from tests.conftest import add, made
-from tests.drawn import photo_like
+from tests.dng_files import alike, dng
+from tests.drawn import photo_like, scene
 
 type Library = dict[str, Any]
 
@@ -54,6 +55,21 @@ def test_the_looks_are_mados_with_the_original_first_and_the_owners(client: Test
     assert len(listed["looks"]) == 14
     assert all(len(look["version"]) == 8 for look in listed["looks"])
     assert listed["yours"] == []
+
+
+def test_a_camera_raws_small_copies_are_of_it_developed_as_its_stage_shows_it(
+    raw_client: TestClient, tmp_path: Path
+):
+    shown = scene(4, (600, 400))
+    # Its camera's preview is its own rendering: drawn here as unlike it as can be.
+    dng(tmp_path / "Camera" / "_MG_0042.dng", shown, preview=ImageOps.invert(shown))
+    add(raw_client, tmp_path / "Camera")
+    [listed] = raw_client.get("/pictures").json()["pictures"]
+
+    original = raw_client.get(f"/pictures/{listed['id']}/looks/original?v=1")
+
+    assert original.status_code == 200, original.text
+    assert alike(Image.open(io.BytesIO(original.content)), shown) > 0.9
 
 
 def test_a_small_copy_of_the_picture_in_each_look(client: TestClient, library: Library):

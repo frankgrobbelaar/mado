@@ -16,11 +16,13 @@ from mado import favourites, outside
 from mado.api.common import ApiModel, Copies, Database, Finding, Paths, SetAside
 from mado.core.files import kind_of
 from mado.duplicates import Found, choices, kept
-from mado.library import file_time, save_facts, save_problem
+from mado.library import file_time, save_facts, save_problem, save_waiting
 from mado.pictures import (
     InUseError,
     NeedsFfmpegError,
+    NeedsReaderError,
     PictureGoneError,
+    ShortOfMemoryError,
     UnreadableError,
     read_facts,
 )
@@ -32,7 +34,7 @@ router = APIRouter()
 log = logging.getLogger(__name__)
 
 type Order = Literal["newest", "oldest"]
-type PictureState = Literal["ready", "raw", "broken"]
+type PictureState = Literal["ready", "waiting", "broken"]
 
 PAGE = 200  # pictures a page, unless asked for fewer
 _KEEP = {"Cache-Control": "private, max-age=31536000, immutable"}  # its address names its version
@@ -52,7 +54,9 @@ class PictureItem(ApiModel):
     name: str  # its file's name
     path: str
     format: str | None  # "JPEG", "HEIC"…; a RAW file's own ("CR3")
-    state: PictureState  # "raw": listed, not readable yet; "broken": won't open
+    # "waiting": a camera RAW listed while Mado's RAW reader comes; "broken": won't open
+    state: PictureState
+    raw: bool  # a camera RAW: read by Mado's RAW reader, and never written over
     width: int | None  # as it's shown
     height: int | None
     size: int  # bytes
@@ -186,8 +190,11 @@ def picture(
     """One picture, with everything Mado read of it. One from outside the library, which no
     scan looks after, is looked at as it is now: read again once its file changed (a Save in its
     place, say), 404 with why once it went; and it counts as opened again, its month before it's
-    forgotten starting afresh."""
+    forgotten starting afresh. A camera RAW waiting for Mado's RAW reader asks for it."""
     row = _row(conn, picture_id)
+    reader = copies.reader
+    if reader is not None and row["raw"] and row["read_at"] and row["width"] is None:
+        reader.ask()  # opening a RAW fetches its reader, as reading one does
     if row["folder_id"] is None:
         try:
             outside.open_picture(
@@ -196,6 +203,7 @@ def picture(
                 now=datetime.now().astimezone(),
                 forget=copies.forget,
                 data=paths,
+                reader=copies.reader,
             )
         except outside.OpenError as error:
             raise HTTPException(error.status, str(error)) from None
@@ -249,15 +257,22 @@ def thumbnail(picture_id: int, conn: Database, copies: Copies) -> FileResponse:
     """Its thumbnail, about 512 pixels on its longer side (WebP)."""
     source = Source.of(_row(conn, picture_id))
     return FileResponse(
-        _made(lambda: copies.thumbnail(source)), media_type="image/webp", headers=_KEEP
+        _made(lambda: copies.thumbnail(source), conn, picture_id),
+        media_type="image/webp",
+        headers=_KEEP,
     )
 
 
 @router.get("/pictures/{picture_id}/view", response_class=FileResponse, responses=_PICTURE)
 def view(picture_id: int, conn: Database, copies: Copies) -> FileResponse:
-    """It the size of a screen, at most 2560 pixels on its longer side (WebP)."""
+    """It the size of a screen, at most 2560 pixels on its longer side (WebP): a camera RAW
+    developed, as Save makes it."""
     source = Source.of(_row(conn, picture_id))
-    return FileResponse(_made(lambda: copies.view(source)), media_type="image/webp", headers=_KEEP)
+    return FileResponse(
+        _made(lambda: copies.view(source), conn, picture_id),
+        media_type="image/webp",
+        headers=_KEEP,
+    )
 
 
 @router.get("/pictures/{picture_id}/full", response_class=FileResponse, responses=_ANY_PICTURE)
@@ -265,7 +280,7 @@ def full(picture_id: int, conn: Database, copies: Copies) -> FileResponse:
     """It at full size: the picture itself when the window can show its format, else a copy it
     can (PNG)."""
     source = Source.of(_row(conn, picture_id))
-    path, media = _made(lambda: copies.full(source))
+    path, media = _made(lambda: copies.full(source), conn, picture_id)
     return FileResponse(path, media_type=media, headers=_KEEP)
 
 
@@ -294,9 +309,14 @@ def mark_damaged(picture_id: int, conn: Database, aside: SetAside) -> PictureDet
 
 @router.post("/pictures/{picture_id}/read")
 def read_again(
-    picture_id: int, conn: Database, copies: Copies, finder: Finding, aside: SetAside
+    picture_id: int,
+    conn: Database,
+    copies: Copies,
+    finder: Finding,
+    aside: SetAside,
 ) -> PictureDetails:
-    """Reads one picture again now (one that wouldn't open may have been mended since)."""
+    """Reads one picture again now (one that wouldn't open may have been mended since). A camera
+    RAW is read by Mado's RAW reader, which it asks for while it isn't there."""
     row = _row(conn, picture_id)
     path = Path(row["path"])
     try:
@@ -311,20 +331,21 @@ def read_again(
     copies.forget([picture_id])
     kind = kind_of(path.name) or "picture"
     now = datetime.now().astimezone()
-    if kind != "raw":
-        try:
-            save_facts(conn, picture_id, read_facts(path, kind), now=now)
-            copies.thumbnail(Source.of(_row(conn, picture_id)))
-        except NeedsFfmpegError:
-            pass  # read; its thumbnail waits for ffmpeg
-        except OSError as error:  # read; its thumbnail is made when it's next asked for
-            log.warning("Mado couldn't keep the thumbnail of %s: %s", path, error)
-        except PictureGoneError as error:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from None
-        except InUseError as error:  # nothing's wrong with it: left as it was
-            raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
-        except UnreadableError as error:
-            save_problem(conn, picture_id, str(error), now=now)
+    try:
+        save_facts(conn, picture_id, read_facts(path, kind, copies.reader), now=now)
+        copies.thumbnail(Source.of(_row(conn, picture_id)))
+    except NeedsReaderError:
+        save_waiting(conn, picture_id, now=now)  # read once Mado's RAW reader is here
+    except NeedsFfmpegError:
+        pass  # read; its thumbnail waits for ffmpeg
+    except OSError as error:  # read; its thumbnail is made when it's next asked for
+        log.warning("Mado couldn't keep the thumbnail of %s: %s", path, error)
+    except PictureGoneError as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from None
+    except (InUseError, ShortOfMemoryError) as error:  # nothing's wrong with it: as it was
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
+    except UnreadableError as error:
+        save_problem(conn, picture_id, str(error), now=now)
     finder.wake()  # looked at as it is now
     return details(conn, _row(conn, picture_id), aside)
 
@@ -374,9 +395,9 @@ def _row(conn: sqlite3.Connection, picture_id: int) -> sqlite3.Row:
 
 
 def _state(row: sqlite3.Row) -> PictureState:
-    if row["raw"]:
-        return "raw"
-    return "broken" if row["problem"] else "ready"
+    if row["problem"]:
+        return "broken"
+    return "waiting" if row["raw"] and row["width"] is None else "ready"
 
 
 def _item(row: sqlite3.Row, group: GroupTag | None = None, favourite: bool = False) -> PictureItem:
@@ -386,6 +407,7 @@ def _item(row: sqlite3.Row, group: GroupTag | None = None, favourite: bool = Fal
         path=row["path"],
         format=row["format"],
         state=_state(row),
+        raw=bool(row["raw"]),
         width=row["width"],
         height=row["height"],
         size=row["size"],
@@ -430,15 +452,22 @@ def details(conn: sqlite3.Connection, row: sqlite3.Row, aside: Quarantine) -> Pi
     )
 
 
-def _made[T](make: Callable[[], T]) -> T:
-    """A copy, made now if need be, or why it can't be, as the window shows it."""
+def _made[T](make: Callable[[], T], conn: sqlite3.Connection, picture_id: int) -> T:
+    """A copy, made now if need be, or why it can't be, as the window shows it. A camera RAW
+    whose pixels won't develop joins the pictures that won't open, as the scan reads only what it
+    says of itself and its camera's preview; one held by another app, or too big for the memory
+    free now, is as it was."""
     try:
         made = make()
     except PictureGoneError as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from None
-    except NeedsFfmpegError as error:
+    except (NeedsFfmpegError, NeedsReaderError) as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
     except UnreadableError as error:
+        row = conn.execute("SELECT raw FROM pictures WHERE id = ?", (picture_id,)).fetchone()
+        passing = isinstance(error, InUseError | ShortOfMemoryError)
+        if row is not None and row["raw"] and not passing:
+            save_problem(conn, picture_id, str(error), now=datetime.now().astimezone())
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except OSError as error:  # keeping the copy, not the picture
         raise HTTPException(
