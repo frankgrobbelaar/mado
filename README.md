@@ -19,7 +19,7 @@ Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library and finds its duplicates and bursts, makes pictures right for any screen or print, gives them looks, and does it all to many at once. Editing by clicking is on its way.</sub>
+  <sub><b>Early days.</b> Mado keeps your library and finds its duplicates and bursts, makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, and does it all to many at once.</sub>
   <br>
   <br>
 </p>
