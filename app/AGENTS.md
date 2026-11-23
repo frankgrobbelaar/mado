@@ -8,32 +8,31 @@ and [../CLAUDE.md](../CLAUDE.md).
 
 The window's frame (the title bar, the nav rail with Home, the Library, the Queue with its badge,
 History and Settings, the status bar with what the page in view says of itself
-(`components/shell/status-note.tsx`), and pictures from anywhere: dropped on it, pasted with
-Ctrl+V, or handed over by Windows (`components/shell/opening.tsx`, `features/batch/open.ts`, with
-its notes at the window's foot)), Setup (Tools, which can be left while ffmpeg downloads, with This PC; then Your
-folders), Home (the library in numbers, Drop pictures here with Pick pictures and Pick a folder, Needs you
-with duplicates and bursts to review, the pictures that won't open in a card, and a batch done,
-Space on the drives, Made today, Add a folder), the review of duplicates and bursts
+(`components/shell/status-note.tsx`), and pictures from anywhere: dropped on it, pasted with Ctrl+V,
+or handed over by Windows (`components/shell/opening.tsx`, `features/batch/open.ts`, with its notes
+at the window's foot)), Setup (Tools, which can be left while ffmpeg downloads, with This PC; then
+Your folders), Home (the library in numbers, Drop pictures here with Pick pictures and Pick a
+folder, Needs you with duplicates and bursts to review, the pictures that won't open in a card, and
+a batch done, Space on the drives, Made today, Add a folder), the review of duplicates and bursts
 (`features/duplicates/`: the groups, keeping another or more than one, Not the same, setting the
 rest aside, a picture big beside the one kept), the Library (the folders as a tree, the pictures by
-the day they were taken, ticks, and Many at once from the ticks, a folder's menu or a search),
-Many at once (`features/batch/`: the steps with Change, See it first, When, Saving, What it
-takes), the Queue (`features/queue/`), Recipes and watch folders (`features/recipes/`), a
-picture's page, in the library or from outside it (`/pictures/:id`: where it lives in place of
-the breadcrumb, with "Add its folder to the library"; pasted; or in a quarantine, to look at only:
-`features/picture/outside.tsx`), the picture large at Fit, 100% or
-400%, its neighbours, and its tools column: the Size tab, with the shape over the picture, before
-and after at full detail when zoomed; the Looks tab, every look as a small copy of the picture,
-its strength, the finishing touches, "Only on a part", the owner's own looks, and "Hold to see the
-original"; the Edit tab (`edit-tab.tsx`, `edit-stage.tsx`, `editing.ts`: Select, Erase and Cut out,
-what's picked and what to do with it, the brush, undo and Start again, each model downloaded the
-first time); one Save for all three, and the job making it),
-History (a week at a time, a batch or a review as one line with Take them away or Put them
-back, take away and put back, replace again), Settings (General with Saving, Your data with
-Set aside, Updates, About with This PC and the downloads), the update card, the notes at the
-window's foot (a picture open in another app among them, `components/shell/in-use.tsx`), and the
-way back from damaged records. Mado's own screens come from its design
-canvas.
+the day they were taken, ticks, and Many at once from the ticks, a folder's menu or a search), Many
+at once (`features/batch/`: the steps with Change, See it first, When, Saving, What it takes), the
+Queue (`features/queue/`), Recipes and watch folders (`features/recipes/`), a picture's page, in the
+library or from outside it (`/pictures/:id`: where it lives in place of the breadcrumb, with "Add
+its folder to the library"; pasted; or in a quarantine, to look at only:
+`features/picture/outside.tsx`), the picture large at Fit, 100% or 400%, its neighbours, and its
+tools column: the Size tab, with the shape over the picture, before and after at full detail when
+zoomed; the Looks tab, every look as a small copy of the picture, its strength, the finishing
+touches, "Only on a part", the owner's own looks, and "Hold to see the original"; the Edit tab
+(`edit-tab.tsx`, `edit-stage.tsx`, `editing.ts`: Select, Erase and Cut out, what's picked and what
+to do with it, the brush, undo and Start again, each model downloaded the first time); one Save for
+all three, and the job making it), History (a week at a time, a batch or a review as one line with
+Take them away or Put them back, take away and put back, replace again), Settings (General with
+Saving, Your data with Set aside, Updates, About with This PC and the downloads), the update card,
+the notes at the window's foot (a picture open in another app among them,
+`components/shell/in-use.tsx`), and the way back from damaged records. Mado's own screens come from
+its design canvas.
 
 ## Build to the design
 

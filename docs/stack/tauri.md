@@ -162,11 +162,11 @@ an identifier of its own:
 Every run made one choice, in one Mado. 600 ms is four of the longest gap, which came while a Mado
 started cold found its feet; the last look at a gathering is made on the main thread, where the
 paths arrive, so a main thread too busy to take them can't make them look quiet. A start's words
-become paths back on the gathering's own thread, as looking at a path on a network share that
-isn't there can take a while; the clipboard's read and the switch's registry writes are off the
-main thread too. Windows starts
-nothing past 100 selected with `Player`, and nothing past 15 with its default (`Document`), which is
-why the verb says `Player`. Past 100, the folder's own "Open in Mado" opens every picture in it.
+become paths back on the gathering's own thread, as looking at a path on a network share that isn't
+there can take a while; the clipboard's read and the switch's registry writes are off the main
+thread too. Windows starts nothing past 100 selected with `Player`, and nothing past 15 with its
+default (`Document`), which is why the verb says `Player`. Past 100, the folder's own "Open in Mado"
+opens every picture in it.
 
 "Send to › Mado" (a shortcut in the SendTo folder) was measured too: it starts Mado once with
 every path (15 and 100 files: one choice in 0.7 s), but Windows refuses once the command line
