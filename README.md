@@ -86,7 +86,8 @@ Add the folders your pictures live in. Mado reads pictures from phones, cameras 
 JPEG, HEIC, RAW and more, and keeps the HDR and wide colours of newer phones' photos. It shows them
 by the day they were taken, watches the folders for new ones, and finds duplicates and bursts: you
 keep the sharpest, and the rest wait in quarantine. A picture doesn't have to be in the library:
-drop it on the window, paste it, or right-click it in File Explorer.
+drop it on the window, paste it, or right-click it in File Explorer (on Windows 11, under Show
+more options).
 
 ![The Library: your folders, and their pictures by the day they were taken](docs/readme/library.png)
 

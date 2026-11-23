@@ -18,12 +18,14 @@ export const sections: Section[] = [
 ];
 
 /** Pages that sit in another's place: Many at once is made from the Library's pictures, the
- * recipes and watch folders feed the queue, as the boards light them, and the review of
- * duplicates and bursts opens from Home's Needs you. */
+ * recipes and watch folders feed the queue, as the boards light them, the review of duplicates
+ * and bursts opens from Home's Needs you, and a picture from outside the library from Home's
+ * Drop pictures here (or anywhere, from File Explorer). */
 const BELONGS: Record<string, string> = {
   "/batch": "/library",
   "/recipes": "/queue",
   "/duplicates": "/",
+  "/pictures": "/",
 };
 
 /** The section a page sits in, whose place stays lit while it's open: its address's first part. */

@@ -24,7 +24,17 @@ from pydantic import Field
 
 from mado import own_looks
 from mado.ai import BIREFNET
-from mado.api.common import ApiModel, Copies, Database, Editors, Models, Seeing, Toolbox, Working
+from mado.api.common import (
+    ApiModel,
+    Copies,
+    Database,
+    Editors,
+    Models,
+    Seeing,
+    SetAside,
+    Toolbox,
+    Working,
+)
 from mado.api.editing import changed
 from mado.api.edits import EditStepIn, PartIn, editing_of, picked
 from mado.api.jobs import Job, job_of
@@ -64,6 +74,8 @@ from mado.making import (
 )
 from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError
 from mado.previews import Previews, Source, version
+from mado.quarantine import Quarantine
+from mado.system import pictures_folder
 from mado.upscale import (
     Pixels,
     StoppedError,
@@ -81,6 +93,12 @@ log = logging.getLogger(__name__)
 _MOST_PREVIEW = 4_000_000  # pixels a preview of a part may have
 _MARGIN = 16  # pixels of the picture around a part previewed, so its edges see what's beside
 _NOTHING = "Pick a size or a look first: as it is, there's nothing to make."
+_ASIDE = (
+    "It waits in Mado's quarantine, so Mado opens it to look at only. Put it back from History "
+    "to make something of it."
+)
+_NO_ORIGINAL = "A pasted picture has no original to replace: save it as a new picture."
+_NO_FOLDER = "Choose a folder for it: a pasted picture isn't in any of your folders yet."
 
 
 class SizeOut(ApiModel):
@@ -388,11 +406,15 @@ def preview(
 def saving_name(
     picture_id: int, body: SavingAsk, conn: Database, sight: Seeing, ai: Models
 ) -> SavingName:
-    """What a picture made would be saved as, and about how big it would be."""
+    """What a picture made would be saved as, and about how big it would be: a pasted one, into
+    the owner's Pictures folder till another is chosen."""
     picture, seen, source = _seen(conn, sight, picture_id)
+    pasted = _pasted(conn, picture_id)
+    if body.how == "new" and not body.folder and pasted:
+        body = body.model_copy(update={"folder": str(pictures_folder())})
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = planned(recipe, seen, ai.starts_on())
-    if made.empty:
+    if made.empty and not pasted:  # a paste saved as it is is something to save
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
     extension = EXTENSIONS[body.format]
     original = picture.path
@@ -420,14 +442,23 @@ def saving_name(
 
 @router.post("/pictures/{picture_id}/make", status_code=status.HTTP_202_ACCEPTED)
 def make(
-    picture_id: int, body: MakeIn, conn: Database, sight: Seeing, ai: Models, jobs: Working
+    picture_id: int,
+    body: MakeIn,
+    conn: Database,
+    sight: Seeing,
+    ai: Models,
+    jobs: Working,
+    aside: SetAside,
 ) -> Job:
     """Makes a picture to its recipe and saves it as the owner chose, as a job: its progress,
-    the time left and Cancel come from /jobs."""
+    the time left and Cancel come from /jobs. A picture waiting in a quarantine is opened to look
+    at only, and a pasted one is saved only as a new picture, into a folder chosen."""
+    _may_save(conn, picture_id, body.saving, aside)
     picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = planned(recipe, seen, ai.starts_on())
-    if made.empty:
+    as_is = made.empty and _pasted(conn, picture_id)  # a paste saved as it is
+    if made.empty and not as_is:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
     if made.see_through and body.saving.format not in ("PNG", "WebP"):
         raise HTTPException(
@@ -475,6 +506,7 @@ def make(
         "look": made.look,
         "edit": made.edit,
         "estimate": round(made.scale, 3),
+        "as_is": as_is,
     }
     job_id = jobs.add(conn, picture_id, picture.path, order)
     return job_of(conn, jobs, job_id)
@@ -705,6 +737,30 @@ def _seen(conn: sqlite3.Connection, sight: Seeing, picture_id: int) -> tuple[Pic
     except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
         raise _refused(error) from None
     return picture, seen, Source.of(row)
+
+
+def _pasted(conn: sqlite3.Connection, picture_id: int) -> bool:
+    row = conn.execute("SELECT pasted FROM pictures WHERE id = ?", (picture_id,)).fetchone()
+    return bool(row and row["pasted"])
+
+
+def _may_save(
+    conn: sqlite3.Connection, picture_id: int, saving: SavingIn, aside: Quarantine
+) -> None:
+    """Refuses a Save that would write where it mustn't: over a picture waiting in a quarantine,
+    or beside or in place of a pasted one, which lives in Mado's data folder."""
+    row = conn.execute(
+        "SELECT path, folder_id, pasted FROM pictures WHERE id = ? AND gone_at IS NULL",
+        (picture_id,),
+    ).fetchone()
+    if row is None:
+        return  # said as gone by what follows
+    if row["folder_id"] is None and aside.holds(Path(row["path"])):
+        raise HTTPException(status.HTTP_409_CONFLICT, _ASIDE)
+    if row["pasted"] and saving.how == "replace":
+        raise HTTPException(status.HTTP_409_CONFLICT, _NO_ORIGINAL)
+    if row["pasted"] and not saving.folder:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NO_FOLDER)
 
 
 def _version_of(picture: Picture) -> str:

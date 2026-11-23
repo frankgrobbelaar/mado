@@ -2,7 +2,21 @@
 
 from pathlib import PureWindowsPath
 
-from mado.core.library import Covered, Holds, fits, inner_folder, time_left
+from mado.core.library import Covered, Holds, fits, holding, inner_folder, time_left
+
+
+def test_a_picture_is_in_the_library_folder_a_scan_would_find_it_in():
+    phone = PureWindowsPath(r"D:\Pictures\Phone")
+    scans = PureWindowsPath(r"E:\Scans")
+
+    assert holding(PureWindowsPath(r"D:\Pictures\Phone\2026\Pier.jpg"), [scans, phone]) == phone
+    assert holding(PureWindowsPath(r"d:\pictures\phone\Pier.jpg"), [phone]) == phone
+    assert holding(PureWindowsPath(r"D:\Elsewhere\Pier.jpg"), [phone, scans]) is None
+    # A folder a scan never looks into: the picture isn't the library's.
+    hidden = PureWindowsPath(r"D:\Pictures\Phone\.thumbs\Pier.jpg")
+    aside = PureWindowsPath(r"D:\Pictures\Phone\Mado quarantine\2026-11-22\Pier.jpg")
+    assert holding(hidden, [phone]) is None
+    assert holding(aside, [phone]) is None
 
 
 def test_a_folder_on_its_own_fits_beside_the_others():

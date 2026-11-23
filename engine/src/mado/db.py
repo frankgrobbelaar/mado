@@ -35,6 +35,10 @@ def migrate(conn: sqlite3.Connection) -> int:
 
     Each migration runs once, in order, inside its own transaction, so a failure
     leaves the database exactly as it was before that migration.
+
+    Foreign keys are off while they run: SQLite changes a column by making its table again,
+    and dropping the old table would otherwise empty the tables that refer to it. Before each
+    one commits, nothing may refer to a row that isn't there any more, unless it did before.
     """
     current = schema_version(conn)
     if current > len(MIGRATIONS):
@@ -42,10 +46,31 @@ def migrate(conn: sqlite3.Connection) -> int:
             f"This database is at version {current}, but this Mado only knows up to "
             f"{len(MIGRATIONS)}. Update Mado to open it."
         )
-    for number, sql in enumerate(MIGRATIONS[current:], start=current + 1):
-        try:
-            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
-        except sqlite3.Error:
-            conn.rollback()
-            raise
+    if current == len(MIGRATIONS):
+        return current
+    conn.execute("PRAGMA foreign_keys = OFF")  # only outside a transaction: so, first
+    try:
+        for number, sql in enumerate(MIGRATIONS[current:], start=current + 1):
+            before = _dangling(conn)
+            try:
+                conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};")
+                broken = _dangling(conn) - before
+                if broken:
+                    raise sqlite3.IntegrityError(
+                        f"Migration {number} left {len(broken)} rows referring to rows that "
+                        "aren't there, so it was taken back."
+                    )
+                conn.commit()
+            except sqlite3.Error:
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
     return schema_version(conn)
+
+
+def _dangling(conn: sqlite3.Connection) -> set[tuple[object, ...]]:
+    """The rows referring to a row that isn't there: each one's table, row and what it refers
+    to."""
+    return {tuple(row) for row in conn.execute("PRAGMA foreign_key_check")}

@@ -21,6 +21,19 @@ tauri-plugin-opener = "2.7.2"
 tauri-plugin-single-instance = "2.5.4"
 tauri-plugin-updater = "2.14.0"
 
+[target.'cfg(windows)'.dependencies]
+# File Explorer's "Open in Mado" and Open with, under HKCU (open_in_mado.rs).
+windows-registry = "0.100.0"
+# The files copied in File Explorer (clipboard.rs), and a second start finding the first.
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 [profile.release]
 codegen-units = 1
 lto = true

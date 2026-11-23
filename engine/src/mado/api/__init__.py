@@ -34,6 +34,7 @@ from mado.api import (
     library,
     looks,
     making,
+    opening,
     pc,
     pictures,
     queue,
@@ -216,7 +217,9 @@ def create_app(
     app.state.scanner = Scanner(paths, app.state.previews, ended=app.state.finder.wake)
     app.state.watcher = None  # set while it watches
     app.state.quarantine = quarantine or Quarantine()
-    app.state.care = Care(paths, app.state.quarantine, now=_now)
+    app.state.care = Care(
+        paths, app.state.quarantine, now=_now, forget=lambda ids: app.state.previews.forget(ids)
+    )
 
     def where_here() -> Here:
         with closing(db.connect(paths.database)) as conn:
@@ -279,6 +282,7 @@ def create_app(
         library,
         scan,
         pictures,
+        opening,
         making,
         editing,
         looks,

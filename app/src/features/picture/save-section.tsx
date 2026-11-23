@@ -26,7 +26,9 @@ export function SaveSection(props: {
   const [saving, setSaving] = useState(false);
   const job = jobs.data?.[0];
   const working = job?.state === "queued" || job?.state === "running";
-  const can = props.ready && recipe !== null && plan !== null && !plan.needs.length && !working;
+  // A paste can be saved as it is, with nothing chosen on the tab.
+  const ready = props.ready || picture.pasted;
+  const can = ready && recipe !== null && plan !== null && !plan.needs.length && !working;
   return (
     <>
       {/* It stays at the column's foot, so Save is in reach however long the column grows; what

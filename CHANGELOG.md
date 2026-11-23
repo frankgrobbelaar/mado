@@ -8,6 +8,45 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Pictures from anywhere: one picture from outside your library opens on its own page, with Size,
+  Looks, Edit and Save as for one in it. Where the library's breadcrumb would be, it shows the
+  folder it's in (a click shows it there) and "Add its folder to the library". It's never listed
+  in the Library, counted or looked at for duplicates; add its folder later and it's the
+  library's, its History intact. Its page follows its file: changed elsewhere (or by a Save in
+  its place) it's read again, and gone it says so, or that its drive isn't connected. Several
+  pictures, or a folder, open Many at once as before.
+- Paste with Ctrl+V anywhere in the window (a text field still pastes words). Files copied in File
+  Explorer open as if dropped; a screenshot, or a picture copied from a browser or another app,
+  opens on its page, kept in Mado's own folder till you save it (as a new picture, as it is or
+  made for a screen, PNG or the format you choose, into Pictures or a folder you pick); a path
+  copied as words opens what it names.
+- "Open in Mado" in File Explorer's right-click menu, on pictures in every format Mado reads (HEIC,
+  AVIF and camera RAW too) and on folders: on Windows 11 it's under Show more options. Several
+  selected open Many at once with them chosen, up to 100 at once (Windows opens nothing past that:
+  open their folder instead). Mado is in Open with for its pictures too, without
+  ever becoming what opens them: which app does stays yours. Settings › General turns it off, and
+  uninstalling takes it away.
+- `mado.exe` opens the pictures and folders named after it, quoted or not, long paths, network
+  paths and any alphabet included. A Mado already running, or waiting in the tray, comes forward
+  with them; one only just starting opens them once it's ready.
+- A picture from outside the library not opened for a month is let go, with its copies, unless
+  the queue or History still needs it; an unsaved paste goes then too. Settings › Your data shows
+  what's pasted, once there is some.
+- The Library tags a picture kept from a group, as its board draws it: "burst of 5", "2 copies".
+  A click opens the review at that group.
+- The small things: a file Mado can't read (it says the formats it reads), a path gone or a drive
+  not connected, a picture too big to paste (over 67 megapixels, all Windows' clipboard hands the window), pictures among other files (it
+  takes the pictures and says what it left out), a picture waiting in quarantine (opened to look
+  at only), camera RAW from outside (shown as the library shows it), and the same picture opened
+  twice (one page).
+
+### Fixed
+- A library folder holding Mado's own data folder no longer reads Mado's cache as pictures, and
+  what Mado writes there no longer starts scans.
+- A picture copied into a library folder while a scan was under way is no longer taken for gone.
+- Mado no longer stops as it starts when Windows hands it a name it can't put in letters.
+
 ## 0.5.0 - 2026-11-23
 
 ### Added

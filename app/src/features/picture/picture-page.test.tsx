@@ -50,6 +50,10 @@ function details(item: PictureItem, overrides: Partial<PictureDetails> = {}): Pi
     located: true,
     damaged: false,
     problem: null,
+    outside: false,
+    pasted: false,
+    aside: false,
+    savesTo: null,
     ...overrides,
   };
 }

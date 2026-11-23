@@ -21,7 +21,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 
 const picture = () => new Response(new Blob(["made-up picture"], { type: "image/webp" }));
 
-function renderPage() {
+function renderPage(at = "/duplicates") {
   shell.invoke.mockImplementation(async (command: string) =>
     command === "engine_status" ? READY : undefined,
   );
@@ -29,7 +29,7 @@ function renderPage() {
   render(
     <QueryClientProvider client={queries}>
       <EngineProvider>
-        <MemoryRouter initialEntries={["/duplicates"]}>
+        <MemoryRouter initialEntries={[at]}>
           <Routes>
             <Route path="/duplicates" element={<DuplicatesPage />} />
             <Route path="/history" element={<p>History</p>} />
@@ -164,6 +164,21 @@ describe("DuplicatesPage", () => {
       }),
     );
     expect(sent(fetch, "POST", "/duplicates/11/not-same")).toHaveLength(1);
+  });
+
+  it("opens at the group a tag in the Library names, marked, its page long enough to hold it", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const fetch = engine();
+    renderPage("/duplicates?group=11");
+
+    const copies = await screen.findByRole("region", { name: "Duplicates · 2 copies" });
+    expect(copies).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: "Burst · 3 shots" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    const asked = sent(fetch, "GET", "/duplicates?kind=all")[0]?.[0];
+    expect(new URL(String(asked)).searchParams.get("reach")).toBe("11");
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
   });
 
   it("tells bursts from duplicates", async () => {

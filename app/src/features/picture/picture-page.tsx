@@ -44,6 +44,7 @@ import { bare, NOTHING, tooBig, usePicking } from "./editing";
 import { LooksStage } from "./looks-stage";
 import { changes, OnlyOnAPart, ORIGINAL, PLAIN, TOUCHES } from "./looks-tab";
 import { NeighbourStrip } from "./neighbour-strip";
+import { LookOnly, WhereItLives } from "./outside";
 import { SizeStage } from "./size-stage";
 import { Stage, type Zoom } from "./stage";
 import { type Tool, ToolsColumn } from "./tools-column";
@@ -52,6 +53,8 @@ import { type Tool, ToolsColumn } from "./tools-column";
 const CONTROLS =
   "input, textarea, select, [role='group'], [role='radiogroup'], [role='dialog'], [role='slider'], [role='tablist']";
 const NOT_HERE = "That picture isn't in your library any more.";
+const OWN = "/pictures/"; // the address of a picture's page from outside the library
+const AS_IT_IS: Recipe = { edit: null, size: null, look: null }; // a paste saved unchanged
 const HOLD_KEY = "\\"; // held down, it shows the original, as "Hold to see the original" does
 
 const ZOOMS = [
@@ -61,8 +64,11 @@ const ZOOMS = [
 ] as const;
 
 /**
- * A picture's page, opened from the Library: the picture large, its facts, and its tools'
- * column. On the Size tab: fitted or at 100% or 400%, the strip of its neighbours in the list it
+ * A picture's page, opened from the Library, or from anywhere (dropped, picked, pasted, from File
+ * Explorer), in the library or not: the picture large, its facts, and its tools' column. One from
+ * outside the library shows where it lives in place of the breadcrumb, with "Add its folder to
+ * the library", and has no neighbours; one in a quarantine is opened to look at only. On the Size
+ * tab: fitted or at 100% or 400%, the strip of its neighbours in the list it
  * came from (the arrow keys go along it), and with a size chosen the picture as it'd be made: its
  * shape over it, and before and after at full detail when zoomed in. On the Looks tab, as
  * Picture-Looks draws it: the picture with its look, on the whole picture or only a part, and
@@ -101,7 +107,9 @@ export function PicturePage() {
   const [smeared, setSmeared] = useState(false);
   const [letGo, setLetGo] = useState<string | null>(null);
   const [shownFor, setShownFor] = useState(id);
-  const opened = useLocation().state as { fresh?: boolean } | null;
+  const location = useLocation();
+  const opened = location.state as { fresh?: boolean } | null;
+  const own = location.pathname.startsWith(OWN);
   if (shownFor !== id) {
     setShownFor(id);
     setPointed(null);
@@ -120,6 +128,17 @@ export function PicturePage() {
     }
   }
   const jobs = usePictureJobs(id);
+  // Once its Save is done, the picture is asked for again: one from outside the library, which
+  // no scan looks after, may have been replaced.
+  const latestJob = jobs.data?.[0];
+  const jobSeen = useRef<string | null>(null);
+  const refetchPicture = picture.refetch;
+  useEffect(() => {
+    const now = latestJob ? `${latestJob.id}:${latestJob.state}` : null;
+    const before = jobSeen.current;
+    jobSeen.current = now;
+    if (latestJob?.state === "done" && before !== null && before !== now) void refetchPicture();
+  }, [latestJob, refetchPicture]);
   const version = picture.data?.version ?? "";
   // A picture whose file changed since its edits were made: they were made on what it was. When
   // it was Mado's own Save in the original's place, the edits are in it now, so they go quietly.
@@ -151,8 +170,13 @@ export function PicturePage() {
   // Parts a look goes on are tied to the picture as it is, as edits are: a Save that finds it
   // changed saves nothing.
   const recipeEdit = editStep ?? (looked?.parts?.length ? { version, edits: [] } : null);
+  // A paste can be saved as it is: nothing chosen is still something to save.
   const recipe: Recipe | null =
-    ready && (sized || looked || editStep) ? { edit: recipeEdit, size: sized, look: looked } : null;
+    ready && (sized || looked || editStep)
+      ? { edit: recipeEdit, size: sized, look: looked }
+      : ready && picture.data?.pasted
+        ? AS_IT_IS
+        : null;
   const big = picture.data ? tooBig(picture.data) : null;
   const places = usePc().data?.editing;
   const plan = usePlan(id, recipe);
@@ -267,7 +291,12 @@ export function PicturePage() {
     };
   }, [tool]);
 
-  const gone = picture.error instanceof EngineError && picture.error.message === NOT_HERE;
+  // Not there: gone from the library, or from outside it, moved, deleted or on a drive not
+  // connected (the engine says which).
+  const gone =
+    picture.error instanceof EngineError &&
+    (picture.error.message === NOT_HERE || (own && picture.error.status === 404));
+  const outside = picture.data?.outside ?? (own && !picture.data);
   const listed =
     shown.folder === null ? undefined : folders.data?.find((f) => f.id === shown.folder);
   const back = shown.dir ? (shown.dir.split("/").at(-1) ?? shown.dir) : (listed?.name ?? "Library");
@@ -279,15 +308,25 @@ export function PicturePage() {
     <div className="-mx-7 -mb-12 flex h-[calc(100vh-4.25rem)]">
       <div className="flex min-w-0 flex-1 flex-col gap-3 px-5.5 pt-4 pb-4">
         <header className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
-          <Button asChild size="sm" className="gap-1.5 pr-2.5 pl-1.5 font-normal">
-            <Link to={`/library${context ? `?${context}` : ""}`}>
-              <ChevronLeft size={16} aria-hidden="true" />
-              {back}
-            </Link>
-          </Button>
+          {picture.data?.outside ? (
+            <WhereItLives picture={picture.data} />
+          ) : (
+            <Button asChild size="sm" className="gap-1.5 pr-2.5 pl-1.5 font-normal">
+              <Link to={outside ? "/" : `/library${context ? `?${context}` : ""}`}>
+                <ChevronLeft size={16} aria-hidden="true" />
+                {outside ? "Home" : back}
+              </Link>
+            </Button>
+          )}
           <div className="flex min-w-0 flex-col gap-0.5">
             <h1 className="truncate font-semibold text-18">
-              {picture.data ? stem(picture.data.name) : gone ? "Not in your library" : "…"}
+              {picture.data
+                ? stem(picture.data.name)
+                : gone
+                  ? outside
+                    ? "Not there any more"
+                    : "Not in your library"
+                  : "…"}
             </h1>
             {picture.data && (
               <p className="font-mono text-12 text-fg-muted">{factsOf(picture.data)}</p>
@@ -335,32 +374,38 @@ export function PicturePage() {
                 onChange={setZoom}
                 className="ml-auto [&_button:not(:first-child)]:font-mono"
               />
-              <Button
-                size="sm"
-                aria-label="Previous picture"
-                className="w-9 bg-transparent px-0"
-                disabled={!previous}
-                onClick={() => previous && void navigate(to(previous.id), { replace: true })}
-              >
-                <ChevronLeft size={16} aria-hidden="true" />
-              </Button>
-              <Button
-                size="sm"
-                aria-label="Next picture"
-                className="w-9 bg-transparent px-0"
-                disabled={!next}
-                onClick={() => next && void navigate(to(next.id), { replace: true })}
-              >
-                <ChevronRight size={16} aria-hidden="true" />
-              </Button>
+              {!outside && (
+                <>
+                  <Button
+                    size="sm"
+                    aria-label="Previous picture"
+                    className="w-9 bg-transparent px-0"
+                    disabled={!previous}
+                    onClick={() => previous && void navigate(to(previous.id), { replace: true })}
+                  >
+                    <ChevronLeft size={16} aria-hidden="true" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    aria-label="Next picture"
+                    className="w-9 bg-transparent px-0"
+                    disabled={!next}
+                    onClick={() => next && void navigate(to(next.id), { replace: true })}
+                  >
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </Button>
+                </>
+              )}
             </>
           )}
         </header>
 
         {gone ? (
           <Gone
-            back={`/library${context ? `?${context}` : ""}`}
+            back={outside ? "/" : `/library${context ? `?${context}` : ""}`}
             replaced={replacedBy(jobs.data?.[0])}
+            outside={outside}
+            why={outside && picture.error?.message !== NOT_HERE ? picture.error?.message : null}
           />
         ) : (
           <>
@@ -433,7 +478,7 @@ export function PicturePage() {
           </>
         )}
 
-        {picture.data && neighbours.data && !looking && !editingNow && (
+        {picture.data && !outside && neighbours.data && !looking && !editingNow && (
           <NeighbourStrip
             label={`Pictures in ${back === "Library" ? "your library" : back}`}
             current={picture.data}
@@ -443,7 +488,8 @@ export function PicturePage() {
           />
         )}
       </div>
-      {picture.data && (
+      {picture.data?.aside && <LookOnly />}
+      {picture.data && !picture.data.aside && (
         <ToolsColumn
           picture={picture.data}
           tool={tool}
@@ -731,14 +777,20 @@ function OnStage({
       () => setCopied({ text: "Copied its path.", problem: false }),
       () => setCopied({ text: "Windows didn't let Mado copy it. Try again.", problem: true }),
     );
+  // From outside the library, its folder is in the header, where the breadcrumb would be; a
+  // pasted picture has no folder of the owner's yet.
   const actions = (
     <span className="flex flex-wrap gap-2">
-      <Button size="sm" className="font-medium" onClick={show}>
-        Show in folder
-      </Button>
-      <Button variant="ghost" size="sm" className="font-medium" onClick={() => void copy()}>
-        Copy path
-      </Button>
+      {!picture.outside && (
+        <Button size="sm" className="font-medium" onClick={show}>
+          Show in folder
+        </Button>
+      )}
+      {!picture.pasted && (
+        <Button variant="ghost" size="sm" className="font-medium" onClick={() => void copy()}>
+          Copy path
+        </Button>
+      )}
     </span>
   );
   if (picture.state !== "ready") {
@@ -790,7 +842,11 @@ function OnStage({
       <div className="flex flex-wrap items-center gap-x-4.5 gap-y-1 text-13 text-fg-muted">
         {picture.camera && <span>{picture.camera}</span>}
         <span>{picture.located ? "Carries where it was taken" : "No place in it"}</span>
-        <span className="min-w-0 truncate font-mono text-12">{split(picture.path)[1]}</span>
+        {picture.pasted ? (
+          <span>Kept in Mado till you save it</span>
+        ) : (
+          <span className="min-w-0 truncate font-mono text-12">{split(picture.path)[1]}</span>
+        )}
         <span className="ml-auto">{actions}</span>
         {explorer.problem && (
           <p role="alert" className="basis-full text-12 text-broken-fg">
@@ -848,7 +904,7 @@ function Unshown(props: {
           </h2>
           <span className="max-w-150 text-13 text-fg-muted leading-normal">
             {raw &&
-              `Mado lists ${picture.name} and leaves it exactly as it is. Reading camera RAW comes with a reader Mado downloads the first time it's needed.`}
+              `Mado ${picture.outside ? "leaves" : "lists"} ${picture.name}${picture.outside ? "" : " and leaves it"} exactly as it is. Reading camera RAW comes with a reader Mado downloads the first time it's needed.`}
             {broken &&
               "The file is damaged or was only half copied. Mado left it exactly as it is and carried on with the others."}
             {!raw && !broken && props.children}
@@ -872,7 +928,7 @@ function Unshown(props: {
             Try again
           </Button>
         )}
-        {broken && !picture.damaged && (
+        {broken && !picture.damaged && !picture.outside && (
           <Button
             size="sm"
             variant="ghost"
@@ -928,17 +984,36 @@ function replacedBy(job: Job | undefined): Job | null {
 }
 
 /** The picture isn't in the library any more: gone from its folder, or the folder taken out; or
- * Mado replaced it, as asked, with one in another format. */
-function Gone({ back, replaced }: { back: string; replaced: Job | null }) {
+ * Mado replaced it, as asked, with one in another format. One from outside the library: moved
+ * or deleted, or let go after a month unopened. */
+function Gone({
+  back,
+  replaced,
+  outside,
+  why,
+}: {
+  back: string;
+  replaced: Job | null;
+  outside: boolean;
+  /** Why, in the engine's words, for one from outside: moved or deleted, or a drive away. */
+  why?: string | null;
+}) {
   return (
     <section className="flex min-h-60 flex-1 flex-col items-start justify-center gap-3 rounded-6 border border-dash border-dashed bg-surface px-7 py-6">
       <h2 className="font-semibold text-16">
-        {replaced ? "Mado replaced this picture" : "This picture isn't in your library any more"}
+        {replaced
+          ? "Mado replaced this picture"
+          : outside
+            ? "This picture isn't there any more"
+            : "This picture isn't in your library any more"}
       </h2>
       <p className="max-w-150 text-13 text-fg-muted">
         {replaced
           ? `Mado replaced it with ${replaced.resultName}, made ${madeWith(replaced)}, as you asked. The original waits in quarantine for 30 days, and History puts it back.`
-          : "It was moved or deleted since, or its folder was taken out of the library. Mado didn't change it."}
+          : outside
+            ? (why ??
+              "It was moved or deleted since, or Mado let it go after a month unopened. Mado didn't change it: drop it on the window or paste it to open it again.")
+            : "It was moved or deleted since, or its folder was taken out of the library. Mado didn't change it."}
       </p>
       <span className="flex flex-wrap gap-2">
         {replaced?.resultPicture && (
@@ -949,7 +1024,7 @@ function Gone({ back, replaced }: { back: string; replaced: Job | null }) {
           </Button>
         )}
         <Button asChild size="sm">
-          <Link to={back}>Back to the library</Link>
+          <Link to={back}>{outside ? "Back to Home" : "Back to the library"}</Link>
         </Button>
       </span>
     </section>

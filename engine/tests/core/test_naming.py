@@ -14,6 +14,16 @@ def test_a_new_picture_is_named_after_its_original_and_what_it_was_made_for():
     )
 
 
+def test_a_picture_saved_as_it_is_keeps_its_originals_name():
+    assert new_name("Pasted 2026-11-23 14.05", "", ".png", lambda _name: False) == (
+        "Pasted 2026-11-23 14.05.png"
+    )
+    taken = {"pasted 2026-11-23 14.05.png"}
+    assert new_name("Pasted 2026-11-23 14.05", "", ".png", lambda name: name.lower() in taken) == (
+        "Pasted 2026-11-23 14.05 (2).png"
+    )
+
+
 def test_a_name_thats_taken_gets_the_next_number_whatever_its_case():
     taken = {"harbour at dusk (tv 8k).jpg", "harbour at dusk (tv 8k) (2).jpg"}
 

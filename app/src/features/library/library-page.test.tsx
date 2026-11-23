@@ -135,6 +135,27 @@ describe("LibraryPage", () => {
     );
   });
 
+  it("tags a picture kept from a burst or from copies, opening its review there", async () => {
+    const tagged = PICTURES.map((each) =>
+      each.id === 21
+        ? { ...each, group: { key: 21, kind: "burst" as const, pictures: 5 } }
+        : each.id === 12
+          ? { ...each, group: { key: 9, kind: "duplicates" as const, pictures: 2 } }
+          : each,
+    );
+    library({ "/pictures": page(tagged) });
+    renderLibrary("/library?folder=1");
+
+    const burst = await screen.findByRole("link", { name: "Review the burst of 5" });
+    expect(burst).toHaveTextContent("burst of 5");
+    expect(burst).toHaveAttribute("href", "/duplicates?group=21");
+    expect(screen.getByRole("link", { name: "Review the 2 copies" })).toHaveAttribute(
+      "href",
+      "/duplicates?group=9",
+    );
+    expect(screen.getAllByRole("link", { name: /^Review the/ })).toHaveLength(2);
+  });
+
   it("shows a folder's pictures by the day they were taken, as the board draws them", async () => {
     const fetch = library();
     renderLibrary("/library?folder=1");

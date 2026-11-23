@@ -13,6 +13,7 @@ from mado.library import (
     file_time,
     find_pictures,
     folders,
+    record,
     remove_folder,
     save_facts,
     save_problem,
@@ -145,6 +146,31 @@ def test_a_later_walk_notices_new_changed_and_gone_pictures(
     assert now["changed.jpg"]["read_at"] is None  # read again
     assert now["kept.jpg"]["read_at"] == STAMP
     assert now["new.jpg"]["found_at"] == LATER
+
+
+def test_a_picture_there_but_not_seen_by_the_walk_isnt_marked_gone(
+    conn: sqlite3.Connection, tmp_path: Path
+):
+    phone = tmp_path / "Phone"
+    draw(phone / "kept.jpg")
+    folder = add_folder(conn, phone, now=NOW)
+    find_pictures(conn, folder, stamp=STAMP)
+
+    def copied_in_and_opened(_path: Path) -> None:
+        """A picture copied into the folder the walk has listed already, and opened meanwhile:
+        recorded as a scan would (mado/outside.py), but not seen by this walk."""
+        fresh = phone / "fresh.jpg"
+        if fresh.exists():
+            return
+        draw(fresh)
+        stat = fresh.stat()
+        with conn:
+            record(conn, folder.id, fresh, "", "picture", stat.st_size, stat.st_mtime_ns, LATER)
+
+    found = find_pictures(conn, folder, stamp=LATER + "x", on_file=copied_in_and_opened)
+
+    assert found is not None
+    assert rows(conn)["fresh.jpg"]["gone_at"] is None
 
 
 def test_a_picture_back_again_counts_as_found_anew(conn: sqlite3.Connection, tmp_path: Path):

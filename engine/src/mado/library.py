@@ -114,14 +114,16 @@ def find_pictures(
     stamp: str,
     on_file: Callable[[Path], None] = lambda _: None,
     stop: Callable[[], bool] = lambda: False,
+    away: Path | None = None,
 ) -> Found | None:
-    """Walks a library folder and records every picture in it.
+    """Walks a library folder and records every picture in it, never inside `away` (Mado's own
+    data folder, whose cache and pasted pictures aren't the library's).
 
     `stamp` names the scan; pictures it doesn't see are marked gone, except inside folders it
-    couldn't open. Returns None, having marked nothing gone, when the folder isn't there (its
-    drive unplugged, say), when it leaves the library during the walk, or when `stop` asks to
-    stop. Links and junctions aren't followed: they can go round in circles, or off to another
-    drive.
+    couldn't open and any still there (recorded while it walked, by a picture opened then).
+    Returns None, having marked nothing gone, when the folder isn't there (its drive unplugged,
+    say), when it leaves the library during the walk, or when `stop` asks to stop. Links and
+    junctions aren't followed: they can go round in circles, or off to another drive.
     """
     if not folder.path.is_dir():
         return None
@@ -140,7 +142,9 @@ def find_pictures(
             problems.append(f"Mado couldn't look in {current}: {error.strerror or error}.")
             unopened.append(PureWindowsPath(current))
             continue
-        inside = [Path(entry.path) for entry in listed if _walks_into(entry)]
+        inside = [
+            Path(entry.path) for entry in listed if _walks_into(entry) and not _is(entry, away)
+        ]
         waiting.extend(reversed(inside))  # so folders come off the stack in name order too
         for entry in listed:
             kind = kind_of(entry.name)
@@ -154,7 +158,7 @@ def find_pictures(
             stat = entry.stat(follow_symlinks=False)
             place = inner_folder(root, PureWindowsPath(path))
             try:
-                outcome, picture_id = _record(
+                outcome, picture_id = record(
                     conn, folder.id, path, place, kind, stat.st_size, stat.st_mtime_ns, stamp
                 )
             except sqlite3.IntegrityError:  # the folder left the library during the walk
@@ -175,6 +179,7 @@ def find_pictures(
         row["id"]
         for row in unseen
         if not any(PureWindowsPath(row["path"]).is_relative_to(away) for away in unopened)
+        and not Path(row["path"]).exists()  # recorded meanwhile (opened, say): not seen, there
     ]
     with conn:
         conn.executemany("UPDATE pictures SET gone_at = ? WHERE id = ?", [(stamp, i) for i in gone])
@@ -187,7 +192,8 @@ def unread(conn: sqlite3.Connection) -> list[Unread]:
     first."""
     rows = conn.execute(
         """SELECT id, path, name FROM pictures
-           WHERE read_at IS NULL AND gone_at IS NULL ORDER BY modified DESC, id"""
+           WHERE read_at IS NULL AND gone_at IS NULL AND folder_id IS NOT NULL
+           ORDER BY modified DESC, id"""
     ).fetchall()
     return [Unread(row["id"], Path(row["path"]), kind_of(row["name"]) or "picture") for row in rows]
 
@@ -243,6 +249,11 @@ def file_time(modified: int) -> str:
     return moment.isoformat(timespec="seconds")
 
 
+def _is(entry: os.DirEntry[str], folder: Path | None) -> bool:
+    """Whether a folder found is this one, however its name is written."""
+    return folder is not None and os.path.normcase(entry.path) == os.path.normcase(folder)
+
+
 def _walks_into(entry: os.DirEntry[str]) -> bool:
     """A folder the walk goes into: a real folder, not a link or junction, nor one it skips."""
     return (
@@ -253,9 +264,9 @@ def _walks_into(entry: os.DirEntry[str]) -> bool:
     )
 
 
-def _record(
+def record(
     conn: sqlite3.Connection,
-    folder_id: int,
+    folder_id: int | None,
     path: Path,
     place: str,
     kind: Kind,
@@ -263,21 +274,23 @@ def _record(
     modified: int,
     stamp: str,
 ) -> tuple[str, int]:
-    """Saves one found picture. Returns "added", "changed" or "same", and its number. A picture
-    found gone before and here again counts as found now (`found_at`): it's new to the library
-    once more. A camera RAW file has nothing to read yet, so it's read as it's found."""
+    """Saves one found picture (`folder_id` None: outside the library, opened from elsewhere).
+    Returns "added", "changed" or "same", and its number. A picture found gone before and here
+    again counts as found now (`found_at`): it's new to the library once more; so does one that
+    was outside the library till its folder was added, keeping its number, so its jobs stay its
+    own. A camera RAW file has nothing to read yet, so it's read as it's found."""
     raw = kind == "raw"
     format_ = path.suffix[1:].upper() if raw else None
     read = stamp if raw else None
     taken = file_time(modified)
     before = conn.execute(
-        "SELECT id, size, modified, gone_at FROM pictures WHERE path = ?", (str(path),)
+        "SELECT id, size, modified, gone_at, folder_id FROM pictures WHERE path = ?", (str(path),)
     ).fetchone()
     if before is None:
         picture_id: int = conn.execute(
             """INSERT INTO pictures (folder_id, path, dir, name, size, modified, found_at, seen_at,
-                                     read_at, raw, format, taken_at, taken_from)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'file') RETURNING id""",
+                                     read_at, raw, format, taken_at, taken_from, opened_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'file', ?) RETURNING id""",
             (
                 folder_id,
                 str(path),
@@ -291,25 +304,31 @@ def _record(
                 int(raw),
                 format_,
                 taken,
+                stamp if folder_id is None else None,
             ),
         ).fetchone()[0]
         return "added", picture_id
-    back = stamp if before["gone_at"] is not None else None
+    joins = folder_id is not None and before["folder_id"] is None
+    back = stamp if before["gone_at"] is not None or joins else None
+    # Outside the library, when it was opened stays; in it, it's the library's (never pasted).
+    opened = "opened_at" if folder_id is None else "NULL"
     if (before["size"], before["modified"]) == (size, modified):
         conn.execute(
-            """UPDATE pictures SET folder_id = ?, dir = ?, name = ?, seen_at = ?, gone_at = NULL,
-                                   found_at = COALESCE(?, found_at)
-               WHERE id = ?""",
-            (folder_id, place, path.name, stamp, back, before["id"]),
+            f"""UPDATE pictures SET folder_id = ?, dir = ?, name = ?, seen_at = ?, gone_at = NULL,
+                                    found_at = COALESCE(?, found_at), opened_at = {opened},
+                                    pasted = pasted * (? IS NULL)
+               WHERE id = ?""",  # noqa: S608 - `opened` is one of two fixed words
+            (folder_id, place, path.name, stamp, back, folder_id, before["id"]),
         )
         return ("added" if back else "same"), before["id"]
     conn.execute(
-        """UPDATE pictures
+        f"""UPDATE pictures
            SET folder_id = ?, dir = ?, name = ?, size = ?, modified = ?, seen_at = ?,
                gone_at = NULL, found_at = COALESCE(?, found_at), read_at = ?, problem = NULL,
                damaged = 0, raw = ?, format = ?, width = NULL, height = NULL, taken_at = ?,
-               taken_from = 'file', camera = NULL, orientation = NULL, located = 0
-           WHERE id = ?""",
+               taken_from = 'file', camera = NULL, orientation = NULL, located = 0,
+               opened_at = {opened}, pasted = pasted * (? IS NULL)
+           WHERE id = ?""",  # noqa: S608 - `opened` is one of two fixed words
         (
             folder_id,
             place,
@@ -322,6 +341,7 @@ def _record(
             int(raw),
             format_,
             taken,
+            folder_id,
             before["id"],
         ),
     )

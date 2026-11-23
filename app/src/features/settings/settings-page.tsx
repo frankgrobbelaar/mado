@@ -9,7 +9,9 @@ import { openDownloadsPage } from "@/lib/links";
 import { useLook, useSetLook } from "@/lib/look";
 import {
   useKeepInTray,
+  useOpenInExplorer,
   useSetKeepInTray,
+  useSetOpenInExplorer,
   useSetStartWithWindows,
   useStartWithWindows,
 } from "@/lib/startup";
@@ -98,8 +100,17 @@ function General() {
   const changeKeep = useSetKeepInTray();
   const look = useLook();
   const changeLook = useSetLook();
+  const explorer = useOpenInExplorer();
+  const changeExplorer = useSetOpenInExplorer();
   const problem =
-    change.error ?? start.error ?? changeKeep.error ?? keep.error ?? changeLook.error ?? look.error;
+    change.error ??
+    start.error ??
+    changeKeep.error ??
+    keep.error ??
+    changeExplorer.error ??
+    explorer.error ??
+    changeLook.error ??
+    look.error;
   return (
     <>
       <Panel title="General">
@@ -119,6 +130,12 @@ function General() {
           checked={keep.data ?? false}
           onChange={(on) => changeKeep.mutate(on)}
         />
+        <Toggle
+          label="Open in Mado in File Explorer"
+          text="Right-click pictures or a folder to open them here (on Windows 11, under Show more options), and Mado is in Open with. Which app opens a picture stays yours to choose."
+          checked={explorer.data ?? true}
+          onChange={(on) => changeExplorer.mutate(on)}
+        />
         {problem && (
           <p role="alert" className="text-13 text-broken-fg">
             {String(problem)}
@@ -136,12 +153,21 @@ const PARTS: {
   label: string;
   note: string;
   color: string;
+  /** Shown only while it holds something. */
+  some?: boolean;
 }[] = [
   { key: "database", label: "Database", note: "mado.db, one SQLite file", color: "bg-accent" },
   { key: "backups", label: "Backups", note: "last 7 nights", color: "bg-line-strong" },
   { key: "cache", label: "Cache", note: "can be made again", color: "bg-waiting" },
   { key: "tools", label: "Tools", note: "ffmpeg, AI models", color: "bg-line-strong" },
   { key: "logs", label: "Logs", note: "kept 30 days", color: "bg-control" },
+  {
+    key: "pasted",
+    label: "Pasted",
+    note: "a month after last opened",
+    color: "bg-fg-faint",
+    some: true,
+  },
 ];
 
 function YourData() {
@@ -172,11 +198,12 @@ function YourData() {
 }
 
 function Breakdown({ sizes }: { sizes: DataSizes }) {
-  const total = PARTS.reduce((sum, part) => sum + sizes[part.key], 0) || 1;
+  const parts = PARTS.filter((part) => !part.some || sizes[part.key] > 0);
+  const total = parts.reduce((sum, part) => sum + sizes[part.key], 0) || 1;
   return (
     <>
       <div aria-hidden="true" className="flex h-3 gap-0.5 overflow-hidden rounded-6 bg-track">
-        {PARTS.map((part) => (
+        {parts.map((part) => (
           <span
             key={part.key}
             className={cn("h-full animate-grow-x origin-left", part.color)}
@@ -185,7 +212,7 @@ function Breakdown({ sizes }: { sizes: DataSizes }) {
         ))}
       </div>
       <dl className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
-        {PARTS.map((part) => (
+        {parts.map((part) => (
           <div key={part.key} className="flex flex-col gap-0.5">
             <dt className="inline-flex items-center gap-1.5 text-12 text-fg-muted">
               <span aria-hidden="true" className={cn("size-2 rounded-2", part.color)} />

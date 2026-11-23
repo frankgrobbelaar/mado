@@ -35,7 +35,8 @@ FunctionEnd
     ${EndIf}
 !macroend
 
-; 4. Mado's data folder stays unless "Delete the application data" was ticked.
+; 4. Mado's data folder stays unless "Delete the application data" was ticked. File Explorer's
+;    "Open in Mado" goes (see 6), except while updating.
 !macro NSIS_HOOK_POSTUNINSTALL
     ; What an install couldn't remove of an old engine (see 5), then Mado's folder if that was
     ; all that kept it.
@@ -44,6 +45,9 @@ FunctionEnd
     ${If} $DeleteAppDataCheckboxState = 1
     ${AndIf} $UpdateMode <> 1
         RMDir /r "$LOCALAPPDATA\Mado"
+    ${EndIf}
+    ${If} $UpdateMode <> 1
+        !insertmacro MadoForgetExplorer
     ${EndIf}
 !macroend
 
@@ -69,6 +73,83 @@ Function .onInstFailed
         Rename "$INSTDIR\engine-old" "$INSTDIR\engine"
     ${EndIf}
 FunctionEnd
+
+; 6. File Explorer's "Open in Mado" on pictures and folders, and Mado in Open with, which Mado
+;    writes for this user as it starts (src-tauri/src/open_in_mado.rs): taken away by the
+;    uninstaller, kept through updates. Only Mado's own keys and values go, then each key above
+;    them that holds nothing else now. Which types Open with was written for, its SupportedTypes
+;    says; "Open in Mado" is looked for under every type, an older Mado's too. Never a type's
+;    default, never UserChoice: Mado never set them. hooks-test.nsi has a root of its own.
+!ifndef MADO_CLASSES
+    !define MADO_CLASSES "Software\Classes"
+!endif
+
+!macro MadoForgetExplorer
+    Push $R0
+    Push $R1
+    Push $R2
+    ; "Open in Mado" under each type, from the last down, so taking one away never moves those
+    ; still to look at.
+    StrCpy $R0 0
+    ${Do}
+        ClearErrors
+        EnumRegKey $R1 HKCU "${MADO_CLASSES}\SystemFileAssociations" $R0
+        ${If} ${Errors}
+        ${OrIf} $R1 == ""
+            ${ExitDo}
+        ${EndIf}
+        IntOp $R0 $R0 + 1
+    ${Loop}
+    ${DoWhile} $R0 > 0
+        IntOp $R0 $R0 - 1
+        EnumRegKey $R1 HKCU "${MADO_CLASSES}\SystemFileAssociations" $R0
+        !insertmacro MadoForgetKey "${MADO_CLASSES}\SystemFileAssociations\$R1\shell\Mado.Open" \
+            "${MADO_CLASSES}\SystemFileAssociations\$R1\shell" \
+            "${MADO_CLASSES}\SystemFileAssociations\$R1" \
+            "${MADO_CLASSES}\SystemFileAssociations"
+    ${Loop}
+    !insertmacro MadoForgetKey "${MADO_CLASSES}\Directory\shell\Mado.Open" \
+        "${MADO_CLASSES}\Directory\shell" "${MADO_CLASSES}\Directory" ""
+    ; Open with: Mado's value under each type it was written for.
+    StrCpy $R0 0
+    ${Do}
+        ClearErrors
+        EnumRegValue $R1 HKCU "${MADO_CLASSES}\Applications\mado.exe\SupportedTypes" $R0
+        ${If} ${Errors}
+        ${OrIf} $R1 == ""
+            ${ExitDo}
+        ${EndIf}
+        ClearErrors
+        ReadRegStr $R2 HKCU "${MADO_CLASSES}\$R1\OpenWithProgids" "Mado.Picture"
+        ${IfNot} ${Errors}
+            DeleteRegValue HKCU "${MADO_CLASSES}\$R1\OpenWithProgids" "Mado.Picture"
+            DeleteRegKey /ifempty HKCU "${MADO_CLASSES}\$R1\OpenWithProgids"
+            DeleteRegKey /ifempty HKCU "${MADO_CLASSES}\$R1"
+        ${EndIf}
+        IntOp $R0 $R0 + 1
+    ${Loop}
+    !insertmacro MadoForgetKey "${MADO_CLASSES}\Applications\mado.exe" \
+        "${MADO_CLASSES}\Applications" "" ""
+    !insertmacro MadoForgetKey "${MADO_CLASSES}\Mado.Picture" "" "" ""
+    ; Explorer shows it now: SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, 0, 0).
+    System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+    Pop $R2
+    Pop $R1
+    Pop $R0
+!macroend
+
+; Takes KEY away with all it holds, if it's there; then each of UP1, UP2 and UP3, the keys above
+; it, while it's empty (no keys, no values).
+!macro MadoForgetKey KEY UP1 UP2 UP3
+    ClearErrors
+    EnumRegKey $R2 HKCU "${KEY}" 0
+    ${IfNot} ${Errors}
+        DeleteRegKey HKCU "${KEY}"
+        ${IfThen} "${UP1}" != "" ${|} DeleteRegKey /ifempty HKCU "${UP1}" ${|}
+        ${IfThen} "${UP2}" != "" ${|} DeleteRegKey /ifempty HKCU "${UP2}" ${|}
+        ${IfThen} "${UP3}" != "" ${|} DeleteRegKey /ifempty HKCU "${UP3}" ${|}
+    ${EndIf}
+!macroend
 
 ; Does ACTION until FOLDER is gone, at most 10 times, half a second apart.
 !macro MadoTryUntilGone ACTION FOLDER

@@ -25,6 +25,7 @@ function renderBatch(start: BatchStart | null) {
             <Route path="/batch" element={<BatchPage />} />
             <Route path="/queue" element={<p>The queue</p>} />
             <Route path="/library" element={<p>The library</p>} />
+            <Route path="/" element={<p>Home</p>} />
           </Routes>
         </MemoryRouter>
       </EngineProvider>
@@ -53,6 +54,15 @@ describe("BatchPage", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     shell.invoke.mockReset();
+  });
+
+  it("goes back Home to change which, for pictures pasted or opened from File Explorer", async () => {
+    fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "opened", paths: ["D:\\Pictures\\Holiday"] }, picked: PICKED });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change which" }));
+
+    expect(await screen.findByText("Home")).toBeInTheDocument();
   });
 
   it("starts from a recipe and says its steps, what it takes and where they go, as the board does", async () => {

@@ -1,7 +1,13 @@
 import { type ChangeEvent, useEffect, useId, useRef } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
-import { type PictureItem, type PicturePage, type Shown, shownQuery } from "@/lib/engine";
+import {
+  type GroupTag,
+  type PictureItem,
+  type PicturePage,
+  type Shown,
+  shownQuery,
+} from "@/lib/engine";
 import { clock, dayHeading, pictures as picturesWord, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNear } from "./near";
@@ -130,15 +136,20 @@ function Tile(props: {
           onChange={tick}
           className="absolute top-1.5 left-1.5 size-4.5 cursor-pointer accent-accent"
         />
-        {tag && (
-          <span
-            className={cn(
-              "pointer-events-none absolute right-1.5 bottom-1.5 rounded-4 px-1.5 py-px font-medium font-mono text-11",
-              // Over a picture it's white on black; on a stand-in, the interface's own colours.
-              picture.state === "ready" ? "bg-black/70 text-white" : "bg-tag text-fg",
+        {(tag || picture.group) && (
+          <span className="pointer-events-none absolute right-1.5 bottom-1.5 flex gap-1">
+            {tag && (
+              <span
+                className={cn(
+                  "rounded-4 px-1.5 py-px font-medium font-mono text-11",
+                  // Over a picture it's white on black; on a stand-in, the interface's own colours.
+                  picture.state === "ready" ? "bg-black/70 text-white" : "bg-tag text-fg",
+                )}
+              >
+                {tag}
+              </span>
             )}
-          >
-            {tag}
+            {picture.group && <GroupChip group={picture.group} />}
           </span>
         )}
       </div>
@@ -148,6 +159,26 @@ function Tile(props: {
       </figcaption>
     </figure>
   );
+}
+
+/** The tag on a picture kept from a group, as the Library board draws it ("burst of 5", "2
+ * copies"): on dark glass over the picture, opening the review at its group. */
+function GroupChip({ group }: { group: GroupTag }) {
+  const words = groupWords(group);
+  return (
+    <Link
+      to={`/duplicates?group=${group.key}`}
+      aria-label={`Review the ${words}`}
+      className="pointer-events-auto rounded-4 bg-black/70 px-1.5 py-px font-medium font-mono text-11 text-white outline-offset-1 hover:bg-black/85"
+    >
+      {words}
+    </Link>
+  );
+}
+
+/** "burst of 5", "2 copies": the group a kept picture is from. */
+export function groupWords(group: GroupTag): string {
+  return group.kind === "burst" ? `burst of ${group.pictures}` : `${group.pictures} copies`;
 }
 
 /** The grid's end: the next page comes as it nears the view, or when asked. */

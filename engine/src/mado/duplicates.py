@@ -56,7 +56,10 @@ _CHUNK = 64  # pictures looked at between saves
 _GROUP_EVERY = 20.0  # seconds between groupings while a long look goes on
 _READ = 1 << 20  # bytes read at a time for a digest
 # What the review looks at: read, opens, not camera RAW, there.
-_LISTED = "p.gone_at IS NULL AND p.read_at IS NOT NULL AND p.problem IS NULL AND p.raw = 0"
+_LISTED = (
+    "p.gone_at IS NULL AND p.read_at IS NOT NULL AND p.problem IS NULL AND p.raw = 0"
+    " AND p.folder_id IS NOT NULL"  # the library's, never a picture opened from outside it
+)
 
 
 @dataclass(frozen=True)

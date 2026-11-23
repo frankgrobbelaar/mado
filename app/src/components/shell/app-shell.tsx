@@ -1,12 +1,14 @@
+import { useCallback, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { ScreenError } from "@/components/screen-error";
+import type { OpeningNote } from "@/features/batch/open";
 import { DamagedRecords } from "@/features/records/damaged-records";
 import { useRecords } from "@/lib/engine";
-import { DropZone } from "./drop-zone";
 import { InUse } from "./in-use";
 import { NavRail } from "./nav-rail";
 import { Notices } from "./notices";
 import { Offline } from "./offline";
+import { Opening, OpeningNotice } from "./opening";
 import { StatusBar } from "./status-bar";
 import { StatusNoteProvider } from "./status-note";
 import { TitleBar } from "./title-bar";
@@ -15,12 +17,14 @@ import { UpdateCard } from "./update-card";
 /**
  * The window, as Graphite draws it: the rail down the left side, and beside it the title bar,
  * the current page and the status bar. Only the page scrolls: the rail, the title bar and the
- * status bar stay where they are. Pictures dropped anywhere on it open (DropZone). While Mado's
- * records are damaged, the way back stands in for every page.
+ * status bar stay where they are. Pictures dropped anywhere on it, pasted, or handed over by
+ * Windows open (Opening). While Mado's records are damaged, the way back stands in for every page.
  */
 export function AppShell() {
   const location = useLocation();
   const damage = useRecords().data;
+  const [note, setNote] = useState<OpeningNote | null>(null);
+  const clear = useCallback(() => setNote(null), []);
 
   return (
     <StatusNoteProvider>
@@ -41,12 +45,13 @@ export function AppShell() {
           <StatusBar />
         </div>
         <UpdateCard />
-        {!damage && <DropZone />}
+        {!damage && <Opening onNote={setNote} />}
         {/* Notes at the foot of the window, over the page: being offline, a picture open in
-        another app, and what the engine tells of. */}
+        another app, what was opened or left out, and what the engine tells of. */}
         <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(34rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">
           <Offline />
           {!damage && <InUse />}
+          {!damage && note && <OpeningNotice note={note} onClose={clear} />}
           <Notices />
         </div>
       </div>

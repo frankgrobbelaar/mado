@@ -9,6 +9,7 @@
 """
 
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -148,7 +149,7 @@ class Watcher:
             if not Path(path).is_dir():
                 continue  # its drive is unplugged: watched once it's back
             try:
-                observer = observe(path, Changes(self.notice, self._holds))
+                observer = observe(path, Changes(self.notice, self._holds, self._paths.root))
             except OSError as error:
                 log.warning("Mado can't watch %s: %s", path, error)
                 continue
@@ -160,7 +161,7 @@ class Watcher:
         with closing(db.connect(self._paths.database)) as conn:
             row = conn.execute(
                 """SELECT 1 FROM pictures
-                   WHERE gone_at IS NULL
+                   WHERE gone_at IS NULL AND folder_id IS NOT NULL
                      AND (lower(path) = lower(?) OR lower(substr(path, 1, ?)) = lower(?))
                    LIMIT 1""",
                 (path, len(folder), folder),
@@ -180,15 +181,21 @@ class Changes(FileSystemEventHandler):
     """Tells the watcher when a picture, or a folder that holds or may hold pictures, comes or
     goes. Something written inside a folder isn't a change: files tell for themselves. Windows
     tells of a folder moved out or deleted as a file gone, so a gone path counts when the
-    library has pictures there (`holds`)."""
+    library has pictures there (`holds`). Nothing in `away`, Mado's own data folder, is a change:
+    its cache and pasted pictures aren't the library's, and Mado writes them itself."""
 
-    def __init__(self, notice: Callable[[], None], holds: Callable[[str], bool]) -> None:
+    def __init__(
+        self, notice: Callable[[], None], holds: Callable[[str], bool], away: Path | None = None
+    ) -> None:
         self._notice = notice
         self._holds = holds
+        self._away = os.path.normcase(away) if away is not None else None
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         source = str(event.src_path)
         target = str(event.dest_path) if event.dest_path else ""
+        if self._in_away(source) and (not target or self._in_away(target)):
+            return
         match event.event_type:
             case "created":
                 changed = event.is_directory or _picture(source)
@@ -207,6 +214,12 @@ class Changes(FileSystemEventHandler):
                 changed = False  # opened, or closed without writing
         if changed:
             self._notice()
+
+    def _in_away(self, path: str) -> bool:
+        if self._away is None:
+            return False
+        folded = os.path.normcase(path)
+        return folded == self._away or folded.startswith(self._away.rstrip(os.sep) + os.sep)
 
 
 def _picture(path: str) -> bool:

@@ -17,7 +17,8 @@ from mado.quarantine import by_drive
 
 router = APIRouter()
 
-_LISTED = "gone_at IS NULL AND read_at IS NOT NULL"  # in the grid: read, RAW, or won't open
+# In the grid: read, RAW, or won't open; the library's, never a picture opened from outside it.
+_LISTED = "gone_at IS NULL AND read_at IS NOT NULL AND folder_id IS NOT NULL"
 
 
 class FolderNode(ApiModel):
@@ -174,7 +175,7 @@ def library(conn: Database) -> Library:
                    COUNT(*) FILTER (WHERE {_LISTED} AND problem IS NOT NULL) AS broken,
                    COUNT(*) FILTER (WHERE {_LISTED} AND problem IS NOT NULL AND damaged = 1)
                        AS damaged
-            FROM pictures WHERE gone_at IS NULL"""  # noqa: S608 - a fixed fragment
+            FROM pictures WHERE gone_at IS NULL AND folder_id IS NOT NULL"""  # noqa: S608 - fixed
     ).fetchone()
     listed = {
         row["folder_id"]: row["pictures"]

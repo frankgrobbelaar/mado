@@ -16,6 +16,7 @@ import type {
   Looks,
   Pc,
   Picked,
+  PictureDetails,
   PictureItem,
   PicturePage,
   Plan,
@@ -54,6 +55,7 @@ export const DATA: DataSizes = {
   logs: 64 * 1024,
   backups: 12 * 1024 ** 2,
   tools: 168 * 1024 ** 2,
+  pasted: 0,
 };
 
 export const NO_BACKUPS: Backups = { backups: [], restored: null };
@@ -192,8 +194,49 @@ export function picture(
     size: 3_100_000,
     takenAt,
     version: `v${id}`,
+    group: null,
     ...overrides,
   };
+}
+
+/** A picture's details, from one in the grid: in the library's Phone, unless said. */
+export function pictureDetails(
+  item: PictureItem,
+  overrides: Partial<PictureDetails> = {},
+): PictureDetails {
+  return {
+    ...item,
+    folderId: 1,
+    folder: "D:\\Pictures\\Phone",
+    dir: "",
+    modifiedAt: item.takenAt,
+    takenFrom: "camera",
+    camera: "Pixelworks PW-7 Pro",
+    orientation: 1,
+    located: true,
+    damaged: false,
+    problem: null,
+    outside: false,
+    pasted: false,
+    aside: false,
+    savesTo: null,
+    ...overrides,
+  };
+}
+
+/** A picture opened from outside the library: E:\Elsewhere\Pier at dawn.jpg. */
+export function outsidePicture(overrides: Partial<PictureDetails> = {}): PictureDetails {
+  const item = picture(42, "Pier at dawn.jpg", "2026-11-20T07:12:00", {
+    path: "E:\\Elsewhere\\Pier at dawn.jpg",
+  });
+  return pictureDetails(item, {
+    folderId: null,
+    folder: "E:\\Elsewhere",
+    camera: null,
+    located: false,
+    outside: true,
+    ...overrides,
+  });
 }
 
 /** Three days of made-up pictures, newest first. */

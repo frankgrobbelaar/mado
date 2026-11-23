@@ -24,7 +24,7 @@ flowchart LR
 
 | Part | Where | Does |
 | --- | --- | --- |
-| Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray |
+| Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray; the paths Windows hands Mado, the files copied in File Explorer, and File Explorer's "Open in Mado" |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
 | Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts), editing pictures by clicking, making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
@@ -216,12 +216,43 @@ flowchart LR
 The window's drag and drop is Tauri's (`lib/drop.ts`), which gives the files' paths; Home's Pick
 pictures uses the shell's `pick_pictures` (`src-tauri/src/dialogs.rs`).
 
+## Pictures from anywhere
+
+A picture doesn't have to be in the library. Dropped on the window, picked, pasted with Ctrl+V,
+or handed over by Windows (File Explorer's "Open in Mado", Open with, the command line), one
+picture opens on a page of its own with Size, Looks, Edit and Save; several, or a folder, open
+Many at once with them chosen; what isn't a picture Mado reads is said in a note, beside the one
+picture that opened or in its place.
+
+```mermaid
+flowchart LR
+    explorer["Open in Mado, Open with, mado.exe paths"] -- "a start each; the single-instance plugin hands its paths over" --> gather["shell: gathered into one choice (opened.rs)"]
+    gather -- "opened event; take_opened" --> ui["UI (Opening)"]
+    drop["dropped, picked"] --> ui
+    paste["Ctrl+V"] -- "files copied: clipboard_files" --> ui
+    ui -- "/open" --> engine["engine: what the paths open as"]
+    ui -- "a picture on the clipboard: /pasted" --> engine
+    engine -- "one picture" --> page["its page: the library's, or one from outside it"]
+    engine -- "several, or a folder" --> many["Many at once"]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/opening.py` | Pure: one picture opens its page, several or a folder Many at once; the words for what's left out; a pasted picture's name |
+| Outside pictures | `mado/outside.py` | A picture known by its path, in the `pictures` table with no library folder: never listed, counted, exported or compared for duplicates; one in a library folder is the library's; its folder added later, it becomes the library's under its number; looked at as it is now whenever its page asks (no scan looks after it). Of Mado's own folder, only a paste opens. Forgotten after 30 days unopened, with its cache, unless the queue or History still needs it |
+| Pasting | `mado/pasting.py` | A picture from the clipboard kept as PNG in the data folder's `pasted` till it's saved (as it is, or made to a recipe), 2^26 pixels at most, all the window's clipboard hands over; the same bytes again open the one kept |
+| The API | `mado/api/opening.py` | `/open`, `/pasted`; Save refused beside or in place of a pasted picture, and on one in a quarantine (`api/making.py`) |
+| The shell | `src-tauri/src/opened.rs`, `clipboard.rs`, `open_in_mado.rs` | Paths from the command line and second starts, gathered and kept till the window takes them; the files copied in File Explorer; "Open in Mado" and Open with under HKCU |
+| The UI | `components/shell/opening.tsx`, `features/batch/open.ts`, `features/picture/outside.tsx` | Drops, pastes and what Windows hands over, with their notes; the page's header for a picture from outside, pasted, or in a quarantine |
+
+docs/stack/tauri.md ("Open in Mado", "Paste") has the registry's keys and what was measured.
+
 ## Contracts
 
 | Between | How | Kept honest by |
 | --- | --- | --- |
 | Shell and engine | `serve` arguments, `MADO_TOKEN`, the ready line, stdin | Tests on both sides |
-| Shell and UI | Commands `engine_status`, `restart_engine`, `prepare_update`, `install_update`, `screens`, the dialogs (`pick_folder`, `pick_pictures`, …); events `engine-status` and Tauri's drag and drop | Types mirrored in `app/src/lib/engine.tsx`, `updates.ts`, `screens.ts`, `dialogs.ts` and `drop.ts` |
+| Shell and UI | Commands `engine_status`, `restart_engine`, `prepare_update`, `install_update`, `screens`, the dialogs (`pick_folder`, `pick_pictures`, …), `take_opened`, `clipboard_files`, `open_in_explorer`, `set_open_in_explorer`; events `engine-status`, `opened` and Tauri's drag and drop | Types mirrored in `app/src/lib/engine.tsx`, `updates.ts`, `screens.ts`, `dialogs.ts`, `drop.ts`, `opened.ts` and `startup.ts` |
 | UI and engine | JSON over HTTP, camelCase | `engine/openapi.json` snapshot + test; types in `app/src/lib/engine.tsx` |
 
 Change a contract on both sides in the same commit.
@@ -234,16 +265,18 @@ Change a contract on both sides in the same commit.
 | `GET /settings`, `PUT /settings` | The owner's choices: whether Setup is done, Saving, and whether a watch folder's big batch waits for the night |
 | `GET /tools`, `POST /tools/{id}/download` | What Mado downloads (ffmpeg), its state, and fetching it |
 | `GET /backups`, `POST /backups`, `POST /backups/import`, `POST /backups/{name}/restore` | The backups, one made by hand, importing an export, restoring one as the engine starts again |
-| `GET /data`, `POST /export` | What the data folder holds, by part, and the export zip |
+| `GET /data`, `POST /export` | What the data folder holds, by part (pictures pasted too), and the export zip |
 | `GET /folders`, `POST /folders`, `DELETE /folders/{id}` | The library's folders, each with its counts and the folders inside it as a tree; adding one (which a scan then reads, and the watcher watches); taking one out (its pictures stay where they are) |
 | `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW, what won't open (and how many of those are marked as damaged), each folder's share |
 | `GET /library/wont-open`, `POST /pictures/{id}/damaged` | The pictures that won't open, each with why, those marked as damaged left out; marking one as damaged |
 | `GET /space` | The drives the library is on, the one with the most of it first: free, the pictures, quarantine, what the queue wants there |
-| `GET /duplicates` | The groups of duplicates and bursts, a page at a time (`kind`, `offset`, `limit`), each with its pictures, the ones kept, and whether it can be set aside now; how far looking has got; what setting every group aside would set aside and free; the latest review, when it was put back whole |
+| `GET /duplicates` | The groups of duplicates and bursts, a page at a time (`kind`, `offset`, `limit`; `reach`, a group the page must hold), each with its pictures, the ones kept, and whether it can be set aside now; how far looking has got; what setting every group aside would set aside and free; the latest review, when it was put back whole |
 | `PUT /duplicates/{key}/keep`, `POST /duplicates/{key}/not-same`, `POST /duplicates/aside` | Which of a group to keep, of its pictures as shown; a group not the same; setting aside the rest of groups as the review showed them (each one's pictures and kept ones), or of every group of a kind as long as none changed since (`version`, else 409), and what was left as it was and why |
 | `GET /scan` | How the latest scan went, or is going: its stage, what it found and read, time left, folders not connected, what came and went |
-| `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`), with each day on it counted whole |
-| `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full; the pictures either side of it in the list it was opened from |
+| `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`), with each day on it counted whole, and a group's kept picture tagged ("burst of 5", "2 copies") |
+| `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full (from outside the library too: where it lives, pasted, in a quarantine; looked at as its file is now, 404 with why once it went; asking counts as opening it); the pictures either side of it in the list it was opened from, none for one from outside |
+| `POST /open` | Paths dropped, picked, pasted or handed over by Windows: one picture as Mado knows it, with what else came and was left out; several, or a folder, as Many at once takes them; 404 or 422, with why, when none of it is a picture |
+| `POST /pasted` | A picture from the clipboard (PNG), kept in the data folder and said as a picture outside the library; the same picture again is the one kept; 413 past 2^26 pixels (about 67 megapixels) |
 | `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version) |
 | `POST /pictures/{id}/read` | Reads one picture again now (one that wouldn't open may have been mended) |
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
@@ -278,7 +311,8 @@ Change a contract on both sides in the same commit.
 ## Data
 
 - **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `logs/`
-  (`engine.log`, kept 30 days), `tools/` (ffmpeg, and the AI models fetched when asked), `cache/` (the pictures' thumbnails and views,
+  (`engine.log`, kept 30 days), `tools/` (ffmpeg, and the AI models fetched when asked), `pasted/`
+  (pictures pasted from the clipboard, till a month after last opened), `cache/` (the pictures' thumbnails and views,
   the last few full-size copies, and each edit's mask in `cache/edits`, by picture and version,
   let go after a month unedited: anything in it can go, a mask made again from its clicks), and `backups/` (the last 7 nights,
   each checked as it's made, and apart from them the last 7 made by hand, before a restore and
@@ -326,4 +360,5 @@ Change a contract on both sides in the same commit.
 | Program | `%LOCALAPPDATA%\Programs\Mado` (`mado.exe`, `engine\`, `uninstall.exe`) |
 | Data | `%LOCALAPPDATA%\Mado` |
 | WebView2 cache | `%LOCALAPPDATA%\io.github.frankgrobbelaar.mado` |
+| "Open in Mado" and Open with | `HKCU\Software\Classes`: `SystemFileAssociations\<type>\shell\Mado.Open`, `Directory\shell\Mado.Open`, `Applications\mado.exe`, `Mado.Picture`, and the value `Mado.Picture` under each type's `OpenWithProgids` |
 | Uninstaller's export | `Documents\Mado export <date>.zip` |

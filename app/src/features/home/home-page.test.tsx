@@ -2,16 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EngineProvider, type EngineStatus } from "@/lib/engine";
+import { EngineProvider, type EngineStatus, type PictureItem } from "@/lib/engine";
 import {
   batch,
-  batchPicture,
   duplicates,
   FOLDERS,
   fakeEngine,
   LIBRARY,
   localTime,
+  outsidePicture,
   PICKED,
+  PICTURES,
+  pictureDetails,
   READY,
   SETTINGS,
   scanDone,
@@ -43,6 +45,7 @@ function renderHome(
             <Route index element={<HomePage />} />
             <Route path="/setup" element={<p>Setup</p>} />
             <Route path="/library/pictures/:id" element={<Where what="A picture's page" />} />
+            <Route path="/pictures/:id" element={<Where what="A picture's own page" />} />
             <Route path="/batch" element={<Where what="Many at once" />} />
             <Route path="/duplicates" element={<Where what="The review" />} />
           </Routes>
@@ -192,7 +195,11 @@ describe("HomePage", () => {
       "/settings": SETTINGS,
       "/library": LIBRARY,
       "/scan": scanDone(),
-      "POST /batches/pictures": { ...PICKED, pictures: [batchPicture(11, "Harbour at dusk.heic")] },
+      "POST /open": {
+        picture: pictureDetails(PICTURES[0] as PictureItem),
+        picked: null,
+        leftOut: [],
+      },
     });
     renderHome(READY, null, ["D:\\Pictures\\Phone\\Harbour at dusk.heic"]);
 
@@ -203,38 +210,66 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens many pictures, or one from outside the library, in Many at once", async () => {
+  it("opens one picture from outside the library on its own page", async () => {
     fakeEngine({
       "/settings": SETTINGS,
       "/library": LIBRARY,
       "/scan": scanDone(),
-      "POST /batches/pictures": { ...PICKED, pictures: [batchPicture(null, "Rose.jpg")] },
+      "POST /open": { picture: outsidePicture(), picked: null, leftOut: [] },
     });
-    renderHome(READY, null, ["C:\\Users\\owner\\Desktop\\Rose.jpg"]);
+    renderHome(READY, null, ["E:\\Elsewhere\\Pier at dawn.jpg"]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pick pictures" }));
+
+    expect(await screen.findByText(/A picture's own page at \/pictures\/42/)).toBeInTheDocument();
+  });
+
+  it("opens many pictures in Many at once", async () => {
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": LIBRARY,
+      "/scan": scanDone(),
+      "POST /open": { picture: null, picked: PICKED, leftOut: [] },
+    });
+    renderHome(READY, null, [
+      "C:\\Users\\owner\\Desktop\\Rose.jpg",
+      "C:\\Users\\owner\\Desktop\\Lily.jpg",
+    ]);
 
     fireEvent.click(await screen.findByRole("button", { name: "Pick pictures" }));
 
     expect(await screen.findByText(/Many at once at \/batch/)).toHaveTextContent('"how":"picked"');
   });
 
-  it("says when nothing picked is a picture Mado makes", async () => {
+  it("says when nothing picked is a picture Mado reads", async () => {
     fakeEngine({
       "/settings": SETTINGS,
       "/library": LIBRARY,
       "/scan": scanDone(),
-      "POST /batches/pictures": {
-        ...PICKED,
-        pictures: [],
-        leftOut: [{ name: "notes.txt", why: "It isn't a picture Mado makes." }],
-      },
+      "POST /open": () =>
+        Response.json(
+          { detail: "notes.txt isn't a picture Mado reads. It reads JPEG, PNG, HEIC…" },
+          { status: 422 },
+        ),
     });
     renderHome(READY, null, ["C:\\notes.txt"]);
 
     fireEvent.click(await screen.findByRole("button", { name: "Pick pictures" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "notes.txt: It isn't a picture Mado makes.",
+      "notes.txt isn't a picture Mado reads.",
     );
+  });
+
+  it("asks to paste one too, as the Home board says", async () => {
+    fakeEngine({ "/settings": SETTINGS, "/library": LIBRARY, "/scan": scanDone() });
+    renderHome();
+
+    expect(
+      await screen.findByText(
+        "Or paste one, or pick them from your PC. Make them right for a phone, a TV or a print, give them a look, or cut something out. They don't need to be in your library.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("tells of a batch done, and its folder opens, which lets it go", async () => {

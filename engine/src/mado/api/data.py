@@ -19,6 +19,7 @@ class DataSizes(ApiModel):
     logs: int
     backups: int
     tools: int
+    pasted: int  # pictures pasted from the clipboard, kept till they're saved
 
 
 class ExportRequest(ApiModel):
@@ -41,6 +42,7 @@ def your_data(paths: Paths) -> DataSizes:
         logs=found.logs,
         backups=found.backups,
         tools=found.tools,
+        pasted=found.pasted,
     )
 
 

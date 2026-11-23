@@ -18,8 +18,8 @@ _UNSAFE = str.maketrans(dict.fromkeys('<>:"/\\|?*', "-"))
 def new_name(stem: str, label: str, extension: str, taken: Callable[[str], bool]) -> str:
     """A new picture's file name: its original's, with what it was made for ("Harbour at dusk
     (TV 8K).jpg"), and "(2)", "(3)"… when that's taken (`taken` says whether a name is, in any
-    case)."""
-    base = f"{stem} ({label.translate(_UNSAFE)})"
+    case). With nothing to say of what made it (a paste saved as it is), its original's own."""
+    base = f"{stem} ({label.translate(_UNSAFE)})" if label else stem
     name = f"{base}{extension}"
     number = 2
     while taken(name):

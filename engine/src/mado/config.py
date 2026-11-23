@@ -7,7 +7,8 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class DataPaths:
-    """Mado's data folder: the database, backups, logs and tools. Pictures never go here."""
+    """Mado's data folder: the database, backups, logs and tools. The owner's pictures never go
+    here: only a picture pasted from the clipboard, till Save writes it out."""
 
     root: Path
 
@@ -28,6 +29,11 @@ class DataPaths:
     def cache(self) -> Path:
         """What Mado keeps for a while and can always make again. Anything in it can go."""
         return self.root / "cache"
+
+    @property
+    def pasted(self) -> Path:
+        """Pictures pasted from the clipboard, kept till they're saved (see mado/pasting.py)."""
+        return self.root / "pasted"
 
     @property
     def tools(self) -> Path:

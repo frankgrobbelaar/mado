@@ -1,8 +1,10 @@
-"""What the engine asks of Windows: that the programs it starts end with it; and how it runs
-itself again, for work that's safer in a process of its own (the PC check)."""
+"""What the engine asks of Windows: that the programs it starts end with it; where the owner's
+Pictures folder is; and how it runs itself again, for work that's safer in a process of its own
+(the PC check)."""
 
 import ctypes
 import sys
+from pathlib import Path
 
 _KILL_ON_JOB_CLOSE = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
 _EXTENDED_LIMITS = 9  # JobObjectExtendedLimitInformation
@@ -62,6 +64,37 @@ def end_programs_with_engine() -> bool:
         kernel.CloseHandle(job)
         return False
     return True  # the job stays open till the engine ends: Windows closes it, ending the rest
+
+
+class _Guid(ctypes.Structure):
+    _fields_ = (
+        ("Data1", ctypes.c_uint32),
+        ("Data2", ctypes.c_uint16),
+        ("Data3", ctypes.c_uint16),
+        ("Data4", ctypes.c_ubyte * 8),
+    )
+
+
+# FOLDERID_Pictures: {33E28130-4E1E-4676-835A-98395C3BC3BB}
+_PICTURES = _Guid(
+    0x33E28130, 0x4E1E, 0x4676, (ctypes.c_ubyte * 8)(0x83, 0x5A, 0x98, 0x39, 0x5C, 0x3B, 0xC3, 0xBB)
+)
+
+
+def pictures_folder() -> Path:
+    """The owner's Pictures folder, wherever Windows keeps it (moved to another drive, or kept
+    by OneDrive); their home's Pictures where Windows doesn't say."""
+    if sys.platform == "win32":
+        shell = ctypes.WinDLL("shell32")
+        ole = ctypes.WinDLL("ole32")
+        found = ctypes.c_wchar_p()
+        if shell.SHGetKnownFolderPath(ctypes.byref(_PICTURES), 0, None, ctypes.byref(found)) == 0:
+            try:
+                if found.value:
+                    return Path(found.value)
+            finally:
+                ole.CoTaskMemFree(found)
+    return Path.home() / "Pictures"
 
 
 def own_command() -> list[str]:

@@ -13,6 +13,9 @@ Rust stable (edition 2024).
 | `app/src-tauri/src/updater.rs` | Updates from the GitHub releases |
 | `app/src-tauri/src/tray.rs` | The tray icon, starting with Windows, and notifications |
 | `app/src-tauri/src/process.rs` | Running console programs without a console window |
+| `app/src-tauri/src/opened.rs` | The paths Mado is started with, a second start's too, gathered into one choice for the window |
+| `app/src-tauri/src/clipboard.rs` | The files copied in File Explorer, for pasting |
+| `app/src-tauri/src/open_in_mado.rs` | File Explorer's "Open in Mado" and Open with, under HKCU, and their switch in Settings |
 | `app/src-tauri/tauri.conf.json` | Name, version source, window, security policy, bundle, updater address and key |
 | `app/src-tauri/tauri.bundle.conf.json` | Extra settings for building the installer (see below) |
 | `app/src-tauri/capabilities/default.json` | What the window may ask of the shell |
@@ -52,8 +55,12 @@ The UI calls the shell through these commands and listens to two events:
 | `start_with_windows`, `set_start_with_windows` | command | Whether Mado starts with Windows, in the tray |
 | `keep_in_tray`, `set_keep_in_tray` | command | Whether closing the window keeps Mado running in the tray |
 | `look`, `set_look` | command | Light or dark: `windows` (as Windows is), `light` or `dark` |
+| `take_opened` | command | The choices of paths Windows handed Mado since the window last asked, each a list |
+| `clipboard_files` | command | The paths of the files copied in File Explorer; none when the clipboard holds anything else |
+| `open_in_explorer`, `set_open_in_explorer` | command | Whether File Explorer has "Open in Mado" and Open with; writing or taking away their keys |
 | `engine-status` | event | Sent whenever the engine's status changes |
 | `notice` | event | What the engine tells of, while the window is open |
+| `opened` | event | A choice of paths is ready to take |
 
 A new command is a `#[tauri::command]` function, listed in `generate_handler!` in `main.rs`, with
 its types mirrored in `app/src/lib/`. Commands return `Result<T, String>`; the string is shown to
@@ -73,7 +80,10 @@ the person, so write it as a sentence.
 ## Plugins
 
 - **single-instance**: opening Mado again focuses the open window, because two copies would share
-  one database.
+  one database, and hands it the paths it was started with (`opened.rs`). The plugin has a gap:
+  a second start that finds the first's lock (`<identifier>-sim`) before the first has made its
+  message window (`<identifier>-sic`) carries on as a second Mado. So `main.rs` first waits for
+  that window, two seconds at most, whenever the lock is taken (`opened::wait_for_first`).
 - **updater**: downloads and verifies updates. Configured under `plugins.updater`: the address of
   the newest release's `latest.json`, the public key, and passive install mode. Mado drives it
   from Rust (`updater.rs`), so the window needs no updater permission and the downloaded
@@ -101,6 +111,102 @@ the person, so write it as a sentence.
   (in the tray or minimized); a click on one opens the window. While the window is open, the
   engine's notifications go to it instead, as the `notice` event. All from Rust, so the window
   needs no permission for either.
+
+## Open in Mado
+
+`open_in_mado.rs` writes, for this user only, under `HKCU\Software\Classes`:
+
+| Key | Values | For |
+| --- | --- | --- |
+| `SystemFileAssociations\<type>\shell\Mado.Open` | `Open in Mado`, `Icon`, `MultiSelectModel` `Player`; `command` `"…\mado.exe" "%1"` | The menu entry on every type Mado reads, by extension, whatever Windows thinks the type is (HEIC, AVIF and camera RAW included) |
+| `Directory\shell\Mado.Open` | the same | The menu entry on folders |
+| `<type>\OpenWithProgids` | the value `Mado.Picture`, empty | Open with lists Mado for the type |
+| `Mado.Picture` | `DefaultIcon`, `shell\open\command` | The file type Open with goes by |
+| `Applications\mado.exe` | `FriendlyAppName`, `DefaultIcon`, `shell\open\command`, `SupportedTypes\<type>` | Mado among the applications, and the types it was written for |
+
+Never a type's own default value, never `UserChoice`: which app opens a picture stays the owner's.
+Windows reads each value of a type from the user's keys first and the PC's after, so an `.ext` key
+holding only Mado's `OpenWithProgids` value leaves the PC's default in force (checked on the
+owner's PC: an HKCU `.bmp` key with no default of its own still opens with the PC's
+`Paint.Picture`). Windows may ask, the next time such a picture is opened, which app to use; the
+owner's choice stays. Tauri's own `bundle.fileAssociations` isn't used: its NSIS template's
+`APP_ASSOCIATE` writes each type's default value (`Software\Classes\.<ext>` = its class), which
+would make Mado the default.
+
+Only an installed Mado writes them (`uninstall.exe` beside `mado.exe`), as it starts and when
+Settings › General's "Open in Mado in File Explorer" (on till turned off, kept in `window.json`)
+changes; it writes them only when something differs, and tells Explorer then
+(`SHChangeNotify(SHCNE_ASSOCCHANGED)`). Taking them away goes by what's written: "Open in Mado"
+under every type (an older Mado's too), Open with's value under each type `SupportedTypes` names,
+then each key above them left empty. The uninstaller does the same (`MadoForgetExplorer` in
+`hooks.nsh`), except while updating. The registry code is tested against a root of the test's own
+(`cargo test`), the uninstaller's half with `windows/hooks-test.ps1`, both comparing everything
+under their root before and after.
+
+On Windows 11 the entry is under "Show more options": the first menu takes only apps in a signed
+package with an identity (an MSIX), which an unsigned app can't have.
+
+**Several at once.** For a verb with a command line, Explorer starts Mado once for each file
+selected; each start hands its path to the Mado running and ends, and `opened.rs` gathers what
+arrives within 600 ms of the last into one choice. Measured on the owner's PC with the shell's own
+multi-select invoke (`FolderItems.InvokeVerbEx`, as Explorer's right-click) against a build with
+an identifier of its own:
+
+| Selected | Mado running: paths arrive over | longest gap | one choice after | Mado not running: over | longest gap | one choice after |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | | | 1.7 s | | | 1.3 s |
+| 15 | 0.22 s | 22 ms | 0.95 s | 0.41 s | 146 ms | 1.15 s |
+| 100 | 1.53 s | 20 ms | 2.26 s | 1.70 s | 114 ms | 2.46 s |
+| 101, 150, 200, 300, 500 | nothing starts | | | nothing starts | | |
+
+Every run made one choice, in one Mado. 600 ms is four of the longest gap, which came while a Mado
+started cold found its feet; the last look at a gathering is made on the main thread, where the
+paths arrive, so a main thread too busy to take them can't make them look quiet. A start's words
+become paths back on the gathering's own thread, as looking at a path on a network share that
+isn't there can take a while; the clipboard's read and the switch's registry writes are off the
+main thread too. Windows starts
+nothing past 100 selected with `Player`, and nothing past 15 with its default (`Document`), which is
+why the verb says `Player`. Past 100, the folder's own "Open in Mado" opens every picture in it.
+
+"Send to › Mado" (a shortcut in the SendTo folder) was measured too: it starts Mado once with
+every path (15 and 100 files: one choice in 0.7 s), but Windows refuses once the command line
+passes 32,767 letters ("The filename or extension is too long": 200 files 160 letters deep
+already), and it's a second menu entry. The verb, and the folder's own entry, cover more, so Mado
+has no Send to.
+
+**Starting cold.** The first start takes its own paths as it starts; the others wait for its
+window, then hand theirs over. The window takes each choice once the engine is ready
+(`take_opened`, told by the `opened` event), so nothing that arrives while Mado starts is lost;
+`--in-tray` keeps working, and a Mado in the tray comes forward with them. Paths are taken as
+given, quoted or not: a path with spaces typed without quotes is put back together, the longest
+run of words that's there; one typed in a terminal is found where it was typed.
+
+## Paste
+
+Ctrl+V anywhere in the window but a text field: the page's own `paste` event. The window can't
+learn the paths of files copied in File Explorer (a web page is never given them), so the shell
+reads the clipboard's file list itself (`CF_HDROP`, `clipboard_files`, through windows-sys, the
+windows crate's own bindings, already in Mado's build through Tauri; the Tauri clipboard plugin
+reads only words and pictures). That's asked first, as a page sees a copied picture file as a
+picture too. Then a picture on the clipboard (a screenshot, or one copied from a browser or
+another app), which the window's Chromium hands the page as PNG, goes to the engine (`/pasted`);
+then words that are paths (File Explorer's Copy as path, `file:` addresses); anything else, a note.
+
+The window's own clipboard hands a page a picture of at most 2^26 pixels (256 MiB of them, about
+67 megapixels); past that it gives an empty PNG, so that's Mado's limit, said as "too big to paste"
+on both sides. Measured on the owner's PC (Edge, as WebView2 is Chromium, a made-up picture put on
+the clipboard and Ctrl+V sent over DevTools; headless Edge has a clipboard of its own, so it ran
+with a window):
+
+| Picture | The window has it as PNG | Mado keeps it | its view made |
+| --- | --- | --- | --- |
+| 4 MP | 71 ms | | |
+| 12 MP | | 0.1 s | 0.7 s |
+| 25 MP | 0.48 s | | |
+| 50 MP | 0.91 s | 0.4 s | 1.3 s |
+| 66 MP | 1.20 s | | |
+| 68 MP and more | an empty picture | | |
+| 100 MP | | 0.7 s | 1.6 s |
 
 ## The engine process
 
@@ -130,7 +236,8 @@ folder, with `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt` beside Mado; and turns 
   `%LOCALAPPDATA%\Mado`, which is the data folder, to `%LOCALAPPDATA%\Programs\Mado`.
 - `NSIS_HOOK_PREUNINSTALL` offers the export and stops if it fails.
 - `NSIS_HOOK_POSTUNINSTALL` deletes the data folder (`%LOCALAPPDATA%\Mado`) only if "Delete the
-  application data" was ticked.
+  application data" was ticked, and takes away File Explorer's "Open in Mado" and Open with
+  (`MadoForgetExplorer`, see "Open in Mado"), except while updating.
 - `NSIS_HOOK_PREINSTALL` and `NSIS_HOOK_POSTINSTALL` replace the engine whole. NSIS copies a new
   version's files over the old ones and leaves the ones it doesn't have, so Python found both
   versions of whatever changed (updated to 0.2.0, the engine still said 0.1.0, from the old
@@ -144,8 +251,10 @@ Hooks can use the template's variables (`$UpdateMode`, `$PassiveMode`, `$DeleteA
 After a Tauri upgrade, build an installer and test an install, an update and an uninstall. The
 pre-install hook runs before the template checks whether Mado is open, and nothing runs between
 that check and the copying. `windows/hooks-test.ps1` checks the engine's replacement on a scratch
-folder in `target/` (an update, a first install, a stopped install, a running engine), with the
-NSIS that `pnpm build:installer` downloads: run it after changing `hooks.nsh` or upgrading Tauri.
+folder in `target/` (an update, a first install, a stopped install, a running engine), and the
+uninstall hook's registry part against a root of its own (Mado's keys taken away and only them,
+kept through an update, nothing changed when there were none), with the NSIS that
+`pnpm build:installer` downloads: run it after changing `hooks.nsh` or upgrading Tauri.
 
 ## Commands you'll use
 

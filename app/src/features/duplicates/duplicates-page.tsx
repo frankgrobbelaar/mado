@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { EmptyState, WindowIllustration } from "@/components/empty-state";
 import { EngineProblem } from "@/components/engine-problem";
 import { Loading, PanelSkeleton } from "@/components/skeleton";
@@ -26,11 +26,15 @@ import { GroupCard } from "./group-card";
  * groups Mado found, each with the one it keeps marked (a click keeps another; ticks keep more
  * than one; "Not the same" lets a group go), and one primary action that sets aside the rest of
  * every group, saying how many and what it frees. A group can be set aside on its own too.
- * Nothing changes till the owner asks; what's set aside waits in quarantine for 30 days.
+ * Nothing changes till the owner asks; what's set aside waits in quarantine for 30 days. Opened
+ * from a tag in the Library (`?group=`), it opens at that group.
  */
 export function DuplicatesPage() {
   const [kind, setKind] = useState<DuplicateKind>("all");
-  const found = useDuplicates(kind);
+  const [query] = useSearchParams();
+  const asked = Number(query.get("group"));
+  const at = Number.isInteger(asked) && asked > 0 ? asked : null;
+  const found = useDuplicates(kind, at);
   const library = useLibrary();
   const keep = useKeep();
   const notSame = useNotSame();
@@ -46,6 +50,12 @@ export function DuplicatesPage() {
     ).values(),
   ];
   const busy = keep.isPending || notSame.isPending || aside.isPending;
+  const reached = at !== null && groups.some((group) => group.key === at);
+
+  // Opened at a group: it comes into view once it's here.
+  useEffect(() => {
+    if (reached) document.getElementById(`group-${at}`)?.scrollIntoView({ block: "center" });
+  }, [reached, at]);
   const total = first ? first.duplicates + first.bursts : 0;
 
   /** Sets aside the rest of these groups as shown, or of every group of the kind shown (as the
@@ -168,6 +178,7 @@ export function DuplicatesPage() {
         <GroupCard
           key={group.key}
           group={group}
+          marked={group.key === at}
           busy={busy}
           onKeep={(ids) => keepIn(group, ids)}
           onNotSame={() =>

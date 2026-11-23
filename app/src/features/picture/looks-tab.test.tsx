@@ -35,6 +35,10 @@ const details: PictureDetails = {
   located: true,
   problem: null,
   damaged: false,
+  outside: false,
+  pasted: false,
+  aside: false,
+  savesTo: null,
 };
 
 const blob = () => new Response(new Blob(["made-up picture"], { type: "image/webp" }));

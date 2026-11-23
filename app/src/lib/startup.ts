@@ -34,3 +34,23 @@ export function useSetKeepInTray() {
     onSuccess: (on) => queries.setQueryData(KEEP, on),
   });
 }
+
+const EXPLORER = ["shell", "open-in-explorer"];
+
+/**
+ * Whether File Explorer offers "Open in Mado" on pictures and folders, and lists Mado in Open with
+ * (the shell keeps the choice, and the keys under this user's own classes:
+ * src-tauri/src/open_in_mado.rs). On till the owner turns it off.
+ */
+export function useOpenInExplorer() {
+  return useQuery({ queryKey: EXPLORER, queryFn: () => invoke<boolean>("open_in_explorer") });
+}
+
+/** Puts "Open in Mado" in File Explorer, or takes it away. */
+export function useSetOpenInExplorer() {
+  const queries = useQueryClient();
+  return useMutation({
+    mutationFn: (on: boolean) => invoke<boolean>("set_open_in_explorer", { on }),
+    onSuccess: (on) => queries.setQueryData(EXPLORER, on),
+  });
+}

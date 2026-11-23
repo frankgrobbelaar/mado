@@ -278,3 +278,19 @@ def test_what_counts_as_a_change_to_the_library():
     assert not counts(DirModifiedEvent(trip))  # something written in it
     assert not counts(FileCreatedEvent(rf"{trip}\notes.txt"))
     assert not counts(FileDeletedEvent(r"D:\Pictures\Phone\Downloads\old.part"))
+
+
+def test_what_mado_writes_in_its_own_data_folder_is_never_a_change_to_the_library():
+    data = Path(r"C:\Users\owner\AppData\Local\Mado")
+    noticed: list[bool] = []
+    changes = Changes(lambda: noticed.append(True), holds=lambda _path: False, away=data)
+
+    changes.on_any_event(FileCreatedEvent(rf"{data}\cache\pictures\0\7-1-thumbnail.webp"))
+    changes.on_any_event(FileCreatedEvent(rf"{data}\pasted\Pasted 2026-11-23 14.05.png"))
+    assert noticed == []
+    # A picture moved out of it into the library is one.
+    changes.on_any_event(
+        FileMovedEvent(rf"{data}\pasted\Pasted.png", r"C:\Users\owner\Pictures\Pasted.png")
+    )
+    changes.on_any_event(FileCreatedEvent(r"C:\Users\owner\Pictures\Mado.png"))
+    assert noticed == [True, True]

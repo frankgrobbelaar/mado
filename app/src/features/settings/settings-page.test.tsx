@@ -26,6 +26,7 @@ const DATA: DataSizes = {
   logs: 12_000_000,
   backups: 0,
   tools: 180_000_000,
+  pasted: 0,
 };
 
 /** A local time `daysAgo` days back, as the engine writes a backup's: "2026-11-22T03:00". */
@@ -57,6 +58,8 @@ function renderSettings(section = "general", shellAnswers = true) {
         if (command === "set_start_with_windows") return args?.on;
         if (command === "keep_in_tray") return false;
         if (command === "set_keep_in_tray") return args?.on;
+        if (command === "open_in_explorer") return true;
+        if (command === "set_open_in_explorer") return args?.on;
         if (command === "look") return "windows";
         if (command === "set_look") return args?.look;
         return undefined;
@@ -142,6 +145,21 @@ describe("SettingsPage", () => {
     expect(shell.invoke).not.toHaveBeenCalledWith("set_start_with_windows", expect.anything());
   });
 
+  it("offers Open in Mado in File Explorer, on till it's turned off", async () => {
+    fakeEngine({});
+    renderSettings("general");
+
+    const explorer = await screen.findByRole("switch", { name: "Open in Mado in File Explorer" });
+    await waitFor(() => expect(explorer).toHaveAttribute("aria-checked", "true"));
+    expect(screen.getByText(/under Show more options/)).toBeInTheDocument();
+    explorer.click();
+
+    await waitFor(() =>
+      expect(shell.invoke).toHaveBeenCalledWith("set_open_in_explorer", { on: false }),
+    );
+    await waitFor(() => expect(explorer).toHaveAttribute("aria-checked", "false"));
+  });
+
   it("is light or dark as Windows is, or as the owner picks", async () => {
     fakeEngine({});
     renderSettings("general");
@@ -164,6 +182,19 @@ describe("SettingsPage", () => {
     expect(screen.getByText("48 MB")).toBeInTheDocument();
     expect(screen.getByText("mado.db, one SQLite file")).toBeInTheDocument();
     expect(screen.getByText(/Your pictures are never touched/)).toBeInTheDocument();
+    expect(screen.queryByText("Pasted")).toBeNull(); // nothing pasted: not a part yet
+  });
+
+  it("shows what's pasted as a part of the data folder once there is some", async () => {
+    fakeEngine({
+      "/data": { ...DATA, pasted: 24_000_000 },
+      "/backups": { backups: [], restored: null },
+    });
+    renderSettings("data");
+
+    expect(await screen.findByText("Pasted")).toBeInTheDocument();
+    expect(screen.getByText("24 MB")).toBeInTheDocument();
+    expect(screen.getByText("a month after last opened")).toBeInTheDocument();
   });
 
   it("opens the data folder in Explorer", async () => {

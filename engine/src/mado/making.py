@@ -922,7 +922,7 @@ class Maker:
             raise JobError(_CHANGED.format(name=picture.path.name))
         here = self._ai.where()
         made = planned(recipe, see(image, picture), self._ai.starts_on(here))
-        if made.empty:
+        if made.empty and not order.get("as_is"):  # a paste saved as it is is something to save
             raise JobError(
                 "There was nothing to make: no size, and no look that changes it. Nothing was "
                 "saved, and the original is as it was."

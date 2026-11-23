@@ -9,8 +9,9 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep, the edits and their parts, mask maths | `src/mado/core/`, pure functions only |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep, the edits and their parts, mask maths, what paths open as | `src/mado/core/`, pure functions only |
 | The library: its folders, the scan, the watcher, reading pictures and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
+| Pictures from anywhere: one opened from outside the library, known by its path and forgotten after a month unopened; a picture pasted from the clipboard, kept in the data folder till it's saved | `src/mado/outside.py`, `pasting.py`, `api/opening.py` (see [docs/architecture.md](../docs/architecture.md#pictures-from-anywhere)) |
 | Making a picture right for a screen: sessions on the card, the models' files, a tile at a time, extending edges, making and saving | `src/mado/directml.py`, `ai.py`, `upscale.py`, `extend.py`, `making.py`, `encode.py` (see [docs/stack/upscaling.md](../docs/stack/upscaling.md)) |
 | Giving a picture a look: the look's table and the touches laid on it, the owner's looks in the database | `src/mado/looks.py`, `own_looks.py` (see [docs/stack/looks.md](../docs/stack/looks.md)) |
 | Editing by clicking: picking parts (SAM 2.1), erasing (MI-GAN, LaMa), cutting out (U²-Net small, BiRefNet lite) and blurring behind, the edits made in order and their masks kept | `src/mado/selecting.py`, `erasing.py`, `cutting.py`, `editing.py` (see [docs/stack/editing.md](../docs/stack/editing.md)) |
@@ -65,6 +66,10 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
   process of its own.
 - A test never writes to a drive's real quarantine: the `quarantine` fixture keeps it in the test's
   own folder.
+- The `pictures` table holds pictures opened from outside the library too (`folder_id` NULL):
+  anything that lists, counts, exports or compares the library's pictures says
+  `folder_id IS NOT NULL`. A picture pasted is Mado's own file, in the data folder's `pasted`:
+  never written beside or in place of; Save takes a folder of the owner's.
 - Mado downloads nothing that isn't in `downloads.json`, and uses a download only when its size and
   SHA-256 match the list.
 - Every new package must survive PyInstaller: after adding one, build the engine and run the

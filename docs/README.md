@@ -22,6 +22,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | --- | --- | --- | --- |
 | Tauri | 2.12 | Desktop shell, window, installer, updater | [tauri.md](stack/tauri.md) |
 | Rust | stable 1.99, edition 2024 | The shell's language | [tauri.md](stack/tauri.md) |
+| windows-registry, windows-sys | 0.100, 0.61 | File Explorer's "Open in Mado" and Open with under HKCU; the files copied in File Explorer; a second start finding the first | [tauri.md](stack/tauri.md) |
 | React | 19.3 | UI components | [react.md](stack/react.md) |
 | TypeScript | 7.0 | Typed UI code (the native compiler) | [react.md](stack/react.md) |
 | Vite | 8.3 | Dev server and bundler for the UI | [react.md](stack/react.md) |

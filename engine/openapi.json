@@ -376,7 +376,7 @@
     "/pictures": {
       "get": {
         "summary": "Pictures",
-        "description": "A page of the pictures, by the day they were taken: newest first, or oldest. `after` is\nwhere the page before ended.",
+        "description": "A page of the pictures, by the day they were taken: newest first, or oldest. `after` is\nwhere the page before ended. A picture kept from a group of duplicates or a burst says\nwhich.",
         "operationId": "pictures_pictures_get",
         "security": [
           {
@@ -490,7 +490,7 @@
     "/pictures/{picture_id}": {
       "get": {
         "summary": "Picture",
-        "description": "One picture, with everything Mado read of it.",
+        "description": "One picture, with everything Mado read of it. One from outside the library, which no\nscan looks after, is looked at as it is now: read again once its file changed (a Save in its\nplace, say), 404 with why once it went; and it counts as opened again, its month before it's\nforgotten starting afresh.",
         "operationId": "picture_pictures__picture_id__get",
         "security": [
           {
@@ -535,7 +535,7 @@
     "/pictures/{picture_id}/neighbours": {
       "get": {
         "summary": "Neighbours",
-        "description": "The pictures either side of one, in the list it was opened from.",
+        "description": "The pictures either side of one, in the list it was opened from: none for one outside\nthe library, which isn't in a list.",
         "operationId": "neighbours_pictures__picture_id__neighbours_get",
         "security": [
           {
@@ -854,6 +854,85 @@
         }
       }
     },
+    "/open": {
+      "post": {
+        "summary": "Open Paths",
+        "description": "Opens what's given: one picture as Mado knows it (the library's, or one outside the\nlibrary, read now), with what else was given and left out; several, or a folder, as Many at\nonce would take them. 404 or 422, with why, when none of it is a picture.",
+        "operationId": "open_paths_open_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Opened"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/pasted": {
+      "post": {
+        "summary": "Pasted",
+        "description": "Keeps a picture pasted from the clipboard (its bytes, as the window has them: PNG) in\nMado's data folder, never the owner's, and says it as a picture outside the library; the\nsame picture pasted again is the one kept already. 413 for one too big, 422 for what isn't a\npicture.",
+        "operationId": "pasted_pasted_post",
+        "requestBody": {
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PictureDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/sizes": {
       "get": {
         "summary": "Sizes",
@@ -1036,7 +1115,7 @@
     "/pictures/{picture_id}/saving": {
       "post": {
         "summary": "Saving Name",
-        "description": "What a picture made would be saved as, and about how big it would be.",
+        "description": "What a picture made would be saved as, and about how big it would be: a pasted one, into\nthe owner's Pictures folder till another is chosen.",
         "operationId": "saving_name_pictures__picture_id__saving_post",
         "security": [
           {
@@ -1091,7 +1170,7 @@
     "/pictures/{picture_id}/make": {
       "post": {
         "summary": "Make",
-        "description": "Makes a picture to its recipe and saves it as the owner chose, as a job: its progress,\nthe time left and Cancel come from /jobs.",
+        "description": "Makes a picture to its recipe and saves it as the owner chose, as a job: its progress,\nthe time left and Cancel come from /jobs. A picture waiting in a quarantine is opened to look\nat only, and a pasted one is saved only as a new picture, into a folder chosen.",
         "operationId": "make_pictures__picture_id__make_post",
         "security": [
           {
@@ -2934,7 +3013,7 @@
     "/duplicates": {
       "get": {
         "summary": "Found",
-        "description": "The groups found, newest first (a page of them: `offset`, `limit`; `kind` for only\nduplicates or only bursts), with what setting all of them of that kind aside would do.\n`limit=0` asks only for the counts (Home).",
+        "description": "The groups found, newest first (a page of them: `offset`, `limit`; `kind` for only\nduplicates or only bursts), with what setting all of them of that kind aside would do.\n`limit=0` asks only for the counts (Home). `reach` makes the page long enough to hold that\ngroup (its key), as the Library's tag opens the review there.",
         "operationId": "found_duplicates_get",
         "security": [
           {
@@ -2978,6 +3057,22 @@
               "minimum": 0,
               "default": 30,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "reach",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reach"
             }
           }
         ],
@@ -5014,6 +5109,10 @@
           "tools": {
             "type": "integer",
             "title": "Tools"
+          },
+          "pasted": {
+            "type": "integer",
+            "title": "Pasted"
           }
         },
         "type": "object",
@@ -5023,7 +5122,8 @@
           "cache",
           "logs",
           "backups",
-          "tools"
+          "tools",
+          "pasted"
         ],
         "title": "DataSizes"
       },
@@ -5979,6 +6079,34 @@
         ],
         "title": "GroupPicture"
       },
+      "GroupTag": {
+        "properties": {
+          "key": {
+            "type": "integer",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "duplicates",
+              "burst"
+            ],
+            "title": "Kind"
+          },
+          "pictures": {
+            "type": "integer",
+            "title": "Pictures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "pictures"
+        ],
+        "title": "GroupTag",
+        "description": "A group of duplicates or a burst, on the tile of a picture kept from it."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -6127,7 +6255,9 @@
           "folder",
           "search",
           "dropped",
-          "picked"
+          "picked",
+          "pasted",
+          "opened"
         ]
       },
       "ImportIn": {
@@ -6987,6 +7117,76 @@
         ],
         "title": "NewRecipe"
       },
+      "OpenHow": {
+        "type": "string",
+        "enum": [
+          "dropped",
+          "picked",
+          "pasted",
+          "opened"
+        ]
+      },
+      "OpenIn": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Paths"
+          },
+          "how": {
+            "$ref": "#/components/schemas/OpenHow",
+            "default": "opened"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paths"
+        ],
+        "title": "OpenIn",
+        "description": "Paths to open: dropped, picked, pasted (files copied in File Explorer, or a path copied\nas words), or opened from File Explorer, Open with or the command line."
+      },
+      "Opened": {
+        "properties": {
+          "picture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PictureDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "picked": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Picked"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leftOut": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "type": "array",
+            "title": "Leftout"
+          }
+        },
+        "type": "object",
+        "required": [
+          "picture",
+          "picked",
+          "leftOut"
+        ],
+        "title": "Opened"
+      },
       "PartIn": {
         "properties": {
           "clicks": {
@@ -7235,7 +7435,7 @@
           "how"
         ],
         "title": "PickIn",
-        "description": "Which pictures: ticked (`ids`), a folder (`folder`, `dir`), what a search found (`search`,\nwith `q`), or files and folders dropped or picked (`paths`)."
+        "description": "Which pictures: ticked (`ids`), a folder (`folder`, `dir`), what a search found (`search`,\nwith `q`), or files and folders dropped, picked, pasted, or opened from File Explorer\n(`paths`)."
       },
       "Picked": {
         "properties": {
@@ -7350,8 +7550,25 @@
             "type": "string",
             "title": "Version"
           },
+          "group": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroupTag"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "folderId": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Folderid"
           },
           "folder": {
@@ -7414,6 +7631,29 @@
           "damaged": {
             "type": "boolean",
             "title": "Damaged"
+          },
+          "outside": {
+            "type": "boolean",
+            "title": "Outside"
+          },
+          "pasted": {
+            "type": "boolean",
+            "title": "Pasted"
+          },
+          "aside": {
+            "type": "boolean",
+            "title": "Aside"
+          },
+          "savesTo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savesto"
           }
         },
         "type": "object",
@@ -7437,7 +7677,11 @@
           "orientation",
           "located",
           "problem",
-          "damaged"
+          "damaged",
+          "outside",
+          "pasted",
+          "aside",
+          "savesTo"
         ],
         "title": "PictureDetails"
       },
@@ -7502,6 +7746,16 @@
           "version": {
             "type": "string",
             "title": "Version"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroupTag"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

@@ -122,14 +122,20 @@ def found(
     kind: Kind = "all",
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=0, le=200)] = PAGE,
+    reach: int | None = None,
 ) -> DuplicatesOut:
     """The groups found, newest first (a page of them: `offset`, `limit`; `kind` for only
     duplicates or only bursts), with what setting all of them of that kind aside would do.
-    `limit=0` asks only for the counts (Home)."""
+    `limit=0` asks only for the counts (Home). `reach` makes the page long enough to hold that
+    group (its key), as the Library's tag opens the review there."""
     latest = finder.found()
     chosen = choices(conn)
     drives = _Drives()
     wanted = [group for group in _newest_first(latest) if _of_kind(group, kind)]
+    if reach is not None and limit:
+        at = next((i for i, group in enumerate(wanted) if min(group.members) == reach), None)
+        if at is not None and at >= offset:
+            limit = max(limit, at - offset + 1)
     page = wanted[offset : offset + limit] if limit else []
     pictures = size = away = 0
     for group in wanted:

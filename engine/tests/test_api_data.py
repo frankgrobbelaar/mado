@@ -12,7 +12,8 @@ from mado.config import DataPaths
 def test_each_part_of_the_data_folder_is_measured(
     client: TestClient, paths: DataPaths, conn: sqlite3.Connection
 ):
-    for folder, size in (("cache", 500), ("logs", 200), ("backups", 100), ("tools", 50)):
+    parts = (("cache", 500), ("logs", 200), ("backups", 100), ("tools", 50), ("pasted", 30))
+    for folder, size in parts:
         (paths.root / folder).mkdir(parents=True, exist_ok=True)
         (paths.root / folder / "a file").write_bytes(bytes(size))
     (paths.tools / "ffmpeg").mkdir()
@@ -27,6 +28,7 @@ def test_each_part_of_the_data_folder_is_measured(
         "logs": 200,
         "backups": 100,
         "tools": 75,
+        "pasted": 30,
     }
     assert found["database"] > 0
 
@@ -35,6 +37,7 @@ def test_parts_not_made_yet_measure_nothing(client: TestClient):
     found = client.get("/data").json()
 
     assert (found["cache"], found["logs"], found["backups"], found["tools"]) == (0, 0, 0, 0)
+    assert found["pasted"] == 0
 
 
 def test_the_export_is_written_where_the_owner_asks(

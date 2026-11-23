@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
  */
 export function GroupCard(props: {
   group: DuplicateGroup;
+  /** The group the review was opened at, from its tag in the Library. */
+  marked?: boolean;
   busy: boolean;
   onKeep: (ids: number[]) => void;
   onNotSame: () => void;
@@ -31,8 +33,13 @@ export function GroupCard(props: {
   const missing = group.pictures.find((each) => each.there === "gone" || each.there === "changed");
   return (
     <section
+      id={`group-${group.key}`}
       aria-label={title}
-      className="flex animate-fade-up flex-col rounded-8 border border-edge bg-glass"
+      aria-current={props.marked ? "true" : undefined}
+      className={cn(
+        "flex animate-fade-up scroll-mt-20 flex-col rounded-8 border bg-glass",
+        props.marked ? "border-accent" : "border-edge",
+      )}
     >
       <header className="flex flex-wrap items-center gap-x-3.5 gap-y-2 px-4.5 pt-3 pb-3">
         <span aria-hidden="true" className="status-waiting size-3 shrink-0 rounded-full" />

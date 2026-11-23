@@ -34,7 +34,9 @@ const LOSSY = new Set<SaveFormat>(["JPEG", "WebP", "AVIF"]);
  * what it was made for and with, or into a folder chosen), or in the original's place (the
  * original into quarantine for 30 days); the format and quality; what's kept of the original; and
  * "Always save this way". It saves the whole recipe, the size and the look together. Saving
- * starts the job; its progress shows in the tab Save was opened from.
+ * starts the job; its progress shows in the tab Save was opened from. A pasted picture, which
+ * lives in Mado till it's saved, is saved only as a new picture into a folder of the owner's:
+ * their folder for new pictures, when they chose one in Settings, else Pictures.
  */
 export function SaveDialog(props: {
   picture: PictureDetails;
@@ -83,11 +85,13 @@ function SaveForm(props: {
 }) {
   const { picture, plan, recipe, settings } = props;
   const asIs = WRITES.find((each) => each === picture.format) ?? null;
-  const [how, setHow] = useState<"new" | "replace">(settings.saveFirst);
+  const pasted = picture.pasted;
+  const [how, setHow] = useState<"new" | "replace">(pasted ? "new" : settings.saveFirst);
   const [format, setFormat] = useState<SaveFormat>(plan.format);
   const [quality, setQuality] = useState(plan.formatQuality ?? 92);
+  const chosenFolder = settings.newPictures === "folder" ? settings.newFolder : null;
   const [folder, setFolder] = useState<string | null>(
-    settings.newPictures === "folder" ? settings.newFolder : null,
+    pasted ? (chosenFolder ?? picture.savesTo) : chosenFolder,
   );
   const [keepCamera, setKeepCamera] = useState(true);
   const [keepColours, setKeepColours] = useState(true);
@@ -153,8 +157,11 @@ function SaveForm(props: {
                   </span>
                 )}
                 <span className="text-13 text-fg-muted">
-                  {folder ? `In ${folderName}.` : `Beside the original in ${folderName}.`} The
-                  original stays as it is.{" "}
+                  {pasted
+                    ? `In ${folderName}: till you save it, it's only in Mado.`
+                    : folder
+                      ? `In ${folderName}. The original stays as it is.`
+                      : `Beside the original in ${folderName}. The original stays as it is.`}{" "}
                   <button
                     type="button"
                     onClick={(event) => {
@@ -169,16 +176,18 @@ function SaveForm(props: {
               </>
             }
           />
-          <Choice
-            chosen={how === "replace"}
-            onChoose={() => setHow("replace")}
-            title="Replace the original"
-            detail={
-              <span className="text-13 text-fg-muted">
-                The original waits in quarantine for 30 days, and History puts it back.
-              </span>
-            }
-          />
+          {!pasted && (
+            <Choice
+              chosen={how === "replace"}
+              onChoose={() => setHow("replace")}
+              title="Replace the original"
+              detail={
+                <span className="text-13 text-fg-muted">
+                  The original waits in quarantine for 30 days, and History puts it back.
+                </span>
+              }
+            />
+          )}
         </div>
 
         {name.data?.taken && (
@@ -275,9 +284,13 @@ function SaveForm(props: {
         )}
       </DialogBody>
       <DialogFooter>
-        <Check id={ids.always} checked={always} onChange={setAlways}>
-          <span className="text-13 text-fg-muted">Always save this way</span>
-        </Check>
+        {pasted ? (
+          <span />
+        ) : (
+          <Check id={ids.always} checked={always} onChange={setAlways}>
+            <span className="text-13 text-fg-muted">Always save this way</span>
+          </Check>
+        )}
         <span className="flex gap-2">
           <Button variant="ghost" onClick={props.onClose}>
             Cancel
@@ -335,6 +348,7 @@ function MadeAs({ plan }: { plan: Plan }) {
         Made for {size} ({pixels}), with {look}
       </>
     );
+  if (!plan.label && !plan.look) return <>As it is, {pixels}</>; // a paste saved unchanged
   if (plan.label)
     return (
       <>

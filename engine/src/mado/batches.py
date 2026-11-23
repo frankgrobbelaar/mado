@@ -51,7 +51,7 @@ from mado.previews import version
 
 log = logging.getLogger(__name__)
 
-type How = Literal["ticked", "folder", "search", "dropped", "picked"]
+type How = Literal["ticked", "folder", "search", "dropped", "picked", "pasted", "opened"]
 
 MOST = 10_000  # pictures a batch holds at most
 _WALKED = 50_000  # files looked at in folders dropped, at most
@@ -130,9 +130,9 @@ def from_search(conn: sqlite3.Connection, folder_id: int | None, inside: str, wo
 
 
 def from_paths(conn: sqlite3.Connection, paths: Sequence[str], how: How) -> Picked:
-    """Files and folders dropped on the window or picked: every picture in them, those in the
-    library as it knows them, any other read now. A folder's own folders are looked in too,
-    but never a quarantine."""
+    """Files and folders dropped on the window, picked, pasted or opened from File Explorer:
+    every picture in them, those in the library as it knows them, any other read now. A
+    folder's own folders are looked in too, but never a quarantine."""
     files: list[Path] = []
     left: list[tuple[str, str]] = []
     for each in paths:
@@ -189,7 +189,7 @@ def from_paths(conn: sqlite3.Connection, paths: Sequence[str], how: How) -> Pick
         )
     shared = _shared([picture.path for picture in pictures])
     source = _name_of(shared) if shared else "several folders"
-    words = f"{'dropped' if how == 'dropped' else 'picked'} from {source}"
+    words = f"{how if how in ('dropped', 'pasted', 'opened') else 'picked'} from {source}"
     return Picked(_most(pictures, left), source, str(shared) if shared else None, words, left)
 
 
@@ -558,7 +558,7 @@ def _fields(step: dict[str, object]) -> dict[str, object]:
 
 _SELECT = """SELECT p.id, p.path, p.name, p.size, p.width, p.height, p.modified, p.raw,
                     p.problem, p.read_at, p.dir, p.folder_id
-             FROM pictures AS p WHERE p.gone_at IS NULL AND """
+             FROM pictures AS p WHERE p.gone_at IS NULL AND p.folder_id IS NOT NULL AND """
 
 
 def _rows(conn: sqlite3.Connection, clause: str, values: list[object]) -> list[sqlite3.Row]:

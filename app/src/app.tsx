@@ -35,6 +35,7 @@ export function App() {
               <Route index element={<HomePage />} />
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/library/pictures/:id" element={<PicturePage />} />
+              <Route path="/pictures/:id" element={<PicturePage />} />
               <Route path="/batch" element={<BatchPage />} />
               <Route path="/queue" element={<QueuePage />} />
               <Route path="/recipes" element={<RecipesPage />} />

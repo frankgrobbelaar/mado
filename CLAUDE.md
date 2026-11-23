@@ -38,7 +38,10 @@ drives the library uses; a picture open in another app waiting while the queue g
 editing by clicking, the sixth (the Edit tab: Select picks parts with SAM 2.1, then erase them,
 cut them out, blur what's behind them or give them a look; Erase's brush; Cut out finds the
 subject; looks on just a part; "Cut out the subject" in batches and recipes; each model
-downloaded the first time). Next: the rest of Mado 1.0, by [What's next](#whats-next).
+downloaded the first time); and pictures from anywhere, the seventh (a picture from outside the
+library on a page of its own; paste; File Explorer's "Open in Mado" and Open with; the command
+line; and the Library's tags on a group's kept picture). Next: the rest of Mado 1.0, by
+[What's next](#whats-next).
 
 ## Ground rules
 
@@ -364,7 +367,7 @@ Everything decided so far. Don't ask again; change only with the owner.
   copies, 150 saved again, 60 bursts of five, 40 gentle crops planted): finding took 46 s after a
   240 s scan and found the 270 groups planted and nothing else, the sharp shot kept in all 60 bursts
   and the original in all 210 duplicates. The Library board's "burst of 5" and "2 copies" tags on
-  the grid aren't built.
+  the grid came with pictures from anywhere (below).
 - Editing by clicking, as built (2026-11-23, Claude's calls while the owner is away;
   docs/stack/editing.md): the Edit tab follows Picture-Edit. Select is SAM 2.1 Hiera-Tiny: the
   picture read once at 1024 × 1024 (the whole of it squeezed, so any size can be picked; on the
@@ -416,6 +419,77 @@ Everything decided so far. Don't ask again; change only with the owner.
   sun, a sail, a hull or a ball at IoU 0.985 to 0.996, a striped balloon's one stripe first (the
   whole balloon two steps bigger, 0.991); erasing a boat, PSNR in the hole 33.7 dB at Fast (0.43 s)
   and 35.0 at Best (0.99 s).
+- Pictures from anywhere, as built (2026-11-23, Claude's calls while the owner is away;
+  docs/stack/tauri.md, "Open in Mado" and "Paste"): one picture from outside the library (dropped,
+  picked, pasted, opened from File Explorer's "Open in Mado", Open with or `mado.exe <paths…>`)
+  opens on a page of its own (`/pictures/{id}`, Home's place lit) with Size, Looks, Edit and Save
+  as a library picture's; several, or a folder, open Many at once with them chosen; among other
+  files, the one picture opens and a note at the window's foot says what was left out and why. The
+  engine knows it by its path, a row of `pictures` with no library folder (migration 8 made the
+  table again with `folder_id` able to be NULL, the migrations now running with foreign keys off
+  and checked before each commits, and added `opened_at` and `pasted`): never listed, counted,
+  exported or looked at for duplicates; one in a library folder is that library picture (one just
+  copied there recorded at once, as a scan would); its folder added later, the scan makes it the
+  library's under the same number, counted as new, so its jobs stay its own (History goes by
+  path). The page shows its folder where the breadcrumb was (a click shows it in File Explorer)
+  with the quiet "Add its folder to the library", no neighbours, and no "Mark as damaged" (Won't
+  open lists only the library's); as no scan looks after it, asking for its page looks at its file
+  (read again once it changed, a Save in its place included; gone, the engine's words say so, or
+  that its drive isn't connected), and the page asks again once its Save is done. Not opened for 30 days (the month the quarantine and the edits'
+  masks keep), an outside picture is forgotten by the daily care with its cache, unless a job
+  waiting names it or a line of History naming it is recent or has something in quarantine;
+  opening its page counts as opening it. Save beside it writes in its own folder; Replace sends the
+  original to its drive's quarantine, and History puts it back. A picture in a quarantine opens to
+  look at only (the tools' place says so, with Open History; the engine refuses its Save). Camera
+  RAW from outside shows the library's "not readable yet"; a path not there says whether its drive
+  is connected; a long path is reached in Windows' long form when only that reaches it; the same
+  picture opened twice is one page. Paste is Ctrl+V anywhere but a text field: files copied in
+  File Explorer, read by the shell (CF_HDROP through windows-sys, as the Tauri clipboard plugin
+  reads only words and pictures), open as if dropped, asked first as a page sees a copied picture
+  file as a picture too; else a picture on the clipboard (the page's paste event, PNG) is kept in
+  the data folder's `pasted` as "Pasted 2026-11-23 14.05.png" ("(2)" in the same minute), the same
+  bytes again opening the one kept, at most 2^26 pixels (about 67 megapixels: past it the window's
+  own clipboard hands a page an empty PNG, measured; it takes 1.2 s at 66), said as too big on both
+  sides; else words that are paths (Copy as path, `file:` addresses) open; else "Nothing to
+  paste"; a folder with no picture in it says why rather than open an empty Many at once. Of
+  Mado's own data folder only a paste opens (as a paste, whatever library holds the folder); any
+  other file there is Mado's, not the owner's, and isn't opened. A pasted picture's page says
+  "Pasted · not saved yet"; Save is there with nothing chosen (it saves the paste as it is, named
+  as pasted, an empty recipe allowed only for a paste) and offers only a new picture,
+  into the owner's folder for new pictures when they chose one in Settings, else their Pictures
+  folder (Windows' own, wherever it's kept), never beside it or in its place
+  (the engine refuses both); an unsaved paste is forgotten like any outside picture, its file
+  deleted (only ever a file in `pasted`, a paste whose record went, by a stop or a restore,
+  cleared after its month too), and Settings › Your data shows "Pasted" once there is some. "Open in Mado" is a verb under HKCU on every extension Mado reads (a test holds the shell's
+  list to the engine's) and on folders, `MultiSelectModel` Player: with Windows' default
+  (Document) it's dropped past 15 selected, and with either Explorer starts nothing past 100
+  (measured; past that, the folder's own entry opens every picture in it). Explorer starts Mado once
+  per file; the single-instance plugin hands each start's paths to the Mado running, which gathers
+  those within 600 ms of the last into one choice (measured: 22 ms apart at most to a Mado running,
+  146 ms from cold; 100 files one choice in 2.3 s), the last look made on the main thread, where the
+  paths arrive (a start's words become paths off the main thread, as a network share not there
+  can take a while to answer); a second start finding the first's lock waits up to 2 s for its
+  window (the plugin
+  would otherwise run it as a second Mado), and paths arriving before the window's ready wait in
+  the shell till it takes them, once the engine is ready, the window coming forward (from the tray
+  too). Send to was measured and left out: one start with every path, but Windows refuses past
+  32,767 letters of them (200 deep paths), and it's a second entry. Open with is `OpenWithProgids`
+  (`Mado.Picture`) and `Applications\mado.exe\SupportedTypes`, never a type's default value nor
+  UserChoice (Windows reads a type's values from the user's keys first, value by value: checked);
+  Tauri's `bundle.fileAssociations` isn't used, as its template writes each type's default. Only an
+  installed Mado writes them (its uninstaller beside it), at each start and when Settings ›
+  General's "Open in Mado in File Explorer" (on till turned off) changes, telling Explorer when
+  something changed; taking them away goes by what was written, then each key above left empty,
+  and the uninstaller does the same (`MadoForgetExplorer`), not while updating. `mado.exe` takes
+  paths as given, quoted or not (a path with spaces typed without quotes put back together, one
+  typed in a terminal found where it was typed), `--in-tray` as before. Found on the way: the scan
+  and the watcher now never look inside Mado's own data folder (a library folder holding it read
+  the cache as pictures), a walk no longer marks gone a picture recorded while it walked (opened
+  then) that's still there, and a name Windows can't put in letters no longer stops Mado starting.
+  The Library board's tags are built: "burst of 5" on a burst's kept picture and "2 copies" on a
+  duplicate's (the group's pictures counted), bottom right in mono on dark glass beside a HEIC or
+  RAW tag, a click opening the review at that group (`/duplicates?group=`, the page long enough to
+  hold it, marked and scrolled to).
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -462,8 +536,9 @@ Everything decided so far. Don't ask again; change only with the owner.
 
 **Data**
 - `%LOCALAPPDATA%\Mado`: mado.db, nightly backups (keep 7), logs (30 days), `tools\` (ffmpeg,
-  downloaded on first run; see docs/stack/ffmpeg.md; and the AI models fetched when asked), and
-  `cache\` (each picture's thumbnail and screen-sized view, made again when gone).
+  downloaded on first run; see docs/stack/ffmpeg.md; and the AI models fetched when asked),
+  `cache\` (each picture's thumbnail and screen-sized view, made again when gone), and `pasted\`
+  (pictures pasted from the clipboard, till a month after they were last opened).
 - Next to the pictures: `Mado quarantine` at the top of each drive, a folder a day, holding
   replaced originals and pictures taken away for 30 days; Mado deletes only what's in a day's
   folder there, whatever its records say.
@@ -532,8 +607,10 @@ Everything decided so far. Don't ask again; change only with the owner.
    a new picture and replacing. Built: the library and a picture's page, making it for a screen
    with saving, looks on the whole picture (a part comes with selecting), many at once with
    recipes, watch folders and the queue, looking after the library (duplicates and bursts,
-   the pictures that won't open, space, a picture open in another app), and editing by clicking
-   (select, erase and cut out, looks on a part, cutting out in batches and recipes).
+   the pictures that won't open, space, a picture open in another app, the grid's tags), editing
+   by clicking (select, erase and cut out, looks on a part, cutting out in batches and recipes),
+   and pictures from anywhere (a picture from outside the library on a page of its own, paste,
+   File Explorer's "Open in Mado" and Open with, the command line).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG

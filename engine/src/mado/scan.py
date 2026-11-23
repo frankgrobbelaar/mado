@@ -211,6 +211,7 @@ class Scanner:
                     stamp=started,
                     on_file=self._looking_at,
                     stop=self._stopping.is_set,
+                    away=self._paths.root,
                 )
                 if self._stopping.is_set():
                     return False
@@ -286,7 +287,7 @@ class Scanner:
                   COUNT(*) FILTER (WHERE read_at >= :started AND seen_at = :started AND raw = 0),
                   COUNT(*) FILTER (WHERE read_at IS NULL AND gone_at IS NULL),
                   {_CHANGES}
-                FROM pictures""",  # noqa: S608 - a fixed fragment, no values
+                FROM pictures WHERE folder_id IS NOT NULL""",  # noqa: S608 - fixed, no values
             {"started": started},
         ).fetchone()
         if latest["added"] is not None:  # kept when it finished
@@ -327,7 +328,7 @@ _CHANGES = """COUNT(*) FILTER (WHERE found_at = :started AND gone_at IS NULL),
 
 def _changes(conn: sqlite3.Connection, started: str) -> tuple[int, int]:
     added, gone = conn.execute(
-        f"SELECT {_CHANGES} FROM pictures",  # noqa: S608 - a fixed fragment, no values
+        f"SELECT {_CHANGES} FROM pictures WHERE folder_id IS NOT NULL",  # noqa: S608 - fixed
         {"started": started},
     ).fetchone()
     return added, gone

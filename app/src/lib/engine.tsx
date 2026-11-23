@@ -58,7 +58,15 @@ export function restartEngine(): Promise<void> {
   return invoke("restart_engine");
 }
 
-export class EngineError extends Error {}
+/** What the engine said, in its words, and the status it answered with (404: not there). */
+export class EngineError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null = null,
+  ) {
+    super(message);
+  }
+}
 
 /** Calls the engine's HTTP API with this launch's token. */
 export async function callEngine<T>(
@@ -78,6 +86,7 @@ export async function callEngine<T>(
     throw new EngineError(
       (await problemIn(response)) ??
         `The engine answered ${response.status} to ${init?.method ?? "GET"} ${path}.`,
+      response.status,
     );
   }
   if (response.status === 204) return undefined as T;
@@ -289,6 +298,8 @@ export interface DataSizes {
   logs: number;
   backups: number;
   tools: number;
+  /** Pictures pasted from the clipboard, kept till they're saved. */
+  pasted: number;
 }
 
 export const useDataSizes = () => useEngineQuery<DataSizes>("/data");
@@ -424,6 +435,17 @@ export interface PictureItem {
   takenAt: string;
   /** Changes when its file does: its copies' addresses carry it. */
   version: string;
+  /** In the grid, a group's kept picture: "burst of 5", "2 copies". */
+  group: GroupTag | null;
+}
+
+/** A group of duplicates or a burst, on the tile of a picture kept from it. */
+export interface GroupTag {
+  /** The group's number, which opens its review there. */
+  key: number;
+  kind: "duplicates" | "burst";
+  /** In the group. */
+  pictures: number;
 }
 
 export interface PicturePage {
@@ -437,8 +459,9 @@ export interface PicturePage {
 }
 
 export interface PictureDetails extends PictureItem {
-  folderId: number;
-  /** Its library folder. */
+  /** Its library folder's number; null outside the library. */
+  folderId: number | null;
+  /** Its library folder; outside the library, the folder it's in. */
   folder: string;
   /** The folders between that and it: "2026/Trip". */
   dir: string;
@@ -455,6 +478,19 @@ export interface PictureDetails extends PictureItem {
   problem: string | null;
   /** The owner marked it as damaged: not asked about again till its file changes. */
   damaged: boolean;
+  /** Opened from outside the library: dropped, picked, pasted, from File Explorer. */
+  outside: boolean;
+  /** Pasted from the clipboard, kept in Mado's data folder till it's saved. */
+  pasted: boolean;
+  /** It waits in a quarantine: opened to look at only. */
+  aside: boolean;
+  /** Where Save puts a new picture first, when not beside it: a pasted one's. */
+  savesTo: string | null;
+}
+
+/** A picture's page: the Library's address for one in it, its own for one from outside. */
+export function pageOf(picture: { id: number; outside: boolean }): string {
+  return picture.outside ? `/pictures/${picture.id}` : `/library/pictures/${picture.id}`;
 }
 
 export interface Neighbours {
@@ -1374,7 +1410,7 @@ export interface BatchSaving {
 
 /** Which pictures a batch is made of. */
 export interface Pick {
-  how: "ticked" | "folder" | "search" | "dropped" | "picked";
+  how: "ticked" | "folder" | "search" | "dropped" | "picked" | "pasted" | "opened";
   ids?: number[];
   paths?: string[];
   folder?: number | null;
@@ -1637,6 +1673,39 @@ export const usePicked = (pick: Pick | null) =>
  * `find.mutate({ path: "/batches/pictures", body: pick })`. */
 export const useFindPictures = () => useEngineAction<Picked>([]);
 
+/** How paths came: dropped on the window, picked, pasted (files copied in File Explorer, or a
+ * path copied as words), or opened from File Explorer, Open with or the command line. */
+export type OpenHow = "dropped" | "picked" | "pasted" | "opened";
+
+/** What paths open as: one picture's page, or Many at once with them. */
+export interface Opened {
+  /** One picture: its page. */
+  picture: PictureDetails | null;
+  /** Several pictures, or a folder: Many at once, with them chosen. */
+  picked: Picked | null;
+  /** Beside one picture, what wasn't taken, and why. */
+  leftOut: { name: string; why: string }[];
+}
+
+/** Opens paths: `open.mutate({ path: "/open", body: { paths, how } })`. */
+export const useOpenPaths = () => useEngineAction<Opened>([]);
+
+/** Keeps a picture pasted from the clipboard (as the window has it, PNG) in Mado's data folder,
+ * and says it as a picture outside the library. */
+export function usePastePicture() {
+  const engine = useEngine();
+  return useMutation({
+    mutationFn: (picture: Blob) => {
+      if (engine.state !== "ready") throw new EngineError("The engine isn't ready yet.");
+      return callEngine<PictureDetails>(engine, "/pasted", {
+        method: "POST",
+        body: picture,
+        headers: { "Content-Type": "image/png" },
+      });
+    },
+  });
+}
+
 /** What a batch would take (null: nothing to make yet). */
 export const useTakes = (
   ask: {
@@ -1808,9 +1877,10 @@ const DUPLICATES = [
 
 /** The groups found, a page at a time: `fetchNextPage()` brings the next. Asked again every two
  * seconds while Mado is still looking, and now and then otherwise, for what a scan brings. */
-export function useDuplicates(kind: DuplicateKind) {
+export function useDuplicates(kind: DuplicateKind, reach: number | null = null) {
   const engine = useEngine();
-  const path = `/duplicates?kind=${kind}`;
+  // `reach`: the first page is long enough to hold that group, as the Library's tag opens it.
+  const path = `/duplicates?kind=${kind}${reach !== null ? `&reach=${reach}` : ""}`;
   return useInfiniteQuery({
     queryKey: engineKey(engine, path),
     queryFn: ({ pageParam }) => {

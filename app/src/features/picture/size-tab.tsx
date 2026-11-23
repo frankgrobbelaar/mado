@@ -203,10 +203,14 @@ export function SizeTab(props: {
           !chosen
             ? props.recipe?.look
               ? "Pick a screen or a print, or save the look alone on the Looks tab."
-              : "Pick a screen or a print to see the picture made for it."
-            : shown?.look
-              ? `As a new picture beside the original, with ${shown.look}, unless you choose to replace it.`
-              : "As a new picture beside the original, unless you choose to replace it."
+              : picture.pasted
+                ? "Save keeps it as it is; pick a screen or a print to make it for one."
+                : "Pick a screen or a print to see the picture made for it."
+            : picture.pasted
+              ? "As a new picture in a folder of yours: till then it's only in Mado."
+              : shown?.look
+                ? `As a new picture beside the original, with ${shown.look}, unless you choose to replace it.`
+                : "As a new picture beside the original, unless you choose to replace it."
         }
       />
     </div>

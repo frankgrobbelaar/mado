@@ -261,4 +261,50 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     """
     ALTER TABLE history ADD COLUMN edit TEXT;  -- what was edited: "erased a part"
     """,
+    # 8. Pictures from anywhere: a picture opened from outside the library (dropped, picked,
+    # pasted, opened from File Explorer or the command line) is known by its path, with no
+    # library folder, and when it was last opened, so it's forgotten once it hasn't been for a
+    # while. A pasted one waits in Mado's data folder till it's saved. SQLite can't let a column
+    # be NULL once it's NOT NULL, so the table is made again (the migrations run with foreign keys
+    # off, so the tables that refer to it keep their rows, and they're checked before it commits).
+    """
+    CREATE TABLE pictures_8 (
+        id          INTEGER PRIMARY KEY,
+        folder_id   INTEGER REFERENCES folders (id) ON DELETE CASCADE,  -- NULL: outside the library
+        path        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        dir         TEXT NOT NULL,     -- the folders between its library folder and it; '' outside
+        name        TEXT NOT NULL,
+        size        INTEGER NOT NULL,
+        modified    INTEGER NOT NULL,
+        found_at    TEXT NOT NULL,
+        seen_at     TEXT NOT NULL,
+        gone_at     TEXT,
+        read_at     TEXT,
+        problem     TEXT,
+        raw         INTEGER NOT NULL DEFAULT 0 CHECK (raw IN (0, 1)),
+        format      TEXT,
+        width       INTEGER,
+        height      INTEGER,
+        taken_at    TEXT NOT NULL,
+        taken_from  TEXT NOT NULL CHECK (taken_from IN ('camera', 'file')),
+        camera      TEXT,
+        orientation INTEGER,
+        located     INTEGER NOT NULL DEFAULT 0 CHECK (located IN (0, 1)),
+        damaged     INTEGER NOT NULL DEFAULT 0 CHECK (damaged IN (0, 1)),
+        opened_at   TEXT,              -- outside the library: when it was last opened
+        pasted      INTEGER NOT NULL DEFAULT 0 CHECK (pasted IN (0, 1))  -- in Mado's data folder
+    ) STRICT;
+    INSERT INTO pictures_8 (id, folder_id, path, dir, name, size, modified, found_at, seen_at,
+                            gone_at, read_at, problem, raw, format, width, height, taken_at,
+                            taken_from, camera, orientation, located, damaged)
+        SELECT id, folder_id, path, dir, name, size, modified, found_at, seen_at, gone_at,
+               read_at, problem, raw, format, width, height, taken_at, taken_from, camera,
+               orientation, located, damaged
+        FROM pictures;
+    DROP TABLE pictures;
+    ALTER TABLE pictures_8 RENAME TO pictures;
+    CREATE INDEX pictures_by_taken ON pictures (taken_at, id);
+    CREATE INDEX pictures_by_folder ON pictures (folder_id, taken_at, id);
+    CREATE INDEX pictures_outside ON pictures (opened_at) WHERE folder_id IS NULL;
+    """,
 )

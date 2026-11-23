@@ -1,5 +1,5 @@
 """Where Mado keeps its data, and how big each part is, for Settings > Your data: the database,
-the cache, logs, backups and the tools in the data folder."""
+the cache, logs, backups, the tools and the pictures pasted in the data folder."""
 
 import os
 from dataclasses import dataclass
@@ -16,6 +16,7 @@ class DataSizes:
     logs: int
     backups: int
     tools: int  # ffmpeg
+    pasted: int  # pictures pasted from the clipboard, kept till they're saved
 
 
 def sizes(paths: DataPaths) -> DataSizes:
@@ -30,6 +31,7 @@ def sizes(paths: DataPaths) -> DataSizes:
         logs=_tree(paths.logs),
         backups=_tree(paths.backups),
         tools=_tree(paths.tools),
+        pasted=_tree(paths.pasted),
     )
 
 

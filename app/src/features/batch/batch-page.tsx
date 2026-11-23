@@ -206,7 +206,9 @@ function Batch({ start }: { start: BatchStart }) {
 
   function changeWhich() {
     const pick = start.pick;
-    if (pick.how === "dropped" || pick.how === "picked") {
+    if (pick.paths?.length) {
+      // From anywhere (dropped, picked, pasted, opened from File Explorer): Home is where more
+      // are dropped or picked.
       void navigate("/");
       return;
     }

@@ -189,7 +189,9 @@ def _pictures(conn: sqlite3.Connection) -> str:
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(_PICTURE_COLUMNS)
     if _has_table(conn, "pictures"):
-        for row in conn.execute("SELECT * FROM pictures WHERE gone_at IS NULL ORDER BY path"):
+        for row in conn.execute(
+            "SELECT * FROM pictures WHERE gone_at IS NULL AND folder_id IS NOT NULL ORDER BY path"
+        ):
             writer.writerow(
                 (
                     row["path"],

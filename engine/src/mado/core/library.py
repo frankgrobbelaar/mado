@@ -5,6 +5,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import PureWindowsPath
 
+from mado.core.files import skipped_folder
+
 _MIN_FOR_PACE = 5  # pictures read before a pace is worth going by
 
 
@@ -30,6 +32,16 @@ def fits(new: PureWindowsPath, existing: Iterable[PureWindowsPath]) -> Covered |
             return Covered(folder)
     held = tuple(folder for folder in folders if folder.is_relative_to(new))
     return Holds(held) if held else None
+
+
+def holding(picture: PureWindowsPath, folders: Iterable[PureWindowsPath]) -> PureWindowsPath | None:
+    """The library folder a picture is in, as a scan would find it there: None outside every
+    one, or in a folder inside one that a scan never looks into (a quarantine, a hidden one)."""
+    for folder in folders:
+        if picture.parent == folder or picture.parent.is_relative_to(folder):
+            inside = picture.parent.relative_to(folder).parts
+            return None if any(skipped_folder(part) for part in inside) else folder
+    return None
 
 
 def inner_folder(root: PureWindowsPath, picture: PureWindowsPath) -> str:

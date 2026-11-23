@@ -127,8 +127,9 @@ function Figure({ value }: { value: string }) {
   return <span className="font-mono text-fg">{value}</span>;
 }
 
-/** Pictures from anywhere on the PC: dropped on the window (anywhere on it) or picked. One in
- * the library opens its page; anything else opens Many at once. */
+/** Pictures from anywhere on the PC: dropped on the window (anywhere on it), pasted (Ctrl+V,
+ * anywhere on it) or picked. One picture opens its page, in the library or not; several, or a
+ * folder, open Many at once. */
 function DropHere() {
   const opening = useOpenPictures();
   return (
@@ -147,8 +148,8 @@ function DropHere() {
           Drop pictures here
         </h2>
         <p className="text-14 text-fg-muted leading-normal">
-          Or pick them from your PC. Make them right for a phone, a TV or a print, or give them a
-          look. They don't need to be in your library.
+          Or paste one, or pick them from your PC. Make them right for a phone, a TV or a print,
+          give them a look, or cut something out. They don't need to be in your library.
         </p>
         <p className="mt-1 font-mono text-12 text-fg-faint">JPEG PNG HEIC WebP AVIF TIFF BMP GIF</p>
         {opening.problem && (

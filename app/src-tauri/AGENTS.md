@@ -1,8 +1,9 @@
 # Shell: guide for coding agents
 
 The shell is Mado's Rust side (Tauri 2): the window, the engine process, single-instance,
-updates, and the installer. It is thin on purpose. Anything that isn't about the window, the
-process or updating belongs in the engine. Start with [../../AGENTS.md](../../AGENTS.md) and
+updates, the installer, and what only Windows can hand over: the paths Mado is started with, the
+files copied in File Explorer, and File Explorer's "Open in Mado". It is thin on purpose.
+Anything else belongs in the engine. Start with [../../AGENTS.md](../../AGENTS.md) and
 [../../CLAUDE.md](../../CLAUDE.md).
 
 ## Where things go
@@ -20,6 +21,9 @@ process or updating belongs in the engine. Start with [../../AGENTS.md](../../AG
 | Showing a folder or file in Explorer | `src/explorer.rs` |
 | This PC's screens, for the Size tab (the engine remembers them) | `src/screens.rs` |
 | Running console programs without a window | `src/process.rs` |
+| Paths Mado is started with (command line, "Open in Mado", Open with), a second start's too, gathered into one choice for the window | `src/opened.rs` |
+| The files copied in File Explorer, for pasting | `src/clipboard.rs` |
+| File Explorer's "Open in Mado" and Open with, under HKCU, and the Settings switch | `src/open_in_mado.rs` |
 | Window, security policy, bundle, updater key | `tauri.conf.json` (installer-only extras: `tauri.bundle.conf.json`) |
 | What the window may call | `capabilities/default.json` |
 | Installer additions | `windows/hooks.nsh` |
@@ -33,6 +37,11 @@ process or updating belongs in the engine. Start with [../../AGENTS.md](../../AG
   it. Loosen the content security policy only with a reason in the commit.
 - **Never block the main thread.** Waiting and process work go on their own threads or async tasks.
 - **Start programs with `process::hidden()`** so no console window flashes.
+- **The registry: only Mado's own keys, under HKCU.** Never a type's default value, never
+  UserChoice, never another app's key or value; take away only what Mado wrote, then keys left
+  empty. Only an installed Mado writes them (its uninstaller beside it), so a development build
+  never points File Explorer at itself. Test the registry code against a root of the test's own
+  (`open_in_mado.rs`), and the uninstaller's half with `windows/hooks-test.ps1`.
 - **The engine handshake is a contract**: the ready line, `MADO_TOKEN`, stdin closing. Change
   `engine.rs` and `engine/tests/test_cli.py` together.
 - **No secrets in the binary.** Updates need no login (the releases are public); the signing key
