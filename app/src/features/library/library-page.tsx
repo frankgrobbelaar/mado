@@ -15,30 +15,37 @@ import {
 import type { BatchStart } from "@/features/batch/open";
 import {
   type LibraryFolder,
+  type PictureItem,
   type Scan,
+  type SearchResults,
   type Shown,
   shownFrom,
   shownQuery,
   useEngineQuery,
   useFolders,
   useLibrary,
+  useLike,
   usePictures,
   useRemoveFolder,
+  useSearch,
 } from "@/lib/engine";
 import { openFolder, useExplorer } from "@/lib/explorer";
-import { about, count, pictures as picturesWord } from "@/lib/format";
+import { about, count, pictures as picturesWord, stem } from "@/lib/format";
 import { useAddFolderPicker } from "./add-folder";
 import { EmptyLibrary } from "./empty-library";
 import { FolderTree } from "./folder-tree";
 import { daysOf, PictureGrid } from "./picture-grid";
+import { FoundGroups, NothingFound, SearchNotes } from "./search-results";
 import { TickedBar } from "./ticked-bar";
 
 const NONE: ReadonlySet<number> = new Set();
 
 /**
  * The Library: the folders down its side as a tree, and the pictures of the one chosen (or all of
- * them) by the day they were taken, newest first, ticked to do things with many at once. What it
- * shows lives in its address, so a picture opened from it, and Back, keep the place.
+ * them) by the day they were taken, newest first, ticked to do things with many at once; or what
+ * a search found, by the words in the pictures, what they show and their names, or the pictures
+ * most like one (More like this). What it shows lives in its address, so a picture opened from
+ * it, and Back, keep the place.
  */
 export function LibraryPage() {
   const [query, setQuery] = useSearchParams();
@@ -110,12 +117,24 @@ function Pictures(props: {
   onShow: (shown: Shown) => void;
 }) {
   const { shown, folders } = props;
-  const list = usePictures(shown);
+  const liking = shown.like !== null;
+  const searching = liking || shown.q.trim() !== "";
+  const list = usePictures(shown, !searching);
+  const search = useSearch(shown, !liking);
+  const like = useLike(shown.like);
+  const finding = liking ? like : search;
+  const found = searching ? finding.data : undefined;
   const scan = useEngineQuery<Scan>("/scan");
   const chosen = shown.folder === null ? null : folders?.find((each) => each.id === shown.folder);
   const pages = list.data?.pages;
   const days = useMemo(() => daysOf(pages ?? []), [pages]);
-  const loaded = useMemo(() => days.flatMap((day) => day.pictures), [days]);
+  const loaded: PictureItem[] = useMemo(
+    () =>
+      searching
+        ? (found?.groups.flatMap((group) => group.pictures) ?? [])
+        : days.flatMap((day) => day.pictures),
+    [searching, found, days],
+  );
   // Ticks belong to the list they were made in: another search or order starts with none.
   const listKey = shownQuery(shown);
   const [ticks, setTicks] = useState<{ list: string; ids: ReadonlySet<number> }>({
@@ -134,7 +153,7 @@ function Pictures(props: {
     if (words.trim() === shown.q.trim()) return;
     const timer = setTimeout(() => {
       searched.current = words.trim();
-      onShow({ ...shown, q: words });
+      onShow({ ...shown, q: words, like: null });
     }, 250);
     return () => clearTimeout(timer);
   }, [words, shown, onShow]);
@@ -172,7 +191,11 @@ function Pictures(props: {
 
   const { fetchNextPage } = list;
   const more = useCallback(() => void fetchNextPage(), [fetchNextPage]);
-  const total = pages?.[0]?.total;
+  const total = searching ? found?.total : pages?.[0]?.total;
+  const clear = () => {
+    setWords("");
+    onShow({ ...shown, q: "", like: null });
+  };
   const tickedPictures = loaded.filter((picture) => ticked.has(picture.id));
   const place = chosen ? placeOf(chosen, shown.dir) : null;
 
@@ -184,6 +207,7 @@ function Pictures(props: {
           chosen={chosen ?? null}
           place={place}
           total={total}
+          found={found}
           words={words}
           onWords={setWords}
           onShow={onShow}
@@ -202,34 +226,51 @@ function Pictures(props: {
         )}
       </div>
       <Situation scan={scan.data} chosen={chosen ?? null} />
-      <EngineProblem queries={[props.foldersQuery, list]} />
-      {!pages && (
-        <Loading label="Loading your pictures" queries={[list]}>
-          <GridSkeleton />
-        </Loading>
-      )}
-      {pages && days.length === 0 && (
-        <Nothing
-          shown={shown}
-          name={place?.name ?? null}
-          scan={scan.data}
-          onClear={() => {
-            setWords("");
-            onShow({ ...shown, q: "" });
-          }}
-        />
-      )}
-      {pages && days.length > 0 && (
-        <PictureGrid
-          days={days}
-          shown={shown}
-          ticked={ticked}
-          onTick={tick}
-          more={list.hasNextPage}
-          loadingMore={list.isFetchingNextPage}
-          moreFailed={list.isFetchNextPageError}
-          onMore={more}
-        />
+      {searching ? (
+        <>
+          <EngineProblem queries={[props.foldersQuery, finding]} />
+          {!found && (
+            <Loading label="Searching your pictures" queries={[finding]}>
+              <GridSkeleton />
+            </Loading>
+          )}
+          {found && <SearchNotes found={found} like={liking} />}
+          {found && found.total === 0 && (
+            <NothingFound
+              found={found}
+              where={shown.favourites ? "your favourites" : (place?.name ?? "your library")}
+              like={liking}
+              onClear={clear}
+            />
+          )}
+          {found && found.total > 0 && (
+            <FoundGroups found={found} shown={shown} ticked={ticked} onTick={tick} />
+          )}
+        </>
+      ) : (
+        <>
+          <EngineProblem queries={[props.foldersQuery, list]} />
+          {!pages && (
+            <Loading label="Loading your pictures" queries={[list]}>
+              <GridSkeleton />
+            </Loading>
+          )}
+          {pages && days.length === 0 && (
+            <Nothing shown={shown} name={place?.name ?? null} scan={scan.data} />
+          )}
+          {pages && days.length > 0 && (
+            <PictureGrid
+              days={days}
+              shown={shown}
+              ticked={ticked}
+              onTick={tick}
+              more={list.hasNextPage}
+              loadingMore={list.isFetchingNextPage}
+              moreFailed={list.isFetchNextPageError}
+              onMore={more}
+            />
+          )}
+        </>
       )}
     </>
   );
@@ -249,6 +290,7 @@ function Header(props: {
   chosen: LibraryFolder | null;
   place: { name: string; path: string } | null;
   total: number | undefined;
+  found: SearchResults | undefined;
   words: string;
   onWords: (words: string) => void;
   onShow: (shown: Shown) => void;
@@ -256,9 +298,11 @@ function Header(props: {
   const { shown, place, onShow } = props;
   const navigate = useNavigate();
   const loved = shown.favourites;
+  const liking = shown.like !== null;
   const title = loved ? "Favourites" : (place?.name ?? "Library");
   const newest = shown.order === "newest";
   const searching = loved ? "your favourites" : place ? place.name : "your library";
+  const searched = shown.q.trim() !== "" || liking;
   return (
     <header className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
       <h1 className="type-title">{title}</h1>
@@ -266,10 +310,16 @@ function Header(props: {
       <p className="min-w-0 max-w-full truncate text-14 text-fg-muted" title={place?.path}>
         {props.total === undefined ? (
           "…"
+        ) : liking ? (
+          <>
+            <span className="font-mono text-fg">{count(props.total)}</span>{" "}
+            {props.total === 1 ? "picture" : "pictures"} most like{" "}
+            {props.found ? stem(props.found.search) : "it"}
+          </>
         ) : shown.q.trim() ? (
           <>
             <span className="font-mono text-fg">{count(props.total)}</span>{" "}
-            {props.total === 1 ? "picture" : "pictures"} with “{shown.q.trim()}” in the name
+            {props.total === 1 ? "picture" : "pictures"} found for “{shown.q.trim()}”
           </>
         ) : loved ? (
           <>
@@ -293,15 +343,17 @@ function Header(props: {
       {props.chosen && (
         <FolderMenu folder={props.chosen} dir={shown.dir} path={place?.path ?? props.chosen.path} />
       )}
-      {(shown.q.trim() || loved) && (props.total ?? 0) > 0 && (
+      {(searched || loved) && (props.total ?? 0) > 0 && (
         <Button
           size="sm"
           className="font-medium"
           onClick={() => {
             const start: BatchStart = {
-              pick: loved
-                ? { how: "favourites", q: shown.q.trim() }
-                : { how: "search", folder: shown.folder, dir: shown.dir, q: shown.q.trim() },
+              pick: liking
+                ? { how: "search", like: shown.like }
+                : loved
+                  ? { how: "favourites", q: shown.q.trim() }
+                  : { how: "search", folder: shown.folder, dir: shown.dir, q: shown.q.trim() },
             };
             void navigate("/batch", { state: start });
           }}
@@ -321,14 +373,16 @@ function Header(props: {
             className="w-37.5 border-0 bg-transparent text-13 text-fg outline-none placeholder:text-fg-faint"
           />
         </label>
-        <Button
-          size="sm"
-          className="font-medium"
-          title={newest ? "Show the oldest first" : "Show the newest first"}
-          onClick={() => onShow({ ...shown, order: newest ? "oldest" : "newest" })}
-        >
-          Date taken, {newest ? "newest" : "oldest"} first
-        </Button>
+        {!searched && (
+          <Button
+            size="sm"
+            className="font-medium"
+            title={newest ? "Show the oldest first" : "Show the newest first"}
+            onClick={() => onShow({ ...shown, order: newest ? "oldest" : "newest" })}
+          >
+            Date taken, {newest ? "newest" : "oldest"} first
+          </Button>
+        )}
       </div>
     </header>
   );
@@ -474,15 +528,11 @@ function Situation({ scan, chosen }: { scan: Scan | undefined; chosen: LibraryFo
   );
 }
 
-/** An empty grid, saying why: nothing matches the search, or the folder has no pictures yet. */
-function Nothing(props: {
-  shown: Shown;
-  name: string | null;
-  scan: Scan | undefined;
-  onClear: () => void;
-}) {
+/** An empty grid, saying why: no favourites yet, or the folder has no pictures yet (a search
+ * says what it found in its own place). */
+function Nothing(props: { shown: Shown; name: string | null; scan: Scan | undefined }) {
   const where = props.shown.favourites ? "your favourites" : (props.name ?? "your library");
-  if (props.shown.favourites && !props.shown.q.trim()) {
+  if (props.shown.favourites) {
     return (
       <section className="flex flex-col items-start gap-2 rounded-8 border border-dash border-dashed bg-surface px-5 py-6">
         <h2 className="font-semibold text-16">No favourites yet</h2>
@@ -492,21 +542,6 @@ function Nothing(props: {
         </p>
         <Button asChild size="sm" className="mt-1">
           <Link to="/library">Show all your pictures</Link>
-        </Button>
-      </section>
-    );
-  }
-  if (props.shown.q.trim()) {
-    return (
-      <section className="flex flex-col items-start gap-3 rounded-8 border border-edge bg-glass px-5 py-4.5">
-        <h2 className="font-semibold text-16">
-          No pictures in {where} match “{props.shown.q.trim()}”
-        </h2>
-        <p className="text-13 text-fg-muted">
-          The search looks for every word in the pictures' names, in capitals or not.
-        </p>
-        <Button size="sm" onClick={props.onClear}>
-          Clear the search
         </Button>
       </section>
     );

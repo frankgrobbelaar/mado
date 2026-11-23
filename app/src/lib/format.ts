@@ -135,3 +135,12 @@ export function stem(name: string): string {
   const at = name.lastIndexOf(".");
   return at > 0 ? name.slice(0, at) : name;
 }
+
+/** Languages as people say them: "English", "English and German", from Windows' tags ("en-GB",
+ * "de-DE"), each language once. */
+export function languages(tags: string[]): string {
+  const named = new Intl.DisplayNames(["en"], { type: "language" });
+  const names = [...new Set(tags.map((tag) => named.of(tag.split("-")[0] ?? tag) ?? tag))];
+  if (names.length <= 1) return names[0] ?? "English";
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}

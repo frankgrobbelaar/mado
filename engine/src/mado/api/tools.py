@@ -25,7 +25,7 @@ class Tool(ApiModel):
     problem: str | None
 
 
-def _tool(item: Download, progress: Progress) -> Tool:
+def tool_of(item: Download, progress: Progress) -> Tool:
     return Tool(
         id=item.id,
         name=item.name,
@@ -43,7 +43,7 @@ def _tool(item: Download, progress: Progress) -> Tool:
 @router.get("/tools")
 def tools(toolbox: Toolbox) -> list[Tool]:
     """What Mado downloads to work with, and whether each is ready."""
-    return [_tool(item, progress) for item, progress in toolbox.status()]
+    return [tool_of(item, progress) for item, progress in toolbox.status()]
 
 
 @router.post("/tools/{tool_id}/download", status_code=status.HTTP_202_ACCEPTED)
@@ -55,4 +55,6 @@ def download(tool_id: str, toolbox: Toolbox) -> Tool:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, f"Mado doesn't download anything called {tool_id}."
         ) from None
-    return next(_tool(item, progress) for item, progress in toolbox.status() if item.id == tool_id)
+    return next(
+        tool_of(item, progress) for item, progress in toolbox.status() if item.id == tool_id
+    )

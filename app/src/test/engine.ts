@@ -27,6 +27,10 @@ import type {
   QueueRow,
   Samples,
   Scan,
+  SearchGroup,
+  SearchHit,
+  SearchResults,
+  SearchState,
   Settings,
   Sizes,
   StepWords,
@@ -67,6 +71,7 @@ export const SETTINGS: Settings = {
   newFolder: null,
   keepLocation: false,
   bigBatchesAtNight: false,
+  wordsReader: "auto",
 };
 
 /** A data folder with a little of everything in it. */
@@ -79,6 +84,7 @@ export const DATA: DataSizes = {
   tools: 168 * 1024 ** 2,
   pasted: 0,
   wallpapers: 0,
+  search: 0,
 };
 
 export const NO_BACKUPS: Backups = { backups: [], restored: null };
@@ -1055,6 +1061,71 @@ export function studio(overrides: Partial<StudioState> = {}): StudioState {
       problem: null,
     },
     kept: 0,
+    ...overrides,
+  };
+}
+
+/** A model search downloads, as the engine's list of downloads says it. */
+export function searchModel(
+  id: "siglip-base-patch16-224" | "pp-ocrv6-small",
+  overrides: Partial<Tool> = {},
+): Tool {
+  const siglip = id === "siglip-base-patch16-224";
+  return {
+    id,
+    name: siglip ? "SigLIP base" : "PP-OCRv6 small",
+    version: "models-3",
+    purpose: siglip ? "Reads what each picture shows." : "Reads the words in pictures at Best.",
+    licence: "Apache-2.0",
+    size: siglip ? 207_491_162 : 31_195_173,
+    when: "asked",
+    state: "ready",
+    done: siglip ? 207_491_162 : 31_195_173,
+    problem: null,
+    ...overrides,
+  };
+}
+
+/** Reading the library for search, all done on a PC whose card reads words at Best. */
+export function searchState(overrides: Partial<SearchState> = {}): SearchState {
+  return {
+    read: 4812,
+    of: 4812,
+    reading: false,
+    paused: false,
+    busy: false,
+    failed: 0,
+    problem: null,
+    describer: searchModel("siglip-base-patch16-224"),
+    words: {
+      chosen: "auto",
+      reader: "best",
+      model: searchModel("pp-ocrv6-small"),
+      languages: ["en-GB"],
+      place: "card",
+    },
+    ...overrides,
+  };
+}
+
+/** A picture a search found: as it is in the grid, with how it was found. */
+export function hit(item: PictureItem, overrides: Partial<SearchHit> = {}): SearchHit {
+  return { ...item, score: null, words: null, away: false, ...overrides };
+}
+
+/** What a search found: its groups, each picture once. */
+export function searchResults(
+  search: string,
+  groups: SearchGroup[],
+  overrides: Partial<SearchResults> = {},
+): SearchResults {
+  return {
+    search,
+    groups,
+    total: groups.reduce((sum, group) => sum + group.pictures.length, 0),
+    english: true,
+    unreadable: null,
+    state: searchState(),
     ...overrides,
   };
 }

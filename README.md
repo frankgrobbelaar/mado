@@ -19,7 +19,7 @@ on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, and finds its duplicates and bursts, makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
@@ -153,6 +153,8 @@ it, and each runs on your PC.
 | MI-GAN | Fast: erases a part, filling it from what's around it (downloaded the first time, 28 MB) | MIT |
 | U²-Net, its small model (`u2netp`) | Fast: finds a picture's subject and cuts it out, no click needed (comes with Mado, 4.6 MB) | Apache-2.0, its ONNX conversion MIT |
 | BiRefNet lite | Best: cuts out a picture's subject with the finest edges (downloaded the first time, 224 MB) | MIT |
+| SigLIP base | Reads what each picture shows, so a search finds it from a few words describing it, and finds pictures like one (downloaded the first time you search, 208 MB) | Apache-2.0 |
+| PP-OCRv6 small | Best: reads the words in pictures, so a search finds them by what they say (downloaded the first time you search, 31 MB); Fast is Windows' own reader | Apache-2.0 |
 
 They run on ONNX Runtime (MIT) with Microsoft's DirectML, which Mado carries under Microsoft's
 terms.

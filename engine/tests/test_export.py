@@ -56,6 +56,7 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
             "settings.json",
             "wallpaper.json",
             "watch-folders.json",
+            "words.csv",
         ]
         assert json.loads(zipped.read("looks.json")) == []
         assert json.loads(zipped.read("favourites.json")) == []

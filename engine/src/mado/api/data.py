@@ -21,6 +21,7 @@ class DataSizes(ApiModel):
     tools: int
     pasted: int  # pictures pasted from the clipboard, kept till they're saved
     wallpapers: int  # the wallpapers Mado made and set, and its copy of the owner's own
+    search: int  # what SigLIP read each picture into, for search: read again when it's lost
 
 
 class ExportRequest(ApiModel):
@@ -45,6 +46,7 @@ def your_data(paths: Paths) -> DataSizes:
         tools=found.tools,
         pasted=found.pasted,
         wallpapers=found.wallpapers,
+        search=found.search,
     )
 
 

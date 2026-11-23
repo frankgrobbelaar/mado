@@ -12,9 +12,20 @@ from fastapi.responses import FileResponse
 from pydantic import Field
 
 from mado import batches
-from mado.api.common import ApiModel, Copies, Database, FirstLook, Models, Toolbox, Working
+from mado.api.common import (
+    ApiModel,
+    Copies,
+    Database,
+    FirstLook,
+    Models,
+    Searching,
+    Toolbox,
+    Working,
+)
 from mado.api.looks import LookIn
 from mado.api.making import Need, SizeIn
+from mado.api.pictures import Shown
+from mado.api.search import found_ids
 from mado.batches import BatchError, Picture
 from mado.core.batch import Starts, sampled, steps_in_order
 from mado.core.files import kind_of
@@ -81,6 +92,7 @@ class PickIn(ApiModel):
     folder: int | None = None
     dir: str = ""
     q: str = ""
+    like: int | None = None  # a search: the pictures More like this found, most like it first
 
 
 class BatchPicture(ApiModel):
@@ -215,7 +227,7 @@ class BatchOut(ApiModel):
 
 
 @router.post("/batches/pictures")
-def pictures(body: PickIn, conn: Database, copies: Copies) -> Picked:
+def pictures(body: PickIn, conn: Database, copies: Copies, finding: Searching) -> Picked:
     """The pictures a batch would be made of: those ticked, a folder's, what a search found, or
     the pictures in files and folders dropped or picked, with those left out and why."""
     match body.how:
@@ -226,9 +238,13 @@ def pictures(body: PickIn, conn: Database, copies: Copies) -> Picked:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pick a folder.")
             found = batches.from_folder(conn, body.folder, body.dir)
         case "search":
-            found = batches.from_search(conn, body.folder, body.dir, body.q)
+            shown = Shown(body.folder, body.dir.strip("/"), body.q, "newest", like=body.like)
+            ids = found_ids(conn, finding, shown)
+            found = batches.from_search(conn, body.folder, body.dir, body.q, ids)
         case "favourites":
-            found = batches.from_favourites(conn, body.q)
+            searched = Shown(None, "", body.q, "newest", favourites=True)
+            ids = found_ids(conn, finding, searched) if body.q.strip() else None
+            found = batches.from_favourites(conn, body.q, ids)
         case "dropped" | "picked" | "pasted" | "opened":
             found = batches.from_paths(conn, body.paths, body.how, copies.reader)
     return picked_out(found, reader_here=copies.reader is not None and copies.reader.ready())

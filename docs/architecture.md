@@ -3,7 +3,8 @@
 Mado is three programs that work as one: a thin **shell** that owns the window, a **UI** inside it,
 and an **engine** that does the real work. Everything runs on this PC; the only network traffic is
 fetching what the installer lists (ffmpeg; LibRaw the first time a camera RAW is read; the bigger
-AI models when first asked for) and checking for updates.
+AI models when first asked for, search's the first time the library is searched) and checking for
+updates.
 
 ```mermaid
 flowchart LR
@@ -26,7 +27,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray; the paths Windows hands Mado, the files copied in File Explorer, and File Explorer's "Open in Mado" |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites), editing pictures by clicking, making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites, search: the library read for what each picture shows and the words in it), editing pictures by clicking, making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -110,6 +111,35 @@ flowchart LR
 | Won't open | `mado/api/library.py`, `mado/api/pictures.py` | The pictures that won't open, but those marked as damaged; marking one (`pictures.damaged`, cleared once its file changes) |
 | Space | `mado/api/library.py` | Each drive the library's folders are on: free, the pictures, quarantine, what the queue wants there |
 | In use | `mado/jobs.py` | A picture open in another app waits and is tried again by itself (docs/stack/queue.md) |
+
+## Search
+
+The library is read in the background for search, as duplicates are looked for: SigLIP reads
+what each picture shows from its thumbnail into 768 numbers, and a reader of words (PP-OCRv6 at
+Best, Windows' own at Fast) reads the words in it, the detector looking first. The Library's
+search box finds by the words, by what was described and by name, all at once; a picture's page
+finds the pictures most like it. docs/stack/search.md has the models, the cut and what was
+measured.
+
+```mermaid
+flowchart LR
+    scan["a scan ends"] -- wakes --> reading["reading (mado/search.py)"]
+    reading -- "the thumbnail: SigLIP (processor)" --> vectors[("search.db: a vector each")]
+    reading -- "the detector first, then the words (card or processor; or Windows')" --> words[("words: FTS5")]
+    box["the Library's search box"] -- "/search" --> finding["words, described, name"]
+    vectors --> finding
+    words --> finding
+    page["a picture's page"] -- "/search/like/{id}" --> nearest["More like this"]
+    vectors --> nearest
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/search.py`, `mado/core/ocr.py` | Pure: a search as SigLIP reads it, its score and cut, nearest vectors, a search's language and writing, word queries and the words marked; PP-OCRv6's canvas, lines, cuts and decoding |
+| The models | `mado/siglip.py`, `mado/ocr.py` | SigLIP on the processor; PP-OCRv6 on the card when it has room (`hardware.room`), else the processor; Windows' own reader through pywinrt |
+| Reading and finding | `mado/search.py` | The thread that reads, a picture at a time, paused or not, taking turns at the card's lock; the vectors in search.db and in memory (loaded when a search comes, let go after ten quiet minutes); the words in the database |
+| The API | `mado/api/search.py` | `/search`, `/search/like/{id}`, `/search/state`, pausing; a picture's neighbours (`api/pictures.py`) and Many at once (`api/batches.py`) from what a search found |
+| The UI | `features/library/search-results.tsx`, `features/settings/search-panel.tsx` | The results in groups with the notes above them; Settings › General › Search |
 
 ## Making a picture right for a screen
 
@@ -292,7 +322,7 @@ Change a contract on both sides in the same commit.
 | Route | For |
 | --- | --- |
 | `GET /health` | Is the engine up, its version, the data folder, the schema version (0 while the records are damaged) |
-| `GET /settings`, `PUT /settings` | The owner's choices: whether Setup is done, Saving, and whether a watch folder's big batch waits for the night |
+| `GET /settings`, `PUT /settings` | The owner's choices: whether Setup is done, Saving, whether a watch folder's big batch waits for the night, and search's reader of words |
 | `GET /tools`, `POST /tools/{id}/download` | What Mado downloads (ffmpeg, LibRaw, the AI models fetched when asked), each one's state, and fetching it |
 | `GET /backups`, `POST /backups`, `POST /backups/import`, `POST /backups/{name}/restore` | The backups, one made by hand, importing an export, restoring one as the engine starts again |
 | `GET /data`, `POST /export` | What the data folder holds, by part (pictures pasted and Mado's wallpapers too), and the export zip |
@@ -304,7 +334,10 @@ Change a contract on both sides in the same commit.
 | `PUT /duplicates/{key}/keep`, `POST /duplicates/{key}/not-same`, `POST /duplicates/aside` | Which of a group to keep, of its pictures as shown; a group not the same; setting aside the rest of groups as the review showed them (each one's pictures and kept ones), or of every group of a kind as long as none changed since (`version`, else 409), and what was left as it was and why |
 | `GET /scan` | How the latest scan went, or is going: its stage, what it found and read, time left, folders not connected, what came and went |
 | `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`; `favourites`, only the favourites, from outside the library too), with each day on it counted whole, a group's kept picture tagged ("burst of 5", "2 copies"), each picture's heart, and whether it's a camera RAW (`waiting` while Mado's RAW reader comes) |
-| `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full (from outside the library too: where it lives, pasted, in a quarantine; looked at as its file is now, 404 with why once it went; asking counts as opening it); the pictures either side of it in the list it was opened from, none for one from outside |
+| `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full (from outside the library too: where it lives, pasted, in a quarantine; looked at as its file is now, 404 with why once it went; asking counts as opening it); the pictures either side of it in the list it was opened from (a search's results, or More like this, in their order), none for one from outside |
+| `GET /search` | What the Library's search box finds (`q`, in a folder, `dir`, or the favourites): the pictures whose words match (the words, the matched ones marked), those that look like what was described (SigLIP's score past its cut, best first), and those with every word in their name, each picture once, those on a drive away marked; whether the search reads as English, a writing the words reader can't read; how far reading has got and what it waits for. The first search fetches what reading needs |
+| `GET /search/like/{id}` | The library's pictures most like one, nearest first (it read there and then when it hasn't been) |
+| `GET /search/state`, `POST /search/pause`, `POST /search/resume` | How far reading the library for search has got (read, of, reading, paused, the queue on the card, pictures that couldn't be read now, a reader that couldn't run), SigLIP's download and the words reader (the owner's choice, the one in use, its download, Windows' languages, where Best runs); pausing it, and going on, which tries again what couldn't be read |
 | `POST /open` | Paths dropped, picked, pasted or handed over by Windows: one picture as Mado knows it, with what else came and was left out; several, or a folder, as Many at once takes them; 404 or 422, with why, when none of it is a picture |
 | `POST /pasted` | A picture from the clipboard (PNG), kept in the data folder and said as a picture outside the library; the same picture again is the one kept; 413 past 2^26 pixels (about 67 megapixels) |
 | `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version); a camera RAW's thumbnail from its camera's preview, its view and full size developed, and one that won't develop marked as one that won't open |
@@ -346,7 +379,9 @@ Change a contract on both sides in the same commit.
 
 ## Data
 
-- **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `logs/`
+- **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `search.db`
+  (what SigLIP read each picture into, for search: read again when it's lost, never in a backup or
+  the export), `logs/`
   (`engine.log`, kept 30 days), `tools/` (ffmpeg, LibRaw once a camera RAW is read, and the AI
   models fetched when asked, each with its licence files), `pasted/` (pictures pasted from the
   clipboard, till a month after last opened), `wallpapers/` (the wallpapers Mado made, those
@@ -374,7 +409,8 @@ Change a contract on both sides in the same commit.
   into one.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
-  picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), History (`history.csv`, with what each picture was made for and with, what was edited, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
+  picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), the words read
+  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

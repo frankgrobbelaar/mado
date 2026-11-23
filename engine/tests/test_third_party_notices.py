@@ -6,6 +6,7 @@ import pytest
 from third_party_notices import (
     MICROSOFT,
     PYTHON_LICENCES,
+    PYTHON_NOTES,
     WINDOWS,
     Part,
     allowed,
@@ -170,6 +171,12 @@ def test_onnx_runtime_is_shipped_with_microsofts_directml_inside_it():
 
     assert licence == f"MIT AND {MICROSOFT}"
     assert allowed(licence)
+
+
+def test_tokenizers_whose_wheel_carries_no_licence_is_named_apache_with_a_note():
+    assert PYTHON_LICENCES["tokenizers"] == "Apache-2.0"
+    assert "Apache License" in PYTHON_NOTES["tokenizers"]
+    assert "apache.org/licenses/LICENSE-2.0" in PYTHON_NOTES["tokenizers"]
 
 
 def test_what_mado_downloads_is_told_apart_from_what_it_ships():

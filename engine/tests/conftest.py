@@ -22,7 +22,9 @@ from mado.libraw import DLL, Reader
 from mado.pc_check import Probe
 from mado.quarantine import Quarantine
 from mado.scan import Scanner
+from mado.search import BestWords, Describer, FastWords
 from mado.tools import Tools
+from tests.fake_search import FakeSiglip, FakeWords
 
 TOKEN = "test-token"
 # ffmpeg as the tests have it: a stand-in that draws a made-up picture (tests/fake_ffmpeg.py).
@@ -79,9 +81,19 @@ def fake_check(_timing: bool, _heavy_tile: int, _best: Path | None) -> Probe:
     return Probe(True, None, {"realesr-general-x4v3@card": 0.5})
 
 
-def made_app(paths: DataPaths, quarantine: Quarantine, reader: Reader | None = None) -> FastAPI:
+def made_app(
+    paths: DataPaths,
+    quarantine: Quarantine,
+    reader: Reader | None = None,
+    *,
+    describer: Describer | None = None,
+    words: FastWords | None = None,
+    best_words: BestWords | None = None,
+) -> FastAPI:
     """The API as the tests have it. Without LibRaw, a camera RAW waits for its reader, which
-    is never fetched: no test reaches the internet unasked."""
+    is never fetched: no test reaches the internet unasked. Nor is the library read for search,
+    unless a test hands it readers (tests/fake_search.py): they stand in as SigLIP and PP-OCRv6
+    not downloaded (and never fetched) and Windows' own reader with no language."""
     return create_app(
         TOKEN,
         paths,
@@ -90,6 +102,9 @@ def made_app(paths: DataPaths, quarantine: Quarantine, reader: Reader | None = N
         here=lambda: ON_PROCESSOR,
         check=fake_check,
         reader=reader or Reader(lambda: None),
+        describer=describer or FakeSiglip(ready=False),
+        words=words or FakeWords({}, languages=(), ready=False),
+        best_words=best_words or FakeWords({}, ready=False),
     )
 
 

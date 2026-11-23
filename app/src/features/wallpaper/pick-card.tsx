@@ -38,6 +38,7 @@ export function PickCard(props: {
       q,
       order: "newest" as const,
       favourites: from === "favourites",
+      like: null,
     }),
     [from, q],
   );

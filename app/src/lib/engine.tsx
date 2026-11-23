@@ -203,6 +203,7 @@ const CHANGED_ON_ITS_OWN = [
   "/watch-folders",
   "/duplicates",
   "/space",
+  "/search",
 ];
 
 /** Asks again for what the engine may have changed by itself, once it tells of something. */
@@ -283,11 +284,15 @@ export interface Settings {
   keepLocation: boolean;
   /** A watch folder's batch of more than 20 pictures waits for the night. */
   bigBatchesAtNight: boolean;
+  /** Which reader reads the words in pictures for search: as this PC suits, Windows' own
+   * (Fast) or PP-OCRv6 (Best). */
+  wordsReader: "auto" | "fast" | "best";
 }
 
 export const useSettings = () => useEngineQuery<Settings>("/settings");
 /** Saves the preferences: `save.mutate({ path: "/settings", body: settings })`. */
-export const useSaveSettings = () => useEngineAction<Settings>(["/settings"], "PUT");
+/** Saves the owner's choices; search follows a new reader of words at once. */
+export const useSaveSettings = () => useEngineAction<Settings>(["/settings", "/search"], "PUT");
 
 /** How big each part of Mado's data is (Settings > Your data). */
 export interface DataSizes {
@@ -302,6 +307,8 @@ export interface DataSizes {
   pasted: number;
   /** The wallpapers Mado made and set, and its copy of the owner's own. */
   wallpapers: number;
+  /** What SigLIP read each picture into, for search: read again when it's lost. */
+  search: number;
 }
 
 export const useDataSizes = () => useEngineQuery<DataSizes>("/data");
@@ -522,6 +529,8 @@ export interface Shown {
   q: string;
   order: Order;
   favourites: boolean;
+  /** The pictures most like this one (More like this). */
+  like: number | null;
 }
 
 /** A list's address's query: "folder=3&dir=2026&order=oldest", leaving out what's as usual. */
@@ -531,6 +540,7 @@ export function shownQuery(shown: Shown): string {
   if (shown.folder !== null) query.set("folder", String(shown.folder));
   if (shown.folder !== null && shown.dir) query.set("dir", shown.dir);
   if (shown.q.trim()) query.set("q", shown.q.trim());
+  if (shown.like !== null) query.set("like", String(shown.like));
   if (shown.order !== "newest") query.set("order", shown.order);
   return query.toString();
 }
@@ -538,12 +548,14 @@ export function shownQuery(shown: Shown): string {
 /** What a list shows, from its address's query (the Library's, or a picture's opened from it). */
 export function shownFrom(query: URLSearchParams): Shown {
   const folder = Number(query.get("folder"));
+  const like = Number(query.get("like"));
   return {
     folder: Number.isInteger(folder) && folder > 0 ? folder : null,
     dir: query.get("dir") ?? "",
     q: query.get("q") ?? "",
     order: query.get("order") === "oldest" ? "oldest" : "newest",
     favourites: query.get("favourites") === "1",
+    like: Number.isInteger(like) && like > 0 ? like : null,
   };
 }
 
@@ -594,9 +606,9 @@ export function useScan() {
 }
 
 /** The pictures a list shows, a page at a time: `fetchNextPage()` brings the next. */
-export function usePictures(shown: Shown) {
+export function usePictures(shown: Shown, enabled = true) {
   const engine = useEngine();
-  const query = shownQuery(shown);
+  const query = shownQuery({ ...shown, like: null });
   const path = `/pictures?${query}`;
   return useInfiniteQuery({
     queryKey: engineKey(engine, path),
@@ -607,7 +619,7 @@ export function usePictures(shown: Shown) {
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next,
-    enabled: engine.state === "ready",
+    enabled: engine.state === "ready" && enabled,
   });
 }
 
@@ -702,6 +714,134 @@ export function usePictureImage(
   if (shown === null || shown.asked !== asked) return { address: null, problem: null };
   return { address: shown.address, problem: shown.problem };
 }
+
+// Search: by name, by what a picture shows and by the words in it, and More like this.
+
+/** A stretch of a picture's words, marked when it's a word the search matched. */
+export interface WordsPiece {
+  text: string;
+  marked: boolean;
+}
+
+/** A picture a search found. */
+export interface SearchHit extends PictureItem {
+  /** SigLIP's score for it (described), or how alike it is (like). */
+  score: number | null;
+  /** Its words, those the search matched marked (words). */
+  words: WordsPiece[] | null;
+  /** Its drive isn't connected: found by what Mado read of it before. */
+  away: boolean;
+}
+
+export type SearchKind = "words" | "described" | "name" | "like";
+
+export interface SearchGroup {
+  /** How its pictures were found. */
+  kind: SearchKind;
+  /** Best first; a picture found two ways is in the first group only. */
+  pictures: SearchHit[];
+  /** All it found, of which it shows 500 at most. */
+  total: number;
+}
+
+/** The reader of the words in pictures: the owner's choice, the one in use, its model (Best) or
+ * Windows' languages (Fast), and where Best reads. */
+export interface WordsReader {
+  chosen: "auto" | "fast" | "best";
+  reader: "fast" | "best";
+  /** PP-OCRv6's download (Best's). */
+  model: Tool | null;
+  /** The languages Windows reads words in here ("en-GB"). */
+  languages: string[];
+  place: Place;
+}
+
+/** How far reading the library for search has got, and what it waits for. */
+export interface SearchState {
+  /** Pictures read as they are now. */
+  read: number;
+  /** The library's pictures that open, on drives connected (or read before). */
+  of: number;
+  /** Reading now. */
+  reading: boolean;
+  /** The owner paused it. */
+  paused: boolean;
+  /** The queue has the graphics card: reading takes its turns more slowly. */
+  busy: boolean;
+  /** Pictures that couldn't be read now: tried again after the next scan, or once they change. */
+  failed: number;
+  /** A reader that couldn't run, which reading waits on till Go on (`/search/resume`). */
+  problem: SearchProblem | null;
+  /** SigLIP's download. */
+  describer: Tool | null;
+  words: WordsReader;
+}
+
+export interface SearchProblem {
+  /** SigLIP's ("pictures") or the reader of words'. */
+  reader: "pictures" | "words";
+  /** What went wrong, in words. */
+  said: string;
+}
+
+export interface SearchResults {
+  /** What was searched for: the words, or (like) the picture's name. */
+  search: string;
+  /** Those that found anything: words, then described, then name. */
+  groups: SearchGroup[];
+  /** Pictures found, each once. */
+  total: number;
+  /** Describing works in English: a search in another language isn't described. */
+  english: boolean;
+  /** A writing its words are in that the words reader can't read: "Greek". */
+  unreadable: string | null;
+  state: SearchState;
+}
+
+/** Whether reading the library for search is under way, or a model it needs is on its way. */
+const searching = (state: SearchState | undefined) =>
+  !!state &&
+  !state.paused &&
+  !state.problem &&
+  (state.reading ||
+    (readable(state) && state.read + state.failed < state.of) || // between turns, or the scan
+    (state.describer !== null && busy(state.describer.state)) ||
+    (state.words.model !== null && busy(state.words.model.state)));
+
+/** Whether a reader is here to read the library: SigLIP, or the reader of words in use. */
+export const readable = (state: SearchState) =>
+  state.describer?.state === "ready" ||
+  (state.words.reader === "best"
+    ? state.words.model?.state === "ready"
+    : state.words.languages.length > 0);
+
+/** What the Library's search box finds, asked again every few seconds while the library is read
+ * or a model it needs comes, so the results grow as it goes. */
+export function useSearch(shown: Shown, enabled = true) {
+  const query = shownQuery({ ...shown, like: null });
+  return useEngineQuery<SearchResults>(
+    `/search?${query}`,
+    (found) => (searching(found?.state) ? 3000 : false),
+    enabled && !!shown.q.trim(),
+    true,
+  );
+}
+
+/** The library's pictures most like one, asked again while SigLIP comes or the library is read
+ * (more are found as it's read). */
+export const useLike = (id: number | null) =>
+  useEngineQuery<SearchResults>(
+    `/search/like/${id}`,
+    (found) => (searching(found?.state) ? 3000 : false),
+    id !== null,
+  );
+
+/** How far reading the library for search has got, asked again while it reads. */
+export const useSearchState = () =>
+  useEngineQuery<SearchState>("/search/state", (state) => (searching(state) ? 2000 : false));
+
+/** Pauses reading, or goes on: `reading.mutate({ path: "/search/pause" })`. */
+export const useSearchReading = () => useEngineAction<SearchState>(["/search"]);
 
 // Making a picture right for a screen or a print (the Size tab), the jobs that make them, History
 // and the quarantine, and this PC.
@@ -1436,6 +1576,8 @@ export interface Pick {
   folder?: number | null;
   dir?: string;
   q?: string;
+  /** A search: the pictures More like this found, most like this one first. */
+  like?: number | null;
 }
 
 /** One of a batch's pictures. */

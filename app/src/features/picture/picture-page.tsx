@@ -788,6 +788,7 @@ function OnStage({
   onFocus: (focus: [number, number]) => void;
 }) {
   const explorer = useExplorer();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState<{ text: string; problem: boolean } | null>(null);
   const show = () => explorer.run(() => showInFolder(picture.path));
   const copy = () =>
@@ -799,6 +800,16 @@ function OnStage({
   // pasted picture has no folder of the owner's yet.
   const actions = (
     <span className="flex flex-wrap gap-2">
+      {!picture.outside && (
+        // The library's pictures nearest it, by what Mado read of each for search.
+        <Button
+          size="sm"
+          className="font-medium"
+          onClick={() => void navigate(`/library?like=${picture.id}`)}
+        >
+          More like this
+        </Button>
+      )}
       {!picture.outside && (
         <Button size="sm" className="font-medium" onClick={show}>
           Show in folder

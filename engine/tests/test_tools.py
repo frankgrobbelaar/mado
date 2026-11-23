@@ -70,6 +70,8 @@ def test_the_list_says_what_each_download_is_and_where_it_comes_from():
         "sam2.1-hiera-tiny",
         "mi-gan",
         "birefnet-lite",
+        "siglip-base-patch16-224",
+        "pp-ocrv6-small",
     ]
     for item in items:
         addresses = [each.url for each in item.files] if item.files else [item.url]
@@ -157,6 +159,8 @@ def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
         "sam2.1-hiera-tiny",
         "mi-gan",
         "birefnet-lite",
+        "siglip-base-patch16-224",
+        "pp-ocrv6-small",
     ]
     with pytest.raises(KeyError):
         tools.start("webview2")

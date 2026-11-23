@@ -19,10 +19,11 @@ _UNSAFE = str.maketrans(dict.fromkeys('<>:"/\\|?*', "-"))
 def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> Path | None:
     """Write `Mado export <date>.zip` into `folder` and return its path: the database, its
     settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
-    each), History as CSV (each picture made, replaced, taken away or set aside, and what waits
-    in quarantine), the owner's looks (listed in JSON, each a .cube file any app opens), their
-    recipes and watch folders as JSON, what they decided of duplicates and bursts as JSON, their
-    favourites and the wallpaper studio as JSON, and a manifest saying which Mado wrote it.
+    each), the words Mado read in each for search as CSV, History as CSV (each picture made,
+    replaced, taken away or set aside, and what waits in quarantine), the owner's looks (listed
+    in JSON, each a .cube file any app opens), their recipes and watch folders as JSON, what they
+    decided of duplicates and bursts as JSON, their favourites and the wallpaper studio as JSON,
+    and a manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -44,6 +45,7 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             settings = _settings(source)
             library_folders = _folders(source)
             pictures = _pictures(source)
+            words = _words(source)
             done = _history(source)
             looks = _looks(source)
             kept_recipes = _recipes(source)
@@ -64,6 +66,7 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             archive.writestr("settings.json", json.dumps(settings, indent=2))
             archive.writestr("folders.json", json.dumps(library_folders, indent=2))
             archive.writestr("pictures.csv", pictures)
+            archive.writestr("words.csv", words)
             archive.writestr("history.csv", done)
             archive.writestr("looks.json", json.dumps([each for each, _ in looks], indent=2))
             for listed, text in looks:
@@ -260,6 +263,26 @@ def _pictures(conn: sqlite3.Connection) -> str:
                     "yes" if row["located"] else "no",
                     _state(row),
                 )
+            )
+    return out.getvalue()
+
+
+def _words(conn: sqlite3.Connection) -> str:
+    """The words read in each library picture for search, as CSV: its path, the words (a line of
+    text to a line), which reader read them and when. A picture read and found to show none has
+    its row with no words."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(("path", "words", "reader", "language", "readAt"))
+    if _has_table(conn, "words_read"):
+        for row in conn.execute(
+            """SELECT p.path, w.text, r.reader, r.language, r.at FROM words_read AS r
+               JOIN pictures AS p ON p.id = r.picture_id
+               LEFT JOIN words AS w ON w.rowid = r.picture_id
+               WHERE p.gone_at IS NULL AND p.folder_id IS NOT NULL ORDER BY p.path"""
+        ):
+            writer.writerow(
+                (row["path"], row["text"] or "", row["reader"], row["language"] or "", row["at"])
             )
     return out.getvalue()
 

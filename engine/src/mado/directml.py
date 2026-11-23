@@ -48,6 +48,8 @@ class ModelError(Exception):
 class Session(Protocol):
     def run(self, feed: Mapping[str, Array], /) -> list[Array]: ...
 
+    def meta(self) -> Mapping[str, str]: ...
+
 
 class _Kept:
     """An ONNX Runtime session: on the card, run under the lock; on the processor, run as it's
@@ -63,6 +65,10 @@ class _Kept:
             return self._session.run(None, feed)
         with LOCK:
             return self._session.run(None, feed)
+
+    def meta(self) -> Mapping[str, str]:
+        """What the model's file says of itself (a recogniser's characters, say)."""
+        return dict(self._session.get_modelmeta().custom_metadata_map)
 
 
 class Sessions:
@@ -81,15 +87,17 @@ class Sessions:
         *,
         fixed: Mapping[str, int] | None = None,
         settings: Mapping[str, str] | None = None,
+        threads: int | None = None,
     ) -> Session:
         """The session for a model at a fixed square `size` (its free height and width pinned;
         None for a model whose size is fixed already, or whose sizes are pinned by name in
-        `fixed`), on the card or the processor, with ONNX Runtime's `settings` for the card.
+        `fixed`), on the card or the processor, with ONNX Runtime's `settings` for the card and
+        at most `threads` of the processor's (None: as many as it has cores) for one there.
         Made the first time it's asked for, then kept. Raises ModelError when it can't be made
         where it should run."""
         pinned = tuple(sorted((fixed or {}).items()))
         configured = tuple(sorted((settings or {}).items()))
-        key = (str(model).casefold(), size, place, pinned, configured)
+        key = (str(model).casefold(), size, place, pinned, configured, threads)
         with self._guard:
             found = self._kept.get(key)
         if found is not None:
@@ -100,7 +108,7 @@ class Sessions:
             with self._guard:
                 found = self._kept.get(key)
             if found is None:
-                found = _make(model, size, place, dict(pinned), dict(configured))
+                found = _make(model, size, place, dict(pinned), dict(configured), threads)
                 with self._guard:
                     self._kept[key] = found
             return found
@@ -118,6 +126,7 @@ def _make(
     place: Place,
     fixed: Mapping[str, int] | None = None,
     settings: Mapping[str, str] | None = None,
+    threads: int | None = None,
 ) -> Session:
     try:
         import onnxruntime as ort  # loaded when first needed: the engine starts sooner
@@ -139,6 +148,8 @@ def _make(
     if place == "card":
         for name, setting in (settings or {}).items():
             options.add_session_config_entry(name, setting)
+    elif threads is not None:
+        options.intra_op_num_threads = threads
     providers: list[str | tuple[str, Mapping[str, object]]] = (
         [PROVIDER] if place == "card" else ["CPUExecutionProvider"]
     )

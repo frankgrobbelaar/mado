@@ -82,4 +82,6 @@ def test_the_engine_offers_what_it_fetches_itself_and_not_the_installers(paths: 
         ("sam2.1-hiera-tiny", "asked"),
         ("mi-gan", "asked"),
         ("birefnet-lite", "asked"),
+        ("siglip-base-patch16-224", "asked"),  # the first time the library is searched
+        ("pp-ocrv6-small", "asked"),
     ]

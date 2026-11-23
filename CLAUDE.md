@@ -48,8 +48,12 @@ own in the Library; the wallpaper changed every day from them if wanted; the own
 put back); and camera RAW, the ninth (LibRaw's own Windows build downloaded the first time a RAW is
 read and used through its DLL: a RAW's facts without developing it, the grid's thumbnail from its
 camera's preview, its page and every tool on it developed into Display P3, saving only as a new
-picture, RAWs among duplicates and bursts but never with their JPEGs). Next: the rest of Mado 1.0,
-by [What's next](#whats-next).
+picture, RAWs among duplicates and bursts but never with their JPEGs); and search, the tenth of
+them and the second of 1.1 (the library read in the background by SigLIP for what each picture
+shows and by a reader of words, PP-OCRv6 at Best or Windows' own at Fast; the Library's search box
+finding by what a picture shows, the words in it and its name, in groups, Many at once from them;
+More like this on a picture's page). Next: the rest of 1.1 and 1.2, by
+[What's next](#whats-next).
 
 ## Ground rules
 
@@ -221,9 +225,10 @@ Everything decided so far. Don't ask again; change only with the owner.
   (MIT) and LaMa (Apache-2.0) to erase; BiRefNet (MIT) and U²-Net (Apache-2.0) to cut out; Depth
   Anything V2 Small (Apache-2.0; its bigger sizes are non-commercial) for depth; DDColor
   (Apache-2.0) and Microsoft's old-photo model (MIT) to restore; SCUNet (Apache-2.0), NAFNet (MIT)
-  and FBCNN (Apache-2.0) to fix; CLIP (MIT), RapidOCR (Apache-2.0), YuNet (MIT) and SFace
-  (Apache-2.0) for the library; Florence-2 (MIT) for captions. Out, as non-commercial or AGPL:
-  CodeFormer, BRIA's background removers, Ultralytics' YOLO, InsightFace's face models,
+  and FBCNN (Apache-2.0) to fix; CLIP (MIT; SigLIP took its place, as search was built),
+  RapidOCR (Apache-2.0), YuNet (MIT) and SFace (Apache-2.0) for the library; Florence-2 (MIT) for
+  captions. Out, as non-commercial or AGPL: CodeFormer, BRIA's background removers, Ultralytics'
+  YOLO, InsightFace's face models,
   4x-UltraSharp, AnimeGAN and White-box Cartoonization. Generative models (pictures from words,
   filling big gaps with new things) are out: too big for a 6 GB card, and their licences aren't on
   the list.
@@ -639,6 +644,84 @@ Everything decided so far. Don't ask again; change only with the owner.
   facts in 0.7 ms, its thumbnail from the camera's preview in 68 ms (352 ms developed), its view in
   0.43 s and full size in 3.1 s; at 100 megapixels 0.18 s, 1.6 s and 13 s; a scan of 1,000 RAWs as
   quick as of the same scenes as JPEGs (50 ms each).
+- Search, as built (2026-11-23, Claude's calls while the owner is away; docs/stack/search.md): the
+  Library's search box finds pictures by what they show, by the words in them and by their names,
+  all from the same words, and a picture's page has "More like this". SigLIP base (Apache-2.0,
+  Google's, as Xenova's int8 ONNX conversion; 208 MB from `models-3`) takes CLIP's place from the
+  scoping's shortlist: on the round-three scenes it found every scene from a plain description and
+  98% from a paraphrase, where CLIP ViT-B/32 found 91% and 83%, at a third of CLIP's size; SigLIP 2,
+  which reads other languages, waits (378 MB as int8). It reads each library picture from the scan's
+  thumbnail (nothing decoded twice) into 768 numbers, on the processor, on two of its six cores
+  (0.15 s a picture, 0.07 s on all six; on a GTX 16 card int8 is no quicker and its session would
+  keep 1.1 GB of the card for good); a search is read the same way at once, lower case, no
+  punctuation, padded with `</s>` to exactly 64 tokens (its text tower reads the last place;
+  tokenizer.json, read with Hugging Face's `tokenizers`, doesn't canonicalise), and ranked by
+  SigLIP's own score, the sigmoid of the vectors' product times its learned 117.3 less 12.93, cut at
+  0.01, so a search for what isn't there finds nothing (ten searches for what isn't in the made-up
+  library found nothing among its 1,997 pictures). The words: Best is PP-OCRv6 small (RapidOCR's
+  ONNX conversion of PaddleOCR's detector and recogniser, Apache-2.0; 31 MB from `models-3`), the
+  angle classifier off, through Mado's own NumPy port of RapidOCR's pre- and post-processing
+  (`core/ocr.py`, its licence beside it and in the notices; no OpenCV; pyclipper, MIT with Clipper's
+  BSL-1.0, grows the lines; shapely, whose wheels carry LGPL GEOS, isn't used), given blue, green
+  and red as the models were trained: it looks first at the thumbnail (21 ms on the card) and reads
+  in full only where it finds text (the detector on a 1280 square, each line cut out straight, 48 px
+  high, on the card a line at a time at 320, 960 or 2560 across), on the card when DirectX says this
+  process has room for its 910 MB and the queue's heaviest model beside it (`ai.HELD`), else the
+  processor: 1.1% character errors and 99.5% of words on the 47 round-three text pictures, 0.33 s
+  each on the card, 2.1 s on the processor, as RapidOCR's own pipeline read them. On the thumbnail,
+  a "line" thicker than a quarter of its shorter side is a plain sky the detector took for text (it
+  took most drawn skies for text there, in either order of colours), and a line of fewer than two
+  letters or digits isn't kept. Fast is Windows' own reader (Windows.Media.Ocr through pywinrt's
+  `winrt-*`, MIT), the picture read at twice its size, nothing downloaded: 93.6% of words in 0.17 s,
+  only in Windows' OCR languages. As this PC suits, Best where the AI runs on a graphics card, Fast
+  on the processor alone, Best where Windows has no OCR language; Settings › General › Search
+  changes it, and the words are read again in the background. The detector's first look, on the
+  thumbnail, halves the time on a library of photos: the made-up library's 1,997 pictures read in
+  8.5 minutes looking first (196 read in full, 123 found with words) against 16.6 reading every one
+  in full (124 with words); before a line as thick as a quarter of the thumbnail counted as a plain
+  sky, it passed 1,798 of them on and the read took 20 minutes. Reading is a thread of its own, as
+  duplicates are looked for: newest file first, again once a picture changes (by its size and time),
+  never a picture from outside the library, in a quarantine, that won't open or is marked as
+  damaged, a RAW waiting for its reader, nor one on a drive that isn't connected (whose readings
+  stay: found, its tile saying "Away"); paused and going on (kept across restarts); saying how far
+  it has got ("Read 2,340 of 18,200 so far: search covers those", in the Library's results, Home's
+  Your library while it reads and Settings); taking turns at the card's one lock with the queue and
+  edits, a run at a time, resting nine times its turn on the card while the queue makes a picture
+  (twelve made-up photos made for a 4K monitor at Fast took 3.64 s each with reading paused and
+  3.61 s while the library was read at Best on the card). A reader that can't run says so, with Try
+  again, and rests till then or the next scan, the other reading on; a picture that can't be read
+  now is counted apart and tried again after the next scan. The words are kept in the database
+  (migration 10: `words_read`, and FTS5's `words` with the text as read and its terms, folded, each
+  Chinese and Japanese letter apart; in backups, and in the export as `words.csv`), the vectors
+  beside it in search.db, 16-bit, never backed up or exported (207 MB at 100,000 pictures, made
+  again by reading when lost), loaded into memory as 32-bit when a search comes and let go after ten
+  minutes without one (307 MB at 100,000 pictures, loaded in 0.85 s; a search then takes 19 ms, More
+  like this 17 ms). The results, as no board draws them, are groups in the Library grid's pattern (a
+  heading with its count over the tiles): With the words (every word starting a word read, capitals
+  and the accents of Latin, Greek and Cyrillic letters folded away, a Chinese or Japanese word its
+  letters in a row anywhere in a line, the matched words bold under the tile; the first 500 shown,
+  with how many more), Looks like (the closest first), In the name (the list's order), each picture
+  once, in the first group that holds it; the date-order button gives way while searching; a picture
+  opened from them goes along them (its neighbours are the results'), Many at once takes them, and
+  favourites are searched alike. The models come the first time the library is searched, with their
+  size and progress, and till then names (and words, at Fast) still find. A search in another
+  language (another writing, or another language's little words with no English one beside them)
+  isn't described and says so in a line; a search in a writing the words reader can't read says so,
+  with the way to Best, as does Windows with no OCR language at all. More like this is the nearest
+  vectors (their product 0.6 at least, 60 at most), a picture not read yet read there and then (only
+  one that reading reads). A fresh agent's review found eighteen things, all fixed test first: words
+  folded and kept as the words index needs them (Greek's accents, Chinese and Japanese inside a
+  line), a reader that can't run said with Try again while the other reads on, pictures that
+  couldn't be read counted and tried again after the next scan, the progress counting pictures the
+  scan hasn't read and not freezing between turns, More like this only for the library's pictures
+  and the folder tree leaving it, vectors numbered under the write lock, texts fetched only for
+  what's shown, see-through pictures read on white, Windows' reader falling back to a language it
+  has, the models given blue, green and red; measuring then found search.db, busy for a moment,
+  taken for damaged, fixed too. Measured on the owner's PC: the made-up library read in 8.5 minutes
+  at Best on the card (0.26 s a picture), 12.9 at Fast; on the round-three scenes a description put
+  its kind first every time and a paraphrase 98.3% of the time (all in the first ten), the cut
+  letting in 13 scenes of other kinds over 900; searching 100,000 vectors takes 19 ms once they're
+  loaded.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -767,7 +850,8 @@ Everything decided so far. Don't ask again; change only with the owner.
    bursts).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles. Built:
-   the wallpaper studio, with favourites.
+   the wallpaper studio, with favourites, and search (by describing a picture, by the words in it,
+   and More like this).
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG
    blocks, dark photos), portrait blur and 3D photos.
 5. Later: people (faces grouped, on the PC only), renaming by date taken, shrinking the library

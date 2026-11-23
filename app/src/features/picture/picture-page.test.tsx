@@ -395,6 +395,15 @@ describe("PicturePage", () => {
     await waitFor(() => expect(hearts).toEqual([{ favourite: true }]));
   });
 
+  it("finds the library's pictures most like it", async () => {
+    engine();
+    renderPicture("/library/pictures/12?folder=1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "More like this" }));
+
+    expect(screen.getByTestId("address")).toHaveTextContent(/^\/library\?like=12$/);
+  });
+
   it("makes it a wallpaper in the studio", async () => {
     engine();
     renderPicture("/library/pictures/12?folder=1");

@@ -219,6 +219,92 @@
           "sha256": "92a7089e0915fc32bc40067560b398f1e6a7a5958abd7d04eda393629a5acefb"
         }
       ]
+    },
+    {
+      "id": "siglip-base-patch16-224",
+      "name": "SigLIP base",
+      "version": "models-3",
+      "purpose": "Reads what each picture in your library shows, so a search can find it from a few words describing it, and finds pictures like one. Mado fetches it the first time you search your library.",
+      "licence": "Apache-2.0",
+      "home": "https://huggingface.co/google/siglip-base-patch16-224",
+      "url": null,
+      "size": 207491162,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "vision-int8.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/siglip-base-patch16-224-vision-int8.onnx",
+          "size": 94098316,
+          "sha256": "6d00762fcb4aef9bdee1b886fcccc7df466f9eae321e180f97d88e24fa13ac72"
+        },
+        {
+          "name": "text-int8.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/siglip-base-patch16-224-text-int8.onnx",
+          "size": 110982746,
+          "sha256": "9cb5102160e2a2b90c0a999ed6c2b4090865c9d5aa08f09cd10993ad9b38bd5f"
+        },
+        {
+          "name": "tokenizer.json",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/siglip-base-patch16-224-tokenizer.json",
+          "size": 2398744,
+          "sha256": "4a17c975210be5ab4c36b47d8dae4eefb866dbfb1e676e394aad85dc30a3ae08"
+        },
+        {
+          "name": "LICENSE-SigLIP.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-SigLIP.txt",
+          "size": 11356,
+          "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+        }
+      ]
+    },
+    {
+      "id": "pp-ocrv6-small",
+      "name": "PP-OCRv6 small",
+      "version": "models-3",
+      "purpose": "Reads the words in your library's pictures at Best, so a search can find them by the words they show, whatever languages Windows has. Mado fetches it the first time you search your library, where this PC reads words at Best.",
+      "licence": "Apache-2.0",
+      "home": "https://github.com/PaddlePaddle/PaddleOCR",
+      "url": null,
+      "size": 31195173,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "det.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/pp-ocrv6-small-det.onnx",
+          "size": 9929594,
+          "sha256": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f"
+        },
+        {
+          "name": "rec.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/pp-ocrv6-small-rec.onnx",
+          "size": 21234383,
+          "sha256": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884"
+        },
+        {
+          "name": "LICENSE-PaddleOCR.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-PaddleOCR.txt",
+          "size": 11376,
+          "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+        },
+        {
+          "name": "LICENSE-RapidOCR.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-RapidOCR.txt",
+          "size": 11422,
+          "sha256": "3e0af25fdd06aa9586ae97adb00ea927ebe5a3805ac77d2d3a81ce5f55693333"
+        },
+        {
+          "name": "NOTICE-RapidOCR-models.md",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/NOTICE-RapidOCR-models.md",
+          "size": 8398,
+          "sha256": "c5fd0e8603d3df743355b546121e6fe0f4ef8ff455c5a85c1681fd3ae520e153"
+        }
+      ]
     }
   ]
 }

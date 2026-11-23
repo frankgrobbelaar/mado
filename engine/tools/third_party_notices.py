@@ -108,9 +108,16 @@ PYTHON_LICENCES = {
     "onnxruntime-directml": f"MIT AND {MICROSOFT}",  # ONNX Runtime, and DirectML inside it
     "pyinstaller": "GPL-2.0-or-later WITH Bootloader-exception",
     "shellingham": "ISC",
+    "tokenizers": "Apache-2.0",  # its wheel says so only in a classifier, and carries no licence
 }
+_TOKENIZERS_TERMS = (
+    "Hugging Face's tokenizers (https://github.com/huggingface/tokenizers), which reads SigLIP's\n"
+    "tokenizer.json for search, copyright The HuggingFace Inc. team, is under the Apache License,\n"
+    "Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0), whose full text is in these\n"
+    "notices with other parts under it; its wheel carries no licence file of its own."
+)
 # What a package carries that its own licence files don't speak for, said by hand.
-PYTHON_NOTES = {"onnxruntime-directml": _DIRECTML_TERMS}
+PYTHON_NOTES = {"onnxruntime-directml": _DIRECTML_TERMS, "tokenizers": _TOKENIZERS_TERMS}
 
 # Packages that ship as CSS and font files, which Vite's report (JavaScript only) doesn't list.
 STYLES_AND_FONTS = (
@@ -312,7 +319,7 @@ def engine_parts() -> list[Part]:
             sys.exit(f"The engine bundle holds {file}, and it isn't clear where that comes from.")
     shipped.pop("mado", None)
     packages = [_python_package(shipped[name]) for name in sorted(shipped)]
-    return [_python(), *packages, *cpp_runtime(runtime), *assets()]
+    return [_python(), *packages, *cpp_runtime(runtime), *assets(), *adapted()]
 
 
 def is_windows_runtime(file: Path) -> bool:
@@ -356,6 +363,21 @@ def assets() -> list[Part]:
              "Apache-2.0 AND MIT", "https://github.com/xuebinqin/U-2-Net",
              (u2net, rembg)),
     ]  # fmt: skip
+
+
+def adapted() -> list[Part]:
+    """Code adapted from elsewhere into the engine, with the licence it came under: the words
+    reader's pre- and post-processing, ported from RapidOCR's (engine/src/mado/core/ocr.py)."""
+    rapidocr = (ROOT / "engine/src/mado/core/LICENSE-RapidOCR.txt").read_text(encoding="utf-8")
+    return [
+        Part(
+            "RapidOCR's pre- and post-processing, adapted in Mado's reader of words",
+            "3.10.0",
+            "Apache-2.0",
+            "https://github.com/RapidAI/RapidOCR",
+            (rapidocr,),
+        )
+    ]
 
 
 def _bundled_files() -> Iterator[Path]:

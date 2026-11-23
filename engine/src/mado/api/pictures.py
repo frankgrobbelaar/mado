@@ -1,6 +1,7 @@
 """The pictures: the grid by the day they were taken (a page at a time, for many thousands), one
 picture's details and its neighbours, the copies the window shows, and reading one again."""
 
+import json
 import logging
 import sqlite3
 from collections.abc import Callable, Mapping
@@ -13,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
 from mado import favourites, outside
-from mado.api.common import ApiModel, Copies, Database, Finding, Paths, SetAside
+from mado.api.common import ApiModel, Copies, Database, Finding, Paths, Searching, SetAside
 from mado.core.files import kind_of
 from mado.duplicates import Found, choices, kept
 from mado.library import file_time, save_facts, save_problem, save_waiting
@@ -28,6 +29,7 @@ from mado.pictures import (
 )
 from mado.previews import Source, version
 from mado.quarantine import Quarantine
+from mado.search import Search
 from mado.system import pictures_folder
 
 router = APIRouter()
@@ -112,9 +114,10 @@ class Shown:
 
     folder: int | None
     inside: str  # a folder inside it: "2026/Trip"; "" for all of it
-    words: str  # every word must be in a picture's name
+    words: str  # a search: by name, what a picture shows and its words (/search)
     order: Order
     favourites: bool = False  # only the owner's favourites, from outside the library too
+    like: int | None = None  # the pictures most like this one (/search/like)
 
 
 def _shown(
@@ -123,8 +126,9 @@ def _shown(
     q: str = "",
     order: Order = "newest",
     favourites: bool = False,
+    like: int | None = None,
 ) -> Shown:
-    return Shown(folder, inside.strip("/"), q, order, favourites)
+    return Shown(folder, inside.strip("/"), q, order, favourites, like)
 
 
 Showing = Annotated[Shown, Depends(_shown)]
@@ -141,7 +145,7 @@ def pictures(
     """A page of the pictures, by the day they were taken: newest first, or oldest. `after` is
     where the page before ended. A picture kept from a group of duplicates or a burst says
     which, and a favourite says so."""
-    where, values = _where(shown)
+    where, values = shown_where(shown)
     total: int = conn.execute(
         f"SELECT COUNT(*) FROM pictures WHERE {where}",  # noqa: S608 - built of fixed pieces
         values,
@@ -176,7 +180,7 @@ def pictures(
     tags = group_tags(finder.found(), choices(conn))
     hearts = favourites.among(conn, (row["id"] for row in page))
     return PicturePage(
-        pictures=[_item(row, tags.get(row["id"]), row["id"] in hearts) for row in page],
+        pictures=[item_of(row, tags.get(row["id"]), row["id"] in hearts) for row in page],
         days=[DayCount(day=day, pictures=counts.get(day, 0)) for day in days],
         total=total,
         next=f"{last['taken_at']}|{last['id']}" if last is not None else None,
@@ -216,14 +220,18 @@ def neighbours(
     picture_id: int,
     conn: Database,
     shown: Showing,
+    finding: Searching,
     count: Annotated[int, Query(ge=1, le=50)] = 8,
 ) -> Neighbours:
     """The pictures either side of one, in the list it was opened from: none for one outside
-    the library, which isn't in a list, unless it was opened from the favourites."""
+    the library, which isn't in a list, unless it was opened from the favourites. Opened from a
+    search's results, or More like this, they're its neighbours there, in the results' order."""
     row = _row(conn, picture_id)
     if row["folder_id"] is None and not shown.favourites:
         return Neighbours(before=[], after=[])
-    where, values = _where(shown)
+    if shown.words.strip() or shown.like is not None:
+        return _found_neighbours(conn, finding, shown, picture_id, count)
+    where, values = shown_where(shown)
     key = [row["taken_at"], row["id"]]
     newer = conn.execute(
         f"""SELECT * FROM pictures WHERE {where} AND (taken_at, id) > (?, ?)
@@ -241,8 +249,37 @@ def neighbours(
         before, after = list(reversed(older)), newer
     hearts = favourites.among(conn, (each["id"] for each in (*before, *after)))
     return Neighbours(
-        before=[_item(each, None, each["id"] in hearts) for each in before],
-        after=[_item(each, None, each["id"] in hearts) for each in after],
+        before=[item_of(each, None, each["id"] in hearts) for each in before],
+        after=[item_of(each, None, each["id"] in hearts) for each in after],
+    )
+
+
+def _found_neighbours(
+    conn: sqlite3.Connection, finding: Search, shown: Shown, picture_id: int, count: int
+) -> Neighbours:
+    """A picture's neighbours in a search's results (or More like this), as they're shown."""
+    from mado.api.search import found_ids  # the search's own module builds on this one's lists
+
+    order = found_ids(conn, finding, shown)
+    if shown.like is not None and picture_id == shown.like:
+        order = [picture_id, *order]  # the picture More like this was asked of leads its list
+    if picture_id not in order:
+        return Neighbours(before=[], after=[])
+    at = order.index(picture_id)
+    wanted = order[max(0, at - count) : at] + order[at + 1 : at + 1 + count]
+    rows = {
+        row["id"]: row
+        for row in conn.execute(
+            "SELECT * FROM pictures WHERE id IN (SELECT value FROM json_each(?))",
+            (json.dumps(wanted),),
+        )
+    }
+    hearts = favourites.among(conn, wanted)
+    before = [rows[each] for each in order[max(0, at - count) : at] if each in rows]
+    after = [rows[each] for each in order[at + 1 : at + 1 + count] if each in rows]
+    return Neighbours(
+        before=[item_of(each, None, each["id"] in hearts) for each in before],
+        after=[item_of(each, None, each["id"] in hearts) for each in after],
     )
 
 
@@ -362,7 +399,7 @@ def group_tags(found: Found, chosen: Mapping[int, bool]) -> dict[int, GroupTag]:
     return tags
 
 
-def _where(shown: Shown) -> tuple[str, list[object]]:
+def shown_where(shown: Shown) -> tuple[str, list[object]]:
     """The pictures a list shows, as SQL: those in the grid (the library's, never one opened
     from outside it, unless it's a favourite and the list is the favourites), in a folder, with
     every word."""
@@ -400,7 +437,9 @@ def _state(row: sqlite3.Row) -> PictureState:
     return "waiting" if row["raw"] and row["width"] is None else "ready"
 
 
-def _item(row: sqlite3.Row, group: GroupTag | None = None, favourite: bool = False) -> PictureItem:
+def item_of(
+    row: sqlite3.Row, group: GroupTag | None = None, favourite: bool = False
+) -> PictureItem:
     return PictureItem(
         id=row["id"],
         name=row["name"],
@@ -433,7 +472,7 @@ def details(conn: sqlite3.Connection, row: sqlite3.Row, aside: Quarantine) -> Pi
         ).fetchone()
         folder = found["path"] if found else ""
     return PictureDetails(
-        **_item(row, None, favourites.is_favourite(conn, row["id"])).model_dump(
+        **item_of(row, None, favourites.is_favourite(conn, row["id"])).model_dump(
             by_alias=False, exclude={"group"}
         ),
         folder_id=row["folder_id"],

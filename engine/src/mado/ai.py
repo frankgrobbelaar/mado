@@ -43,7 +43,15 @@ _MIB = 1024 * 1024
 # card: a session is never let go (mado/directml.py), so one is made there only when the card has
 # room for it, and on the processor otherwise. BiRefNet, which DirectML runs only with its graph
 # fusion off, takes far more than the card has unless the card is big.
-HELD: dict[str, int] = {SAM: 1300 * _MIB, MIGAN: 600 * _MIB, BIREFNET: 10240 * _MIB}
+HELD: dict[str, int] = {
+    SAM: 1300 * _MIB,
+    MIGAN: 600 * _MIB,
+    BIREFNET: 10240 * _MIB,
+    # Search's reader of words at Best keeps about 910 MB (its detector's two canvases and the
+    # recogniser's three widths); as reading is background work, it goes on the card only with
+    # room besides for the queue's heaviest model at its tile (docs/stack/search.md).
+    "pp-ocrv6-small": 2560 * _MIB,
+}
 _SPARE = 512 * _MIB  # room left on the card besides
 _UNKNOWN_ROOM = 4096 * _MIB  # where DirectX can't say how much room there is: a small card's
 _BIREFNET_SETTINGS = {"ep.dml.disable_graph_fusion": "1"}

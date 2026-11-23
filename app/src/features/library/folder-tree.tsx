@@ -38,11 +38,12 @@ export function FolderTree(props: {
     toggled.get(`${folderId}:${dir}`) ?? holdsShown(folderId, dir);
   const toggle = (folderId: number, dir: string) =>
     setToggled((before) => new Map(before).set(`${folderId}:${dir}`, !isOpen(folderId, dir)));
+  // A folder opened afresh: no search, nor the pictures most like one.
   const to = (folder: number | null, dir = "") => {
-    const query = shownQuery({ ...shown, favourites: false, folder, dir, q: "" });
+    const query = shownQuery({ ...shown, favourites: false, folder, dir, q: "", like: null });
     return query ? `/library?${query}` : "/library";
   };
-  const loved = `/library?${shownQuery({ ...shown, favourites: true, folder: null, dir: "", q: "" })}`;
+  const loved = `/library?${shownQuery({ ...shown, favourites: true, folder: null, dir: "", q: "", like: null })}`;
   const all = shown.folder === null && !shown.favourites;
 
   return (

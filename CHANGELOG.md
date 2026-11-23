@@ -8,6 +8,38 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Search by describing a picture: the Library's search box finds pictures by what they show
+  ("a red boat on the sea", "snowy mountain"), the closest first, as well as by their names. A
+  search for something that isn't there finds nothing, rather than the least bad pictures.
+- Search by the words in a picture: a sign, a page or a screenshot is found by the words it shows,
+  however they're written (capitals and accents don't matter, and a Chinese or Japanese word is
+  found anywhere in a line), with the matching words shown under each picture.
+- More like this, on a picture's page: the library's pictures most like it, the most alike first.
+- The results come in groups, by the words in the pictures, by what they show and by their names,
+  each picture once. Many at once starts from them, and a picture opened from them goes along the
+  results with the arrow keys.
+- Mado reads the library for search in the background, as it looks for duplicates: it says how far
+  it has got ("Read 2,340 of 18,200 so far: search covers those") in the Library, on Home and in
+  Settings › General › Search, can be paused, and takes turns with the queue on the graphics card.
+  A picture changed is read again; a drive that isn't connected keeps what was read of its
+  pictures, and they're found, shown as away. Pictures from outside the library, in a quarantine
+  or marked as damaged are never read. A picture that couldn't be read is counted and tried again
+  after the next scan, and a reader that can't run says so, with Try again.
+- Its reader of pictures, SigLIP (208 MB), and its reader of words at Best, PP-OCRv6 (31 MB), come
+  the first time you search, each checked before it's used, as the installer's first page lists
+  them; till then, a search finds pictures by name. Fast reads words with Windows' own reader, with
+  nothing to download, in the languages Windows has. As this PC suits, Best where the graphics card
+  makes it quick; Settings › General › Search changes it.
+- A search in another language says that describing works in English, and one in a writing the
+  words reader can't read (Greek, say, where Windows reads only English) says so.
+
+### Changed
+- The Library's search shows what it finds in groups, the first 500 of each, saying how many more
+  there are; Many at once from a search takes every one.
+- Settings › Your data shows what search keeps (search.db) once there's some, and the export holds
+  the words read in each picture (words.csv).
+
 ## 0.8.0 - 2026-11-23
 
 ### Added

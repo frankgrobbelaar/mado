@@ -7,6 +7,7 @@ import { EngineProvider, type LibraryFolder, type PictureItem } from "@/lib/engi
 import {
   FOLDERS,
   fakeEngine,
+  hit,
   LIBRARY,
   PICTURES,
   page,
@@ -14,6 +15,9 @@ import {
   READY,
   rawReader,
   scanDone,
+  searchModel,
+  searchResults,
+  searchState,
 } from "@/test/engine";
 import { LibraryPage } from "./library-page";
 
@@ -50,6 +54,7 @@ function renderLibrary(at = "/library", picked: string | null = null) {
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/library/pictures/:id" element={<p>A picture</p>} />
               <Route path="/batch" element={<p>Many at once</p>} />
+              <Route path="/settings/general" element={<p>Settings</p>} />
             </Routes>
             <Address />
           </MemoryRouter>
@@ -284,10 +289,9 @@ describe("LibraryPage", () => {
     expect(within(bar).getByRole("button", { name: "Show in 2 folders" })).toBeInTheDocument();
   });
 
-  it("narrows the grid to what's searched for, and says when nothing matches", async () => {
+  it("searches as it's typed, and says when nothing matches", async () => {
     const fetch = library({
-      "/pictures": (_: RequestInit | undefined, url: URL) =>
-        url.searchParams.get("q") ? page([]) : page(PICTURES),
+      "/search": searchResults("zebra", []),
     });
     renderLibrary("/library?folder=1");
 
@@ -295,9 +299,12 @@ describe("LibraryPage", () => {
     fireEvent.change(search, { target: { value: "zebra" } });
 
     expect(
-      await screen.findByRole("heading", { name: "No pictures in Phone match “zebra”" }),
+      await screen.findByRole("heading", { name: "Nothing in Phone matches “zebra”" }),
     ).toBeInTheDocument();
-    expect(asked(fetch, "/pictures").at(-1)?.searchParams.get("q")).toBe("zebra");
+    const asking = asked(fetch, "/search").at(-1);
+    expect(asking?.searchParams.get("q")).toBe("zebra");
+    expect(asking?.searchParams.get("folder")).toBe("1");
+    expect(screen.queryByRole("button", { name: /^Date taken/ })).toBeNull();
     screen.getByRole("button", { name: "Clear the search" }).click();
 
     expect(await screen.findByRole("link", { name: "Harbour at dusk" })).toBeInTheDocument();
@@ -306,8 +313,9 @@ describe("LibraryPage", () => {
 
   it("clears the search when the folder is opened afresh from the tree", async () => {
     library({
-      "/pictures": (_: RequestInit | undefined, url: URL) =>
-        url.searchParams.get("q") ? page(PICTURES.slice(0, 1)) : page(PICTURES),
+      "/search": searchResults("harbour", [
+        { kind: "name", pictures: [hit(PICTURES[0] as PictureItem)], total: 1 },
+      ]),
     });
     renderLibrary("/library?folder=1");
     const search = await screen.findByRole("searchbox", { name: "Search Phone" });
@@ -460,7 +468,7 @@ describe("LibraryPage", () => {
     });
   });
 
-  it("makes a whole folder many at once from its menu, and what a search found", async () => {
+  it("makes a whole folder many at once from its menu", async () => {
     library();
     renderLibrary("/library?folder=1&dir=2026");
 
@@ -475,6 +483,280 @@ describe("LibraryPage", () => {
     expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
       pick: { how: "folder", folder: 1, dir: "2026" },
     });
+  });
+});
+
+describe("Searching the Library", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:made-up");
+    URL.revokeObjectURL = vi.fn();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    shell.invoke.mockReset();
+  });
+
+  const sign = picture(41, "Corner shop.jpg", "2026-11-12T10:15:00");
+  const boat = picture(42, "Little sail.jpg", "2026-11-14T16:05:00");
+  const harbour = picture(43, "Zumi harbour.jpg", "2026-11-10T09:00:00");
+  const found = searchResults("zumi", [
+    {
+      kind: "words",
+      pictures: [
+        hit(sign, {
+          words: [
+            { text: "Open daily · ", marked: false },
+            { text: "ZUMI", marked: true },
+            { text: " 73", marked: false },
+          ],
+        }),
+      ],
+      total: 1,
+    },
+    { kind: "described", pictures: [hit(boat, { score: 0.82 })], total: 1 },
+    { kind: "name", pictures: [hit(harbour, { away: true })], total: 1 },
+  ]);
+
+  it("shows what it found in groups: the words marked, the closest first, names last", async () => {
+    library({ "/search": found, ...thumbnails([sign, boat, harbour]) });
+    renderLibrary("/library?folder=1&q=zumi");
+
+    expect(await screen.findByRole("heading", { name: /^With the words “zumi”/ })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Looks like “zumi”/ })).toHaveTextContent(
+      "1 picture · the closest first",
+    );
+    expect(screen.getByRole("heading", { name: /^“zumi” in the name/ })).toBeVisible();
+    expect(screen.getByText("ZUMI", { selector: "strong" })).toBeVisible();
+    expect(screen.getByText(/pictures found for “zumi”/)).toHaveTextContent(
+      "3 pictures found for “zumi”",
+    );
+    // Each opens with the search in its address, so its neighbours are the results'.
+    expect(screen.getByRole("link", { name: "Little sail" })).toHaveAttribute(
+      "href",
+      "/library/pictures/42?folder=1&q=zumi",
+    );
+    // A picture on a drive that isn't connected is found, and says so.
+    expect(screen.getByText("Away")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Zumi harbour, its drive isn't connected" }),
+    ).toBeVisible();
+  });
+
+  it("starts many at once from what it found", async () => {
+    library({ "/search": found, ...thumbnails([sign, boat, harbour]) });
+    renderLibrary("/library?folder=1&q=zumi");
+
+    (await screen.findByRole("button", { name: "Many at once…" })).click();
+
+    expect(await screen.findByText("Many at once")).toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
+      pick: { how: "search", folder: 1, dir: "", q: "zumi" },
+    });
+  });
+
+  it("says its model is on its way, and that names still find meanwhile", async () => {
+    const coming = searchState({
+      describer: searchModel("siglip-base-patch16-224", { state: "downloading", done: 52_000_000 }),
+      words: { ...searchState().words, model: searchModel("pp-ocrv6-small") },
+      read: 0,
+    });
+    library({ "/search": searchResults("harbour", [], { state: coming }) });
+    renderLibrary("/library?q=harbour");
+
+    expect(await screen.findByText(/Getting Mado's reader of pictures/)).toHaveTextContent(
+      "Getting Mado's reader of pictures for search: 52 MB of 207 MB.",
+    );
+    expect(screen.getByText(/a search finds pictures by their names/)).toBeVisible();
+  });
+
+  it("offers to try again when its model didn't come", async () => {
+    const failed = searchState({
+      describer: searchModel("siglip-base-patch16-224", {
+        state: "failed",
+        done: 0,
+        problem: "Mado couldn't download SigLIP base: offline.",
+      }),
+    });
+    const fetch = library({
+      "/search": searchResults("harbour", [], { state: failed }),
+      "POST /tools/siglip-base-patch16-224/download": searchModel("siglip-base-patch16-224"),
+    });
+    renderLibrary("/library?q=harbour");
+
+    (await screen.findByRole("button", { name: "Try again" })).click();
+
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(([input]) =>
+          String(input).endsWith("/tools/siglip-base-patch16-224/download"),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("says how far the library has been read, and pauses it", async () => {
+    const reading = searchState({ read: 2340, of: 18200, reading: true });
+    const fetch = library({
+      "/search": searchResults("boat", found.groups.slice(1, 2), { state: reading }),
+      "POST /search/pause": { ...reading, paused: true },
+      ...thumbnails([boat]),
+    });
+    renderLibrary("/library?q=boat");
+
+    expect(await screen.findByText(/so far: search covers those/)).toHaveTextContent(
+      "Read 2,340 of 18,200 so far: search covers those.",
+    );
+    screen.getByRole("button", { name: "Pause" }).click();
+
+    await waitFor(() =>
+      expect(fetch.mock.calls.some(([input]) => String(input).endsWith("/search/pause"))).toBe(
+        true,
+      ),
+    );
+  });
+
+  it("says which pictures couldn't be read, once the rest are", async () => {
+    const left = searchState({ read: 4810, of: 4812, failed: 2 });
+    library({ "/search": searchResults("boat", found.groups.slice(1, 2), { state: left }) });
+    renderLibrary("/library?q=boat");
+
+    expect(await screen.findByText(/couldn't be read for search/)).toHaveTextContent(
+      "Read 4,810 of 4,812: search covers those. 2 pictures couldn't be read for search. Mado tries them again the next time it looks through your library.",
+    );
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  });
+
+  it("says when a reader couldn't run, and tries again", async () => {
+    const stuck = searchState({
+      read: 3,
+      of: 5000,
+      problem: { reader: "words", said: "The graphics card couldn't run the AI model (made up)." },
+    });
+    const fetch = library({
+      "/search": searchResults("boat", found.groups.slice(1, 2), { state: stuck }),
+      "POST /search/resume": { ...stuck, problem: null, reading: true },
+      ...thumbnails([boat]),
+    });
+    renderLibrary("/library?q=boat");
+
+    const said = await screen.findByRole("alert");
+    expect(said).toHaveTextContent(
+      "Mado's reader of words couldn't run: The graphics card couldn't run the AI model (made up). Search still finds pictures by what they show and by their names.",
+    );
+    within(said).getByRole("button", { name: "Try again" }).click();
+    await waitFor(() =>
+      expect(fetch.mock.calls.some(([input]) => String(input).endsWith("/search/resume"))).toBe(
+        true,
+      ),
+    );
+  });
+
+  it("says when reading takes turns with the queue on the graphics card", async () => {
+    const busy = searchState({ read: 10, of: 40, reading: true, busy: true });
+    library({ "/search": searchResults("boat", [], { state: busy }) });
+    renderLibrary("/library?q=boat");
+
+    expect(
+      await screen.findByText(/It takes turns with the queue on the graphics card/),
+    ).toBeVisible();
+  });
+
+  it("says a search in another language looked at names and words only", async () => {
+    library({ "/search": searchResults("der Hund", [], { english: false }) });
+    renderLibrary("/library?q=der%20Hund");
+
+    expect(
+      await screen.findByText(/works in English, so this search looked at names/),
+    ).toBeVisible();
+  });
+
+  it("says when Windows can't read the writing a search is in, and where Best is", async () => {
+    const windows = searchState({
+      words: { ...searchState().words, chosen: "fast", reader: "fast", model: null },
+    });
+    library({
+      "/search": searchResults("Βάρκα", [], { unreadable: "Greek", state: windows }),
+    });
+    renderLibrary("/library?q=%CE%92%CE%AC%CF%81%CE%BA%CE%B1");
+
+    expect(
+      await screen.findByText(
+        /Windows reads words only in English here, so this search doesn't find Greek ones/,
+      ),
+    ).toBeVisible();
+    screen.getByRole("link", { name: "Settings › General" }).click();
+    expect(await screen.findByText("Settings")).toBeInTheDocument();
+  });
+
+  it("says when Windows has no language to read words in at all", async () => {
+    const none = searchState({
+      words: { ...searchState().words, chosen: "fast", reader: "fast", languages: [], model: null },
+    });
+    library({ "/search": searchResults("shop", [], { state: none }) });
+    renderLibrary("/library?q=shop");
+
+    expect(await screen.findByText(/Windows has no language to read words in here/)).toBeVisible();
+  });
+
+  it("shows the pictures most like one, and makes them many at once", async () => {
+    const fetch = library({
+      "/search/like/11": searchResults("Harbour at dusk.heic", [
+        { kind: "like", pictures: [hit(boat, { score: 0.91 })], total: 1 },
+      ]),
+      ...thumbnails([boat]),
+    });
+    renderLibrary("/library?like=11");
+
+    expect(
+      await screen.findByRole("heading", { name: /^Most like Harbour at dusk/ }),
+    ).toHaveTextContent("the most alike first");
+    expect(screen.getByText(/picture most like Harbour at dusk/)).toHaveTextContent(
+      "1 picture most like Harbour at dusk",
+    );
+    expect(asked(fetch, "/search")).toEqual([]);
+    expect(screen.getByRole("link", { name: "Little sail" })).toHaveAttribute(
+      "href",
+      "/library/pictures/42?like=11",
+    );
+
+    screen.getByRole("button", { name: "Many at once…" }).click();
+    expect(await screen.findByText("Many at once")).toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
+      pick: { how: "search", like: 11 },
+    });
+  });
+
+  it("leaves the pictures most like one from the folder tree", async () => {
+    library({
+      "/search/like/11": searchResults("Harbour at dusk.heic", [
+        { kind: "like", pictures: [hit(boat, { score: 0.91 })], total: 1 },
+      ]),
+      ...thumbnails([boat]),
+    });
+    renderLibrary("/library?like=11");
+    await screen.findByRole("heading", { name: /^Most like Harbour at dusk/ });
+
+    screen.getByRole("link", { name: /^Phone/ }).click();
+    await waitFor(() =>
+      expect(screen.getByTestId("address")).toHaveTextContent(/^\/library\?folder=1$/),
+    );
+    screen.getByRole("link", { name: /^Favourites/ }).click();
+    await waitFor(() =>
+      expect(screen.getByTestId("address")).toHaveTextContent(/^\/library\?favourites=1$/),
+    );
+  });
+
+  it("says when nothing is like a picture, with the way back to all of them", async () => {
+    library({ "/search/like/11": searchResults("Harbour at dusk.heic", []) });
+    renderLibrary("/library?like=11");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Nothing in your library looks like Harbour at dusk",
+      }),
+    ).toBeVisible();
+    screen.getByRole("button", { name: "Show all your pictures" }).click();
+    await waitFor(() => expect(screen.getByTestId("address")).toHaveTextContent(/^\/library$/));
   });
 });
 

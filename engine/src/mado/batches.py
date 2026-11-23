@@ -118,29 +118,38 @@ def from_folder(conn: sqlite3.Connection, folder_id: int, inside: str) -> Picked
     return _picked(rows, "folder", _folder_name(conn, folder_id, inside))
 
 
-def from_search(conn: sqlite3.Connection, folder_id: int | None, inside: str, words: str) -> Picked:
-    """What a Library search found: every word in a picture's name, in a folder or anywhere."""
-    clause, values = _in_folder(folder_id, inside) if folder_id is not None else ("1", [])
-    for word in words.split():
-        clause += " AND p.name LIKE ? ESCAPE '\\'"
-        escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        values.append(f"%{escaped}%")
-    rows = _rows(conn, clause, values)
+def from_search(
+    conn: sqlite3.Connection,
+    folder_id: int | None,
+    inside: str,
+    words: str,
+    found_ids: Sequence[int],
+) -> Picked:
+    """What a Library search found (`found_ids`, in the order its results show them: by the words
+    in a picture, what it shows and its name), in a folder or anywhere; or, with no words, the
+    pictures More like this found."""
+    rows = _rows(conn, "p.id IN (SELECT value FROM json_each(?))", [json.dumps(list(found_ids))])
+    order = {picture_id: at for at, picture_id in enumerate(found_ids)}
+    rows.sort(key=lambda row: order.get(row["id"], len(order)))
     where = _folder_name(conn, folder_id, inside) if folder_id is not None else None
-    found = f"found by “{words.strip()}”" + (f" in {where}" if where else "")
+    if words.strip():
+        found = f"found by “{words.strip()}”" + (f" in {where}" if where else "")
+    else:
+        found = "like the picture you chose"
     picked = _picked(rows, "search", where)
     return Picked(picked.pictures, picked.source, picked.shared, found, picked.left_out)
 
 
-def from_favourites(conn: sqlite3.Connection, words: str = "") -> Picked:
+def from_favourites(
+    conn: sqlite3.Connection, words: str = "", found_ids: Sequence[int] | None = None
+) -> Picked:
     """The owner's favourites, in the library or from outside it, newest first; with `words`,
-    those with every word in the name."""
+    those a search of them found (`found_ids`, in the order its results show them)."""
     clause = "p.id IN (SELECT picture_id FROM favourites)"
     values: list[object] = []
-    for word in words.split():
-        clause += " AND p.name LIKE ? ESCAPE '\\'"
-        escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        values.append(f"%{escaped}%")
+    if found_ids is not None:
+        clause += " AND p.id IN (SELECT value FROM json_each(?))"
+        values.append(json.dumps(list(found_ids)))
     rows = conn.execute(
         f"""SELECT p.id, p.path, p.name, p.size, p.width, p.height, p.modified, p.raw,
                    p.problem, p.read_at, p.dir, p.folder_id
@@ -148,6 +157,9 @@ def from_favourites(conn: sqlite3.Connection, words: str = "") -> Picked:
             ORDER BY p.taken_at DESC, p.id DESC""",  # noqa: S608 - built of fixed pieces
         values,
     ).fetchall()
+    if found_ids is not None:
+        order = {picture_id: at for at, picture_id in enumerate(found_ids)}
+        rows.sort(key=lambda row: order.get(row["id"], len(order)))
     pictures: list[Picture] = []
     left: list[tuple[str, str]] = []
     for row in rows:

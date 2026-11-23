@@ -25,6 +25,7 @@ def test_each_part_of_the_data_folder_is_measured(
         (paths.root / folder / "a file").write_bytes(bytes(size))
     (paths.tools / "ffmpeg").mkdir()
     (paths.tools / "ffmpeg" / "ffmpeg.exe").write_bytes(bytes(25))  # a folder's files count
+    paths.search.write_bytes(bytes(40))  # what search read, beside the database
 
     found = client.get("/data").json()
 
@@ -37,8 +38,10 @@ def test_each_part_of_the_data_folder_is_measured(
         "tools": 75,
         "pasted": 30,
         "wallpapers": 70,
+        "search": found["search"],
     }
     assert found["database"] > 0
+    assert found["search"] >= 40
 
 
 def test_parts_not_made_yet_measure_nothing(client: TestClient):

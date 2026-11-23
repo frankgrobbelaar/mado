@@ -21,7 +21,9 @@ putting back; it takes what's dropped or pasted through `components/shell/claim.
 the review of duplicates and bursts
 (`features/duplicates/`: the groups, keeping another or more than one, Not the same, setting the
 rest aside, a picture big beside the one kept), the Library (the folders as a tree, the pictures by
-the day they were taken, ticks, and Many at once from the ticks, a folder's menu or a search), Many
+the day they were taken, ticks, and Many at once from the ticks, a folder's menu or a search; a
+search's results in groups, by the words in the pictures, what they show and their names, with
+what search is doing above them, and More like this: `features/library/search-results.tsx`), Many
 at once (`features/batch/`: the steps with Change, See it first, When, Saving, What it takes), the
 Queue (`features/queue/`), Recipes and watch folders (`features/recipes/`), a picture's page, in the
 library or from outside it (`/pictures/:id`: where it lives in place of the breadcrumb, with "Add
@@ -34,8 +36,8 @@ touches, "Only on a part", the owner's own looks, and "Hold to see the original"
 to do with it, the brush, undo and Start again, each model downloaded the first time); one Save for
 all three, and the job making it), History (a week at a time, a batch or a review as one line with
 Take them away or Put them back, take away and put back, replace again), Settings (General with
-Saving, Your data with Set aside, Updates, About with This PC and the downloads), the update card,
-the notes at the window's foot (a picture open in another app among them,
+Saving and Search, Your data with Set aside, Updates, About with This PC and the downloads), the
+update card, the notes at the window's foot (a picture open in another app among them,
 `components/shell/in-use.tsx`), and the way back from damaged records. Mado's own screens come from
 its design canvas.
 

@@ -23,6 +23,7 @@ import { ExportPanel } from "./export-panel";
 import { LookChoice } from "./look-choice";
 import { Panel } from "./panel";
 import { ManyAtOncePanel, SavingPanel } from "./saving-panel";
+import { SearchPanel } from "./search-panel";
 import { SetAsidePanel } from "./set-aside-panel";
 import { ThisPcPanel, ToolsPanel } from "./this-pc-panel";
 import { WhereItLives } from "./where-it-lives";
@@ -144,6 +145,7 @@ function General() {
       </Panel>
       <SavingPanel />
       <ManyAtOncePanel />
+      <SearchPanel />
     </>
   );
 }
@@ -173,6 +175,13 @@ const PARTS: {
     label: "Wallpapers",
     note: "showing now and the last 3 days'",
     color: "bg-dash",
+    some: true,
+  },
+  {
+    key: "search",
+    label: "Search",
+    note: "read again when it's lost",
+    color: "bg-fg-soft",
     some: true,
   },
 ];

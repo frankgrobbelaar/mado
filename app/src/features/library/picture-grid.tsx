@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useId, useRef } from "react";
+import { type ChangeEvent, type ReactNode, useEffect, useId, useRef } from "react";
 import { Link } from "react-router";
 import { HeartButton } from "@/components/heart";
 import { Button } from "@/components/ui/button";
@@ -110,15 +110,21 @@ function DaySection(props: {
   );
 }
 
-function Tile(props: {
+/** A picture's tile: its thumbnail opening it, its tick, its heart, its tags and its name; in a
+ * search's results, the words it showed (`words`), when it was taken in place of the time
+ * (`when`), and its drive away (`away`: found by what Mado read of it before). */
+export function Tile(props: {
   picture: PictureItem;
   to: string;
   ticked: boolean;
   onTick: (id: number, run: boolean) => void;
+  words?: ReactNode;
+  when?: string;
+  away?: boolean;
 }) {
   const { picture } = props;
   const name = stem(picture.name);
-  const tag = tagOf(picture);
+  const tag = props.away ? "Away" : tagOf(picture);
   const tick = (event: ChangeEvent<HTMLInputElement>) => {
     const native = event.nativeEvent; // a click, for a box: it knows whether Shift was down
     props.onTick(picture.id, "shiftKey" in native && native.shiftKey === true);
@@ -131,7 +137,11 @@ function Tile(props: {
           props.ticked && "outline-2 outline-accent outline-offset-1",
         )}
       >
-        <Link to={props.to} aria-label={name} className="absolute inset-0 outline-offset-[-2px]">
+        <Link
+          to={props.to}
+          aria-label={props.away ? `${name}, its drive isn't connected` : name}
+          className="absolute inset-0 outline-offset-[-2px]"
+        >
           <Thumbnail picture={picture} />
         </Link>
         <input
@@ -159,9 +169,14 @@ function Tile(props: {
           </span>
         )}
       </div>
-      <figcaption className="flex min-w-0 justify-between gap-1 text-12">
-        <span className="truncate text-fg">{name}</span>
-        <span className="shrink-0 font-mono text-fg-faint">{clock(picture.takenAt)}</span>
+      <figcaption className="flex min-w-0 flex-col gap-0.5 text-12">
+        <span className="flex min-w-0 justify-between gap-1">
+          <span className="truncate text-fg">{name}</span>
+          <span className="shrink-0 font-mono text-fg-faint">
+            {props.when ?? clock(picture.takenAt)}
+          </span>
+        </span>
+        {props.words && <span className="truncate text-fg-muted">{props.words}</span>}
       </figcaption>
     </figure>
   );

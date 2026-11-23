@@ -238,6 +238,7 @@ function Batch({ start }: { start: BatchStart }) {
       dir: pick.dir ?? "",
       q: pick.how === "search" ? (pick.q ?? "") : "",
       order: "newest",
+      like: pick.how === "search" ? (pick.like ?? null) : null,
     });
     void navigate(query ? `/library?${query}` : "/library");
   }

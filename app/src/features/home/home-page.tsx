@@ -19,6 +19,7 @@ import {
   useLibrary,
   useMadeToday,
   usePictureImage,
+  useSearchState,
   useSeenBatch,
   useSettings,
 } from "@/lib/engine";
@@ -363,8 +364,10 @@ function Made({ made }: { made: MadeToday }) {
   );
 }
 
-/** The library at a glance: its pictures, and each folder's share of them. */
+/** The library at a glance: its pictures, each folder's share of them, and how far it's been
+ * read for search while it's being read. */
 function YourLibrary({ library }: { library: Library }) {
+  const search = useSearchState().data;
   const parts = library.parts.filter((part) => part.pictures > 0);
   const whole = parts.reduce((sum, part) => sum + part.pictures, 0);
   return (
@@ -406,6 +409,14 @@ function YourLibrary({ library }: { library: Library }) {
           <Row label="Waiting for the RAW reader" value={count(library.rawWaiting)} />
         )}
         {library.broken > 0 && <Row label="Won't open" value={count(library.broken)} />}
+        {search &&
+          search.describer?.state === "ready" &&
+          search.read + search.failed < search.of && (
+            <Row
+              label={search.paused ? "Read for search, paused" : "Read for search"}
+              value={`${count(search.read)} of ${count(search.of)}`}
+            />
+          )}
       </dl>
     </section>
   );

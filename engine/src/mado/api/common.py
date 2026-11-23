@@ -21,6 +21,7 @@ from mado.previews import Previews
 from mado.quarantine import Quarantine
 from mado.samples import Samples
 from mado.scan import Scanner
+from mado.search import Search
 from mado.tools import Tools
 from mado.watch import Watcher
 
@@ -105,6 +106,11 @@ def _pc(request: Request) -> PcCheck:
     return found
 
 
+def _search(request: Request) -> Search:
+    found: Search = request.app.state.search
+    return found
+
+
 # Use these as parameter types in routes, e.g. `def route(conn: Database) -> ...`.
 Paths = Annotated[DataPaths, Depends(_paths)]
 Database = Annotated[sqlite3.Connection, Depends(_database)]
@@ -120,3 +126,4 @@ ThisPc = Annotated[PcCheck, Depends(_pc)]
 FirstLook = Annotated[Samples, Depends(_samples)]  # See it first's pictures
 Finding = Annotated[Finder, Depends(_finder)]  # duplicates and bursts, found in the background
 Editors = Annotated[Editor, Depends(_editor)]  # editing by clicking: parts picked, edits made
+Searching = Annotated[Search, Depends(_search)]  # the library read for search, and finding in it

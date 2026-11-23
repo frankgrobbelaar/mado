@@ -9,7 +9,7 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, a camera RAW's turn, crop and preview-or-develop and its reader's errors, Display P3's colour profile, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep, the edits and their parts, mask maths, what paths open as, the monitors' arrangement, a wallpaper's parts and the day's picks | `src/mado/core/`, pure functions only |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, a camera RAW's turn, crop and preview-or-develop and its reader's errors, Display P3's colour profile, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep, the edits and their parts, mask maths, what paths open as, the monitors' arrangement, a wallpaper's parts and the day's picks, a search as SigLIP reads it and its cut, the words reader's pre- and post-processing | `src/mado/core/`, pure functions only |
 | The library: its folders, the scan, the watcher, reading pictures (camera RAW through LibRaw's DLL) and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `libraw.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
 | Pictures from anywhere: one opened from outside the library, known by its path and forgotten after a month unopened; a picture pasted from the clipboard, kept in the data folder till it's saved | `src/mado/outside.py`, `pasting.py`, `api/opening.py` (see [docs/architecture.md](../docs/architecture.md#pictures-from-anywhere)) |
 | Making a picture right for a screen: sessions on the card, the models' files, a tile at a time, extending edges, making and saving | `src/mado/directml.py`, `ai.py`, `upscale.py`, `extend.py`, `making.py`, `encode.py` (see [docs/stack/upscaling.md](../docs/stack/upscaling.md)) |
@@ -21,6 +21,7 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 | Many at once: the queue (in the jobs' worker), batches and what they take, See it first, recipes, watch folders | `src/mado/jobs.py`, `batches.py`, `samples.py`, `recipes.py`, `watching.py` (see [docs/stack/queue.md](../docs/stack/queue.md)) |
 | This PC: what it has, its check (in a process of its own), its speeds | `src/mado/hardware.py`, `pc_check.py` (see [docs/stack/hardware.md](../docs/stack/hardware.md)) |
 | Looking after the library: duplicates and bursts found in the background, the owner's choices, setting the rest aside | `src/mado/duplicates.py` (see [docs/stack/duplicates.md](../docs/stack/duplicates.md)); won't open and space in `api/library.py` |
+| Search: the library read in the background (SigLIP for what a picture shows, a reader of words), the vectors in search.db and in memory, the words in FTS5, finding and More like this | `src/mado/siglip.py`, `ocr.py`, `search.py`, `api/search.py` (see [docs/stack/search.md](../docs/stack/search.md)) |
 | The AI models Mado ships, with their licences | `src/mado/assets/` (its README says what each is) |
 | Reaching the world: files, ffmpeg, the graphics card | modules beside `core/`, one per outside thing, each small and replaceable |
 | The API the UI calls | `src/mado/api/<feature>.py`, one `APIRouter` per feature, included in `api/__init__.py` |
@@ -30,7 +31,7 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 | Background care (tonight's backup, the daily clear-out of the quarantine) | `src/mado/care.py` |
 | Commands | `src/mado/cli.py` |
 | Build tools that run on the engine's Python (the third-party notices) | `tools/`, tested in `tests/` |
-| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` (a quarantine of the test's own, the AI models on the processor, a stand-in PC check); made-up pictures from `tests/drawn.py` (`scene`: a landscape different for every seed, for duplicates and bursts), `tests/heif_files.py` and `tests/dng_files.py` (DNGs written tag by tag, a Bayer mosaic under a camera's tags, with or without the previews a camera keeps), the real LibRaw from the `libraw_folder` fixture (fetched as Mado fetches it, once, into pytest's cache; `raw_client` an engine reading RAW with it, the `client` fixture's RAW reader never fetching), ffmpeg from `tests/fake_ffmpeg.py`, Windows' desktop from `tests/fake_desktop.py`; the shipped Fast model runs on the processor on tiny pictures; a picture held open with Python's `open()` is open in another app, as Windows sees it |
+| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` (a quarantine of the test's own, the AI models on the processor, a stand-in PC check); made-up pictures from `tests/drawn.py` (`scene`: a landscape different for every seed, for duplicates and bursts), `tests/heif_files.py` and `tests/dng_files.py` (DNGs written tag by tag, a Bayer mosaic under a camera's tags, with or without the previews a camera keeps), search's readers from `tests/fake_search.py` (a picture is its colour) unless a test asks for the real ones (`tests/test_search_models.py`: PP-OCRv6 fetched once into pytest's cache), the real LibRaw from the `libraw_folder` fixture (fetched as Mado fetches it, once, into pytest's cache; `raw_client` an engine reading RAW with it, the `client` fixture's RAW reader never fetching), ffmpeg from `tests/fake_ffmpeg.py`, Windows' desktop from `tests/fake_desktop.py`; the shipped Fast model runs on the processor on tiny pictures; a picture held open with Python's `open()` is open in another app, as Windows sees it |
 
 ## Building a feature
 
@@ -80,6 +81,11 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
   never written beside or in place of; Save takes a folder of the owner's.
 - Mado downloads nothing that isn't in `downloads.json`, and uses a download only when its size and
   SHA-256 match the list.
+- Search reads only the library's own pictures (never one from outside it, in a quarantine,
+  that won't open or is marked as damaged) and never writes to one: what it reads is kept in the
+  database (`words_read`, `words`) and in search.db beside it, which can always be read again and
+  so never goes into a backup or the export. Its readers run under the card's one lock like any
+  model; SigLIP stays on the processor.
 - LibRaw only through `mado/libraw.py`: loaded from the tools folder, never shipped (the notices
   build stops on a bundled LibRaw or ffmpeg), each file opened read-only by a reader of its own,
   nothing written anywhere. A camera RAW is never written over: Save makes a new picture, and the

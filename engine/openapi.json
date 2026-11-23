@@ -125,7 +125,7 @@
       },
       "put": {
         "summary": "Save Settings",
-        "description": "Keeps the owner's choices.",
+        "description": "Keeps the owner's choices. Search reads the words again with a reader of words chosen,\nPP-OCRv6 fetched for Best the first time it's chosen.",
         "operationId": "save_settings_settings_put",
         "requestBody": {
           "content": {
@@ -471,6 +471,22 @@
               "default": false,
               "title": "Favourites"
             }
+          },
+          {
+            "name": "like",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Like"
+            }
           }
         ],
         "responses": {
@@ -545,7 +561,7 @@
     "/pictures/{picture_id}/neighbours": {
       "get": {
         "summary": "Neighbours",
-        "description": "The pictures either side of one, in the list it was opened from: none for one outside\nthe library, which isn't in a list, unless it was opened from the favourites.",
+        "description": "The pictures either side of one, in the list it was opened from: none for one outside\nthe library, which isn't in a list, unless it was opened from the favourites. Opened from a\nsearch's results, or More like this, they're its neighbours there, in the results' order.",
         "operationId": "neighbours_pictures__picture_id__neighbours_get",
         "security": [
           {
@@ -632,6 +648,22 @@
               "type": "boolean",
               "default": false,
               "title": "Favourites"
+            }
+          },
+          {
+            "name": "like",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Like"
             }
           }
         ],
@@ -3312,6 +3344,235 @@
         ]
       }
     },
+    "/search": {
+      "get": {
+        "summary": "Search",
+        "description": "What the Library's search box finds, in a folder or the whole library (or the\nfavourites): pictures whose words match, those that look like what was described (SigLIP's\nscore past its cut, best first), and those with every word in their name. Fetches what\nreading needs, the first time the library is searched.",
+        "operationId": "search_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dir"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "newest",
+                "oldest"
+              ],
+              "type": "string",
+              "default": "newest",
+              "title": "Order"
+            }
+          },
+          {
+            "name": "favourites",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Favourites"
+            }
+          },
+          {
+            "name": "like",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Like"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/like/{picture_id}": {
+      "get": {
+        "summary": "Like",
+        "description": "The library's pictures most like one, by what SigLIP read of each, nearest first: read\nnow when it hasn't been yet. 404 for a picture that isn't in the library.",
+        "operationId": "like_search_like__picture_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/state": {
+      "get": {
+        "summary": "Search State",
+        "description": "How far reading the library for search has got, and what it waits for.",
+        "operationId": "search_state_search_state_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/search/pause": {
+      "post": {
+        "summary": "Pause",
+        "description": "Pauses reading the library after the picture it's on, till it's asked to go on.",
+        "operationId": "pause_search_pause_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/search/resume": {
+      "post": {
+        "summary": "Resume",
+        "description": "Goes on reading the library.",
+        "operationId": "resume_search_resume_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/wallpaper": {
       "get": {
         "summary": "Studio",
@@ -5427,6 +5688,14 @@
         ],
         "title": "CardOut"
       },
+      "Choice": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "fast",
+          "best"
+        ]
+      },
       "ChoiceIn": {
         "properties": {
           "monitor": {
@@ -5907,6 +6176,10 @@
           "wallpapers": {
             "type": "integer",
             "title": "Wallpapers"
+          },
+          "search": {
+            "type": "integer",
+            "title": "Search"
           }
         },
         "type": "object",
@@ -5918,7 +6191,8 @@
           "backups",
           "tools",
           "pasted",
-          "wallpapers"
+          "wallpapers",
+          "search"
         ],
         "title": "DataSizes"
       },
@@ -7415,15 +7689,6 @@
         ],
         "title": "KeptRecipe"
       },
-      "Kind-Output": {
-        "type": "string",
-        "enum": [
-          "photo",
-          "drawing",
-          "pixels",
-          "screenshot"
-        ]
-      },
       "Layout": {
         "type": "string",
         "enum": [
@@ -8515,6 +8780,17 @@
             "type": "string",
             "title": "Q",
             "default": ""
+          },
+          "like": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Like"
           }
         },
         "type": "object",
@@ -9115,7 +9391,7 @@
             "title": "Note"
           },
           "kind": {
-            "$ref": "#/components/schemas/Kind-Output"
+            "$ref": "#/components/schemas/mado__core__kind__Kind"
           },
           "kindGuessed": {
             "type": "boolean",
@@ -9531,6 +9807,13 @@
           "secondsLeft"
         ],
         "title": "QueueOut"
+      },
+      "Reader": {
+        "type": "string",
+        "enum": [
+          "fast",
+          "best"
+        ]
       },
       "RecipeIn": {
         "properties": {
@@ -10438,6 +10721,300 @@
         ],
         "title": "ScreensSeen"
       },
+      "SearchGroup": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/mado__api__search__Kind"
+          },
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "type": "array",
+            "title": "Pictures"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "pictures",
+          "total"
+        ],
+        "title": "SearchGroup"
+      },
+      "SearchHit": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PictureState"
+          },
+          "raw": {
+            "type": "boolean",
+            "title": "Raw"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "takenAt": {
+            "type": "string",
+            "title": "Takenat"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroupTag"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "favourite": {
+            "type": "boolean",
+            "title": "Favourite",
+            "default": false
+          },
+          "outside": {
+            "type": "boolean",
+            "title": "Outside",
+            "default": false
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "words": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WordsPiece"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Words"
+          },
+          "away": {
+            "type": "boolean",
+            "title": "Away",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "format",
+          "state",
+          "raw",
+          "width",
+          "height",
+          "size",
+          "takenAt",
+          "version"
+        ],
+        "title": "SearchHit",
+        "description": "A picture a search found."
+      },
+      "SearchProblem": {
+        "properties": {
+          "reader": {
+            "type": "string",
+            "enum": [
+              "pictures",
+              "words"
+            ],
+            "title": "Reader"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reader",
+          "said"
+        ],
+        "title": "SearchProblem",
+        "description": "A reader that couldn't run: reading waits on it till Go on (`/search/resume`) or the next\nscan, the other reader reading on."
+      },
+      "SearchResults": {
+        "properties": {
+          "search": {
+            "type": "string",
+            "title": "Search"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/SearchGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "english": {
+            "type": "boolean",
+            "title": "English"
+          },
+          "unreadable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unreadable"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SearchState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "search",
+          "groups",
+          "total",
+          "english",
+          "unreadable",
+          "state"
+        ],
+        "title": "SearchResults"
+      },
+      "SearchState": {
+        "properties": {
+          "read": {
+            "type": "integer",
+            "title": "Read"
+          },
+          "of": {
+            "type": "integer",
+            "title": "Of"
+          },
+          "reading": {
+            "type": "boolean",
+            "title": "Reading"
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchProblem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "describer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Tool"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "words": {
+            "$ref": "#/components/schemas/WordsReader"
+          }
+        },
+        "type": "object",
+        "required": [
+          "read",
+          "of",
+          "reading",
+          "paused",
+          "busy",
+          "failed",
+          "problem",
+          "describer",
+          "words"
+        ],
+        "title": "SearchState",
+        "description": "How far reading the library for search has got, and what it waits for."
+      },
       "SeenScreen": {
         "properties": {
           "width": {
@@ -10607,6 +11184,16 @@
             "type": "boolean",
             "title": "Bigbatchesatnight",
             "default": false
+          },
+          "wordsReader": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "fast",
+              "best"
+            ],
+            "title": "Wordsreader",
+            "default": "auto"
           }
         },
         "type": "object",
@@ -10790,7 +11377,7 @@
           "kind": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Kind-Output"
+                "$ref": "#/components/schemas/mado__core__kind__Kind"
               },
               {
                 "type": "null"
@@ -11685,6 +12272,70 @@
         "title": "Words",
         "description": "A step, or a batch's save, as the steps and a recipe's line say it."
       },
+      "WordsPiece": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "marked": {
+            "type": "boolean",
+            "title": "Marked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "marked"
+        ],
+        "title": "WordsPiece",
+        "description": "A stretch of a picture's words, marked when it's a word the search matched."
+      },
+      "WordsReader": {
+        "properties": {
+          "chosen": {
+            "$ref": "#/components/schemas/Choice"
+          },
+          "reader": {
+            "$ref": "#/components/schemas/Reader"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Tool"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Place"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chosen",
+          "reader",
+          "model",
+          "languages",
+          "place"
+        ],
+        "title": "WordsReader",
+        "description": "The reader of the words in pictures: the owner's choice, the one in use, its model (Best)\nor Windows' languages (Fast), and where Best reads."
+      },
       "YourLook": {
         "properties": {
           "id": {
@@ -11824,6 +12475,15 @@
           "all",
           "duplicates",
           "bursts"
+        ]
+      },
+      "mado__api__search__Kind": {
+        "type": "string",
+        "enum": [
+          "words",
+          "described",
+          "name",
+          "like"
         ]
       },
       "mado__core__kind__Kind": {

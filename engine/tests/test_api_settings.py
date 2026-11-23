@@ -12,6 +12,7 @@ DEFAULTS = {
     "newFolder": None,
     "keepLocation": False,
     "bigBatchesAtNight": False,
+    "wordsReader": "auto",  # search's reader of words: as this PC suits
 }
 
 
@@ -28,6 +29,7 @@ def test_choices_are_kept(client: TestClient, conn: sqlite3.Connection):
         "saveFirst": "replace",
         "newPictures": "folder",
         "newFolder": "D:\\Pictures\\Edited",
+        "wordsReader": "fast",
     }
     saved = client.put("/settings", json=chosen)
 

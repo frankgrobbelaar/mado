@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type Backup, type DataSizes, EngineProvider, type Health } from "@/lib/engine";
 import type { ReadyUpdate } from "@/lib/updates";
-import { fakeEngine, PC, READY, SETTINGS } from "@/test/engine";
+import { fakeEngine, PC, READY, SETTINGS, searchModel, searchState } from "@/test/engine";
 import { SettingsPage } from "./settings-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -28,6 +28,7 @@ const DATA: DataSizes = {
   tools: 180_000_000,
   pasted: 0,
   wallpapers: 0,
+  search: 0,
 };
 
 /** A local time `daysAgo` days back, as the engine writes a backup's: "2026-11-22T03:00". */
@@ -470,6 +471,66 @@ describe("Settings: saving, this PC, downloads and what's set aside", () => {
     fireEvent.click(within(saving).getByRole("switch", { name: "Keep where a picture was taken" }));
     await waitFor(() => expect(saved.keepLocation).toBe(true));
     expect(fetch).toHaveBeenCalled();
+  });
+
+  it("says how far the library has been read for search, pauses it, and keeps the words reader", async () => {
+    let saved = { ...SETTINGS };
+    const reading = searchState({ read: 2340, of: 18200, reading: true });
+    const fetch = fakeEngine({
+      "/health": HEALTH,
+      "/settings": () => saved,
+      "PUT /settings": (init?: RequestInit) => {
+        saved = JSON.parse(String(init?.body));
+        return saved;
+      },
+      "/search/state": reading,
+      "POST /search/pause": { ...reading, paused: true },
+    });
+    renderSettings("general");
+
+    const panel = await screen.findByRole("region", { name: "Search" });
+    expect(await within(panel).findByText(/so far: search covers those/)).toHaveTextContent(
+      "Read 2,340 of 18,200 so far: search covers those.",
+    );
+    expect(within(panel).getByText(/As this PC suits, that's Best/)).toBeVisible();
+    expect(within(panel).getByText(/here English/)).toBeVisible();
+    fireEvent.click(within(panel).getByRole("button", { name: "Pause" }));
+    await waitFor(() =>
+      expect(fetch.mock.calls.some(([input]) => String(input).endsWith("/search/pause"))).toBe(
+        true,
+      ),
+    );
+    await waitFor(() =>
+      expect(fetch.mock.calls.some(([input]) => String(input).endsWith("/settings"))).toBe(true),
+    );
+    await new Promise((settle) => setTimeout(settle, 0));
+    fireEvent.click(within(panel).getByRole("radio", { name: "Fast" }));
+    await waitFor(() => expect(saved.wordsReader).toBe("fast"));
+  });
+
+  it("says search's reader of pictures comes the first time the library is searched", async () => {
+    fakeEngine({
+      "/health": HEALTH,
+      "/settings": SETTINGS,
+      "/search/state": searchState({
+        describer: searchModel("siglip-base-patch16-224", { state: "missing", done: 0 }),
+        read: 0,
+      }),
+    });
+    renderSettings("general");
+
+    const panel = await screen.findByRole("region", { name: "Search" });
+    expect(
+      await within(panel).findByText(/comes the first time you search your library/),
+    ).toBeVisible();
+  });
+
+  it("shows search's vectors as a part of the data folder once there are some", async () => {
+    fakeEngine({ "/health": HEALTH, "/data": { ...DATA, search: 31_000_000 } });
+    renderSettings("data");
+
+    expect(await screen.findByText("Search")).toBeVisible();
+    expect(screen.getByText("read again when it's lost")).toBeVisible();
   });
 
   it("says what this PC can do, which way each kind starts, and tests it again", async () => {

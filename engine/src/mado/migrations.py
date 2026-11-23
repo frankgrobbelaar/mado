@@ -377,4 +377,29 @@ MIGRATIONS: Final[tuple[str, ...]] = (
         at        TEXT NOT NULL
     ) STRICT;
     """,
+    # 10. Search: the words an OCR reader read in each library picture, by its file as it was
+    # read (a picture that shows none has its row and no words), kept for searching through
+    # SQLite's FTS5: `text` as read, `terms` folded with each Chinese and Japanese letter apart
+    # (mado/core/search.py's index_terms), which is what's matched. What SigLIP read each
+    # picture into, 768 numbers, is kept beside the database in search.db: it can always be read
+    # again, and would make every backup and export a third of a gigabyte bigger at 100,000
+    # pictures.
+    """
+    CREATE TABLE words_read (
+        picture_id INTEGER PRIMARY KEY REFERENCES pictures (id) ON DELETE CASCADE,
+        size       INTEGER NOT NULL,  -- its file as it was read
+        modified   INTEGER NOT NULL,
+        reader     TEXT NOT NULL CHECK (reader IN ('fast', 'best')),  -- Windows' own, or PP-OCRv6
+        language   TEXT,              -- Fast: the Windows language it read with ("en-GB")
+        lines      INTEGER NOT NULL,  -- lines of words found: 0 when it shows none
+        at         TEXT NOT NULL
+    ) STRICT;
+    CREATE VIRTUAL TABLE words USING fts5 (
+        text UNINDEXED, terms, tokenize = 'unicode61 remove_diacritics 2'
+    );
+    -- A picture's words go with it, however its row goes (its folder taken out, say).
+    CREATE TRIGGER words_go AFTER DELETE ON words_read BEGIN
+        DELETE FROM words WHERE rowid = old.picture_id;
+    END;
+    """,
 )

@@ -45,12 +45,16 @@ from mado.api import (
 )
 from mado.api import batches as batches_api
 from mado.api import recipes as recipes_api
+from mado.api import search as search_api
 from mado.api import wallpaper as wallpaper_api
 from mado.backups import restore_asked
 from mado.batches import Picture
 from mado.care import Care
 from mado.config import DataPaths
+from mado.core.hardware import Place
 from mado.core.models import BEST_PHOTO
+from mado.core.search import Reader as SearchReader
+from mado.core.search import reader_for
 from mado.desktop import Desktop, NoDesktop
 from mado.directml import Sessions
 from mado.duplicates import Finder
@@ -60,6 +64,7 @@ from mado.hardware import Here
 from mado.jobs import Jobs
 from mado.libraw import Reader
 from mado.making import Maker, Sight
+from mado.ocr import PPOCR, Best, Fast
 from mado.pc_check import Check, PcCheck, check_in_own_process
 from mado.pictures import Command
 from mado.previews import Previews
@@ -67,6 +72,8 @@ from mado.quarantine import Quarantine
 from mado.rescue import Damage, damage
 from mado.samples import Samples
 from mado.scan import RAW_NOTES, Scanner, stopped_on
+from mado.search import BestWords, Describer, FastWords, Search, chosen
+from mado.siglip import SIGLIP, Siglip
 from mado.system import own_command
 from mado.tools import Tools
 from mado.wallpaper import Studio
@@ -131,6 +138,9 @@ def create_app(
     check: Check | None = None,
     desktop: Desktop | None = None,
     reader: Reader | None = None,
+    describer: Describer | None = None,
+    words: FastWords | None = None,
+    best_words: BestWords | None = None,
 ) -> FastAPI:
     """The API, with its parts. Tests pass their own tools, ffmpeg, quarantine (one of their own
     rather than the drive's), where the AI models run (the processor), PC check, desktop (a
@@ -138,7 +148,9 @@ def create_app(
     wallpaper) and RAW reader (LibRaw where they read camera RAW, else one that never fetches).
     `work` looks after Mado in the background while the engine runs (mado/care.py, the daily
     wallpaper) and checks this PC, and `watch` keeps the library current (mado/watch.py): `mado
-    serve` turns both on, and passes `notify`, which tells the app what's worth a notification."""
+    serve` turns both on, and passes `notify`, which tells the app what's worth a notification.
+    Tests pass their own SigLIP (`describer`) and readers of words (`words`, Windows' own;
+    `best_words`, PP-OCRv6), so the library is read for search only where they ask it to be."""
     expected = token.encode()
 
     def require_token(
@@ -184,6 +196,8 @@ def create_app(
         care: Care = running.state.care
         finder: Finder = running.state.finder
         finder.start()  # groups what was looked at before, then looks at what's new
+        searching: Search = running.state.search
+        searching.start()  # reads what's new for search, once its models are here
         making_: Jobs = running.state.jobs
         studio: Studio = running.state.wallpaper
         with closing(db.connect(paths.database)) as conn:
@@ -210,6 +224,7 @@ def create_app(
             watcher.stop()
         scanner.stop()  # after the picture it's on
         finder.stop()
+        searching.stop()  # after the picture it's on
         reader_.forget_notes()  # what it was reading didn't stop it
 
     app = FastAPI(
@@ -248,6 +263,9 @@ def create_app(
     def arrived(tool: str) -> None:
         if tool == LIBRAW:  # the RAWs listed while they waited for it are read now
             app.state.scanner.request()
+        # Search reads with a model as soon as it's here; a picture it couldn't read before
+        # (a HEIC before ffmpeg, a RAW before its reader) is tried again.
+        app.state.search.wake(again=tool not in (SIGLIP, PPOCR))
 
     app.state.tools.arrived = arrived
     # The copies the window shows, made with Mado's ffmpeg for HEIC (tests pass their own).
@@ -271,6 +289,7 @@ def create_app(
         except sqlite3.Error:
             log.exception("Mado couldn't look for favourites that moved")
         app.state.finder.wake()
+        app.state.search.wake(again=True)  # what couldn't be read is tried once more
 
     app.state.scanner = Scanner(paths, app.state.previews, ended=scan_ended)
     app.state.watcher = None  # set while it watches
@@ -334,6 +353,28 @@ def create_app(
     def take(conn: sqlite3.Connection, folder: Watch, found: list[Picture]) -> None:
         watching.queue_up(conn, app.state.jobs, app.state.ai, folder, found, _now())
 
+    # Search: the library read in the background for what each picture shows (SigLIP) and the
+    # words in it (Best, PP-OCRv6, on the card when it has room; Fast, Windows' own reader).
+    def best_place() -> Place:
+        return app.state.ai.edit_place(PPOCR, real_best.detector())
+
+    real_best = Best(app.state.sessions, app.state.tools, best_place)
+
+    def words_reader(conn: sqlite3.Connection) -> SearchReader:
+        place = app.state.ai.where().place
+        return reader_for(chosen(conn), place, app.state.search.fast.ready())
+
+    app.state.search = Search(
+        paths,
+        app.state.previews,
+        describer or Siglip(app.state.sessions, app.state.tools),
+        best_words or real_best,
+        words or Fast(),
+        ffmpeg=decoder,
+        reader=words_reader,
+        busy=app.state.jobs.busy,
+        now=_now,
+    )
     app.state.pc = PcCheck(
         paths,
         check or check_in_own_process(own_command()),
@@ -370,6 +411,7 @@ def create_app(
         queue,
         recipes_api,
         duplicates,
+        search_api,
         wallpaper_api,
         history,
         pc,

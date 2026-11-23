@@ -8,6 +8,16 @@ from mado import db
 from mado.migrations import MIGRATIONS
 
 
+def test_a_file_that_isnt_a_database_is_refused_and_let_go(tmp_path: Path):
+    path = tmp_path / "damaged.db"
+    path.write_bytes(b"not a database at all, just bytes" * 64)
+
+    with pytest.raises(sqlite3.DatabaseError):
+        db.connect(path)
+
+    path.unlink()  # Windows lets go of a file only once nothing has it open
+
+
 def test_migrate_brings_a_new_database_to_the_latest_version(tmp_path: Path):
     with closing(db.connect(tmp_path / "mado.db")) as conn:
         assert db.migrate(conn) == len(MIGRATIONS)

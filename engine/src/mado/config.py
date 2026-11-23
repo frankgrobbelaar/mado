@@ -17,6 +17,12 @@ class DataPaths:
         return self.root / "mado.db"
 
     @property
+    def search(self) -> Path:
+        """What SigLIP read each picture into, for search: beside the database, never in a
+        backup or the export, read again when it's lost (see mado/search.py)."""
+        return self.root / "search.db"
+
+    @property
     def backups(self) -> Path:
         """Copies of the database, one a night (see mado/backups.py)."""
         return self.root / "backups"
