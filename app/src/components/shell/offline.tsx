@@ -6,11 +6,7 @@ import { useSyncExternalStore } from "react";
  * the rest of Mado works as ever.
  */
 export function Offline() {
-  const online = useSyncExternalStore(
-    changes,
-    () => navigator.onLine,
-    () => true,
-  );
+  const online = useOnline();
   if (online) return null;
   return (
     <div
@@ -23,6 +19,15 @@ export function Offline() {
         else keeps working.
       </span>
     </div>
+  );
+}
+
+/** Whether Windows says the PC has a network. */
+export function useOnline(): boolean {
+  return useSyncExternalStore(
+    changes,
+    () => navigator.onLine,
+    () => true,
   );
 }
 

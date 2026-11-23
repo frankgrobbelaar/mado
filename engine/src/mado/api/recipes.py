@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import Field
 
 from mado import recipes, watching
-from mado.api.batches import BatchSaving, Step, Words, steps_of, words_of
+from mado.api.batches import BatchSaving, Step, Words, saves_see_through, steps_of, words_of
 from mado.api.common import ApiModel, Database
 from mado.batches import BatchError, recipe_from_steps
 from mado.recipes import RecipeError
@@ -163,6 +163,7 @@ def _checked(
     conn: sqlite3.Connection, body: NewRecipe
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
     steps = steps_of(body.steps)
+    saves_see_through(steps, body.saving.model_dump(by_alias=True))
     try:
         recipe_from_steps(conn, steps)
     except BatchError as error:

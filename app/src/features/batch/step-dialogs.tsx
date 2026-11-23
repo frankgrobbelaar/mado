@@ -11,11 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { BehindIt } from "@/features/picture/edit-tab";
 import { LookGrid, Touches } from "@/features/picture/looks-tab";
 import { Chip, OtherSize, SizeButton } from "@/features/picture/size-tab";
 import { pickFolder } from "@/lib/dialogs";
 import {
   type BatchSaving,
+  type CutoutStepItem,
   type LookStepItem,
   type Quality,
   type SaveFormat,
@@ -24,7 +26,7 @@ import {
   useSizes,
 } from "@/lib/engine";
 import { cn } from "@/lib/utils";
-import { lookStep, sizeStep } from "./steps";
+import { cutoutStep, lookStep, SEE_THROUGH, sizeStep } from "./steps";
 
 const SHAPES = [
   { value: "crop", label: "Crop around the subject" },
@@ -271,10 +273,61 @@ export function LookDialog(props: {
  * into a folder by name beside each, or into one folder) or in the originals' places; the
  * format and quality; and what's kept of each original.
  */
+/**
+ * Cut out the subject, as the Edit tab's Cut out does it: each picture's subject found without a
+ * click, at Fast (its model ships with Mado), Best, or as this PC suits; with nothing, a colour or
+ * the rest of the picture blurred behind it.
+ */
+export function CutoutDialog(props: {
+  step: CutoutStepItem;
+  onStep: (step: CutoutStepItem) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const { step, onStep } = props;
+  return (
+    <StepCard
+      title="Cut out the subject"
+      description="Mado finds what each picture is of and cuts it out, no click needed."
+      onClose={props.onClose}
+      onRemove={props.onRemove}
+    >
+      <Segmented
+        label="How it's cut out"
+        value={step.quality ?? "suits"}
+        options={MODELS}
+        onChange={(chosen) =>
+          onStep(cutoutStep({ ...step, quality: chosen === "suits" ? null : chosen }))
+        }
+        className="flex [&>button]:flex-1"
+      />
+      <BehindIt
+        backing={{ behind: step.behind, colour: step.colour ?? "#ffffff" }}
+        onBacking={(backing) =>
+          onStep(
+            cutoutStep({
+              ...step,
+              behind: backing.behind,
+              colour: backing.behind === "colour" ? backing.colour : null,
+            }),
+          )
+        }
+      />
+      {step.behind === "nothing" && (
+        <p className="text-13 text-fg-muted leading-normal">
+          With nothing behind it, each is saved as PNG or WebP, which keep see-through parts.
+        </p>
+      )}
+    </StepCard>
+  );
+}
+
 export function SavingDialog(props: {
   saving: BatchSaving;
   onSaving: (saving: BatchSaving) => void;
   onClose: () => void;
+  /** A cut-out with nothing behind it: only PNG and WebP keep it. */
+  clear?: boolean;
 }) {
   const { saving, onSaving } = props;
   const change = (part: Partial<BatchSaving>) => onSaving({ ...saving, ...part });
@@ -365,7 +418,10 @@ export function SavingDialog(props: {
           <Segmented
             label="Format"
             value={saving.format}
-            options={WRITES.map((each) => ({ value: each, label: each }))}
+            options={(props.clear ? SEE_THROUGH : WRITES).map((each) => ({
+              value: each,
+              label: each,
+            }))}
             onChange={(format) =>
               change({
                 format,

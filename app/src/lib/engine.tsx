@@ -585,49 +585,65 @@ export function pictureAddress(
 /**
  * A picture the engine serves, as an address the page can show (an object URL), or why it
  * can't: fetched with this launch's token, since the engine answers nothing without it. A null
- * `path` lets it go (a thumbnail scrolled far away), so only what's near is kept.
+ * `path` lets it go (a thumbnail scrolled far away), so only what's near is kept. With a `body`,
+ * it's asked for by POST with that JSON (a look's small copy of the picture as its edits leave
+ * it).
  */
-export function usePictureImage(path: string | null): {
+export function usePictureImage(
+  path: string | null,
+  body?: unknown,
+): {
   address: string | null;
   problem: string | null;
 } {
   const engine = useEngine();
+  const sent = body === undefined ? null : JSON.stringify(body);
+  const asked = path === null ? null : sent === null ? path : `${path} ${sent}`;
   const [shown, setShown] = useState<{
-    path: string;
+    asked: string;
     address: string | null;
     problem: string | null;
   } | null>(null);
   useEffect(() => {
-    if (path === null || engine.state !== "ready") return;
+    if (path === null || asked === null || engine.state !== "ready") return;
     let address: string | null = null;
     let cancelled = false;
     // A picture no longer wanted (scrolled past, or the next one opened) lets its request go,
     // so the window's few connections to the engine go to what's in view.
     const stop = new AbortController();
     const headers = { Authorization: `Bearer ${engine.token}` };
-    fetch(new URL(path, engine.url), { headers, signal: stop.signal })
+    const init: RequestInit =
+      sent === null
+        ? { headers, signal: stop.signal }
+        : {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: sent,
+            signal: stop.signal,
+          };
+    fetch(new URL(path, engine.url), init)
       .then(async (response) => {
         if (cancelled) return;
         if (!response.ok) {
           const problem = (await problemIn(response)) ?? "Mado couldn't show this picture.";
-          if (!cancelled) setShown({ path, address: null, problem });
+          if (!cancelled) setShown({ asked, address: null, problem });
           return;
         }
         const blob = await response.blob();
         if (cancelled) return;
         address = URL.createObjectURL(blob);
-        setShown({ path, address, problem: null });
+        setShown({ asked, address, problem: null });
       })
       .catch(() => {
-        if (!cancelled) setShown({ path, address: null, problem: "Mado's engine didn't answer." });
+        if (!cancelled) setShown({ asked, address: null, problem: "Mado's engine didn't answer." });
       });
     return () => {
       cancelled = true;
       stop.abort();
       if (address) URL.revokeObjectURL(address);
     };
-  }, [engine, path]);
-  if (shown === null || shown.path !== path) return { address: null, problem: null };
+  }, [engine, path, sent, asked]);
+  if (shown === null || shown.asked !== asked) return { address: null, problem: null };
   return { address: shown.address, problem: shown.problem };
 }
 
@@ -688,13 +704,121 @@ export interface LookStep {
   /** 0 to 1. */
   strength: number;
   touches: Touches;
+  /** Only on these parts ("Only on a part"), picked as Select picks them; none or missing: the
+   * whole picture. */
+  parts?: Part[];
 }
 
-/** One picture, one recipe: what the Size and Looks tabs set together, made by one Save. */
+// Editing by clicking: the parts picked, the brush's strokes, and the edits made with them.
+
+/** A click on the picture, as fractions of it: one that picks, or, with Alt, one that takes
+ * away. */
+export interface Click {
+  x: number;
+  y: number;
+  keep: boolean;
+}
+
+/** A part: the clicks that picked it, and which of SAM's three answers (smallest first) is
+ * shown; null: as Mado picks. */
+export interface Part {
+  clicks: Click[];
+  choice: number | null;
+}
+
+/** A stroke of the brush: its points as fractions of the picture, its width as a fraction of the
+ * picture's shorter side, and whether it takes away (Alt). */
+export interface Stroke {
+  points: [number, number][];
+  size: number;
+  take: boolean;
+}
+
+/** What's behind a cut-out: nothing (see-through), a colour, or the rest of the picture
+ * blurred. */
+export type Behind = "nothing" | "colour" | "blurred";
+
+export interface EraseEdit {
+  kind: "erase";
+  parts: Part[];
+  strokes: Stroke[];
+  quality: Quality;
+}
+
+export interface CutOutEdit {
+  kind: "cutout";
+  parts: Part[];
+  behind: Behind;
+  /** "#rrggbb", for a colour behind it. */
+  colour: string | null;
+}
+
+export interface BlurEdit {
+  kind: "blur";
+  parts: Part[];
+}
+
+export interface SubjectEdit {
+  kind: "subject";
+  /** null: as this PC suits. */
+  quality: Quality | null;
+  behind: Behind;
+  colour: string | null;
+}
+
+/** An edit, made on the picture as the edits before it left it. */
+export type Edit = EraseEdit | CutOutEdit | BlurEdit | SubjectEdit;
+
+/** The edits, in order, made on the picture as it was at `version`. */
+export interface EditStep {
+  version: string;
+  edits: Edit[];
+}
+
+/** One picture, one recipe: what the Edit, Size and Looks tabs set together, made by one Save. */
 export interface Recipe {
+  edit?: EditStep | null;
   size: SizeStep | null;
   look: LookStep | null;
 }
+
+/** A part as picked: plain names, never a guess at what it is. */
+export interface PickedPart extends Part {
+  /** "Part 1" */
+  name: string;
+  choice: number;
+  /** How many answers there are to step through. */
+  choices: number;
+}
+
+/** The parts picked, and the outline round them. */
+export interface Selection {
+  parts: PickedPart[];
+  /** An SVG path in a frame 1000 across and 1000 down, stretched over the picture. */
+  outline: string;
+  /** Seconds reading the picture took, when this pick read it. */
+  read: number | null;
+  place: "card" | "processor";
+  seconds: number;
+  /** Seconds it waited for the graphics card, while the queue's picture had it. */
+  waited: number;
+  /** An Alt-click outside every part. */
+  missed: boolean;
+}
+
+/** What an edit came to. */
+export interface Edited {
+  seconds: number;
+  place: "card" | "processor" | null;
+  waited: number;
+  /** An erase much smoother than what's round it: Best may do better. */
+  smeared: boolean;
+}
+
+/** Picks parts: `select.mutate({ path: "/pictures/7/select", body })`. */
+export const useSelect = () => useEngineAction<Selection>([]);
+/** Makes edits for the previews: `edit.mutate({ path: "/pictures/7/edit", body })`. */
+export const useEdit = () => useEngineAction<Edited>([]);
 
 /** A part of the picture as fractions of its width and height. */
 export interface Fraction {
@@ -739,6 +863,8 @@ export interface Plan {
   cleanMatters: boolean;
   /** The look, as Save says it after "with": "Warm film at 60%"; null with no look. */
   look: string | null;
+  /** The edits, as Save and History say them: "erased a part"; null with none. */
+  edit: string | null;
   seconds: number;
   place: "card" | "processor";
   /** The time is this PC's own, not a guess. */
@@ -750,6 +876,8 @@ export interface Plan {
   bytes: number;
   /** It has see-through parts, which JPEG makes white. */
   seeThrough: boolean;
+  /** A cut-out with nothing behind it: only PNG and WebP keep it. */
+  nothingBehind: boolean;
   needs: Need[];
 }
 
@@ -1000,9 +1128,11 @@ export interface Job {
   madeFor: string | null;
   /** What it's made with: "Warm film at 60%"; null with no look. */
   look: string | null;
+  /** What's edited first: "erased a part"; null with no edits. */
+  edit: string | null;
   how: "new" | "replace";
   state: JobState;
-  stage: "reading" | "shaping" | "making" | "looking" | "saving" | null;
+  stage: "reading" | "editing" | "shaping" | "making" | "looking" | "saving" | null;
   /** 0 to 1. */
   progress: number;
   secondsLeft: number | null;
@@ -1059,6 +1189,8 @@ export interface HistoryEntry {
   madeFor: string | null;
   /** What it was made with: "Warm film at 60%". */
   look: string | null;
+  /** What was edited first: "erased a part". */
+  edit: string | null;
   original: string | null;
   result: string | null;
   resultName: string | null;
@@ -1181,7 +1313,21 @@ export interface Pc {
     seconds: number;
     download: boolean;
   }[];
+  /** Where each editing model runs now. */
+  editing: EditingPlaces;
 }
+
+/** Where each editing model runs now: on the card when it has room, else on the processor. */
+export interface EditingPlaces {
+  /** SAM reading a picture; each click after that is on the processor. */
+  select: Place;
+  eraseFast: Place;
+  eraseBest: Place;
+  cutFast: Place;
+  cutBest: Place;
+}
+
+export type Place = "card" | "processor";
 
 /** This PC, asked again every second while it's being tested. */
 export const usePc = () => useEngineQuery<Pc>("/pc", (pc) => (pc?.testing ? 1000 : false));
@@ -1201,8 +1347,17 @@ export interface LookStepItem extends LookStep {
   step: "look";
 }
 
+/** Cut out the subject, as a batch's step: found without a click in each picture. */
+export interface CutoutStepItem {
+  step: "cutout";
+  /** null: as this PC suits. */
+  quality: Quality | null;
+  behind: Behind;
+  colour: string | null;
+}
+
 /** A batch's step. Later pieces add kinds of their own. */
-export type BatchStep = SizeStepItem | LookStepItem;
+export type BatchStep = CutoutStepItem | SizeStepItem | LookStepItem;
 
 /** How a batch saves: new pictures (beside the originals, into a folder by name beside each,
  * or into a folder of their own), or in the originals' places, each original to quarantine. */
@@ -1447,6 +1602,8 @@ export interface BatchLine {
   how: "new" | "replace";
   madeFor: string | null;
   look: string | null;
+  /** "cut out the subject" */
+  edit: string | null;
   purpose: string | null;
   into: string;
   made: number;
@@ -1467,6 +1624,7 @@ export interface MadeToday {
   name: string;
   madeFor: string | null;
   look: string | null;
+  edit: string | null;
 }
 
 // "/batches/done", not "/batches": that would ask again for the pictures a batch is made of.

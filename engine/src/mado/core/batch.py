@@ -3,8 +3,8 @@ from 23:00 till 07:00), the pictures See it first makes, what the rest takes by 
 whether a drive has room, a batch's steps and the words for them. Pure.
 
 A batch's steps are a list, each its kind of step and its choices (`{"step": "size", ...}`), so
-later pieces add kinds of their own ("Cut out the subject"). They're made in Mado's order, the
-size and then the look, whatever order they're listed in, and saved as the batch says.
+later pieces add kinds of their own. They're made in Mado's order, the subject cut out, the size
+and then the look, whatever order they're listed in, and saved as the batch says.
 """
 
 from collections.abc import Sequence
@@ -19,7 +19,7 @@ type Step = dict[str, object]
 
 NIGHT = (time(23, 0), time(7, 0))  # when a batch for tonight runs
 MARGIN = 256 * 1024 * 1024  # bytes kept free on a drive, so Windows and other apps have room
-ORDER = ("size", "look")  # the kinds of step Mado makes, in the order it makes them
+ORDER = ("cutout", "size", "look")  # the kinds of step Mado makes, in the order it makes them
 _GOLDEN = 0.6180339887498949  # spreads See it first's pictures across a batch, round after round
 _SAMPLES = 3
 _HELD = (1 / 3, 3.0)  # how far See it first can move the rest's time
@@ -100,8 +100,9 @@ def steps_in_order(steps: Sequence[Step]) -> list[Step]:
 
 
 def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
-    """Steps as a job keeps its recipe: its size step and its look step, either of them None.
-    Raises StepError for none, two of a kind, or a kind this Mado doesn't know."""
+    """Steps as a job keeps its recipe: its edits (the subject cut out), its size step and its
+    look step, any of them None. Raises StepError for none, two of a kind, or a kind this Mado
+    doesn't know."""
     found: dict[str, dict[str, object]] = {}
     for step in steps:
         kind = str(step.get("step"))
@@ -111,11 +112,43 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
                 "or take that step out."
             )
         if kind in found:
-            raise StepError(f"A batch makes one {kind} at a time: take one of them out.")
+            raise StepError(f"A batch makes one {_SAID.get(kind, kind)} at a time: take one out.")
         found[kind] = {key: value for key, value in step.items() if key != "step"}
     if not found:
-        raise StepError("Pick what to do first: make them for a screen, or give them a look.")
-    return {"size": found.get("size"), "look": found.get("look")}
+        raise StepError(
+            "Pick what to do first: cut out the subject, make them for a screen, or give them a "
+            "look."
+        )
+    cut = found.get("cutout")
+    edit = (
+        {
+            "version": None,
+            "edits": [
+                {
+                    "kind": "subject",
+                    "quality": cut.get("quality"),
+                    "behind": cut.get("behind", "nothing"),
+                    "colour": cut.get("colour"),
+                }
+            ],
+        }
+        if cut is not None
+        else None
+    )
+    return {"edit": edit, "size": found.get("size"), "look": found.get("look")}
+
+
+_SAID = {"cutout": "cut-out", "size": "size", "look": "look"}
+
+
+def cutout_detail(quality: str | None, behind: str) -> str:
+    """Cutting out the subject as a batch's steps say it: "Fast, with nothing behind it"."""
+    model = {"fast": "Fast", "best": "Best"}.get(quality or "", "As this PC suits")
+    on = {
+        "colour": "on a colour",
+        "blurred": "on the rest of the picture blurred",
+    }.get(behind, "with nothing behind it")
+    return f"{model}, {on}"
 
 
 def size_chip(size: Size) -> str:
@@ -181,10 +214,16 @@ def ready_words(source: str, purpose: Purpose | None, look: str | None) -> str:
 
 
 def told(
-    name: str, *, made: int, failed: int, made_for: str | None, look: str | None
+    name: str,
+    *,
+    made: int,
+    failed: int,
+    made_for: str | None,
+    look: str | None,
+    edit: str | None = None,
 ) -> tuple[str, str]:
     """A batch done, as its notification says it: "Holiday prints is done", "48 pictures made
-    for TV 8K · 1 didn't work"."""
+    for TV 8K · 1 didn't work", "12 pictures made: cut out the subject"."""
     if made == 0:
         whole = failed
         return (
@@ -195,7 +234,11 @@ def told(
     what = [f"for {made_for}"] if made_for else []
     if look:
         what.append(f"with {look}")
-    body = f"{made} {'picture' if made == 1 else 'pictures'} made {', '.join(what)}".rstrip()
+    body = f"{made} {'picture' if made == 1 else 'pictures'} made"
+    if edit:
+        body += f": {', '.join([edit, *what])}"
+    elif what:
+        body += f" {', '.join(what)}"
     if failed:
         body += f" · {failed} didn't work"
     return f"{name} is done", body

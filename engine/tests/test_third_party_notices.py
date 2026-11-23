@@ -152,10 +152,15 @@ def test_the_ai_models_mado_ships_are_listed_with_their_licences():
         "realesr-general-x4v3",
         "realesr-general-wdn-x4v3",
         "realesrgan-x4plus-anime-6b",
+        "u2netp",
     ]
     assert all(allowed(part.licence) for part in found)
-    assert all(part.texts and "Xintao Wang" in part.texts[0] for part in found)
+    assert all(part.texts and "Xintao Wang" in part.texts[0] for part in found[:3])
     assert "Apache License" in found[2].texts[1]  # BasicSR's network
+    cut_out = found[3]  # U²-Net's small model, converted to ONNX by rembg
+    assert cut_out.licence == "Apache-2.0 AND MIT"
+    assert "Apache License" in cut_out.texts[0]
+    assert "Daniel Gatis" in cut_out.texts[1]
 
 
 def test_onnx_runtime_is_shipped_with_microsofts_directml_inside_it():

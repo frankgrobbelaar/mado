@@ -181,3 +181,30 @@ def scene(
     noise = np.random.default_rng(seed * 31 + 7 if grain_seed is None else grain_seed)
     grained = np.asarray(canvas, np.float32) + noise.normal(0, grain, (height, width, 1))
     return Image.fromarray(np.clip(grained, 0, 255).astype(np.uint8))
+
+
+def sailboat(size: tuple[int, int] = (400, 300)) -> tuple[Image.Image, np.ndarray]:
+    """A made-up little sail, as the Edit board draws it: a sky fading to pale, a sun, a sea in
+    three bands, and a boat (two white sails over a brown hull); with the boat's own mask."""
+    width, height = size
+    kx, ky = width / 400, height / 300
+    rows = np.linspace(0, 1, height, dtype=np.float32)[:, None, None] / 0.62
+    sky = np.array([143, 193, 238], np.float32) * (1 - np.clip(rows, 0, 1)) + np.array(
+        [212, 234, 251], np.float32
+    ) * np.clip(rows, 0, 1)
+    image = Image.fromarray(np.broadcast_to(sky, (height, width, 3)).astype(np.uint8))
+    paint = ImageDraw.Draw(image)
+    paint.ellipse([(90 - 22) * kx, (70 - 22) * ky, (90 + 22) * kx, (70 + 22) * ky], (255, 246, 216))
+    for top, colour in ((168, (58, 125, 180)), (206, (47, 104, 152)), (250, (40, 91, 134))):
+        paint.rectangle([0, top * ky, width, height], fill=colour)
+    boat = Image.new("L", size, 0)
+    outline = ImageDraw.Draw(boat)
+    for points, colour in (
+        ([(262, 120), (262, 162), (232, 162)], (255, 255, 255)),
+        ([(266, 128), (266, 162), (288, 162)], (238, 238, 238)),
+        ([(228, 164), (296, 164), (288, 174), (238, 174)], (122, 75, 43)),
+    ):
+        scaled = [(x * kx, y * ky) for x, y in points]
+        paint.polygon(scaled, fill=colour)
+        outline.polygon(scaled, fill=255)
+    return image, np.asarray(boat) >= 128

@@ -1143,6 +1143,224 @@
         }
       }
     },
+    "/pictures/{picture_id}/select": {
+      "post": {
+        "summary": "Select",
+        "description": "Picks parts: the first click reads the picture (about a fifth of a second on the card),\nevery click after that is a few hundredths of a second, on the processor.",
+        "operationId": "select_pictures__picture_id__select_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Selection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/edit": {
+      "post": {
+        "summary": "Edit",
+        "description": "Makes the edits (the last one new), so the previews show them; nothing is saved.",
+        "operationId": "edit_pictures__picture_id__edit_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Edited"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/looks/{look_id}": {
+      "post": {
+        "summary": "Small Edited",
+        "description": "A small copy of the picture as its edits leave it, in a look: the Looks tab's, once the\nEdit tab has made edits (without any, it asks for the kept copy by GET).",
+        "operationId": "small_edited_pictures__picture_id__looks__look_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          },
+          {
+            "name": "look_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Look Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmallAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Small Copy",
+        "description": "A small copy of the picture in a look, made from its thumbnail: WebP, kept by the window\n(its address carries the picture's version and the look's).",
+        "operationId": "small_copy_pictures__picture_id__looks__look_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          },
+          {
+            "name": "look_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Look Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/looks": {
       "get": {
         "summary": "Looks",
@@ -1207,56 +1425,6 @@
             "HTTPBearer": []
           }
         ]
-      }
-    },
-    "/pictures/{picture_id}/looks/{look_id}": {
-      "get": {
-        "summary": "Small Copy",
-        "description": "A small copy of the picture in a look, made from its thumbnail: WebP, kept by the window\n(its address carries the picture's version and the look's).",
-        "operationId": "small_copy_pictures__picture_id__looks__look_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "picture_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Picture Id"
-            }
-          },
-          {
-            "name": "look_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Look Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "image/webp": {}
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/looks/import": {
@@ -4081,6 +4249,17 @@
             ],
             "title": "Look"
           },
+          "edit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit"
+          },
           "purpose": {
             "anyOf": [
               {
@@ -4169,6 +4348,7 @@
           "how",
           "madeFor",
           "look",
+          "edit",
           "purpose",
           "into",
           "made",
@@ -4534,6 +4714,39 @@
         ],
         "title": "BatchUndone"
       },
+      "Behind": {
+        "type": "string",
+        "enum": [
+          "nothing",
+          "colour",
+          "blurred"
+        ]
+      },
+      "BlurIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "blur",
+            "title": "Kind",
+            "default": "blur"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartIn"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parts"
+        ],
+        "title": "BlurIn",
+        "description": "Blur what's behind what's picked, as a big camera lens would."
+      },
       "CardOut": {
         "properties": {
           "name": {
@@ -4618,6 +4831,120 @@
           "cleared"
         ],
         "title": "Cleared"
+      },
+      "ClickIn": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y"
+          },
+          "keep": {
+            "type": "boolean",
+            "title": "Keep",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "ClickIn",
+        "description": "A click on the picture, as fractions of it: one that picks (`keep`) or, with Alt, one that\ntakes away."
+      },
+      "CutOutIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "cutout",
+            "title": "Kind",
+            "default": "cutout"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartIn"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Parts"
+          },
+          "behind": {
+            "$ref": "#/components/schemas/Behind",
+            "default": "nothing"
+          },
+          "colour": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colour"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parts"
+        ],
+        "title": "CutOutIn",
+        "description": "Cut out what's picked: on nothing, a colour, or the rest blurred."
+      },
+      "CutoutStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "const": "cutout",
+            "title": "Step",
+            "default": "cutout"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "behind": {
+            "type": "string",
+            "enum": [
+              "nothing",
+              "colour",
+              "blurred"
+            ],
+            "title": "Behind",
+            "default": "nothing"
+          },
+          "colour": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colour"
+          }
+        },
+        "type": "object",
+        "title": "CutoutStep",
+        "description": "Cut out the subject, found without a click: Fast, Best, or as this PC suits; with nothing,\na colour or the rest of the picture blurred behind it."
       },
       "Damage": {
         "properties": {
@@ -4879,6 +5206,170 @@
         ],
         "title": "DuplicatesOut"
       },
+      "EditAsk": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/EditIn"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Edits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "edits"
+        ],
+        "title": "EditAsk"
+      },
+      "EditIn": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EraseIn"
+          },
+          {
+            "$ref": "#/components/schemas/CutOutIn"
+          },
+          {
+            "$ref": "#/components/schemas/BlurIn"
+          },
+          {
+            "$ref": "#/components/schemas/SubjectIn"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "blur": "#/components/schemas/BlurIn",
+            "cutout": "#/components/schemas/CutOutIn",
+            "erase": "#/components/schemas/EraseIn",
+            "subject": "#/components/schemas/SubjectIn"
+          }
+        }
+      },
+      "EditStepIn": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/EditIn"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Edits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "edits"
+        ],
+        "title": "EditStepIn",
+        "description": "The edits, in order, made on the picture as it was at `version`."
+      },
+      "Edited": {
+        "properties": {
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "processor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          },
+          "waited": {
+            "type": "number",
+            "title": "Waited"
+          },
+          "smeared": {
+            "type": "boolean",
+            "title": "Smeared"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seconds",
+          "place",
+          "waited",
+          "smeared"
+        ],
+        "title": "Edited"
+      },
+      "EditingOut": {
+        "properties": {
+          "select": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Select"
+          },
+          "eraseFast": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Erasefast"
+          },
+          "eraseBest": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Erasebest"
+          },
+          "cutFast": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Cutfast"
+          },
+          "cutBest": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Cutbest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "select",
+          "eraseFast",
+          "eraseBest",
+          "cutFast",
+          "cutBest"
+        ],
+        "title": "EditingOut",
+        "description": "Where each editing model runs now: SAM reading a picture (each click after is on the\nprocessor), erasing at Fast and Best, cutting out at Fast and Best."
+      },
       "Emptied": {
         "properties": {
           "bytes": {
@@ -4950,6 +5441,17 @@
               }
             ],
             "title": "Look"
+          },
+          "edit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit"
           },
           "original": {
             "anyOf": [
@@ -5114,6 +5616,7 @@
           "name",
           "madeFor",
           "look",
+          "edit",
           "original",
           "result",
           "resultName",
@@ -5131,6 +5634,39 @@
           "review"
         ],
         "title": "EntryOut"
+      },
+      "EraseIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "erase",
+            "title": "Kind",
+            "default": "erase"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartIn"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Parts"
+          },
+          "strokes": {
+            "items": {
+              "$ref": "#/components/schemas/StrokeIn"
+            },
+            "type": "array",
+            "maxItems": 256,
+            "title": "Strokes"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality",
+            "default": "fast"
+          }
+        },
+        "type": "object",
+        "title": "EraseIn",
+        "description": "Erase what's picked or painted, filled from what's around it."
       },
       "ExportRequest": {
         "properties": {
@@ -5663,6 +6199,17 @@
             ],
             "title": "Look"
           },
+          "edit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit"
+          },
           "how": {
             "type": "string",
             "enum": [
@@ -5680,6 +6227,7 @@
                 "type": "string",
                 "enum": [
                   "reading",
+                  "editing",
                   "shaping",
                   "making",
                   "looking",
@@ -5795,6 +6343,7 @@
           "name",
           "madeFor",
           "look",
+          "edit",
           "how",
           "state",
           "stage",
@@ -6095,6 +6644,38 @@
         ],
         "title": "LibraryPart"
       },
+      "LookHereIn": {
+        "properties": {
+          "look": {
+            "type": "string",
+            "title": "Look"
+          },
+          "strength": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strength",
+            "default": 1.0
+          },
+          "touches": {
+            "$ref": "#/components/schemas/TouchesIn"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartIn"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "look"
+        ],
+        "title": "LookHereIn",
+        "description": "The look step on a picture's page: on the whole picture, or only on parts picked as Select\npicks them, on the picture as its edits left it."
+      },
       "LookIn": {
         "properties": {
           "look": {
@@ -6245,6 +6826,17 @@
               }
             ],
             "title": "Look"
+          },
+          "edit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit"
           }
         },
         "type": "object",
@@ -6252,7 +6844,8 @@
           "id",
           "name",
           "madeFor",
-          "look"
+          "look",
+          "edit"
         ],
         "title": "MadeToday"
       },
@@ -6394,6 +6987,69 @@
         ],
         "title": "NewRecipe"
       },
+      "PartIn": {
+        "properties": {
+          "clicks": {
+            "items": {
+              "$ref": "#/components/schemas/ClickIn"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Clicks"
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "clicks"
+        ],
+        "title": "PartIn",
+        "description": "A part: the clicks that picked it, and which of the three answers (smallest first) is\nshown; none, as Mado picks."
+      },
+      "PartOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "clicks": {
+            "items": {
+              "$ref": "#/components/schemas/ClickIn"
+            },
+            "type": "array",
+            "title": "Clicks"
+          },
+          "choice": {
+            "type": "integer",
+            "title": "Choice"
+          },
+          "choices": {
+            "type": "integer",
+            "title": "Choices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "clicks",
+          "choice",
+          "choices"
+        ],
+        "title": "PartOut"
+      },
       "Pc": {
         "properties": {
           "card": {
@@ -6507,6 +7163,9 @@
             },
             "type": "array",
             "title": "Abilities"
+          },
+          "editing": {
+            "$ref": "#/components/schemas/EditingOut"
           }
         },
         "type": "object",
@@ -6523,7 +7182,8 @@
           "timing",
           "measured",
           "startsOn",
-          "abilities"
+          "abilities",
+          "editing"
         ],
         "title": "Pc"
       },
@@ -7036,6 +7696,17 @@
             ],
             "title": "Look"
           },
+          "edit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit"
+          },
           "seconds": {
             "type": "number",
             "title": "Seconds"
@@ -7082,6 +7753,10 @@
             "type": "boolean",
             "title": "Seethrough"
           },
+          "nothingBehind": {
+            "type": "boolean",
+            "title": "Nothingbehind"
+          },
           "needs": {
             "items": {
               "$ref": "#/components/schemas/Need"
@@ -7111,6 +7786,7 @@
           "warning",
           "cleanMatters",
           "look",
+          "edit",
           "seconds",
           "place",
           "measured",
@@ -7120,6 +7796,7 @@
           "colour",
           "bytes",
           "seeThrough",
+          "nothingBehind",
           "needs"
         ],
         "title": "PlanOut"
@@ -7342,6 +8019,16 @@
       },
       "RecipeIn": {
         "properties": {
+          "edit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "size": {
             "anyOf": [
               {
@@ -7355,7 +8042,7 @@
           "look": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LookIn"
+                "$ref": "#/components/schemas/LookHereIn"
               },
               {
                 "type": "null"
@@ -7365,7 +8052,7 @@
         },
         "type": "object",
         "title": "RecipeIn",
-        "description": "A recipe: the size step, then the look step; either can be left out."
+        "description": "A recipe: the edits, the size step, then the look step; any can be left out."
       },
       "Region": {
         "properties": {
@@ -8242,6 +8929,103 @@
         ],
         "title": "SeenScreen"
       },
+      "SelectIn": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/EditIn"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Edits"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartIn"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Parts"
+          },
+          "click": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClickIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "SelectIn",
+        "description": "The parts picked so far, and a click: one starts a part, an Alt-click (`keep` false) takes\nfrom the part it's in. `edits` are the edits made so far: the parts are picked on the picture\nas they left it."
+      },
+      "Selection": {
+        "properties": {
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartOut"
+            },
+            "type": "array",
+            "title": "Parts"
+          },
+          "outline": {
+            "type": "string",
+            "title": "Outline"
+          },
+          "read": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Place"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "waited": {
+            "type": "number",
+            "title": "Waited"
+          },
+          "missed": {
+            "type": "boolean",
+            "title": "Missed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parts",
+          "outline",
+          "read",
+          "place",
+          "seconds",
+          "waited",
+          "missed"
+        ],
+        "title": "Selection"
+      },
       "Settings": {
         "properties": {
           "setUp": {
@@ -8538,6 +9322,18 @@
         ],
         "title": "Sizes"
       },
+      "SmallAsk": {
+        "properties": {
+          "edit": {
+            "$ref": "#/components/schemas/EditStepIn"
+          }
+        },
+        "type": "object",
+        "required": [
+          "edit"
+        ],
+        "title": "SmallAsk"
+      },
       "Stage": {
         "type": "string",
         "enum": [
@@ -8583,6 +9379,9 @@
       "Step": {
         "oneOf": [
           {
+            "$ref": "#/components/schemas/CutoutStep"
+          },
+          {
             "$ref": "#/components/schemas/SizeStep"
           },
           {
@@ -8592,10 +9391,86 @@
         "discriminator": {
           "propertyName": "step",
           "mapping": {
+            "cutout": "#/components/schemas/CutoutStep",
             "look": "#/components/schemas/LookStep",
             "size": "#/components/schemas/SizeStep"
           }
         }
+      },
+      "StrokeIn": {
+        "properties": {
+          "points": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 4096,
+            "minItems": 1,
+            "title": "Points"
+          },
+          "size": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Size"
+          },
+          "take": {
+            "type": "boolean",
+            "title": "Take",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "points",
+          "size"
+        ],
+        "title": "StrokeIn",
+        "description": "A stroke of the brush: its points as fractions of the picture, its width as a fraction of\nthe picture's shorter side, and whether it takes away (Alt)."
+      },
+      "SubjectIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "subject",
+            "title": "Kind",
+            "default": "subject"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "behind": {
+            "$ref": "#/components/schemas/Behind",
+            "default": "nothing"
+          },
+          "colour": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colour"
+          }
+        },
+        "type": "object",
+        "title": "SubjectIn",
+        "description": "Cut out the picture's subject, found without a click."
       },
       "Takes": {
         "properties": {

@@ -13,7 +13,8 @@ import json
 import sqlite3
 import subprocess
 import sys
-from collections.abc import Mapping
+import uuid
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Literal, cast
@@ -313,3 +314,88 @@ def _memory() -> int | None:
     if not kernel.GetPhysicallyInstalledSystemMemory(ctypes.byref(kilobytes)):
         return None
     return int(kilobytes.value) * 1024
+
+
+class _Guid(ctypes.Structure):
+    _fields_ = (
+        ("first", ctypes.c_uint32),
+        ("second", ctypes.c_uint16),
+        ("third", ctypes.c_uint16),
+        ("rest", ctypes.c_ubyte * 8),
+    )
+
+
+class _MemoryInfo(ctypes.Structure):
+    _fields_ = (
+        ("budget", ctypes.c_uint64),
+        ("usage", ctypes.c_uint64),
+        ("available", ctypes.c_uint64),
+        ("reserved", ctypes.c_uint64),
+    )
+
+
+def _guid(text: str) -> _Guid:
+    found = uuid.UUID(text)
+    made = _Guid()
+    made.first, made.second, made.third = found.fields[0], found.fields[1], found.fields[2]
+    for at, value in enumerate(found.bytes[8:]):
+        made.rest[at] = value
+    return made
+
+
+_FACTORY6 = "c1b6694f-ff09-44a9-b03c-77900a0a1d17"  # IDXGIFactory6
+_ADAPTER3 = "645967a4-1392-4310-a798-8053ce3e93fd"  # IDXGIAdapter3
+_HIGH_PERFORMANCE = 2  # DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, as DirectML is asked for
+
+
+def room() -> int | None:
+    """Bytes of the graphics card's own memory this process may still use: what Windows budgets
+    it (the card's memory less what other apps hold) less what its sessions hold already. Asked
+    of DirectX (DXGI), so it's the same for any maker's card, and of the high-performance card,
+    as DirectML is. None off Windows, or when DirectX doesn't say."""
+    if sys.platform != "win32":
+        return None
+    try:
+        return _asked_room()
+    except OSError, AttributeError, ValueError:
+        return None
+
+
+def _asked_room() -> int | None:
+    dxgi = ctypes.WinDLL("dxgi")
+    factory = ctypes.c_void_p()
+    if dxgi.CreateDXGIFactory1(ctypes.byref(_guid(_FACTORY6)), ctypes.byref(factory)) != 0:
+        return None
+    adapter = ctypes.c_void_p()
+    try:
+        # IDXGIFactory6::EnumAdapterByGpuPreference is the 30th of its methods.
+        found = _method(
+            factory,
+            29,
+            ctypes.c_uint,
+            ctypes.c_uint,
+            ctypes.POINTER(_Guid),
+            ctypes.POINTER(ctypes.c_void_p),
+        )(0, _HIGH_PERFORMANCE, ctypes.byref(_guid(_ADAPTER3)), ctypes.byref(adapter))
+        if found != 0 or not adapter.value:
+            return None
+        info = _MemoryInfo()
+        # IDXGIAdapter3::QueryVideoMemoryInfo, its own memory (the local segment group, 0).
+        asked = _method(adapter, 14, ctypes.c_uint, ctypes.c_uint, ctypes.POINTER(_MemoryInfo))(
+            0, 0, ctypes.byref(info)
+        )
+        if asked != 0:
+            return None
+        return max(int(info.budget) - int(info.usage), 0)
+    finally:
+        if adapter.value:
+            _method(adapter, 2)()  # Release
+        _method(factory, 2)()
+
+
+def _method(thing: ctypes.c_void_p, index: int, *kinds: type) -> Callable[..., int]:
+    """A COM object's method by its place in its table of methods."""
+    table = ctypes.cast(thing, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    shape = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, *kinds)
+    call = shape(table[index])
+    return lambda *args: int(call(thing, *args))

@@ -149,6 +149,32 @@ describe("BatchPage", () => {
     expect(screen.getByRole("button", { name: "Keep as a recipe…" })).toBeInTheDocument();
   });
 
+  it("cuts out each picture's subject as a step made first, saving as PNG to keep its nothing", async () => {
+    const fetch = fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "Cut out the subject" })).click();
+    const card = await screen.findByRole("dialog", { name: "Cut out the subject" });
+    fireEvent.click(within(card).getByRole("radio", { name: "Best" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+
+    await waitFor(() => {
+      const asked = sent(fetch, "POST", "/batches/takes").at(-1);
+      expect(asked?.steps).toEqual([
+        { step: "cutout", quality: "best", behind: "nothing", colour: null },
+      ]);
+      expect(asked?.saving.format).toBe("PNG");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change save" }));
+    const saving = await screen.findByRole("dialog", { name: "How they're saved" });
+    expect(within(saving).queryByRole("radio", { name: "JPEG" })).toBeNull();
+    expect(within(saving).getByRole("radio", { name: "WebP" })).toBeInTheDocument();
+  });
+
   it("asks once for the folder new pictures go into", async () => {
     fakeEngine(ENGINE);
     renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });

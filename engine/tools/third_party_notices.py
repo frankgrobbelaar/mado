@@ -270,6 +270,8 @@ def assets() -> list[Part]:
     licence; the ones Mado downloads come with theirs, beside them."""
     real_esrgan = (ASSETS / "LICENSE-Real-ESRGAN.txt").read_text(encoding="utf-8")
     basicsr = (ASSETS / "LICENSE-BasicSR.txt").read_text(encoding="utf-8")
+    u2net = (ASSETS / "LICENSE-U-2-Net.txt").read_text(encoding="utf-8")
+    rembg = (ASSETS / "LICENSE-rembg.txt").read_text(encoding="utf-8")  # its ONNX conversion
     source = "https://github.com/xinntao/Real-ESRGAN"
     return [
         Part("Real-ESRGAN general model (realesr-general-x4v3)", "0.2.5.0", "BSD-3-Clause",
@@ -278,6 +280,9 @@ def assets() -> list[Part]:
              "BSD-3-Clause", source, (real_esrgan,)),
         Part("RealESRGAN x4plus anime 6B model, for drawings (realesrgan-x4plus-anime-6b)",
              "0.2.2.4", "BSD-3-Clause AND Apache-2.0", source, (real_esrgan, basicsr)),
+        Part("U²-Net's small model, to cut out a subject (u2netp)", "ac7e1c8",
+             "Apache-2.0 AND MIT", "https://github.com/xuebinqin/U-2-Net",
+             (u2net, rembg)),
     ]  # fmt: skip
 
 

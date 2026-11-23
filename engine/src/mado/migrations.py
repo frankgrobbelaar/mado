@@ -255,4 +255,10 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     CREATE INDEX history_by_time ON history (at, id);
     CREATE INDEX history_by_review ON history (review_id) WHERE review_id IS NOT NULL;
     """,
+    # 7. Editing by clicking: History says what was edited first ("erased a part, cut out the
+    # subject"), kept apart from the size and the look; a saved edit is still 'made' or
+    # 'replaced', so it stays in its original's family. Its masks are kept in the cache.
+    """
+    ALTER TABLE history ADD COLUMN edit TEXT;  -- what was edited: "erased a part"
+    """,
 )

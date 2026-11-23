@@ -98,7 +98,7 @@ describe("PicturePage", () => {
     shell.invoke.mockReset();
   });
 
-  it("shows the picture large, its facts, its neighbours and where its tools will go", async () => {
+  it("shows the picture large, its facts, its neighbours and its tools", async () => {
     const fetch = engine();
     renderPicture("/library/pictures/12?folder=1");
 
@@ -135,7 +135,7 @@ describe("PicturePage", () => {
       "true",
     );
     expect(within(tools).getByRole("tab", { name: "Looks" })).toBeEnabled();
-    expect(within(tools).getByRole("tab", { name: "Edit" })).toBeDisabled();
+    expect(within(tools).getByRole("tab", { name: "Edit" })).toBeEnabled();
     expect(screen.getByText("Pixelworks PW-7 Pro")).toBeInTheDocument();
     expect(screen.getByText("Carries where it was taken")).toBeInTheDocument();
     expect(asked(fetch, "/pictures/12/full")).toHaveLength(0); // only once it's zoomed

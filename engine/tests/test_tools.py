@@ -60,7 +60,15 @@ def downloaded(tools: Tools, tool: str = "ffmpeg") -> None:
 def test_the_list_says_what_each_download_is_and_where_it_comes_from():
     items = manifest()
 
-    assert [item.id for item in items] == ["webview2", "ffmpeg", "realesrgan-x4plus", "lama"]
+    assert [item.id for item in items] == [
+        "webview2",
+        "ffmpeg",
+        "realesrgan-x4plus",
+        "lama",
+        "sam2.1-hiera-tiny",
+        "mi-gan",
+        "birefnet-lite",
+    ]
     for item in items:
         addresses = [each.url for each in item.files] if item.files else [item.url]
         assert all((address or "").startswith("https://") for address in addresses)
@@ -96,10 +104,43 @@ def test_the_ai_models_come_from_mados_own_release_the_first_time_theyre_asked_f
         assert any(each.name.startswith("LICENSE") for each in item.files)  # with its licence
 
 
+def test_the_editing_models_come_from_mados_second_set_of_models_with_their_licences():
+    models = {
+        item.id: item
+        for item in manifest()
+        if item.id in ("sam2.1-hiera-tiny", "mi-gan", "birefnet-lite")
+    }
+
+    assert sorted(models) == ["birefnet-lite", "mi-gan", "sam2.1-hiera-tiny"]
+    for item in models.values():
+        assert item.when == "asked"
+        assert item.licence in ("Apache-2.0", "MIT")
+        assert item.size == sum(each.size for each in item.files)
+        assert all(
+            "/frankgrobbelaar/mado/releases/download/models-2/" in each.url for each in item.files
+        )
+        assert all(re.fullmatch(r"[0-9a-f]{64}", each.sha256) for each in item.files)
+        assert any(each.name.startswith("LICENSE") for each in item.files)
+    # SAM 2.1's two parts each keep their weights beside them, under the names they look for.
+    assert [each.name for each in models["sam2.1-hiera-tiny"].files][:4] == [
+        "vision_encoder.onnx",
+        "vision_encoder.onnx_data",
+        "prompt_encoder_mask_decoder.onnx",
+        "prompt_encoder_mask_decoder.onnx_data",
+    ]
+
+
 def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
     tools = Tools(paths, fetch=serving(BUILD))
 
-    assert [item.id for item, _ in tools.status()] == ["ffmpeg", "realesrgan-x4plus", "lama"]
+    assert [item.id for item, _ in tools.status()] == [
+        "ffmpeg",
+        "realesrgan-x4plus",
+        "lama",
+        "sam2.1-hiera-tiny",
+        "mi-gan",
+        "birefnet-lite",
+    ]
     with pytest.raises(KeyError):
         tools.start("webview2")
 

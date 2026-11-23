@@ -1,10 +1,11 @@
 """A recipe: what the owner asked for, as steps made one after another, and what Mado does to make
 it (a plan). Pure.
 
-The steps, in the order they're made: the size (cropped or extended, then made bigger: the Size
-tab) and a look with its finishing touches (the Looks tab); then the picture is saved. Either
-step can be left out. Each step is a value that says all it does, so a later piece can keep a
-recipe by name and run it on many pictures ("4K, then Warm film at 60%, then JPEG into Edited").
+The steps, in the order they're made: the edits (erased, cut out, blurred behind: the Edit tab,
+mado/core/edits.py), the size (cropped or extended, then made bigger: the Size tab) and a look
+with its finishing touches, on the whole picture or only a part (the Looks tab); then the picture
+is saved. Any step can be left out. Each step is a value that says all it does, so a recipe can be
+kept by name and run on many pictures ("4K, then Warm film at 60%, then JPEG into Edited").
 
 The ways of making a picture bigger: the AI model, four times bigger, then resized exactly to
 the size made ("ai"); pixel art grown by repeating its pixels ("pixels"); a screenshot resized
@@ -16,6 +17,9 @@ looks real; much more than that from a small picture looks painted, and the plan
 from dataclasses import dataclass
 from typing import Literal
 
+from mado.core.edits import Editing, Part, see_through
+from mado.core.edits import label as edit_label
+from mado.core.edits import phrase as edit_phrase
 from mado.core.framing import Frame, Shape, frame, note
 from mado.core.kind import Kind
 from mado.core.looks import Look, changes, label, phrase
@@ -48,12 +52,14 @@ class Styling:
     look: Look
     strength: float = 1.0  # 0 to 1
     touches: Touches = NONE
+    parts: tuple[Part, ...] = ()  # only on these, picked as Select does; none: the whole picture
 
 
 @dataclass(frozen=True)
 class Recipe:
     sizing: Sizing | None = None
     styling: Styling | None = None
+    editing: Editing | None = None  # made first, on the picture at its own size
 
 
 @dataclass(frozen=True)
@@ -76,11 +82,14 @@ class Plan:
     styling: Styling | None  # the look made after the size, when it changes the picture
     look: str | None  # the look as History says it, after "with": "Warm film at 60%"
     named: str  # what a new picture's name says: "TV 8K", "Warm film", "TV 8K, Warm film"
+    editing: Editing | None = None  # the edits, made first
+    edit: str | None = None  # the edits as History says them: "erased a part"
+    see_through: bool = False  # the edits leave see-through parts: a cut-out with nothing behind
 
     @property
     def empty(self) -> bool:
-        """Nothing to make: no size, and no look that changes the picture."""
-        return self.method == "keep" and self.styling is None
+        """Nothing to make: no edits, no size, and no look that changes the picture."""
+        return self.method == "keep" and self.styling is None and self.editing is None
 
 
 def plan(
@@ -104,7 +113,13 @@ def plan(
     if styling is not None and not changes(styling.look, styling.strength, styling.touches):
         styling = None  # a look that changes nothing isn't a step
     look = phrase(styling.look, styling.strength, styling.touches) if styling else None
+    if look and styling and styling.parts:
+        look = f"{look} on {'a part' if len(styling.parts) == 1 else 'parts'}"
     looks_as = label(styling.look, styling.strength, styling.touches) if styling else None
+    editing = recipe.editing if recipe.editing and recipe.editing.edits else None
+    edited = edit_label(editing)
+    edit_words = edit_phrase(editing)
+    clear = see_through(editing)
     if sizing is None:
         return Plan(
             width=width,
@@ -124,7 +139,10 @@ def plan(
             made_for=None,
             styling=styling,
             look=look,
-            named=looks_as or "",
+            named=", ".join(each for each in (edited, looks_as) if each),
+            editing=editing,
+            edit=edit_words,
+            see_through=clear,
         )
     target = turned(sizing.size, width, height)
     focus = sizing.focus or found_focus
@@ -141,7 +159,7 @@ def plan(
     else:
         method = "ai"
         model = model_for(kind, quality, sizing.clean)
-    named = sizing.size.label if looks_as is None else f"{sizing.size.label}, {looks_as}"
+    named = ", ".join(each for each in (edited, sizing.size.label, looks_as) if each)
     return Plan(
         width=target[0],
         height=target[1],
@@ -161,6 +179,9 @@ def plan(
         styling=styling,
         look=look,
         named=named,
+        editing=editing,
+        edit=edit_words,
+        see_through=clear,
     )
 
 

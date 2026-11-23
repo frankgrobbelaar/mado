@@ -1,5 +1,6 @@
 import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import {
+  type EditStep,
   type LookStep,
   type PictureDetails,
   type Plan,
@@ -26,6 +27,8 @@ const MOST_PREVIEW = 4_000_000; // pixels the engine makes of a part at once
  */
 export function SizeStage(props: {
   picture: PictureDetails;
+  /** The edits made on the Edit tab, which before and after both show; null with none. */
+  edit: EditStep | null;
   plan: Plan;
   size: SizeStep;
   /** The look chosen on the Looks tab, which after carries; null with none. */
@@ -47,6 +50,7 @@ export function SizeStage(props: {
       {zoom === "fit" ? (
         <Fitted
           picture={picture}
+          edit={props.edit}
           plan={plan}
           size={size}
           decided={decided}
@@ -55,6 +59,7 @@ export function SizeStage(props: {
       ) : (
         <Compared
           picture={picture}
+          edit={props.edit}
           plan={plan}
           size={decided}
           look={props.look}
@@ -86,13 +91,27 @@ export function SizeStage(props: {
 /** The whole picture, the shape it takes drawn over it. */
 function Fitted(props: {
   picture: PictureDetails;
+  edit: EditStep | null;
   plan: Plan;
   size: SizeStep;
   decided: SizeStep;
   onFocus: (focus: [number, number]) => void;
 }) {
   const { picture, plan } = props;
-  const view = usePictureImage(pictureAddress(picture, "view"));
+  const view = usePictureImage(props.edit ? null : pictureAddress(picture, "view"));
+  // With edits, the picture shown under its shape is the picture as they leave it.
+  const edited = usePreview(
+    picture.id,
+    props.edit
+      ? {
+          recipe: { edit: props.edit, size: null, look: null },
+          side: "after",
+          fit: { width: 2560, height: 2560 },
+        }
+      : null,
+    { keep: true },
+  );
+  const shown = props.edit ? edited.address : view.address;
   const area = useRef<HTMLDivElement>(null);
   const box = useBox(area);
   const extending = plan.shape === "extend" && plan.sides !== "none";
@@ -107,7 +126,7 @@ function Fitted(props: {
     picture.id,
     extending && !lama
       ? {
-          recipe: { size: props.decided, look: null },
+          recipe: { edit: props.edit, size: props.decided, look: null },
           side: "after",
           fit: { width: 1600, height: 1600 },
         }
@@ -164,9 +183,9 @@ function Fitted(props: {
             height: `${inner.height}%`,
           }}
         >
-          {view.address ? (
+          {shown ? (
             <img
-              src={view.address}
+              src={shown}
               alt={stem(picture.name)}
               draggable={false}
               className="absolute inset-0 size-full animate-fade-in object-fill"
@@ -245,6 +264,7 @@ function Fitted(props: {
  * the look, as Save makes it; before is the picture only stretched. */
 function Compared(props: {
   picture: PictureDetails;
+  edit: EditStep | null;
   plan: Plan;
   size: SizeStep;
   look: LookStep | null;
@@ -272,11 +292,15 @@ function Compared(props: {
   const waiting = plan.needs.map((each) => each.name).join(" and ");
   const after = usePreview(
     picture.id,
-    box.measured && !waiting ? { recipe: { size, look }, side: "after", region } : null,
+    box.measured && !waiting
+      ? { recipe: { edit: props.edit, size, look }, side: "after", region }
+      : null,
   );
   const before = usePreview(
     picture.id,
-    box.measured && !lama ? { recipe: { size, look: null }, side: "before", region } : null,
+    box.measured && !lama
+      ? { recipe: { edit: props.edit, size, look: null }, side: "before", region }
+      : null,
   );
   const shown = {
     width: (region.width * scale) / (pixels * within),

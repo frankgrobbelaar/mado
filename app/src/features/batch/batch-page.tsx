@@ -25,6 +25,7 @@ import { Needs } from "@/features/picture/size-tab";
 import {
   type BatchSaving,
   type BatchStep,
+  type CutoutStepItem,
   type KeptRecipe,
   type LookStepItem,
   type Picked,
@@ -45,8 +46,8 @@ import { about, count, size } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 import { type BatchStart, useOpenPictures } from "./open";
 import { SeeFirst } from "./see-first";
-import { LookDialog, SavingDialog, SizeDialog } from "./step-dialogs";
-import { same, savingFrom, withStep, wordsFor } from "./steps";
+import { CutoutDialog, LookDialog, SavingDialog, SizeDialog } from "./step-dialogs";
+import { cutoutStep, keepsNothing, same, savingFor, savingFrom, withStep, wordsFor } from "./steps";
 import { StepsPanel } from "./steps-panel";
 
 const WHEN: { value: Starts; label: ReactNode }[] = [
@@ -82,7 +83,8 @@ function Batch({ start }: { start: BatchStart }) {
   const recipes = useRecipes();
   const [steps, setSteps] = useState<BatchStep[]>([]);
   const [chosenSaving, setSaving] = useState<BatchSaving | null>(null);
-  const saving = chosenSaving ?? savingFrom(settings.data);
+  // A cut-out with nothing behind it keeps its nothing as PNG (or WebP), whatever was chosen.
+  const saving = savingFor(steps, chosenSaving ?? savingFrom(settings.data));
   const [recipe, setRecipe] = useState<number | null>(start.recipe ?? null);
   const [when, setWhen] = useState<Starts>(start.starts ?? "now");
   const [editing, setEditing] = useState<string | null>(null);
@@ -170,6 +172,7 @@ function Batch({ start }: { start: BatchStart }) {
   const put = usePutInQueue();
   const words = takes.data?.words ?? wordsFor(steps, saving);
   const size_ = steps.find((each): each is SizeStepItem => each.step === "size") ?? null;
+  const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
   const look = steps.find((each): each is LookStepItem => each.step === "look") ?? null;
   const library = pictures.find((each) => each.id !== null);
   const ready =
@@ -252,7 +255,10 @@ function Batch({ start }: { start: BatchStart }) {
               steps={steps}
               words={words}
               onChange={setEditing}
-              onAdd={setEditing}
+              onAdd={(kind) => {
+                if (kind === "cutout") setSteps(withStep(steps, cutoutStep(), "cutout"));
+                setEditing(kind);
+              }}
               recipes={recipes.data}
               recipe={fromRecipe?.id ?? null}
               onRecipe={(chosen: KeptRecipe) => {
@@ -390,8 +396,21 @@ function Batch({ start }: { start: BatchStart }) {
           }}
         />
       )}
+      {editing === "cutout" && cut && (
+        <CutoutDialog
+          step={cut}
+          onStep={(step) => setSteps(withStep(steps, step, "cutout"))}
+          onRemove={() => removed("cutout")}
+          onClose={() => setEditing(null)}
+        />
+      )}
       {editing === "save" && (
-        <SavingDialog saving={saving} onSaving={setSaving} onClose={() => setEditing(null)} />
+        <SavingDialog
+          saving={saving}
+          onSaving={setSaving}
+          clear={keepsNothing(steps)}
+          onClose={() => setEditing(null)}
+        />
       )}
       {keeping && (
         <KeepRecipe

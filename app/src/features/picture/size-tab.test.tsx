@@ -157,6 +157,7 @@ describe("The Size tab", () => {
       screen.getByRole("button", { name: "The point the crop is around: drag it to move it" }),
     ).toBeInTheDocument();
     expect(sent(fetch, "POST", "/pictures/11/plan")[0]).toEqual({
+      edit: null,
       size: { size: "tv-8k", shape: "crop", focus: null, kind: null, quality: null, clean: true },
       look: null,
     });

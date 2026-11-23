@@ -12,6 +12,7 @@ from mado.core.batch import (
     StepError,
     at_night,
     calibrated,
+    cutout_detail,
     fits,
     fitting,
     folder_words,
@@ -100,18 +101,38 @@ def test_steps_are_made_in_mados_order_whatever_order_they_are_listed_in():
 
     assert steps_in_order([look, size]) == [size, look]
     assert recipe_of([look, size]) == {
+        "edit": None,
         "size": {"size": "tv-8k", "shape": "crop"},
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
     assert recipe_of([look]) == {
+        "edit": None,
         "size": None,
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
 
 
+def test_cutting_out_the_subject_goes_first_as_the_recipes_edit():
+    cut: Step = {"step": "cutout", "quality": "fast", "behind": "nothing", "colour": None}
+    size: Step = {"step": "size", "size": "tv-8k"}
+
+    assert steps_in_order([size, cut]) == [cut, size]
+    assert recipe_of([size, cut]) == {
+        "edit": {
+            "version": None,
+            "edits": [{"kind": "subject", "quality": "fast", "behind": "nothing", "colour": None}],
+        },
+        "size": {"size": "tv-8k"},
+        "look": None,
+    }
+    assert cutout_detail("best", "colour") == "Best, on a colour"
+    assert cutout_detail(None, "nothing") == "As this PC suits, with nothing behind it"
+    assert cutout_detail("fast", "blurred") == "Fast, on the rest of the picture blurred"
+
+
 def test_a_recipe_makes_one_size_and_one_look_and_needs_one_of_them():
     size: Step = {"step": "size", "size": "tv-8k"}
-    later: Step = {"step": "cut-out"}  # a later piece's step, in a recipe this Mado can't make
+    later: Step = {"step": "depth"}  # a later piece's step, in a recipe this Mado can't make
     with pytest.raises(StepError, match="one size"):
         recipe_of([size, size])
     with pytest.raises(StepError, match="Pick"):
@@ -181,6 +202,20 @@ def test_the_notification_says_what_the_batch_came_to():
     assert told("Holiday", made=1, failed=0, made_for=None, look="Warm film") == (
         "Holiday is done",
         "1 picture made with Warm film",
+    )
+    assert told(
+        "Cut-outs for cards",
+        made=12,
+        failed=0,
+        made_for=None,
+        look=None,
+        edit="cut out the subject",
+    ) == ("Cut-outs for cards is done", "12 pictures made: cut out the subject")
+    assert told(
+        "Cards", made=2, failed=0, made_for="TV 8K", look=None, edit="cut out the subject"
+    ) == (
+        "Cards is done",
+        "2 pictures made: cut out the subject, for TV 8K",
     )
 
 

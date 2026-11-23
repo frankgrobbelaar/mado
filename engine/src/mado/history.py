@@ -46,6 +46,7 @@ class Entry:
     batch_id: int | None = None  # the batch it was made in, when it was
     kept: str | None = None  # 'aside': the picture of its group that was kept
     review_id: int | None = None  # 'aside': the review it was set aside in
+    edit: str | None = None  # what was edited first: "erased a part"
 
 
 @dataclass(frozen=True)
@@ -68,9 +69,10 @@ def made(
     original: Path,
     result: Path,
     look: str | None = None,
+    edit: str | None = None,
 ) -> int:
     """A new picture made beside (or away from) its original."""
-    return _insert(conn, now, "made", job_id, name, (made_for, look), original, result, None)
+    return _insert(conn, now, "made", job_id, name, (made_for, look, edit), original, result, None)
 
 
 def replaced(
@@ -84,9 +86,12 @@ def replaced(
     result: Path,
     aside: Path,
     look: str | None = None,
+    edit: str | None = None,
 ) -> int:
     """An original replaced by a picture made from it, the original set aside."""
-    return _insert(conn, now, "replaced", job_id, name, (made_for, look), original, result, aside)
+    return _insert(
+        conn, now, "replaced", job_id, name, (made_for, look, edit), original, result, aside
+    )
 
 
 def aside(
@@ -435,7 +440,7 @@ def _insert(
     kind: Kind,
     job_id: int | None,
     name: str,
-    made: tuple[str | None, str | None],  # what its size made it for, and what look it has
+    made: tuple[str | None, str | None, str | None],  # its size's, its look's and its edits' words
     original: Path,
     result: Path,
     aside: Path | None,
@@ -443,9 +448,9 @@ def _insert(
     stamp = now.isoformat(timespec="seconds")
     with conn:
         row = conn.execute(
-            """INSERT INTO history (at, kind, job_id, name, made_for, look, original, result,
-                                    aside, aside_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+            """INSERT INTO history (at, kind, job_id, name, made_for, look, edit, original,
+                                    result, aside, aside_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (
                 stamp,
                 kind,
@@ -453,6 +458,7 @@ def _insert(
                 name,
                 made[0],
                 made[1],
+                made[2],
                 str(original),
                 str(result),
                 str(aside) if aside else None,
@@ -499,6 +505,7 @@ def _entry(row: sqlite3.Row) -> Entry:
         batch_id=row["batch_id"] if "batch_id" in row.keys() else None,  # noqa: SIM118 - a Row's
         kept=row["kept"],
         review_id=row["review_id"],
+        edit=row["edit"],
     )
 
 
@@ -513,6 +520,7 @@ def _names(found: Entry, words: list[str]) -> bool:
             found.name,
             found.made_for,
             found.look,
+            found.edit,
             found.original,
             PureWindowsPath(found.result).name if found.result else None,
             PureWindowsPath(found.kept).name if found.kept else None,

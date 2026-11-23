@@ -1,14 +1,16 @@
 """Making a picture to its recipe, and saving it: the work of a job (mado/jobs.py).
 
 1. Reading: the picture decoded at full size, as the library reads it, turned upright.
-2. Shaping: cropped around its subject (the crop is the part kept, resized from exactly), or its
+2. Editing: its edits made in order at its own size (mado/editing.py): parts erased, cut out or
+   blurred behind, as the Edit tab picked them, or its subject cut out.
+3. Shaping: cropped around its subject (the crop is the part kept, resized from exactly), or its
    edges extended by LaMa (mado/extend.py).
-3. Making: four times bigger through the AI model a tile at a time, then resized exactly, or
+4. Making: four times bigger through the AI model a tile at a time, then resized exactly, or
    without AI for pixel art, screenshots and a picture already big enough (mado/upscale.py).
    With no size, the picture keeps its pixels.
-4. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
-   never grow into blobs.
-5. Saving: as a new picture beside the original (or in a folder the owner chose), named after
+5. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
+   never grow into blobs; only on a part, through its mask placed as the picture is.
+6. Saving: as a new picture beside the original (or in a folder the owner chose), named after
    it with what it was made for and with, or in the original's place, the original going into
    quarantine; either way written beside first, checked, then put in place, and in History.
 
@@ -22,17 +24,28 @@ import shutil
 import sqlite3
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from math import ceil
 from pathlib import Path
 from typing import Literal, cast
 
 import numpy as np
+import numpy.typing as npt
 from PIL import Image
 
 from mado import encode, hardware, history, own_looks
-from mado.ai import LAMA, Ai, Timer
+from mado.ai import BIREFNET, LAMA, MIGAN, SAM, Ai, Timer
+from mado.core.edits import (
+    Blur,
+    CutOut,
+    EditError,
+    Erase,
+    Subject,
+    editing_from,
+    models_for,
+    parts_from,
+)
 from mado.core.estimate import seconds_for
 from mado.core.files import Kind as FileKind
 from mado.core.files import kind_of
@@ -48,6 +61,7 @@ from mado.core.sizes import DPI, Screen, SizeError, resolve
 from mado.core.tiles import count
 from mado.core.touches import named
 from mado.directml import ModelError
+from mado.editing import EditingError, Editor, cut_quality, picture_key
 from mado.extend import Filler, canvas_around, extended, squares_needed
 from mado.hardware import Here
 from mado.jobs import (
@@ -162,10 +176,11 @@ class Naming:
     named: str  # what its name says it was made for and with: "TV 8K, Warm film"
     made_for: str | None
     look: str | None
+    edit: str | None = None  # what was edited: "erased a part"
 
     @classmethod
     def of(cls, made: Plan) -> Naming:
-        return cls(made.width, made.height, made.named, made.made_for, made.look)
+        return cls(made.width, made.height, made.named, made.made_for, made.look, made.edit)
 
 
 class MissingLookError(ValueError):
@@ -270,16 +285,31 @@ class Sight:
         return found
 
     def extended(
-        self, picture: Picture, version: str, canvas: Box, fill: Callable[[], Filler]
+        self,
+        picture: Picture,
+        version: str,
+        canvas: Box,
+        fill: Callable[[], Filler],
+        *,
+        image: Image.Image | None = None,
+        also: object = None,
     ) -> tuple[Pixels, Box, tuple[int, int]]:
-        """The picture on an extended canvas, its new edges drawn by LaMa: the last one kept."""
-        key = (str(picture.path).casefold(), version, canvas)
+        """The picture (or `image`, the picture as its edits left it, which `also` names) on an
+        extended canvas, its new edges drawn by LaMa: the last one kept. A picture with
+        see-through parts comes with them as a fourth channel, carried onto the canvas as Save
+        carries them."""
+        key = (str(picture.path).casefold(), version, canvas, also)
         with self._extending:
             with self._lock:
                 if self._extended is not None and self._extended[0] == key:
                     return self._extended[1]
-            pixels: Pixels = np.asarray(self.picture(picture, version).convert("RGB"))
-            made = extended(pixels, canvas, fill())
+            shown = image if image is not None else self.picture(picture, version)
+            colours, clear = split_alpha(shown)
+            pixels, kept, at = extended(colours, canvas, fill())
+            if clear is not None:
+                spread = _extended_alpha(clear, pixels.shape[1], pixels.shape[0], at)
+                pixels = np.dstack([pixels, spread])
+            made = (pixels, kept, at)
             with self._lock:
                 self._extended = (key, made)
             return made
@@ -308,17 +338,73 @@ def make(
     stop: Callable[[], bool],
     timer: Timer | None = None,
     seed: int = 0,
+    editor: Editor | None = None,
+    key: str = "",
+    keep: bool = True,
 ) -> Image.Image:
     """The picture made to its plan, from the picture decoded at full size and upright: its
-    size, then its look and touches at that size (`seed` grows them). Its colour profile comes
-    with it. Raises StoppedError when stopped, ModelError when a model can't run."""
-    sized = image if made.method == "keep" else _sized(image, made, ai, report, stop, timer)
+    edits (by `editor`, `key` naming the picture and its version, keeping their masks unless
+    it's a batch's picture, made once), its size, then its look and touches at that size (`seed`
+    grows them), only on a part when the look says so. Its colour profile comes with it. Raises
+    StoppedError when stopped, ModelError when a model can't run, EditingError for edits Mado
+    can't make."""
+    edits = made.editing.edits if made.editing else ()
+    parts = made.styling.parts if made.styling else ()
+    if (edits or parts) and editor is None:
+        raise EditingError("Mado can't make edits here.")
+    edited = image
+    if edits and editor is not None:
+        report("editing", 0.0)
+        edited = editor.state(
+            image,
+            key,
+            edits,
+            stop=stop,
+            report=lambda done: report("editing", done / len(edits)),
+            keep=keep,
+        )
+    sized = edited if made.method == "keep" else _sized(edited, made, ai, report, stop, timer)
     if made.styling is None:
         return sized
     report("looking", 0.0)
     looked = styled(sized, made.styling, seed=seed, stop=stop)
+    if parts and editor is not None:
+        mask = editor.look_mask(image, key, edits, parts, keep=keep)
+        looked = only_on(looked, sized, placed(mask, made, looked.size))
     report("looking", 1.0)
     return looked
+
+
+def placed(mask: npt.NDArray[np.uint8], made: Plan, size: tuple[int, int]) -> Image.Image:
+    """A mask at the picture's own size, placed as the size step places the picture (cropped, or
+    on its extended canvas, where what's at the picture's edge carries on), `size` big."""
+    height, width = mask.shape
+    frame = made.frame
+    if frame.shape == "extend" and frame.sides != "none":
+        left, top, canvas_width, canvas_height = canvas_around(frame.canvas, width, height)
+        padded = np.pad(
+            mask,
+            ((top, canvas_height - top - height), (left, canvas_width - left - width)),
+            mode="edge",
+        )
+        kept = Box(
+            frame.canvas.x + left, frame.canvas.y + top, frame.canvas.width, frame.canvas.height
+        )
+        shown = Image.fromarray(padded, "L")
+    else:
+        kept = frame.kept
+        shown = Image.fromarray(mask, "L")
+    box = (kept.x, kept.y, kept.x + kept.width, kept.y + kept.height)
+    return shown.resize(size, Image.Resampling.BILINEAR, box=box)
+
+
+def only_on(looked: Image.Image, plain: Image.Image, mask: Image.Image) -> Image.Image:
+    """A look only where the mask says, the picture as it was elsewhere."""
+    profile = looked.info.get("icc_profile")
+    joined = Image.composite(looked, plain.convert(looked.mode), mask)
+    if isinstance(profile, bytes):
+        joined.info["icc_profile"] = profile
+    return joined
 
 
 def _sized(
@@ -332,12 +418,7 @@ def _sized(
     """The picture cropped or extended, and made the size its plan says."""
     profile = image.info.get("icc_profile")
     grey = image.mode in ("L", "I", "I;16", "1", "F")
-    if image.mode in ("P", "PA", "La", "RGBa") or "transparency" in image.info:
-        image = image.convert("RGBA")  # see-through parts as a channel of their own
-    alpha = image.getchannel("A") if "A" in image.getbands() else None
-    pixels: Pixels = np.asarray(image.convert("RGB"))
-    if alpha is not None:
-        pixels = bled(pixels, np.asarray(alpha))
+    pixels, alpha = split_alpha(image)
     kept = made.frame.kept
     target = (made.width, made.height)
     if made.frame.shape == "extend" and made.frame.sides != "none":
@@ -373,7 +454,7 @@ def _sized(
             out = smaller(pixels, kept, target)
     result = Image.fromarray(out)
     if alpha is not None:
-        result.putalpha(Image.fromarray(resize_alpha(np.asarray(alpha), kept, target)))
+        result.putalpha(Image.fromarray(resize_alpha(alpha, kept, target)))
     elif grey:
         result = result.convert("L")
     if isinstance(profile, bytes):
@@ -476,6 +557,7 @@ def keep(
                 look=naming.look,
                 original=original,
                 result=target,
+                edit=naming.edit,
             )
             try:
                 target = _into_place(
@@ -500,6 +582,7 @@ def keep(
             original=original,
             result=target,
             aside=aside,
+            edit=naming.edit,
         )
         _replacing(
             partial, target, original, aside, quarantine, now, lambda: history.forget(conn, entry)
@@ -566,16 +649,28 @@ def _replacing(
         raise SavingError(str(error)) from None
 
 
+def split_alpha(image: Image.Image) -> tuple[Pixels, npt.NDArray[np.uint8] | None]:
+    """A picture's colours, with what its see-through parts hide carried in from what shows (so
+    making it bigger brings in no dark fringe), and its see-through parts apart: None for a solid
+    picture."""
+    if image.mode in ("P", "PA", "La", "RGBa") or "transparency" in image.info:
+        image = image.convert("RGBA")  # see-through parts as a channel of their own
+    pixels: Pixels = np.asarray(image.convert("RGB"))
+    if "A" not in image.getbands():
+        return pixels, None
+    alpha = np.asarray(image.getchannel("A"))
+    return bled(pixels, alpha), alpha
+
+
 def _extended_alpha(
-    alpha: Image.Image, width: int, height: int, at: tuple[int, int]
-) -> Image.Image:
+    seen: npt.NDArray[np.uint8], width: int, height: int, at: tuple[int, int]
+) -> npt.NDArray[np.uint8]:
     """See-through parts on an extended canvas, the picture's at `at`: what's drawn new is as
     see-through as the picture's edge beside it (a sticker's nothing stays nothing, a solid
     picture's new edges are solid)."""
-    seen = np.asarray(alpha)
     left, top = at
     right, bottom = width - left - seen.shape[1], height - top - seen.shape[0]
-    return Image.fromarray(np.pad(seen, ((top, bottom), (left, right)), mode="edge"), "L")
+    return np.pad(seen, ((top, bottom), (left, right)), mode="edge")
 
 
 def _shrunk(image: Image.Image, longest: int, how: Image.Resampling) -> Image.Image:
@@ -598,10 +693,10 @@ def _unsaved(folder: Path, error: OSError) -> str:
 def recipe_from(
     data: dict[str, object], screens: list[Screen], looks: Callable[[str], Look | None]
 ) -> Recipe:
-    """A recipe as a job keeps it (JSON: its size step and its look step, either of them none),
-    the owner's screens naming theirs and `looks` finding a look by its id. A job Mado 0.1 kept
-    is its size step alone, flat. Raises SizeError for a size Mado can't make, MissingLookError
-    for a look that isn't there any more."""
+    """A recipe as a job keeps it (JSON: its edit step, its size step and its look step, any of
+    them none), the owner's screens naming theirs and `looks` finding a look by its id. A job
+    Mado 0.1 kept is its size step alone, flat. Raises SizeError for a size Mado can't make,
+    MissingLookError for a look that isn't there any more, EditError for edits it can't make."""
     if isinstance(data.get("size"), str):  # Mado 0.1's: the size step's fields, flat
         return Recipe(sizing=_sizing_from(data, screens))
     size, look = data.get("size"), data.get("look")
@@ -621,8 +716,9 @@ def recipe_from(
             if isinstance(strength, int | float)
             else 1.0,
             touches=named(cast("dict[str, int]", amounts) if isinstance(amounts, dict) else {}),
+            parts=parts_from(asked.get("parts")),
         )
-    return Recipe(sizing=sizing, styling=styling)
+    return Recipe(sizing=sizing, styling=styling, editing=editing_from(data.get("edit")))
 
 
 def _sizing_from(data: dict[str, object], screens: list[Screen]) -> Sizing:
@@ -664,14 +760,17 @@ def saving_from(data: dict[str, object]) -> Saving:
     )
 
 
-def estimated(made: Plan, here: Here) -> float:
-    """How long making a plan takes here, in seconds."""
+def estimated(made: Plan, here: Here, cut_on: Place | None = None) -> float:
+    """How long making a plan takes here, in seconds. `cut_on`: where cutting out a subject at
+    its best runs (on the processor, unless the card has a great deal of room)."""
     pixels = made.width * made.height
     canvas = made.frame.canvas
-    seconds = 0.0
+    seconds = _edit_seconds(made, here.place, cut_on or "processor")
     if made.styling is not None:
         drawn = made.styling.touches.spatial()
         seconds += pixels / 1e6 * (_LOOK_SECONDS + (_TOUCHES_SECONDS if drawn else 0.0))
+        if made.styling.parts:
+            seconds += _EDIT_SECONDS["mask"] * pixels / 1e6
     if made.frame.shape == "extend" and made.frame.sides != "none":
         width, height = round(made.frame.kept.width), round(made.frame.kept.height)
         left, top, canvas_width, canvas_height = canvas_around(canvas, width, height)
@@ -686,13 +785,62 @@ def estimated(made: Plan, here: Here) -> float:
     return seconds + seconds_for(made.model.id, here.place, tiles, tile, pixels, here.speeds)
 
 
+def _edit_seconds(made: Plan, place: Place, cut_on: Place) -> float:
+    """About how long a plan's edits take, at the picture's own size."""
+    if made.editing is None:
+        return 0.0
+    megapixels = made.frame.kept.width * made.frame.kept.height / 1e6
+    seconds = 0.0
+    for edit in made.editing.edits:
+        seconds += _EDIT_SECONDS["mask"] * megapixels
+        match edit:
+            case Erase(parts=parts, quality=quality):
+                seconds += (_READ_SECONDS[place] if parts else 0.0) + _ERASE_SECONDS[
+                    (quality, place)
+                ]
+            case CutOut():
+                seconds += _READ_SECONDS[place]
+            case Blur():
+                seconds += _READ_SECONDS[place] + _EDIT_SECONDS["blur"] * megapixels
+            case Subject(quality=quality):
+                seconds += _CUT_SECONDS[cut_on] if quality == "best" else _CUT_SECONDS["fast"]
+    return seconds
+
+
+# What the edits take on the owner's PC (docs/stack/editing.md): SAM reading a picture, each
+# erase's model (Fast, Best) and cutting out a subject (Fast on the processor, Best where it
+# runs), and per megapixel, making a mask the picture's size and blurring behind a part.
+_READ_SECONDS: dict[Place, float] = {"card": 0.4, "processor": 1.8}
+_ERASE_SECONDS: dict[tuple[str, Place], float] = {
+    ("fast", "card"): 0.15,
+    ("fast", "processor"): 1.2,
+    ("best", "card"): 0.45,
+    ("best", "processor"): 3.2,
+}
+_CUT_SECONDS: dict[str, float] = {"fast": 0.3, "card": 3.0, "processor": 9.5}
+_EDIT_SECONDS = {"mask": 0.1, "blur": 0.05}
+
+
 def waiting_for(made: Plan, ai: Ai) -> list[str]:
-    """The downloads a plan waits for: the Best photo model, or LaMa to extend edges."""
+    """The downloads a plan waits for: the Best photo model, LaMa to extend edges or erase at its
+    best, and the editing models its edits and its look's part use."""
     found: list[str] = []
     if made.model is not None and made.model.download and ai.file(made.model) is None:
         found.append(made.model.download)
-    if made.frame.shape == "extend" and made.frame.sides != "none" and ai.lama_file() is None:
+    edits = models_for(made.editing, cut_quality=cut_quality(ai))
+    if made.styling is not None and made.styling.parts:
+        edits.add("select")
+    extending = made.frame.shape == "extend" and made.frame.sides != "none"
+    if (extending or "erase-best" in edits) and ai.lama_file() is None:
         found.append(LAMA)
+    wanted = {
+        "select": (SAM, "vision_encoder.onnx"),
+        "erase-fast": (MIGAN, "migan-pipeline-v2.onnx"),
+    }
+    wanted["cut-best"] = (BIREFNET, "birefnet-lite.onnx")
+    for need, (download, file) in wanted.items():
+        if need in edits and ai.edit_file(download, file) is None:
+            found.append(download)
     return found
 
 
@@ -715,14 +863,16 @@ class Maker:
         *,
         now: Callable[[], datetime],
         kept: Path | None = None,
+        editor: Editor | None = None,
     ) -> None:
         """`kept`: where See it first's pictures wait for their jobs; one is let go once its
-        job has saved it."""
+        job has saved it. `editor` makes a recipe's edits (and a look's part)."""
         self._ai = ai
         self._quarantine = quarantine
         self._ffmpeg = ffmpeg
         self._now = now
         self._kept = kept
+        self._editor = editor
 
     def __call__(
         self,
@@ -737,7 +887,7 @@ class Maker:
             recipe = recipe_from(
                 order["recipe"], screens_kept(conn), lambda look: own_looks.resolve(conn, look)
             )
-        except (SizeError, MissingLookError) as error:
+        except (SizeError, MissingLookError, EditError) as error:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
@@ -766,6 +916,10 @@ class Maker:
             raise HeldError(picture.path.name, "read") from None
         except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
             raise _drive_gone(picture.path) or JobError(str(error)) from None
+        now_version = _file_version(picture.path)
+        edited_on = recipe.editing.version if recipe.editing else None
+        if edited_on is not None and edited_on != now_version:
+            raise JobError(_CHANGED.format(name=picture.path.name))
         here = self._ai.where()
         made = planned(recipe, see(image, picture), self._ai.starts_on(here))
         if made.empty:
@@ -776,9 +930,11 @@ class Maker:
         if waiting_for(made, self._ai):
             raise JobError(
                 "It needs a model Mado downloads the first time it's asked for. Download it on "
-                "the Size tab, then save again."
+                "the tab that asked for it, then save again."
             )
-        expect(estimated(made, here))
+        if made.see_through and saving.format not in ("PNG", "WebP"):
+            saving = replace(saving, format="PNG", quality=None)  # a cut-out keeps its nothing
+        expect(estimated(made, here, self._ai.edit_place(BIREFNET)))
         timer = Timer()
         if stop():  # cancelled while it was read: a way without a model never asks again
             raise StoppedError
@@ -791,9 +947,14 @@ class Maker:
                 stop=stop,
                 timer=timer,
                 seed=seed_of(picture.path),
+                editor=self._editor,
+                key=picture_key(picture.path, now_version or ""),
+                keep=edited_on is not None,  # a batch's picture is made once: nothing kept
             )
         except ModelError as error:
             raise JobError(f"{error} Nothing was saved; the original is as it was.") from None
+        except EditingError as error:
+            raise JobError(str(error)) from None
         if stop():  # cancelled as its last tile was made
             raise StoppedError
         report("saving", 0.0)  # past cancelling from here: a picture half moved helps no one
@@ -857,6 +1018,21 @@ class Maker:
             raise JobError(str(error)) from None
 
 
+_CHANGED = (
+    "{name} changed since you edited it, so the parts you picked may not be where they were. "
+    "Nothing was saved, and the picture is as it is now. Open it and edit it again."
+)
+
+
+def _file_version(path: Path) -> str | None:
+    """A picture's version as its file is now (mado/previews.py names its copies by it)."""
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
+
+
 def _drive_gone(*paths: Path) -> DriveGoneError | None:
     """The drive of the first of these paths that isn't connected any more: a batch's picture
     waits in line for it rather than failing."""
@@ -891,13 +1067,14 @@ def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
         return None
     if f"{stat.st_mtime_ns:x}-{stat.st_size:x}" != version_ or not Path(path).is_file():
         return None
-    made_for, look = made.get("madeFor"), made.get("look")
+    made_for, look, edit = made.get("madeFor"), made.get("look"), made.get("edit")
     return Path(path), Naming(
         width,
         height,
         named,
         made_for if isinstance(made_for, str) else None,
         look if isinstance(look, str) else None,
+        edit if isinstance(edit, str) else None,
     )
 
 

@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { type MouseEvent, useId, useRef } from "react";
 import {
+  type EditStep,
   type LookStep,
   type PictureDetails,
   type Plan,
@@ -20,10 +21,14 @@ const STEP = 128; // the preview's size moves in steps this big, so a window res
  * this picture as the list is gone through, its touches where they'll fall on the picture saved.
  * With a size chosen it shows the picture as that makes it (cropped, or on its extended canvas).
  * Holding "Hold to see the original" shows it without the look. The last preview stays while the
- * next is made.
+ * next is made. A click picks a part for "Only on a part" (Alt takes away), on the picture as its
+ * edits leave it, through the shape the size step gives it; the part is hatched, as the board
+ * draws it.
  */
 export function LooksStage(props: {
   picture: PictureDetails;
+  /** The edits made on the Edit tab, which the picture shows; null with none. */
+  edit: EditStep | null;
   /** The size step as the plan decided it (null: the picture keeps its pixels). */
   size: SizeStep | null;
   /** The plan for the whole recipe, while a size is chosen: the picture made's shape. */
@@ -33,6 +38,9 @@ export function LooksStage(props: {
   /** What the label over the picture says of it: "Warm film · 60%". */
   label: string;
   held: boolean;
+  /** Round the parts the look goes on, in a frame 1000 square over the picture itself. */
+  outline: string;
+  onPick: (x: number, y: number, alt: boolean) => void;
 }) {
   const { picture, plan, look, held } = props;
   const lama = plan?.needs.find((each) => each.id === "lama");
@@ -48,24 +56,41 @@ export function LooksStage(props: {
     width: Math.min(4096, Math.ceil((fit.width * pixels) / STEP) * STEP),
     height: Math.min(4096, Math.ceil((fit.height * pixels) / STEP) * STEP),
   };
-  const view = usePictureImage(size ? null : pictureAddress(picture, "view"));
+  const edit = props.edit;
+  const view = usePictureImage(size || edit ? null : pictureAddress(picture, "view"));
   const plain = usePreview(
     picture.id,
-    size && box.measured ? { recipe: { size, look: null }, side: "after", fit: wanted } : null,
+    (size || edit) && box.measured
+      ? { recipe: { edit, size, look: null }, side: "after", fit: wanted }
+      : null,
   );
   const looked = usePreview(
     picture.id,
-    look && box.measured ? { recipe: { size, look }, side: "after", fit: wanted } : null,
+    look && box.measured ? { recipe: { edit, size, look }, side: "after", fit: wanted } : null,
     { keep: true },
   );
-  const original = size ? plain.address : view.address;
+  // What's shown is the picture itself, or the part of it (or more) the size step makes.
+  const canvas = size && plan ? plan.canvas : { x: 0, y: 0, width: 1, height: 1 };
+  const hatch = useId();
+
+  function pick(event: MouseEvent<HTMLDivElement>) {
+    const frame = event.currentTarget.getBoundingClientRect();
+    const u = (event.clientX - frame.left) / frame.width;
+    const v = (event.clientY - frame.top) / frame.height;
+    const x = Math.min(Math.max(canvas.x + u * canvas.width, 0), 1);
+    const y = Math.min(Math.max(canvas.y + v * canvas.height, 0), 1);
+    props.onPick(x, y, event.altKey);
+  }
+  const original = size || edit ? plain.address : view.address;
   const problem = looked.problem ?? plain.problem ?? view.problem;
 
   return (
     <div ref={area} className="relative min-h-60 flex-1 overflow-hidden rounded-6 bg-behind">
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/noStaticElementInteractions: a click on the picture picks a part; the keyboard picks none, as there's nothing to point at */}
       <div
-        className="absolute"
+        className="checks absolute cursor-crosshair select-none"
         style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
+        onClick={pick}
       >
         {original ? (
           <img
@@ -87,6 +112,38 @@ export function LooksStage(props: {
               held ? "opacity-0" : "opacity-100",
             )}
           />
+        )}
+        {props.outline && !held && fit.width > 0 && (
+          <svg
+            viewBox={`0 0 ${fit.width} ${fit.height}`}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 size-full"
+          >
+            <defs>
+              <pattern
+                id={`${hatch}-lines`}
+                width={10}
+                height={10}
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <rect width={2} height={10} className="fill-accent/40" />
+              </pattern>
+              <clipPath id={`${hatch}-part`}>
+                <path
+                  d={props.outline}
+                  fillRule="evenodd"
+                  transform={`translate(${(-canvas.x / canvas.width) * fit.width} ${(-canvas.y / canvas.height) * fit.height}) scale(${fit.width / (1000 * canvas.width)} ${fit.height / (1000 * canvas.height)})`}
+                />
+              </clipPath>
+            </defs>
+            <rect
+              width={fit.width}
+              height={fit.height}
+              fill={`url(#${hatch}-lines)`}
+              clipPath={`url(#${hatch}-part)`}
+            />
+          </svg>
         )}
       </div>
       <span className={cn(LABEL, "top-3 left-3 font-semibold")}>

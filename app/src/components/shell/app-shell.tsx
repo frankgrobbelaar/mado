@@ -8,6 +8,7 @@ import { NavRail } from "./nav-rail";
 import { Notices } from "./notices";
 import { Offline } from "./offline";
 import { StatusBar } from "./status-bar";
+import { StatusNoteProvider } from "./status-note";
 import { TitleBar } from "./title-bar";
 import { UpdateCard } from "./update-card";
 
@@ -22,31 +23,33 @@ export function AppShell() {
   const damage = useRecords().data;
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <NavRail />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TitleBar />
-        {/* A fresh start on every screen: it opens at its top, and one that failed to draw
+    <StatusNoteProvider>
+      <div className="flex h-screen overflow-hidden">
+        <NavRail />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TitleBar />
+          {/* A fresh start on every screen: it opens at its top, and one that failed to draw
           doesn't follow you around. Every part of a page keeps its full height, so a long
           page scrolls instead of squashing a panel that clips its corners. */}
-        <main
-          key={location.pathname}
-          id="main"
-          className="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-7 pb-12 *:shrink-0"
-        >
-          <ScreenError>{damage ? <DamagedRecords damage={damage} /> : <Outlet />}</ScreenError>
-        </main>
-        <StatusBar />
-      </div>
-      <UpdateCard />
-      {!damage && <DropZone />}
-      {/* Notes at the foot of the window, over the page: being offline, a picture open in
+          <main
+            key={location.pathname}
+            id="main"
+            className="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-7 pb-12 *:shrink-0"
+          >
+            <ScreenError>{damage ? <DamagedRecords damage={damage} /> : <Outlet />}</ScreenError>
+          </main>
+          <StatusBar />
+        </div>
+        <UpdateCard />
+        {!damage && <DropZone />}
+        {/* Notes at the foot of the window, over the page: being offline, a picture open in
         another app, and what the engine tells of. */}
-      <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(34rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">
-        <Offline />
-        {!damage && <InUse />}
-        <Notices />
+        <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(34rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">
+          <Offline />
+          {!damage && <InUse />}
+          <Notices />
+        </div>
       </div>
-    </div>
+    </StatusNoteProvider>
   );
 }

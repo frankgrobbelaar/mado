@@ -26,7 +26,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts), making pictures right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts), editing pictures by clicking, making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -142,9 +142,10 @@ flowchart LR
 ## Giving a picture a look
 
 The Looks tab shows every look as a small copy of the picture and the one picked on the picture
-itself, with its strength and finishing touches; what the Size and Looks tabs set together is one
-recipe (`mado/core/recipe.py`: the size step, then the look step, either left out), made by one
-Save: cropped or extended, made bigger, given its look and touches at that size, then saved.
+itself, with its strength and finishing touches; what the Edit, Size and Looks tabs set together
+is one recipe (`mado/core/recipe.py`: the edits, the size step, then the look step, any left out),
+made by one Save: edited, cropped or extended, made bigger, given its look and touches at that
+size (only on a part, when the look says so), then saved.
 Every look is a table of colours (a 3D LUT) run through Pillow's `Color3DLUT`; the owner's own
 (a `.cube` file imported, or a mix kept) are kept in the database. docs/stack/looks.md has how
 looks are made, what `.cube` files may be, and the times.
@@ -154,6 +155,35 @@ looks are made, what `.cube` files may be, and the times.
 | The rules | `mado/core/` (`grids`, `looks`, `cube`, `touches`, `recipe`) | Pure: a table of colours and keeping it small, Mado's looks made by code, reading a `.cube` file, the touches' shapes, the recipe of steps and its plan |
 | Laying it on | `mado/looks.py` | A look's one table, then the touches where they fall on the picture made, see-through parts and grey pictures kept as they are |
 | Your looks | `mado/own_looks.py` | Importing, keeping, renaming and deleting the owner's looks, and finding any look by its id |
+
+## Editing by clicking
+
+The Edit tab picks parts of a picture with clicks and does things with them: erases them, cuts
+them out, blurs what's behind them, or gives them a look (the Looks tab's "Only on a part"); a
+brush erases what clicking can't pick, and Cut out finds the subject without a click. The edits
+are the recipe's first step, made before the size and the look by the same Save, at the
+picture's full size; nothing changes till then. docs/stack/editing.md has the models, the masks,
+the card's memory and what was measured.
+
+```mermaid
+flowchart LR
+    click["a click on the stage"] -- "/pictures/{id}/select" --> pick["SAM 2.1: read once (card), pick (processor)"]
+    pick -- "parts and their outline" --> tab["Edit tab"]
+    tab -- "/pictures/{id}/edit" --> editor["mado/editing.py: each edit in order, at full size"]
+    editor -- "masks, by version" --> cache[("cache/edits")]
+    tab -- "/preview, /plan with the recipe's edits" --> editor
+    tab -- "Save" --> job["a job: edits, size, look, saved"]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/edits.py`, `mado/core/masks.py` | Pure: parts, strokes and edits as the recipe keeps them, their words, which answer goes first; masks together and apart, strokes drawn, edges grown and feathered, the guided filter, outlines, smears |
+| Picking | `mado/selecting.py` | The picture as SAM reads it, each part's three answers smallest first, masks at the picture's size, the outline on a copy 1024 across |
+| Erasing | `mado/erasing.py` | The hole cut out in a square, filled by MI-GAN or LaMa, laid back softly with grain; a fill that smeared |
+| Cutting out | `mado/cutting.py` | Masks refined to the picture's edges a band of rows at a time; on nothing, a colour or the rest blurred; the lens blur behind a part |
+| Edits | `mado/editing.py` | The edits made in order under the picture's one lock, each kept (a batch's, nothing); masks in the cache, made again from their clicks when gone or not fitting; a look's part; the Looks tab's small copy |
+| Models | `mado/ai.py`, `mado/directml.py`, `mado/hardware.py` | Each model's file and where it runs: on the card when it has room (DirectX's own budget, `hardware.room`), else the processor |
+| The API | `mado/api/editing.py`, `mado/api/edits.py`, `mado/api/making.py` | Picking, making edits; the recipe's edit step in plans, previews and Save |
 
 ## Many at once
 
@@ -217,12 +247,15 @@ Change a contract on both sides in the same commit.
 | `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version) |
 | `POST /pictures/{id}/read` | Reads one picture again now (one that wouldn't open may have been mended) |
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
-| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its size step and its look step, either of them none): its shape and the words for it, what it is, the model, its look, about how long here, the format, colours and size, and the downloads it waits for |
+| `POST /pictures/{id}/select` | Parts picked with clicks on the picture as its edits so far left it: a click starts a part, an Alt-click takes from the part it's in; each part's name ("Part 1"), its answer and the outline round them all; how long reading the picture took and how long it waited for the card (409 while SAM isn't downloaded, or the picture changed) |
+| `POST /pictures/{id}/edit` | Makes the edits (the last one new) so the previews show them: how long it took, where it ran, and whether an erase came out smooth where the picture has detail |
+| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its size step and its look step, any of them none, the look on the whole picture or parts): its shape and the words for it, what it is, the model, its look and edits, about how long here, the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
 | `POST /pictures/{id}/preview` | The picture made, all of it fitted (from its screen-sized view, as JPEG) or a part at full detail (as WebP), before (stretched) or after (made, with its look and touches), with its colour profile and how long it took |
 | `POST /pictures/{id}/saving` | The name a picture made would be saved as ("Harbour at dusk (TV 8K, Warm film).jpg"), whether that's taken, and about how big it comes out |
 | `POST /pictures/{id}/make` | Makes it to its recipe and saves it as chosen, as a job |
 | `GET /looks` | Mado's looks and the owner's own, each with a version its small copies' addresses carry |
 | `GET /pictures/{id}/looks/{look}` | A small copy of the picture in a look, from its thumbnail (WebP, kept by the window) |
+| `POST /pictures/{id}/looks/{look}` | The same, of the picture as its edits leave it, once the Edit tab has made some (409 once the picture changed) |
 | `POST /looks/import`, `POST /looks` | Importing a `.cube` file as a look; keeping the mix on the Looks tab (a look, its strength and its touches) as one |
 | `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are; not while a recipe uses it, or pictures waiting in the queue are made with it) |
 | `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | Pictures' own Saves (a picture's, or those under way; the queue's are `/queue`'s): stage, progress, time left, what they saved, why they didn't work; Cancel |
@@ -239,14 +272,15 @@ Change a contract on both sides in the same commit.
 | `POST /history/batches/{id}/undo`, `/redo`, `GET /history/today`, `GET /history/{id}/thumbnail` | A whole batch taken away or its originals put back, and done again, once nothing of it waits (409 till then); what was made today, for Home; a thumbnail of a picture a line made, in the library or not |
 | `POST /history/reviews/{id}/undo` | Every picture a review of duplicates and bursts set aside put back, each where it was |
 | `GET /quarantine`, `POST /quarantine/empty` | What waits in quarantine on each drive; emptying one now |
-| `GET /pc`, `POST /pc/test` | This PC: its card, processor and memory, where the models run, each kind at each quality with its time, what each starts on; testing it again |
+| `GET /pc`, `POST /pc/test` | This PC: its card, processor and memory, where the models run (and each editing model now), each kind at each quality with its time, what each starts on; testing it again |
 | `GET /records`, `POST /records/restore`, `POST /records/new` | Records damaged past use, and the two ways back |
 
 ## Data
 
 - **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `logs/`
   (`engine.log`, kept 30 days), `tools/` (ffmpeg, and the AI models fetched when asked), `cache/` (the pictures' thumbnails and views,
-  and the last few full-size copies: anything in it can go), and `backups/` (the last 7 nights,
+  the last few full-size copies, and each edit's mask in `cache/edits`, by picture and version,
+  let go after a month unedited: anything in it can go, a mask made again from its clicks), and `backups/` (the last 7 nights,
   each checked as it's made, and apart from them the last 7 made by hand, before a restore and
   from an export; none is ever written over). `mado/care.py` makes tonight's backup from 03:00 (or
   the first chance after). A backup chosen in Settings is restored as the engine starts again,
@@ -268,7 +302,7 @@ Change a contract on both sides in the same commit.
   into one.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
-  picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), History (`history.csv`, with each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), and a manifest. It grows with the
+  picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), History (`history.csv`, with what each picture was made for and with, what was edited, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

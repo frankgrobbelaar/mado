@@ -109,6 +109,13 @@
 
 /* Type roles. Use these for headings; use text-13, text-12… for everything else. Plex Sans at
    600 for every heading; body text at 400. */
+/* What's see-through in a picture: a check of the panel greys, as the Edit board draws it behind
+   a cut-out. */
+@utility checks {
+  background:
+    repeating-conic-gradient(var(--color-edge) 0 25%, var(--color-raised) 0 50%) 0 0 / 16px 16px;
+}
+
 @utility type-display {
   font-size: var(--text-32);
   line-height: 1.15;

@@ -17,13 +17,14 @@ from pathlib import Path, PureWindowsPath
 from typing import Literal, cast
 
 from mado import own_looks
-from mado.ai import Ai
+from mado.ai import BIREFNET, Ai
 from mado.core.batch import (
     KEPT_SECONDS,
     SPACE_HELD,
     Starts,
     StepError,
     calibrated,
+    cutout_detail,
     fits,
     folder_words,
     look_chip,
@@ -33,6 +34,7 @@ from mado.core.batch import (
     size_detail,
     steps_in_order,
 )
+from mado.core.edits import phrase as edit_phrase
 from mado.core.estimate import key
 from mado.core.files import kind_of, skipped_folder
 from mado.core.looks import phrase
@@ -212,6 +214,7 @@ def takes(
         raise BatchError("There are no pictures to make.")
     here = ai.where()
     starts = ai.starts_on(here)
+    cut_on = ai.edit_place(BIREFNET)
     format_ = saving.get("format")
     quality = saving.get("quality")
     chosen: Format = cast("Format", format_) if format_ in EXTENSIONS else "JPEG"
@@ -229,7 +232,7 @@ def takes(
         )
         first = first or made
         bytes_ = about_bytes(chosen, level, "photo", made.width * made.height)
-        each.append((estimated(made, here), bytes_))
+        each.append((estimated(made, here, cut_on), bytes_))
     assert first is not None  # noqa: S101 - there's a picture
     times = [(guess, took) for _at, guess, took, _b, _m in found]
     sizes = [(float(guessed), float(made)) for _at, _g, _t, guessed, made in found]
@@ -391,6 +394,7 @@ def _orders(
             "saving": saving,
             "label": words[0],
             "look": words[1],
+            "edit": words[2],
             "seconds": round(seconds, 2),
             "bytes": bytes_,
         }
@@ -410,7 +414,21 @@ def words_for(
     found: list[tuple[str, str, str, str, str | None]] = []
     for step in steps_in_order(steps):
         kind = str(step.get("step"))
-        if kind == "size":
+        if kind == "cutout":
+            quality, behind = step.get("quality"), step.get("behind")
+            found.append(
+                (
+                    "cutout",
+                    "Cut out the subject",
+                    cutout_detail(
+                        quality if isinstance(quality, str) else None,
+                        behind if isinstance(behind, str) else "nothing",
+                    ),
+                    "Cut out the subject",
+                    None,
+                )
+            )
+        elif kind == "size":
             try:
                 recipe = recipe_from(
                     {"size": _fields(step), "look": None}, screens_kept(conn), _no_look
@@ -501,12 +519,13 @@ def purpose_of(conn: sqlite3.Connection, steps: Sequence[dict[str, object]]) -> 
     return None
 
 
-def _made_words(recipe: Recipe) -> tuple[str | None, str | None]:
-    """What a batch's pictures are made for and with, as a job and History say them."""
+def _made_words(recipe: Recipe) -> tuple[str | None, str | None, str | None]:
+    """What a batch's pictures are made for and with, and what's edited first, as a job and
+    History say them."""
     made_for = recipe.sizing.size.label if recipe.sizing else None
     styling = recipe.styling
     look = phrase(styling.look, styling.strength, styling.touches) if styling else None
-    return made_for, look
+    return made_for, look, edit_phrase(recipe.editing)
 
 
 def _look_detail(styling: Styling) -> str:

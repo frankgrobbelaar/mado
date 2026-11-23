@@ -8,6 +8,33 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Edit by clicking: a picture's Edit tab picks a part with a click (Select), and every click after
+  the first is instant. Click again to add a part, Alt-click to take some of one away, and step
+  through Mado's three answers with Bigger, Smaller or the mouse wheel; Esc lets go. Parts get
+  plain names, Part 1 and Part 2, never a guess at what they are.
+- With what you picked: erase it (Fast, or Best for big parts and busy places), cut it out onto
+  nothing (PNG or WebP), a colour or the rest of the picture blurred, blur what's behind it like a
+  big camera lens, or give just that part a look.
+- Erase's brush paints what clicking can't pick, such as a wire, a scratch or a sign, Alt taking
+  away. Cut out finds the picture's subject without a click (Fast, or Best with the finest edges).
+- Undo the last edit or start again, and hold \ to see the original. Edits are a step of the
+  picture's one recipe with its size and look, made again at full size by the same Save, as a new
+  picture or in the original's place with the original in quarantine. History says what was
+  edited.
+- Looks on just a part: the Looks tab's "Only on a part" puts a look and its touches only where you
+  click, with a soft edge; Whole picture goes back. The looks' small copies show the picture as
+  you've edited it.
+- Cut out the subject is a step for many at once and for recipes, such as "Cut out the subject,
+  then PNG into Cut-outs", with See it first, what it takes and the queue as for any step.
+- The AI models for editing come the first time they're needed, each with its size and progress:
+  SAM 2.1 to pick parts (156 MB), MI-GAN to erase at Fast (28 MB) and BiRefNet lite to cut out at
+  Best (224 MB); LaMa erases at Best. Cutting out at Fast comes with Mado, so it works offline.
+- The small things: a model to download first, and what to do offline; the graphics card busy with
+  the queue; an erase that came out smooth where the picture has detail, offering Best; a picture
+  changed since Mado read it; a picture too big to edit (over 100 megapixels); and Save waiting
+  for a model still downloading.
+
 ## 0.4.0 - 2026-11-23
 
 ### Added

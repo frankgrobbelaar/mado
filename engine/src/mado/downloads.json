@@ -65,7 +65,7 @@
       "id": "lama",
       "name": "LaMa",
       "version": "models-1",
-      "purpose": "Draws more of a picture at its edges, to extend it to a screen's shape: good with skies, walls and water. Mado fetches it the first time Extend the edges is asked for.",
+      "purpose": "Draws more of a picture at its edges, to extend it to a screen's shape, and erases a part at Best: good with skies, walls and water. Mado fetches it the first time either is asked for.",
       "licence": "Apache-2.0",
       "home": "https://github.com/advimman/lama",
       "url": null,
@@ -92,6 +92,114 @@
           "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-Carve-LaMa.txt",
           "size": 11348,
           "sha256": "4ceeeac5a802e86c413c22b16cce8e9a22027b0250c97e6f8ac97c14cf0542c0"
+        }
+      ]
+    },
+    {
+      "id": "sam2.1-hiera-tiny",
+      "name": "SAM 2.1",
+      "version": "models-2",
+      "purpose": "Picks a part of a picture with a click, for Select on the Edit tab and for a look on just a part. Mado fetches it the first time a part is picked.",
+      "licence": "Apache-2.0",
+      "home": "https://github.com/facebookresearch/sam2",
+      "url": null,
+      "size": 155621781,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "vision_encoder.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/sam2.1-hiera-tiny-vision_encoder.onnx",
+          "size": 354238,
+          "sha256": "4f30aacd3aaefbca81a0b7fe4c1fc96345570ea0a6f80ced599493d1b3be2e8c"
+        },
+        {
+          "name": "vision_encoder.onnx_data",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/sam2.1-hiera-tiny-vision_encoder.onnx_data",
+          "size": 134084864,
+          "sha256": "e83df9866a5afe68ea7f0f721f18f65137fc3acbf0da1c74e946d363e09c69cc"
+        },
+        {
+          "name": "prompt_encoder_mask_decoder.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/sam2.1-hiera-tiny-prompt_encoder_mask_decoder.onnx",
+          "size": 213114,
+          "sha256": "874414704c5d686db7d206a35f6e15d26563d50c8c4468fccc6739bd7e491dcf"
+        },
+        {
+          "name": "prompt_encoder_mask_decoder.onnx_data",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/sam2.1-hiera-tiny-prompt_encoder_mask_decoder.onnx_data",
+          "size": 20958208,
+          "sha256": "e9874d900dd4134ed60eab1e97910327c2419e0b2954485d8fd6e7f1a1470f47"
+        },
+        {
+          "name": "LICENSE-SAM2.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/LICENSE-SAM2.txt",
+          "size": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "id": "mi-gan",
+      "name": "MI-GAN",
+      "version": "models-2",
+      "purpose": "Erases a part of a picture at Fast, filling it from what's around it. Mado fetches it the first time Erase is asked for.",
+      "licence": "MIT",
+      "home": "https://github.com/Picsart-AI-Research/MI-GAN",
+      "url": null,
+      "size": 28081346,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "migan-pipeline-v2.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/migan-pipeline-v2.onnx",
+          "size": 28079181,
+          "sha256": "6f1f3530a1a2324b19752018ce756088b07973cda8d7d890034ace5c8a48c40b"
+        },
+        {
+          "name": "LICENSE-MI-GAN.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/LICENSE-MI-GAN.txt",
+          "size": 1082,
+          "sha256": "13348eaaebc0b07b0faf3a92db04e0858737713a917d064b599c87cac05b571f"
+        },
+        {
+          "name": "LICENSE-WEIGHTS-MI-GAN.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/LICENSE-WEIGHTS-MI-GAN.txt",
+          "size": 1083,
+          "sha256": "674e33456b8d03693b84ab305aa7372d93c91e68b234651b0adad106d518e6eb"
+        }
+      ]
+    },
+    {
+      "id": "birefnet-lite",
+      "name": "BiRefNet lite",
+      "version": "models-2",
+      "purpose": "Cuts out a picture's subject at Best, with the finest edges. Mado fetches it the first time Best is asked for.",
+      "licence": "MIT",
+      "home": "https://github.com/ZhengPeng7/BiRefNet",
+      "url": null,
+      "size": 224006154,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "birefnet-lite.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/birefnet-lite.onnx",
+          "size": 224005088,
+          "sha256": "5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333"
+        },
+        {
+          "name": "LICENSE-BiRefNet.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/LICENSE-BiRefNet.txt",
+          "size": 1066,
+          "sha256": "92a7089e0915fc32bc40067560b398f1e6a7a5958abd7d04eda393629a5acefb"
         }
       ]
     }

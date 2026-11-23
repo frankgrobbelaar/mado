@@ -27,6 +27,7 @@ from mado.api import (
     backups,
     data,
     duplicates,
+    editing,
     health,
     history,
     jobs,
@@ -50,6 +51,7 @@ from mado.config import DataPaths
 from mado.core.models import BEST_PHOTO
 from mado.directml import Sessions
 from mado.duplicates import Finder
+from mado.editing import Editor
 from mado.events import Notify
 from mado.hardware import Here
 from mado.jobs import Jobs
@@ -173,6 +175,7 @@ def create_app(
         making_: Jobs = running.state.jobs
         with closing(db.connect(paths.database)) as conn:
             running.state.samples.tidy(conn)  # what an earlier run left in the cache goes
+        running.state.editor.tidy()  # the masks of pictures not edited for a month go
         making_.start()  # a job Mado's closing cut short starts again, and batches carry on
         folders = WatchFolders(paths, take, now=_now) if watch else None
         running.state.watch_folders = folders
@@ -223,6 +226,8 @@ def create_app(
     app.state.ai = Ai(app.state.sessions, app.state.tools, here or where_here)
     decoder = ffmpeg or (lambda: app.state.tools.path("ffmpeg"))
     app.state.sight = Sight(decoder)
+    # Editing by clicking: parts picked and edits made, kept so the previews and Save agree.
+    app.state.editor = Editor(app.state.ai, paths.cache / "edits")
     app.state.jobs = Jobs(
         paths,
         Maker(
@@ -231,13 +236,16 @@ def create_app(
             decoder,
             now=_now,
             kept=paths.cache / "samples" / "kept",
+            editor=app.state.editor,
         ),
         app.state.quarantine,
         now=_now,
         notify=notify,
     )
     # See it first's pictures, made by the jobs' worker before the queue's.
-    app.state.samples = Samples(paths, app.state.ai, decoder, wake=app.state.jobs.wake)
+    app.state.samples = Samples(
+        paths, app.state.ai, decoder, wake=app.state.jobs.wake, editor=app.state.editor
+    )
     app.state.jobs.before_the_queue(app.state.samples)
     app.state.watch_folders = None  # set while it watches
 
@@ -272,6 +280,7 @@ def create_app(
         scan,
         pictures,
         making,
+        editing,
         looks,
         jobs,
         batches_api,

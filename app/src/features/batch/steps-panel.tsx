@@ -1,4 +1,4 @@
-import { Download, Monitor, Plus } from "lucide-react";
+import { Download, Monitor, Plus, Scissors } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
@@ -25,6 +25,7 @@ export function LookIcon({ className }: { className?: string }) {
 }
 
 const ICONS: Record<string, ReactNode> = {
+  cutout: <Scissors size={20} strokeWidth={1.6} aria-hidden="true" />,
   size: <Monitor size={20} strokeWidth={1.6} aria-hidden="true" />,
   look: <LookIcon />,
   save: <Download size={20} strokeWidth={1.6} aria-hidden="true" />,
@@ -48,7 +49,7 @@ export function StepsPanel(props: {
   onRecipe?: (recipe: KeptRecipe) => void;
 }) {
   const { steps, words } = props;
-  const missing = (["size", "look"] as const).filter(
+  const missing = (["cutout", "size", "look"] as const).filter(
     (kind) => !steps.some((step) => step.step === kind),
   );
   return (
@@ -64,8 +65,8 @@ export function StepsPanel(props: {
       </div>
       {steps.length === 0 && (
         <p className="border-edge border-t px-4.5 py-3.5 text-13 text-fg-muted leading-normal">
-          Pick what to do: make them right for a screen or a print, give them a look, or start from
-          a recipe.
+          Pick what to do: cut out their subject, make them right for a screen or a print, give them
+          a look, or start from a recipe.
         </p>
       )}
       <ol>
@@ -122,7 +123,11 @@ export function StepsPanel(props: {
                     onSelect={() => props.onAdd(kind)}
                     className="flex cursor-pointer items-center gap-2 rounded-6 px-3 py-2 font-semibold text-fg-soft outline-none data-highlighted:bg-tint/6 data-highlighted:text-fg"
                   >
-                    {kind === "size" ? "Make it for a screen" : "A look"}
+                    {kind === "size"
+                      ? "Make it for a screen"
+                      : kind === "look"
+                        ? "A look"
+                        : "Cut out the subject"}
                   </DropdownMenu.Item>
                 ))}
               </DropdownMenu.Content>

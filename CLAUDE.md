@@ -34,8 +34,11 @@ watch folders; a notification and Home's Needs you and Made today; History's one
 and looking after the library, the fifth (duplicates and bursts found from the thumbnails in the
 background and reviewed on a page of their own, the rest set aside into quarantine under one line
 of History; the pictures that won't open, to try again or mark as damaged; the space on the
-drives the library uses; a picture open in another app waiting while the queue goes on). Next:
-the rest of Mado 1.0, by [What's next](#whats-next).
+drives the library uses; a picture open in another app waiting while the queue goes on); and
+editing by clicking, the sixth (the Edit tab: Select picks parts with SAM 2.1, then erase them,
+cut them out, blur what's behind them or give them a look; Erase's brush; Cut out finds the
+subject; looks on just a part; "Cut out the subject" in batches and recipes; each model
+downloaded the first time). Next: the rest of Mado 1.0, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -362,6 +365,57 @@ Everything decided so far. Don't ask again; change only with the owner.
   240 s scan and found the 270 groups planted and nothing else, the sharp shot kept in all 60 bursts
   and the original in all 210 duplicates. The Library board's "burst of 5" and "2 copies" tags on
   the grid aren't built.
+- Editing by clicking, as built (2026-11-23, Claude's calls while the owner is away;
+  docs/stack/editing.md): the Edit tab follows Picture-Edit. Select is SAM 2.1 Hiera-Tiny: the
+  picture read once at 1024 × 1024 (the whole of it squeezed, so any size can be picked; on the
+  card when it has room), each click its decoder on the processor (49 ms with the outline, never
+  waiting for the card); a click starts a part, an Alt-click adds a "not this" point to the part
+  it's in (one outside every part says so), the three answers kept smallest first, the surest shown
+  unless a bigger one is within 0.1 of it, Bigger, Smaller and the wheel stepping through, Esc
+  letting go. Parts are Part 1, Part 2: the board's "The boat" needs recognition, which waits for
+  a later piece. The volt dashed outline, the click's ring and "Part 1 · picked with one click",
+  "Mado read the picture in 0.3 s; every click after that is instant" and the status bar's "1 part
+  picked" are as drawn. With what you picked: Erase it (Fast, MI-GAN; Best, LaMa; the hole grown a
+  little and cut out in a square half its size again round it, 512 at least, laid back softly with
+  grain like the picture's), Cut it out (on nothing, as PNG or WebP only; a colour, of four
+  swatches or any; or the rest blurred; the picture keeps its size), Give it a look (the Looks tab
+  with "Only on a part" set to it) and Blur what's behind it (a disc 1.2% of the shorter side, in
+  light, the part kept out of the blur, a soft edge). The board's small pictures beside Erase it
+  and Cut it out are the picture's thumbnail with the part painted, or alone on the check. Erase's
+  brush is 1 to 20% of the shorter side, Alt taking away; Cut out's subject is u2netp at Fast
+  (shipped, 4.6 MB, on the processor) or BiRefNet lite at Best. Masks for cut-outs, blurs and looks
+  are refined to the picture's edges at full size by a guided filter, worked out on a copy 1024
+  across and laid on only along the unsure edge (0.5 to 0.6 s at 12 MP; it halves the error at
+  the edge). Undo (↶) and Start again in the header, as drawn, and the \ key to see the original
+  (the board's Edit header has no hold button); Save is the Save dialog, quiet till the first
+  edit. Each edit is a step of the picture's one recipe, made first, before the size and the look,
+  on the picture as the edits before it left it: kept as its clicks, strokes and answers, tied to
+  the picture's version (a Save on a changed picture saves nothing; a click on one lets the edits
+  go), each mask kept in `cache/edits` by picture and version and picked again from its clicks
+  when gone. A saved edit is a `made` or `replaced` line with what was edited in History's new
+  `edit` column (migration 7), the new picture named after it first ("Little sail (Erased).jpg",
+  "Cut out", "Blurred", "Edited" for more than one kind). A look on a part is feathered over 0.4% of
+  the shorter side, placed as the size step places the picture. "Cut out the subject" is a batch's
+  step made first (`{"step": "cutout"}`, Fast, Best or as this PC suits, with nothing, a colour or
+  the rest blurred behind), a batch or recipe cutting out with nothing behind saving only as PNG or
+  WebP. The models come the first time they're needed, from `models-2` (SAM 2.1, 156 MB; MI-GAN,
+  28 MB; BiRefNet lite, 224 MB; LaMa from `models-1`), each with its size and progress, offline
+  saying Fast cut-outs work meanwhile. A DirectML session keeps its share of the card's memory for
+  good (SAM's reader 1.2 GB, MI-GAN 0.6, LaMa 1.0), and going past Windows' budget pages rather
+  than fails, so an editing model goes on the card only when DirectX says this process has room for
+  it (`hardware.room`, any maker's card); BiRefNet lite commits about 10 GB with its graph fusion
+  off, so it runs on the processor on the owner's card (about 10 s). The queue's picture and an
+  edit take the card in turn a tile at a time, so an edit waits at most a tile; a click never
+  waits (a click made while another is on its way waits its turn, never dropped). Where each
+  model runs is in `/pc`, so the tab blames the card only for work on it and says when a picture
+  was read on the processor. A look's parts are tied to the picture's version as edits are; a
+  batch's edits keep no masks; the previews keep a cut-out's see-through parts; the Looks tab's
+  small copies and the small pictures beside Erase it and Cut it out show the picture as edited.
+  Mado edits pictures up to 100 megapixels, a bigger one saying so before a part is picked, with
+  the way to the Size tab. Measured on made-up scenes: a click picks the
+  sun, a sail, a hull or a ball at IoU 0.985 to 0.996, a striped balloon's one stripe first (the
+  whole balloon two steps bigger, 0.991); erasing a boat, PSNR in the hole 33.7 dB at Fast (0.43 s)
+  and 35.0 at Best (0.99 s).
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -477,8 +531,9 @@ Everything decided so far. Don't ask again; change only with the owner.
    select, then erase or cut out; many at once, with recipes and the queue; and the choice between
    a new picture and replacing. Built: the library and a picture's page, making it for a screen
    with saving, looks on the whole picture (a part comes with selecting), many at once with
-   recipes, watch folders and the queue, and looking after the library (duplicates and bursts,
-   the pictures that won't open, space, a picture open in another app).
+   recipes, watch folders and the queue, looking after the library (duplicates and bursts,
+   the pictures that won't open, space, a picture open in another app), and editing by clicking
+   (select, erase and cut out, looks on a part, cutting out in batches and recipes).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG

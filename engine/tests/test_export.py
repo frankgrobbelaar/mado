@@ -153,6 +153,7 @@ def test_historys_columns_line_up_with_their_names(paths: DataPaths, tmp_path: P
             look="Warm film at 60%",
             original=tmp_path / "Harbour at dusk.heic",
             result=tmp_path / "Harbour at dusk (Warm film).jpg",
+            edit="erased a part",
         )
         with conn:
             conn.execute(
@@ -168,6 +169,7 @@ def test_historys_columns_line_up_with_their_names(paths: DataPaths, tmp_path: P
         [row] = list(csv.DictReader(io.StringIO(zipped.read("history.csv").decode("utf-8"))))
     assert row["madeFor"] == ""
     assert row["look"] == "Warm film at 60%"
+    assert row["edit"] == "erased a part"
     assert row["clearedAt"] == "2026-12-22T03:00:00+00:00"
     assert row["clearedBy"] == "days"
     assert row["undoneAt"] == "2026-11-22T15:00:00+00:00"

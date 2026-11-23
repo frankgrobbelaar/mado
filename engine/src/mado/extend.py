@@ -55,7 +55,7 @@ def extended(
         pixels, (canvas_width, canvas_height), (left, top), fill, told, stop
     )
     reach = max(4, round(min(canvas_width, canvas_height) * 0.012))
-    strength = _grain(pixels)
+    strength = grain(pixels)
     noise = np.random.default_rng(7)
     for side, (x0, y0, x1, y1) in _strips(
         (canvas_width, canvas_height), (left, top, width, height)
@@ -235,7 +235,7 @@ def _square_drawn(part: Pixels, missing: npt.NDArray[np.bool_], fill: Filler) ->
     return np.asarray(drawn)
 
 
-def _grain(pixels: Pixels) -> float:
+def grain(pixels: Pixels) -> float:
     """How grainy the picture is: the spread of its finest detail where it's flat, so what's
     drawn (smooth) can be given the same and sit beside what was taken without showing. Nothing
     for a drawing, or a picture without grain."""

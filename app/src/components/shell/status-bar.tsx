@@ -9,6 +9,7 @@ import {
 } from "@/lib/engine";
 import { count, madeWith, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useShownNote } from "./status-note";
 
 const STATES = { starting: "Starting", ready: "Ready", failed: "Stopped" } as const;
 
@@ -25,6 +26,7 @@ export function StatusBar() {
   const place = usePc().data?.place;
   const making = useActiveJobs().data?.find((job) => job.state === "running");
   const batch = queue?.working ? queue : null;
+  const note = useShownNote();
   return (
     <footer className="flex h-8 shrink-0 items-center gap-4 border-chrome-edge border-t bg-statusbar px-4 font-mono text-12 text-fg-muted">
       <span className="inline-flex items-center gap-2">
@@ -59,6 +61,7 @@ export function StatusBar() {
             : `Looking: ${count(scan.found)} found`}
         </span>
       )}
+      {note && <span className="truncate">{note}</span>}
       {scan?.state !== "running" && folders > 0 && (
         <span>
           Watching {count(folders)} {folders === 1 ? "folder" : "folders"}

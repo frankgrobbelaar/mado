@@ -27,6 +27,16 @@ describe("madeWith and versionOf", () => {
     expect(versionOf(looked)).toBe("Warm film at 60%");
     expect(versionOf(both)).toBe("TV 8K, Warm film at 60%");
   });
+
+  it("say the edits made first in brackets, and a picture only edited is its edited version", () => {
+    const erased = { madeFor: null, look: null, edit: "erased a part" };
+    const sizedToo = { madeFor: "TV 8K", look: null, edit: "cut out the subject" };
+
+    expect(madeWith(erased)).toBe("(erased a part)");
+    expect(madeWith(sizedToo)).toBe("for TV 8K (cut out the subject)");
+    expect(versionOf(erased)).toBe("edited");
+    expect(versionOf(sizedToo)).toBe("TV 8K");
+  });
 });
 
 describe("size", () => {

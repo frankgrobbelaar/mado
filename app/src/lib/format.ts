@@ -88,17 +88,28 @@ export function about(seconds: number): string {
 
 /** What a picture was made for and with, after its name: "for TV 8K", "with Warm film at 60%",
  * "for TV 8K, with Warm film at 60%". */
-export function madeWith(made: { madeFor: string | null; look: string | null }): string {
+export function madeWith(made: {
+  madeFor: string | null;
+  look: string | null;
+  edit?: string | null;
+}): string {
   const parts = [
     made.madeFor ? `for ${made.madeFor}` : null,
     made.look ? `with ${made.look}` : null,
   ];
-  return parts.filter(Boolean).join(", ");
+  const said = parts.filter(Boolean).join(", ");
+  // The edits, made first, come after in brackets: "for TV 8K (erased a part)".
+  return made.edit ? `${said} (${made.edit})`.trimStart() : said;
 }
 
-/** The same as a version of it is called: "TV 8K", "Warm film at 60%", "TV 8K, Warm film at 60%". */
-export function versionOf(made: { madeFor: string | null; look: string | null }): string {
-  return [made.madeFor, made.look].filter(Boolean).join(", ");
+/** The same as a version of it is called: "TV 8K", "Warm film at 60%", "TV 8K, Warm film at 60%";
+ * "edited" for one only edited. */
+export function versionOf(made: {
+  madeFor: string | null;
+  look: string | null;
+  edit?: string | null;
+}): string {
+  return [made.madeFor, made.look].filter(Boolean).join(", ") || (made.edit ? "edited" : "");
 }
 
 /** A file's name without its extension: "Harbour at dusk" from "Harbour at dusk.heic". */

@@ -9,10 +9,11 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep | `src/mado/core/`, pure functions only |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep, the edits and their parts, mask maths | `src/mado/core/`, pure functions only |
 | The library: its folders, the scan, the watcher, reading pictures and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
 | Making a picture right for a screen: sessions on the card, the models' files, a tile at a time, extending edges, making and saving | `src/mado/directml.py`, `ai.py`, `upscale.py`, `extend.py`, `making.py`, `encode.py` (see [docs/stack/upscaling.md](../docs/stack/upscaling.md)) |
 | Giving a picture a look: the look's table and the touches laid on it, the owner's looks in the database | `src/mado/looks.py`, `own_looks.py` (see [docs/stack/looks.md](../docs/stack/looks.md)) |
+| Editing by clicking: picking parts (SAM 2.1), erasing (MI-GAN, LaMa), cutting out (U²-Net small, BiRefNet lite) and blurring behind, the edits made in order and their masks kept | `src/mado/selecting.py`, `erasing.py`, `cutting.py`, `editing.py` (see [docs/stack/editing.md](../docs/stack/editing.md)) |
 | The jobs, History and the quarantine | `src/mado/jobs.py`, `history.py`, `quarantine.py` |
 | Many at once: the queue (in the jobs' worker), batches and what they take, See it first, recipes, watch folders | `src/mado/jobs.py`, `batches.py`, `samples.py`, `recipes.py`, `watching.py` (see [docs/stack/queue.md](../docs/stack/queue.md)) |
 | This PC: what it has, its check (in a process of its own), its speeds | `src/mado/hardware.py`, `pc_check.py` (see [docs/stack/hardware.md](../docs/stack/hardware.md)) |
@@ -55,9 +56,13 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
   pick up where they stopped after a restart or a crash.
 - Mado runs on other people's PCs too: work on the graphics card uses what this PC has, never one
   card by name, and a heavier AI model comes as a choice beside a lighter one, never in its place.
-- DirectML's rules (`mado/directml.py`): every session made and run under its one lock, kept for
-  the engine's life (letting one go can crash another), its sizes pinned, never a quiet fall back
-  to the processor. Work that makes and drops sessions (the PC check) runs in a process of its own.
+- DirectML's rules (`mado/directml.py`): every card session made and run under its one lock (a
+  processor session is made and run without it, and a session made already is handed out without
+  it, so a click picked on the processor never waits for the queue), kept for the engine's life
+  (letting one go can crash another), its sizes pinned, never a quiet fall back to the processor.
+  A session keeps what it took of the card's memory, so an editing model goes on the card only
+  when `hardware.room()` says it fits. Work that makes and drops sessions (the PC check) runs in a
+  process of its own.
 - A test never writes to a drive's real quarantine: the `quarantine` fixture keeps it in the test's
   own folder.
 - Mado downloads nothing that isn't in `downloads.json`, and uses a download only when its size and

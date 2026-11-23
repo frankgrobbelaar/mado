@@ -1,4 +1,5 @@
-import { type KeyboardEvent, useId, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react";
 import { Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { pickCube } from "@/lib/dialogs";
 import {
+  type EditStep,
   type Look,
   type LookStep,
   lookAddress,
+  type PickedPart,
   type PictureDetails,
   type Plan,
   type Recipe,
@@ -28,6 +31,8 @@ import {
   type YourLook,
 } from "@/lib/engine";
 import { cn } from "@/lib/utils";
+import { ModelCard, TooBig } from "./edit-tab";
+import { MODELS, useNeed } from "./editing";
 import { SaveSection } from "./save-section";
 
 export const ORIGINAL = "original";
@@ -72,6 +77,10 @@ export function LooksTab(props: {
   plan: Plan | null;
   /** The look is still changing, so the plan for it isn't here yet. */
   settling: boolean;
+  /** The edits made on the Edit tab, which the small copies show; null or missing for none. */
+  edit?: EditStep | null;
+  /** "Only on a part", as the page holds the parts. */
+  part?: ReactNode;
 }) {
   const { picture, step, onStep, onPoint } = props;
   const looks = useLooks();
@@ -105,6 +114,7 @@ export function LooksTab(props: {
         ) : looks.data ? (
           <LookGrid
             picture={picture}
+            edit={props.edit ?? null}
             looks={looks.data.looks}
             chosen={step.look}
             onPick={pick}
@@ -135,6 +145,8 @@ export function LooksTab(props: {
 
       <Touches step={step} onStep={onStep} />
 
+      {props.part}
+
       <YourLooks
         mine={mine}
         chosen={chosenMine}
@@ -159,11 +171,12 @@ export function LooksTab(props: {
   );
 }
 
-/** Every look as a small copy of the picture in it, three to a row: picked by a click or the
- * arrow keys (which move along it, a row at a time up and down), shown on the big picture while
- * the pointer rests on one. */
+/** Every look as a small copy of the picture in it (as its edits leave it, once it has some),
+ * three to a row: picked by a click or the arrow keys (which move along it, a row at a time up
+ * and down), shown on the big picture while the pointer rests on one. */
 export function LookGrid(props: {
   picture: { id: number; version: string };
+  edit?: EditStep | null;
   looks: Look[];
   chosen: string;
   onPick: (look: Look) => void;
@@ -209,6 +222,7 @@ export function LookGrid(props: {
         <LookTile
           key={look.id}
           picture={props.picture}
+          edit={props.edit ?? null}
           look={look}
           chosen={look.id === chosen}
           focusable={look.id === chosen || (at < 0 && index === 0)}
@@ -225,6 +239,7 @@ export function LookGrid(props: {
 
 function LookTile(props: {
   picture: { id: number; version: string };
+  edit: EditStep | null;
   look: Look;
   chosen: boolean;
   focusable: boolean;
@@ -233,7 +248,10 @@ function LookTile(props: {
   onPoint: () => void;
 }) {
   const { look, chosen } = props;
-  const copy = usePictureImage(lookAddress(props.picture, look));
+  const copy = usePictureImage(
+    lookAddress(props.picture, look),
+    props.edit ? { edit: props.edit } : undefined,
+  );
   return (
     // biome-ignore lint/a11y/useSemanticElements: a radio that is a small copy of the picture, which an input can't hold
     <button
@@ -270,6 +288,81 @@ function LookTile(props: {
       </span>
       <span className="truncate">{look.name}</span>
     </button>
+  );
+}
+
+/** "Only on a part", as Picture-Looks draws it: the parts the look and its touches go on, picked
+ * by clicking the picture as Select picks them, with a feathered edge; "Whole picture" goes
+ * back. */
+export function OnlyOnAPart(props: {
+  parts: PickedPart[];
+  pending: boolean;
+  problem: string | null;
+  /** Why the picture is too big to pick parts on, or null. */
+  tooBig?: string | null;
+  onSize?: () => void;
+  onRemove: (at: number) => void;
+  onWhole: () => void;
+}) {
+  const sam = useNeed(MODELS.select);
+  const whole = props.parts.length === 0;
+  return (
+    <section
+      aria-labelledby="part"
+      className="flex flex-col gap-2 rounded-6 border border-edge bg-glass p-3"
+    >
+      <h2 id="part" className="font-semibold text-13">
+        Only on a part
+      </h2>
+      {props.tooBig ? (
+        <TooBig said={props.tooBig} onSize={props.onSize} />
+      ) : sam ? (
+        <ModelCard tool={sam} doing="Picking a part" />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            {props.parts.map((part, at) => (
+              <span
+                key={part.name}
+                className="inline-flex h-7.5 items-center gap-1.5 rounded-full bg-accent/15 pr-1 pl-2.5 font-medium text-13"
+              >
+                {part.name}
+                <button
+                  type="button"
+                  aria-label={`Take ${part.name} away`}
+                  onClick={() => props.onRemove(at)}
+                  className="press grid size-6 cursor-pointer place-items-center rounded-full text-accent-fg hover:bg-tint/8"
+                >
+                  <X size={12} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              aria-pressed={whole}
+              onClick={props.onWhole}
+              className={cn(
+                "press inline-flex h-7.5 cursor-pointer items-center rounded-full border px-2.5 font-medium text-13",
+                whole
+                  ? "border-accent bg-accent/10 text-fg"
+                  : "border-field-edge text-fg-muted hover:bg-tint/6",
+              )}
+            >
+              Whole picture
+            </button>
+          </div>
+          <p className="text-13 text-fg-muted leading-normal">
+            Click the picture to pick a part: the sky, a person, the background. Click again to add,
+            Alt-click to take away.
+          </p>
+        </>
+      )}
+      {props.problem && (
+        <p role="alert" className="text-12 text-broken-fg">
+          {props.problem}
+        </p>
+      )}
+    </section>
   );
 }
 

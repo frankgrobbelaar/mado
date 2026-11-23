@@ -1,7 +1,8 @@
-"""Making a picture to a recipe, as the Size and Looks tabs ask: the sizes there are, the owner's
-screens, the plan for a recipe (its shape, model, look, time and quality), a preview (all of it
-fitted, or a part at full detail), the name it would be saved as, and making it, as a job
-(mado/api/jobs.py). A recipe is a size step, a look step, or both, made by one Save."""
+"""Making a picture to a recipe, as the Size, Looks and Edit tabs ask: the sizes there are, the
+owner's screens, the plan for a recipe (its shape, model, look, edits, time and quality), a preview
+(all of it fitted, or a part at full detail), the name it would be saved as, and making it, as a
+job (mado/api/jobs.py). A recipe is its edits, a size step and a look step, any of them left out,
+made by one Save."""
 
 import io
 import json
@@ -15,16 +16,20 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import numpy as np
+import numpy.typing as npt
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from PIL import Image
 from pydantic import Field
 
 from mado import own_looks
-from mado.ai import LAMA
-from mado.api.common import ApiModel, Copies, Database, Models, Seeing, Toolbox, Working
+from mado.ai import BIREFNET
+from mado.api.common import ApiModel, Copies, Database, Editors, Models, Seeing, Toolbox, Working
+from mado.api.editing import changed
+from mado.api.edits import EditStepIn, PartIn, editing_of, picked
 from mado.api.jobs import Job, job_of
 from mado.api.looks import LookIn
+from mado.core.edits import EditError, Editing, as_json
 from mado.core.estimate import key
 from mado.core.framing import Box, Shape
 from mado.core.kind import Kind
@@ -43,20 +48,32 @@ from mado.core.sizes import (
     yours,
 )
 from mado.directml import ModelError
+from mado.editing import EditingError, Editor, picture_key
 from mado.looks import Placement, seed_of, styled
 from mado.making import (
     Picture,
     Seen,
     Sight,
     estimated,
+    only_on,
     picture_of,
+    placed,
     planned,
     screens_kept,
     waiting_for,
 )
 from mado.pictures import NeedsFfmpegError, PictureGoneError, UnreadableError
 from mado.previews import Previews, Source, version
-from mado.upscale import Pixels, StoppedError, by_pixels, smaller, smoothly, through_model
+from mado.upscale import (
+    Pixels,
+    StoppedError,
+    bled,
+    by_pixels,
+    resize_alpha,
+    smaller,
+    smoothly,
+    through_model,
+)
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -103,11 +120,19 @@ class SizeIn(ApiModel):
     clean: bool = True
 
 
-class RecipeIn(ApiModel):
-    """A recipe: the size step, then the look step; either can be left out."""
+class LookHereIn(LookIn):
+    """The look step on a picture's page: on the whole picture, or only on parts picked as Select
+    picks them, on the picture as its edits left it."""
 
+    parts: Annotated[list[PartIn], Field(default_factory=list[PartIn], max_length=32)]
+
+
+class RecipeIn(ApiModel):
+    """A recipe: the edits, the size step, then the look step; any can be left out."""
+
+    edit: EditStepIn | None = None
     size: SizeIn | None = None
-    look: LookIn | None = None
+    look: LookHereIn | None = None
 
 
 class Fraction(ApiModel):
@@ -146,6 +171,7 @@ class PlanOut(ApiModel):
     warning: str | None  # what it can't make look real
     clean_matters: bool  # cleaning first changes the model (Fast keeps grain without it)
     look: str | None  # the look, as Save says it after "with": "Warm film at 60%"
+    edit: str | None  # the edits, as Save and History say them: "erased a part"
     seconds: float  # about how long it takes here
     place: Literal["card", "processor"]
     measured: bool  # the time is this PC's own, not a guess
@@ -155,6 +181,7 @@ class PlanOut(ApiModel):
     colour: str  # "sRGB", "Display P3"
     bytes: int  # about how big it comes out
     see_through: bool  # it has see-through parts, which JPEG makes white
+    nothing_behind: bool  # a cut-out with nothing behind it: only PNG and WebP keep it
     needs: list[Need]  # downloads it waits for
 
 
@@ -242,12 +269,15 @@ def plan_for(
 ) -> PlanOut:
     """How a picture would be made to a recipe: its shape, the model, its look, about how long it
     takes here and how it would be saved."""
-    picture, seen, _source = _seen(conn, sight, picture_id)
-    recipe = _recipe(body, conn)
+    picture, seen, source = _seen(conn, sight, picture_id)
+    recipe = _recipe(body, conn, source.version, picture.path.name)
     here = ai.where()
     made = planned(recipe, seen, ai.starts_on(here))
     purpose = recipe.sizing.size.purpose if recipe.sizing else "screen"
-    suits = suited(purpose, made.kind, picture.format, alpha=seen.alpha)
+    clear = seen.alpha or made.see_through
+    # A cut-out with nothing behind it keeps its nothing: PNG, or WebP when it was WebP.
+    kept_as = picture.format if not made.see_through or picture.format == "WebP" else None
+    suits = suited(purpose, made.kind, kept_as, alpha=clear)
     frame = made.frame
     names = {item.id: item for item, _ in toolbox.status()}
     measured = made.model is not None and key(made.model.id, here.place) in here.speeds
@@ -271,7 +301,8 @@ def plan_for(
         warning=made.warning,
         clean_matters=made.method == "ai" and made.quality == "fast",
         look=made.look,
-        seconds=estimated(made, here),
+        edit=made.edit,
+        seconds=estimated(made, here, ai.edit_place(BIREFNET)),
         place=here.place,
         measured=measured,
         format=suits.format,
@@ -279,7 +310,8 @@ def plan_for(
         fits=suits.fits,
         colour=colour_words(seen.profile, keep=True),
         bytes=about_bytes(suits.format, suits.quality, made.kind, made.width * made.height),
-        see_through=seen.alpha,
+        see_through=clear,
+        nothing_behind=made.see_through,
         needs=[
             Need(id=each, name=names[each].name, size=names[each].size or 0)
             for each in waiting_for(made, ai)
@@ -295,27 +327,39 @@ _PREVIEWS: dict[int | str, dict[str, object]] = {
 
 @router.post("/pictures/{picture_id}/preview", response_class=Response, responses=_PREVIEWS)
 def preview(
-    picture_id: int, body: PreviewIn, conn: Database, sight: Seeing, ai: Models, copies: Copies
+    picture_id: int,
+    body: PreviewIn,
+    conn: Database,
+    sight: Seeing,
+    ai: Models,
+    copies: Copies,
+    editor: Editors,
 ) -> Response:
     """A preview of the picture made: all of it no bigger than `fit` (from its view the size of a
     screen), or a part of it at full detail (`region`); before (the picture only stretched) or
     after (made, as Save would, with its look and touches). All of it comes as JPEG, quick to
     make as looks are gone through (WebP when it has see-through parts); a part as WebP."""
     picture, seen, source = _seen(conn, sight, picture_id)
-    recipe = _recipe(body.recipe, conn)
+    recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = planned(recipe, seen, ai.starts_on())
     missing = waiting_for(made, ai)
-    # Extending needs LaMa on either side; the upscaler only for a part made at full detail.
-    if LAMA in missing or (missing and body.region is not None and body.side == "after"):
+    upscaler = made.model.download if made.model is not None else None
+    # Extending and the edits need their models on either side; the upscaler only for a part
+    # made at full detail.
+    if any(each != upscaler for each in missing) or (
+        missing and body.region is not None and body.side == "after"
+    ):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "It needs a model Mado downloads the first time it's asked for: download it first.",
         )
     began = time.perf_counter()
     try:
-        image = _previewed(picture, source, seen, made, body, sight, ai, copies)
+        image = _previewed(picture, source, seen, made, body, sight, ai, copies, editor)
     except ModelError as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
+    except EditingError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except (UnreadableError, PictureGoneError, NeedsFfmpegError) as error:
         raise _refused(error) from None
     except StoppedError:  # never asked to stop: a preview runs to its end
@@ -345,8 +389,8 @@ def saving_name(
     picture_id: int, body: SavingAsk, conn: Database, sight: Seeing, ai: Models
 ) -> SavingName:
     """What a picture made would be saved as, and about how big it would be."""
-    picture, seen, _source = _seen(conn, sight, picture_id)
-    recipe = _recipe(body.recipe, conn)
+    picture, seen, source = _seen(conn, sight, picture_id)
+    recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = planned(recipe, seen, ai.starts_on())
     if made.empty:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
@@ -380,11 +424,17 @@ def make(
 ) -> Job:
     """Makes a picture to its recipe and saves it as the owner chose, as a job: its progress,
     the time left and Cancel come from /jobs."""
-    picture, seen, _source = _seen(conn, sight, picture_id)
-    recipe = _recipe(body.recipe, conn)
+    picture, seen, source = _seen(conn, sight, picture_id)
+    recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = planned(recipe, seen, ai.starts_on())
     if made.empty:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
+    if made.see_through and body.saving.format not in ("PNG", "WebP"):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "A cut-out with nothing behind it keeps its see-through parts only as PNG or WebP: "
+            "pick one of those.",
+        )
     if waiting_for(made, ai):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -416,12 +466,14 @@ def make(
     look = asked.look if made.styling is not None else None  # a look that changes nothing isn't
     order = {
         "recipe": {
+            "edit": as_json(recipe.editing) if recipe.editing else None,  # its version too
             "size": decided.model_dump(by_alias=True) if decided else None,
             "look": look.model_dump(by_alias=True) if look else None,
         },
         "saving": saving.model_dump(by_alias=True, exclude={"always"}),
         "label": made.made_for,
         "look": made.look,
+        "edit": made.edit,
         "estimate": round(made.scale, 3),
     }
     job_id = jobs.add(conn, picture_id, picture.path, order)
@@ -437,23 +489,33 @@ def _previewed(
     sight: Sight,
     ai: Models,
     copies: Previews,
+    editor: Editor,
 ) -> Image.Image:
-    """The preview as asked for: all of it fitted, or a part at full detail; its look and
-    touches where they fall on the picture made, after."""
+    """The preview as asked for: all of it fitted, or a part at full detail; the picture as its
+    edits left it; its look and touches where they fall on the picture made, after, only on a
+    part when the look says so."""
     looked = made.styling if body.side == "after" else None
     seed = seed_of(picture.path)
     target = (made.width, made.height)
+    edits = made.editing.edits if made.editing else ()
+    parts = made.styling.parts if made.styling else ()
+    key = picture_key(picture.path, source.version)
     if body.region is None:
         fit = body.fit or Fit(width=1600, height=1600)
         scale = min(fit.width / target[0], fit.height / target[1], 1.0)
         size = (max(1, round(target[0] * scale)), max(1, round(target[1] * scale)))
         base = sight.fitted(
-            (str(picture.path).casefold(), source.version, made.frame, size),
-            lambda: _fitted(picture, source, seen, made, size, sight, ai, copies),
+            (str(picture.path).casefold(), source.version, made.frame, size, made.editing),
+            lambda: _fitted(picture, source, seen, made, size, sight, ai, copies, editor),
         )
         if looked is None:
             return base
-        return styled(base, looked, seed=seed, placement=Placement.fitted(base.size, target))
+        shown = styled(base, looked, seed=seed, placement=Placement.fitted(base.size, target))
+        if parts:
+            whole = sight.picture(picture, source.version)
+            mask = editor.look_mask(whole, key, edits, parts)
+            shown = only_on(shown, base, placed(mask, made, base.size))
+        return shown
     region = body.region
     if region.width * region.height > _MOST_PREVIEW:
         raise HTTPException(
@@ -465,29 +527,82 @@ def _previewed(
         )
     version_ = _version_of(picture)
     decoded = sight.picture(picture, version_)
-    profile = decoded.info.get("icc_profile")
+    state = editor.state(decoded, key, edits) if edits else decoded
+    profile = state.info.get("icc_profile")
+    offset = (0, 0)
     if made.frame.shape == "extend" and made.frame.sides != "none":
-        pixels, kept, _at = sight.extended(picture, version_, made.frame.canvas, ai.filler)
+        pixels, kept, offset = sight.extended(
+            picture,
+            version_,
+            made.frame.canvas,
+            ai.filler,
+            image=state if edits else None,
+            also=made.editing,
+        )
     else:
-        pixels = np.asarray(decoded.convert("RGB"))
+        # A cut-out's see-through parts as a fourth channel: worked out round the part below,
+        # never over the whole picture.
+        see_through = "A" in state.getbands()
+        pixels = np.asarray(state.convert("RGBA" if see_through else "RGB"))
         kept = made.frame.kept
     kx, ky = kept.width / target[0], kept.height / target[1]  # the picture's pixels a made one
     part = Box(
         kept.x + region.x * kx, kept.y + region.y * ky, region.width * kx, region.height * ky
     )
+    size = (region.width, region.height)
     if body.side == "before":
         stretched = Image.fromarray(pixels).resize(
-            (region.width, region.height),
+            size,
             Image.Resampling.BICUBIC,
             box=(part.x, part.y, part.x + part.width, part.y + part.height),
         )
         return _profiled(stretched, profile)
-    made_part = Image.fromarray(_made_part(pixels, part, (region.width, region.height), made, ai))
+    if pixels.shape[2] == 4:  # see-through parts (a cut-out's) apart, as Save makes them
+        colours, clear, here = _round(pixels, part, size)
+        made_part = Image.fromarray(_made_part(colours, here, size, made, ai))
+        made_part.putalpha(Image.fromarray(resize_alpha(clear, here, size)))
+    else:
+        made_part = Image.fromarray(_made_part(pixels, part, size, made, ai))
     made_part = _profiled(made_part, profile)
     if looked is None:
         return made_part
     at = Placement(target[0], target[1], left=region.x, top=region.y)
-    return styled(made_part, looked, seed=seed, placement=at)
+    shown = styled(made_part, looked, seed=seed, placement=at)
+    if parts:
+        mask = editor.look_mask(decoded, key, edits, parts)
+        height, width = mask.shape
+        canvas_height, canvas_width = pixels.shape[:2]
+        left, top = offset
+        spread = np.pad(
+            mask,
+            ((top, canvas_height - top - height), (left, canvas_width - left - width)),
+            mode="edge",
+        )
+        here = Image.fromarray(spread, "L").resize(
+            (region.width, region.height),
+            Image.Resampling.BILINEAR,
+            box=(part.x, part.y, part.x + part.width, part.y + part.height),
+        )
+        shown = only_on(shown, made_part, here)
+    return shown
+
+
+def _round(
+    pixels: Pixels, part: Box, size: tuple[int, int]
+) -> tuple[Pixels, npt.NDArray[np.uint8], Box]:
+    """The picture round a part (see-through as a fourth channel), with room for the model's
+    margin and the resize's reach: its colours, what its see-through parts hide carried in from
+    what shows (so making it bigger brings in no dark fringe), its see-through parts, and where
+    the part is in it. Only round the part: over all of a big picture it takes seconds."""
+    height, width = pixels.shape[:2]
+    reach = _MARGIN + ceil(3 * max(part.width / size[0], part.height / size[1], 1.0)) + 2
+    left, top = max(int(part.x) - reach, 0), max(int(part.y) - reach, 0)
+    right = min(ceil(part.x + part.width) + reach, width)
+    bottom = min(ceil(part.y + part.height) + reach, height)
+    around = pixels[top:bottom, left:right]
+    clear = np.ascontiguousarray(around[..., 3])
+    colours = bled(np.ascontiguousarray(around[..., :3]), clear)
+    return colours, clear, Box(part.x - left, part.y - top, part.width, part.height)
 
 
 def _profiled(image: Image.Image, profile: object) -> Image.Image:
@@ -506,16 +621,29 @@ def _fitted(
     sight: Sight,
     ai: Models,
     copies: Previews,
+    editor: Editor,
 ) -> Image.Image:
     """The picture made, `size` big: from its view the size of a screen, cut as its plan says
-    (or from the picture itself, when the view has fewer pixels than that); or, with its edges
-    extended, from the canvas LaMa drew."""
+    (or from the picture itself, when the view has fewer pixels than that, or as its edits left
+    it); or, with its edges extended, from the canvas LaMa drew."""
+    edits = made.editing.edits if made.editing else ()
+    key = picture_key(picture.path, source.version)
     if made.frame.shape == "extend" and made.frame.sides != "none":
         version_ = _version_of(picture)
-        canvas, kept, _at = sight.extended(picture, version_, made.frame.canvas, ai.filler)
-        profile = sight.picture(picture, version_).info.get("icc_profile")
+        whole = sight.picture(picture, version_)
+        state = editor.state(whole, key, edits) if edits else None
+        canvas, kept, _at = sight.extended(
+            picture, version_, made.frame.canvas, ai.filler, image=state, also=made.editing
+        )
+        profile = (state or whole).info.get("icc_profile")
         return _profiled(Image.fromarray(smaller(canvas, kept, size)), profile)
     kept = made.frame.kept
+    box = (kept.x, kept.y, kept.x + kept.width, kept.y + kept.height)
+    if edits:
+        state = editor.state(sight.picture(picture, source.version), key, edits)
+        return _profiled(
+            state.resize(size, Image.Resampling.LANCZOS, box=box), state.info.get("icc_profile")
+        )
     with Image.open(copies.view(source)) as view:
         view.load()
         k = view.width / seen.width
@@ -587,9 +715,11 @@ def _version_of(picture: Picture) -> str:
     return version(stat.st_mtime_ns, stat.st_size)
 
 
-def _recipe(body: RecipeIn, conn: sqlite3.Connection) -> Recipe:
-    """The recipe asked for: its size (the owner's screens naming theirs) and its look (one of
-    Mado's or the owner's), either of them none."""
+def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Recipe:
+    """The recipe asked for: its edits (made on the picture as it is `now`; once it's changed,
+    they're refused), its size (the owner's screens naming theirs) and its look (one of Mado's or
+    the owner's, on the whole picture or parts, those tied to the picture as it is `now` too), any
+    of them none."""
     sizing: Sizing | None = None
     if body.size is not None:
         asked = body.size
@@ -600,14 +730,26 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection) -> Recipe:
         focus = (asked.focus[0], asked.focus[1]) if asked.focus else None
         sizing = Sizing(size, asked.shape, focus, asked.kind, asked.quality, asked.clean)
     styling: Styling | None = None
-    if body.look is not None:
-        look = own_looks.resolve(conn, body.look.look)
-        if look is None:
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND, "That look isn't in your looks any more."
+    try:
+        if body.look is not None:
+            look = own_looks.resolve(conn, body.look.look)
+            if look is None:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, "That look isn't in your looks any more."
+                )
+            styling = Styling(
+                look, body.look.strength, body.look.touches.touches(), picked(body.look.parts)
             )
-        styling = Styling(look, body.look.strength, body.look.touches.touches())
-    return Recipe(sizing, styling)
+        editing: Editing | None = editing_of(body.edit)
+    except EditError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+    if editing is not None and editing.version is not None and editing.version != now:
+        raise HTTPException(status.HTTP_409_CONFLICT, changed(name, edited=bool(editing.edits)))
+    if styling is not None and styling.parts and (editing is None or editing.version is None):
+        # Parts picked for a look are tied to the picture as it is, as edits are: a Save that
+        # finds it changed saves nothing.
+        editing = Editing(editing.edits if editing else (), now)
+    return Recipe(sizing, styling, editing)
 
 
 def _refused(error: Exception) -> HTTPException:

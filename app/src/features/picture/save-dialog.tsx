@@ -26,6 +26,7 @@ import { dayAndTime, size as sizeOf, split, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const WRITES: SaveFormat[] = ["JPEG", "PNG", "WebP", "AVIF"];
+const CLEAR: SaveFormat[] = ["PNG", "WebP"]; // what keeps a cut-out's see-through parts
 const LOSSY = new Set<SaveFormat>(["JPEG", "WebP", "AVIF"]);
 
 /**
@@ -205,7 +206,7 @@ function SaveForm(props: {
             <Segmented
               label="Format"
               value={format}
-              options={WRITES.map((each) => ({
+              options={(plan.nothingBehind ? CLEAR : WRITES).map((each) => ({
                 value: each,
                 label: each === asIs ? `${each}, as it was` : each,
               }))}
@@ -213,6 +214,11 @@ function SaveForm(props: {
               className="flex-wrap"
             />
           </div>
+          {plan.nothingBehind && (
+            <p className="text-13 text-fg-muted">
+              A cut-out with nothing behind it keeps its see-through parts as PNG or WebP.
+            </p>
+          )}
           {lossy && (
             <div className="flex items-center gap-3 text-13">
               <label htmlFor={ids.quality} className="w-16 text-fg-muted">
@@ -287,7 +293,7 @@ function SaveForm(props: {
 
 /** What the picture is made for and with, as the Save board's header says it: "Made for TV 8K,
  * 7680 × 4320", "Made for TV 8K (7680 × 4320), with Warm film at 60%", "With Warm film at 60%,
- * 4032 × 3024". */
+ * 4032 × 3024"; the edits first, made before them: "Erased a part, 4032 × 3024". */
 function MadeAs({ plan }: { plan: Plan }) {
   const pixels = (
     <span className="font-mono text-fg">
@@ -296,6 +302,33 @@ function MadeAs({ plan }: { plan: Plan }) {
   );
   const size = <span className="font-mono text-fg">{plan.label}</span>;
   const look = <span className="text-fg">{plan.look}</span>;
+  const edited = plan.edit ? (
+    <span className="text-fg">{plan.edit.charAt(0).toUpperCase() + plan.edit.slice(1)}</span>
+  ) : null;
+  if (edited && plan.label && plan.look)
+    return (
+      <>
+        {edited}, then made for {size} ({pixels}), with {look}
+      </>
+    );
+  if (edited && plan.label)
+    return (
+      <>
+        {edited}, then made for {size}, {pixels}
+      </>
+    );
+  if (edited && plan.look)
+    return (
+      <>
+        {edited}, with {look}, {pixels}
+      </>
+    );
+  if (edited)
+    return (
+      <>
+        {edited}, {pixels}
+      </>
+    );
   if (plan.label && plan.look)
     return (
       <>

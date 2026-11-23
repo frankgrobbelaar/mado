@@ -1,23 +1,23 @@
 import type { UseQueryResult } from "@tanstack/react-query";
-import { type KeyboardEvent, useRef } from "react";
-import type { LookStep, PictureDetails, Plan, Recipe, SizeStep } from "@/lib/engine";
+import { type KeyboardEvent, type ReactNode, useRef } from "react";
+import type { EditStep, LookStep, PictureDetails, Plan, Recipe, SizeStep } from "@/lib/engine";
 import { cn } from "@/lib/utils";
 import { LooksTab } from "./looks-tab";
 import { SizeTab } from "./size-tab";
 
-export type Tool = "size" | "looks";
+export type Tool = "size" | "looks" | "edit";
 
 const TOOLS = [
-  { key: "size", label: "Size", ready: true },
-  { key: "looks", label: "Looks", ready: true },
-  { key: "edit", label: "Edit", ready: false },
+  { key: "size", label: "Size" },
+  { key: "looks", label: "Looks" },
+  { key: "edit", label: "Edit" },
 ] as const;
 
 /**
  * The column beside the picture where its tools are, as the Picture boards draw it: Size, Looks
  * and Edit along its top. Size makes the picture right for a screen or a print, Looks gives it a
- * look and finishing touches, and one Save on either makes both; Edit comes in Mado's next pieces,
- * so it waits, quietly, in its place.
+ * look and finishing touches (on the whole picture or a part), Edit picks parts with a click to
+ * erase, cut out or blur behind; one Save on any of them makes all three.
  */
 export function ToolsColumn(props: {
   picture: PictureDetails;
@@ -33,6 +33,12 @@ export function ToolsColumn(props: {
   plan: UseQueryResult<Plan>;
   /** The look is still changing, so the plan for it isn't here yet. */
   settling: boolean;
+  /** The edits made, which the Looks tab's small copies show; null for none. */
+  edited: EditStep | null;
+  /** The Looks tab's "Only on a part". */
+  part: ReactNode;
+  /** The Edit tab, as the page holds its edits. */
+  edit: ReactNode;
 }) {
   const ready = props.picture.state === "ready";
   const tabs = useRef<Partial<Record<Tool, HTMLButtonElement | null>>>({});
@@ -41,7 +47,7 @@ export function ToolsColumn(props: {
 
   /** The arrow keys, Home and End go from tool to tool, as tabs do. */
   function move(event: KeyboardEvent<HTMLDivElement>) {
-    const open = TOOLS.filter((tool) => tool.ready).map((tool) => tool.key) as Tool[];
+    const open = TOOLS.map((tool) => tool.key) as Tool[];
     const at = open.indexOf(props.tool);
     const to =
       event.key === "ArrowRight"
@@ -76,7 +82,7 @@ export function ToolsColumn(props: {
             <button
               key={tool.key}
               ref={(tab) => {
-                if (tool.key !== "edit") tabs.current[tool.key] = tab;
+                tabs.current[tool.key] = tab;
               }}
               id={`tool-${tool.key}`}
               type="button"
@@ -84,16 +90,12 @@ export function ToolsColumn(props: {
               aria-selected={chosen}
               aria-controls={chosen ? "tool-panel" : undefined}
               tabIndex={chosen ? 0 : -1}
-              disabled={!tool.ready}
-              title={tool.ready ? undefined : `${tool.label} comes in Mado's next pieces`}
-              onClick={() => tool.key !== "edit" && props.onTool(tool.key)}
+              onClick={() => props.onTool(tool.key)}
               className={cn(
                 "press flex h-8 flex-1 items-center justify-center rounded-4 text-13",
                 chosen
                   ? "bg-raised font-semibold text-fg"
-                  : tool.ready
-                    ? "cursor-pointer font-medium text-fg-muted hover:text-fg"
-                    : "font-medium text-fg-faint",
+                  : "cursor-pointer font-medium text-fg-muted hover:text-fg",
               )}
             >
               {tool.label}
@@ -110,9 +112,11 @@ export function ToolsColumn(props: {
         {!ready ? (
           <p className="text-13 text-fg-muted leading-normal">
             {props.picture.state === "raw"
-              ? "Mado can't read camera RAW yet, so it can't make this one for a screen or give it a look."
-              : "Mado can't open this picture, so it can't make it for a screen or give it a look."}
+              ? "Mado can't read camera RAW yet, so it can't make this one for a screen, give it a look or edit it."
+              : "Mado can't open this picture, so it can't make it for a screen, give it a look or edit it."}
           </p>
+        ) : props.tool === "edit" ? (
+          props.edit
         ) : props.tool === "looks" ? (
           <LooksTab
             picture={props.picture}
@@ -122,6 +126,8 @@ export function ToolsColumn(props: {
             recipe={props.recipe}
             plan={plan}
             settling={props.settling}
+            edit={props.edited}
+            part={props.part}
           />
         ) : (
           <SizeTab

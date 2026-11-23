@@ -17,6 +17,8 @@ export function SaveSection(props: {
   plan: Plan | null;
   /** The tab has something to save. */
   ready: boolean;
+  /** Save is quiet, not the tab's one primary action: the Edit tab before its first edit. */
+  quiet?: boolean;
   caption?: ReactNode;
 }) {
   const { picture, recipe, plan } = props;
@@ -31,7 +33,11 @@ export function SaveSection(props: {
           scrolls under it fades out above it. */}
       <div className="sticky -bottom-4 -mx-4.5 mt-auto -mb-4 flex flex-col gap-2 bg-surface px-4.5 pt-2 pb-4 before:pointer-events-none before:absolute before:inset-x-0 before:-top-4 before:h-4 before:bg-linear-to-t before:from-surface before:to-transparent">
         {job && <JobCard job={job} />}
-        <Button variant="primary" disabled={!can} onClick={() => setSaving(true)}>
+        <Button
+          variant={props.quiet ? "secondary" : "primary"}
+          disabled={!can}
+          onClick={() => setSaving(true)}
+        >
           Save…
         </Button>
         {props.caption && <p className="text-center text-13 text-fg-faint">{props.caption}</p>}

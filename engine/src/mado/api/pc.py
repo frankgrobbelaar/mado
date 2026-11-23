@@ -1,6 +1,7 @@
 """This PC, as Settings > About and Setup show it: its graphics card, processor and memory,
 whether the AI models run on the card, where each kind of picture starts (Fast or Best) and how
-long a typical one takes; and testing it again."""
+long a typical one takes, and where each editing model runs (the Edit tab says); and testing it
+again."""
 
 import sqlite3
 from typing import Literal
@@ -44,6 +45,17 @@ class MeasuredOut(ApiModel):
     pictures: int  # pictures made since
 
 
+class EditingOut(ApiModel):
+    """Where each editing model runs now: SAM reading a picture (each click after is on the
+    processor), erasing at Fast and Best, cutting out at Fast and Best."""
+
+    select: Literal["card", "processor"]
+    erase_fast: Literal["card", "processor"]
+    erase_best: Literal["card", "processor"]
+    cut_fast: Literal["card", "processor"]
+    cut_best: Literal["card", "processor"]
+
+
 class Pc(ApiModel):
     card: CardOut | None
     processor: str | None
@@ -58,6 +70,7 @@ class Pc(ApiModel):
     measured: MeasuredOut | None  # None while the times are a guess
     starts_on: StartsOn
     abilities: list[AbilityOut]
+    editing: EditingOut
 
 
 @router.get("/pc")
@@ -80,6 +93,7 @@ def _pc(pc: PcCheck, conn: sqlite3.Connection, ai: Ai) -> Pc:
     card = best_card(facts.cards)
     starts = ai.starts_on(here)
     checking = pc.checking()
+    places = ai.editing_places()
     return Pc(
         card=CardOut(
             name=card.name,
@@ -114,4 +128,11 @@ def _pc(pc: PcCheck, conn: sqlite3.Connection, ai: Ai) -> Pc:
             )
             for each in abilities(here.place, card, here.speeds)
         ],
+        editing=EditingOut(
+            select=places.select,
+            erase_fast=places.erase_fast,
+            erase_best=places.erase_best,
+            cut_fast=places.cut_fast,
+            cut_best=places.cut_best,
+        ),
     )

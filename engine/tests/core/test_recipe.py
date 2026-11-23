@@ -3,6 +3,7 @@ model), the look step, and the two together."""
 
 import pytest
 
+from mado.core.edits import Click, Editing, Erase, Part, Subject
 from mado.core.kind import Kind
 from mado.core.looks import Look, mado_look
 from mado.core.models import BEST_DRAWING, BEST_PHOTO, FAST, FAST_GRAIN, model_for
@@ -119,3 +120,43 @@ def test_a_look_that_changes_nothing_isnt_a_step_and_alone_makes_nothing():
     assert sized.styling is None
     assert sized.named == "TV 8K"
     assert not sized.empty
+
+
+BOAT = Part((Click(0.65, 0.46),))
+
+
+def test_edits_alone_are_something_to_make_and_keep_the_pictures_size():
+    made = _plan(Recipe(editing=Editing((Erase((BOAT,)),), version="1-2")))
+
+    assert not made.empty
+    assert made.method == "keep"
+    assert (made.width, made.height) == (4032, 3024)
+    assert made.named == "Erased"
+    assert made.edit == "erased a part"
+    assert not made.see_through
+    assert made.editing is not None
+    assert _plan(Recipe(editing=Editing(()))).empty  # no edits isn't a step
+
+
+def test_a_cut_out_goes_first_in_the_name_and_leaves_see_through_parts():
+    made = _plan(
+        Recipe(
+            Sizing(resolve("tv-8k")),
+            Styling(_look("warm-film"), 0.6),
+            Editing((Subject(behind="nothing"),)),
+        )
+    )
+
+    assert made.named == "Cut out, TV 8K, Warm film"
+    assert made.see_through
+    assert made.edit == "cut out the subject"
+
+
+def test_a_look_on_a_part_says_so():
+    made = _plan(Recipe(styling=Styling(_look("warm-film"), 0.6, parts=(BOAT,))))
+
+    assert made.look == "Warm film at 60% on a part"
+    assert made.named == "Warm film"
+    two = _plan(Recipe(styling=Styling(_look("warm-film"), 1.0, parts=(BOAT, BOAT))))
+    assert two.look is not None
+    assert two.look.endswith("on parts")

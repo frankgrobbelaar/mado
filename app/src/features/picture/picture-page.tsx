@@ -1,24 +1,34 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Undo2 } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
+import { useStatusNote } from "@/components/shell/status-note";
 import { Loading, Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import {
+  type Edit,
+  type EditingPlaces,
+  type EditStep,
   EngineError,
   type Job,
   type LookStep,
+  type Part,
   type PictureDetails,
+  type Place,
   type Plan,
+  type Quality,
   type Recipe,
   type SizeStep,
+  type Stroke,
   shownFrom,
   shownQuery,
+  useEdit,
   useFolders,
   useLooks,
   useMarkDamaged,
   useNeighbours,
+  usePc,
   usePicture,
   usePictureJobs,
   usePlan,
@@ -28,8 +38,11 @@ import { showInFolder, useExplorer } from "@/lib/explorer";
 import { madeWith, size, split, stem, takenOn } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 import { cn } from "@/lib/utils";
+import { EditStage, type EditTool } from "./edit-stage";
+import { type Backing, EditTab } from "./edit-tab";
+import { bare, NOTHING, tooBig, usePicking } from "./editing";
 import { LooksStage } from "./looks-stage";
-import { changes, ORIGINAL, PLAIN, TOUCHES } from "./looks-tab";
+import { changes, OnlyOnAPart, ORIGINAL, PLAIN, TOUCHES } from "./looks-tab";
 import { NeighbourStrip } from "./neighbour-strip";
 import { SizeStage } from "./size-stage";
 import { Stage, type Zoom } from "./stage";
@@ -52,8 +65,11 @@ const ZOOMS = [
  * column. On the Size tab: fitted or at 100% or 400%, the strip of its neighbours in the list it
  * came from (the arrow keys go along it), and with a size chosen the picture as it'd be made: its
  * shape over it, and before and after at full detail when zoomed in. On the Looks tab, as
- * Picture-Looks draws it: the picture with its look, and "Hold to see the original". What the two
- * tabs set together is one recipe, made by one Save.
+ * Picture-Looks draws it: the picture with its look, on the whole picture or only a part, and
+ * "Hold to see the original". On the Edit tab, as Picture-Edit draws it: parts picked with a
+ * click, then erased, cut out, given a look or blurred behind; a brush for what clicking can't
+ * pick; and the subject cut out without a click. What the three tabs set together is one recipe,
+ * made by one Save.
  */
 export function PicturePage() {
   const id = Number(useParams().id);
@@ -72,11 +88,29 @@ export function PicturePage() {
   const [look, setLook] = useState<LookStep>(PLAIN);
   const [pointed, setPointed] = useState<LookStep | null>(null);
   const [held, setHeld] = useState(false);
+  // The edits are each picture's own: another picture starts with none, as the parts picked do.
+  const [edits, setEdits] = useState<Edit[]>([]);
+  const [editedOn, setEditedOn] = useState<string | null>(null);
+  const [editedSince, setEditedSince] = useState<number | null>(null);
+  const [editTool, setEditTool] = useState<EditTool>("select");
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [brush, setBrush] = useState(0.04);
+  const [eraseQuality, setEraseQuality] = useState<Quality>("fast");
+  const [cutQuality, setCutQuality] = useState<Quality>("fast");
+  const [backing, setBacking] = useState<Backing>({ behind: "nothing", colour: "#ffffff" });
+  const [smeared, setSmeared] = useState(false);
+  const [letGo, setLetGo] = useState<string | null>(null);
   const [shownFor, setShownFor] = useState(id);
   const opened = useLocation().state as { fresh?: boolean } | null;
   if (shownFor !== id) {
     setShownFor(id);
     setPointed(null);
+    setEdits([]);
+    setEditedOn(null);
+    setEditedSince(null);
+    setStrokes([]);
+    setSmeared(false);
+    setLetGo(null);
     if (opened?.fresh) {
       // A picture Mado just made, opened from its job: shown as it is, not made again.
       setSized(null);
@@ -86,12 +120,88 @@ export function PicturePage() {
     }
   }
   const jobs = usePictureJobs(id);
+  const version = picture.data?.version ?? "";
+  // A picture whose file changed since its edits were made: they were made on what it was. When
+  // it was Mado's own Save in the original's place, the edits are in it now, so they go quietly.
+  if (editedOn !== null && picture.data && picture.data.version !== editedOn) {
+    setEditedOn(null);
+    setEditedSince(null);
+    setEdits([]);
+    setStrokes([]);
+    setSmeared(false);
+    setLetGo(
+      savedInPlace(jobs.data?.[0], editedSince)
+        ? null
+        : `${picture.data.name} changed since Mado read it, so your edits were let go. Start again with it as it is now.`,
+    );
+  }
+  const picking = usePicking(id, version, edits, { keyedByEdits: true });
+  const lookPicking = usePicking(id, version, edits, { keyedByEdits: false });
+  const editing = useEdit();
   // The plan follows the look once it stops changing (a strength being dragged, say).
   const settled = useSettled(look, 300);
   const ready = picture.data?.state === "ready";
-  const looked = changes(settled) ? settled : null;
-  const recipe: Recipe | null = ready && (sized || looked) ? { size: sized, look: looked } : null;
+  const lookParts = bare(lookPicking.picked.parts);
+  const looked = changes(settled)
+    ? lookParts.length
+      ? { ...settled, parts: lookParts }
+      : settled
+    : null;
+  const editStep: EditStep | null = edits.length ? { version: editedOn ?? version, edits } : null;
+  // Parts a look goes on are tied to the picture as it is, as edits are: a Save that finds it
+  // changed saves nothing.
+  const recipeEdit = editStep ?? (looked?.parts?.length ? { version, edits: [] } : null);
+  const recipe: Recipe | null =
+    ready && (sized || looked || editStep) ? { edit: recipeEdit, size: sized, look: looked } : null;
+  const big = picture.data ? tooBig(picture.data) : null;
+  const places = usePc().data?.editing;
   const plan = usePlan(id, recipe);
+  const parts = picking.picked.parts.length;
+  useStatusNote(
+    tool === "edit" && parts > 0
+      ? `${parts} ${parts === 1 ? "part" : "parts"} picked`
+      : tool === "looks" && lookPicking.picked.read !== null && lookParts.length > 0
+        ? `${lookParts.length === 1 ? "Part" : "Parts"} picked in ${lookPicking.picked.read.toFixed(1)} s`
+        : null,
+  );
+  // The parts a look goes on, picked on the picture as its edits leave it: drawn again once
+  // the edits change.
+  const editsKey = JSON.stringify(edits);
+  const drawnFor = useRef(editsKey);
+  useEffect(() => {
+    if (drawnFor.current === editsKey) return;
+    drawnFor.current = editsKey;
+    lookPicking.refresh();
+  });
+
+  /** An edit made, the next step of the picture's recipe; the previews show it once it's made. */
+  function apply(edit: Edit, replacing = false) {
+    const all = replacing ? [...edits.slice(0, -1), edit] : [...edits, edit];
+    setSmeared(false);
+    editing.mutate(
+      { path: `/pictures/${id}/edit`, body: { version: editedOn ?? version, edits: all } },
+      {
+        onSuccess: (facts) => {
+          setEdits(all);
+          setEditedOn(editedOn ?? version);
+          setEditedSince(editedSince ?? Date.now());
+          setLetGo(null);
+          setSmeared(facts.smeared);
+          if (edit.kind === "erase" && edit.strokes.length) setStrokes([]);
+        },
+      },
+    );
+  }
+
+  function startAgain() {
+    setEdits([]);
+    setEditedOn(null);
+    setEditedSince(null);
+    setStrokes([]);
+    setSmeared(false);
+    picking.clear();
+    editing.reset();
+  }
 
   const to = (other: number) => `/library/pictures/${other}${context ? `?${context}` : ""}`;
   const previous = neighbours.data?.before.at(-1);
@@ -116,9 +226,23 @@ export function PicturePage() {
     return () => window.removeEventListener("keydown", go);
   }, [tool, previous, next, navigate, context]);
 
-  // On the Looks tab, holding the key shows the original, as the button beside the title does.
+  // On the Edit tab, Esc lets go of what's picked, as its board says.
   useEffect(() => {
-    if (tool !== "looks") return;
+    if (tool !== "edit") return;
+    const clear = picking.clear;
+    function letGo(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.target instanceof HTMLElement && event.target.closest("[role='dialog']")) return;
+      clear();
+    }
+    window.addEventListener("keydown", letGo);
+    return () => window.removeEventListener("keydown", letGo);
+  }, [tool, picking.clear]);
+
+  // On the Looks and Edit tabs, holding the key shows the original, as the button beside the
+  // title does on Looks.
+  useEffect(() => {
+    if (tool !== "looks" && tool !== "edit") return;
     function down(event: KeyboardEvent) {
       // Some keyboards type \ with AltGr, which Windows reports as Ctrl and Alt together.
       const altGr = event.getModifierState("AltGraph");
@@ -148,6 +272,8 @@ export function PicturePage() {
     shown.folder === null ? undefined : folders.data?.find((f) => f.id === shown.folder);
   const back = shown.dir ? (shown.dir.split("/").at(-1) ?? shown.dir) : (listed?.name ?? "Library");
   const looking = tool === "looks";
+  const editingNow = tool === "edit";
+  const editProblem = editing.isError ? editing.error.message : picking.problem;
 
   return (
     <div className="-mx-7 -mb-12 flex h-[calc(100vh-4.25rem)]">
@@ -167,7 +293,38 @@ export function PicturePage() {
               <p className="font-mono text-12 text-fg-muted">{factsOf(picture.data)}</p>
             )}
           </div>
-          {looking ? (
+          {editingNow ? (
+            <span className="ml-auto flex gap-2">
+              <Button
+                size="sm"
+                aria-label="Undo"
+                title="Undo the last edit"
+                className="w-9 bg-transparent px-0"
+                disabled={edits.length === 0 || editing.isPending}
+                onClick={() => {
+                  const rest = edits.slice(0, -1);
+                  setEdits(rest);
+                  if (rest.length === 0) {
+                    setEditedOn(null);
+                    setEditedSince(null);
+                  }
+                  setSmeared(false);
+                }}
+              >
+                <Undo2 size={16} aria-hidden="true" />
+              </Button>
+              <Button
+                size="sm"
+                className="bg-transparent font-medium"
+                disabled={
+                  edits.length === 0 && picking.picked.parts.length === 0 && strokes.length === 0
+                }
+                onClick={startAgain}
+              >
+                Start again
+              </Button>
+            </span>
+          ) : looking ? (
             <HoldButton held={held} onHeld={setHeld} disabled={!ready} />
           ) : (
             <>
@@ -216,15 +373,56 @@ export function PicturePage() {
             {picture.data && looking && (
               <LooksOnStage
                 picture={picture.data}
+                edit={editStep}
                 sized={sized}
                 plan={plan.data ?? null}
                 look={pointed ?? look}
                 held={held}
+                outline={lookPicking.picked.outline}
+                parts={lookParts}
+                onPick={(x, y, alt) => big === null && lookPicking.click({ x, y, keep: !alt })}
               />
             )}
-            {picture.data && !looking && (
+            {picture.data && editingNow && (
+              <EditOnStage
+                picture={picture.data}
+                edit={editStep}
+                tool={editTool}
+                picking={picking}
+                pickable={big === null}
+                working={
+                  editing.isPending
+                    ? "Making the edit…"
+                    : picking.pending
+                      ? picking.picked.read === null
+                        ? "Reading the picture…"
+                        : "Picking…"
+                      : null
+                }
+                workingOn={
+                  editing.isPending
+                    ? placeOf(
+                        (editing.variables?.body as EditStep | undefined)?.edits.at(-1),
+                        places,
+                      )
+                    : picking.pending
+                      ? picking.picked.read === null
+                        ? (places?.select ?? null)
+                        : "processor"
+                      : null
+                }
+                problem={letGo ?? editProblem}
+                strokes={strokes}
+                brush={brush}
+                held={held}
+                onStroke={(stroke) => setStrokes([...strokes, stroke])}
+                edited={edits.length > 0}
+              />
+            )}
+            {picture.data && !looking && !editingNow && (
               <OnStage
                 picture={picture.data}
+                edit={editStep}
                 zoom={zoom}
                 sized={sized}
                 look={looked}
@@ -235,7 +433,7 @@ export function PicturePage() {
           </>
         )}
 
-        {picture.data && neighbours.data && !looking && (
+        {picture.data && neighbours.data && !looking && !editingNow && (
           <NeighbourStrip
             label={`Pictures in ${back === "Library" ? "your library" : back}`}
             current={picture.data}
@@ -258,6 +456,59 @@ export function PicturePage() {
           recipe={recipe}
           plan={plan}
           settling={settled !== look}
+          edited={editStep}
+          part={
+            <OnlyOnAPart
+              parts={lookPicking.picked.parts}
+              pending={lookPicking.pending}
+              problem={lookPicking.problem}
+              tooBig={big}
+              onSize={() => setTool("size")}
+              onRemove={lookPicking.remove}
+              onWhole={lookPicking.clear}
+            />
+          }
+          edit={
+            <EditTab
+              picture={picture.data}
+              edit={editStep}
+              tooBig={big}
+              onSize={() => setTool("size")}
+              tool={editTool}
+              onTool={setEditTool}
+              picked={picking.picked}
+              onRemove={picking.remove}
+              onStep={picking.step}
+              edits={edits}
+              applying={editing.isPending}
+              problem={editProblem}
+              onApply={(edit) => apply(edit)}
+              smeared={smeared}
+              onBest={() => {
+                const last = edits.at(-1);
+                if (last?.kind !== "erase") return;
+                setEraseQuality("best");
+                apply({ ...last, quality: "best" }, true);
+              }}
+              onLook={() => {
+                lookPicking.adopt(picking.picked);
+                setTool("looks");
+              }}
+              quality={eraseQuality}
+              onQuality={setEraseQuality}
+              backing={backing}
+              onBacking={setBacking}
+              brush={brush}
+              onBrush={setBrush}
+              strokes={strokes}
+              onClearBrush={() => setStrokes([])}
+              cutQuality={cutQuality}
+              onCutQuality={setCutQuality}
+              recipe={recipe}
+              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+              settling={settled !== look}
+            />
+          }
         />
       )}
     </div>
@@ -313,10 +564,15 @@ function HoldButton(props: { held: boolean; onHeld: (held: boolean) => void; dis
  * can't be shown, why, in its place. */
 function LooksOnStage(props: {
   picture: PictureDetails;
+  edit: EditStep | null;
   sized: SizeStep | null;
   plan: Plan | null;
   look: LookStep;
   held: boolean;
+  /** Round the parts the look goes on, as fractions of the picture (×1000). */
+  outline: string;
+  parts: Part[];
+  onPick: (x: number, y: number, alt: boolean) => void;
 }) {
   const { picture, plan, look } = props;
   const looks = useLooks();
@@ -340,6 +596,7 @@ function LooksOnStage(props: {
   const label = [
     look.look === ORIGINAL ? "Original" : `${name} · ${Math.round(look.strength * 100)}%`,
     touched,
+    props.parts.length > 0 ? `only on ${props.parts.length === 1 ? "a part" : "parts"}` : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -357,11 +614,14 @@ function LooksOnStage(props: {
     <>
       <LooksStage
         picture={picture}
+        edit={props.edit}
         size={decided}
         plan={decided ? plan : null}
-        look={changes(look) ? look : null}
+        look={changes(look) ? (props.parts.length ? { ...look, parts: props.parts } : look) : null}
         label={label}
         held={props.held}
+        outline={props.outline}
+        onPick={props.onPick}
       />
       <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
         <span>Every look is shown on this picture as you go through them</span>
@@ -371,10 +631,84 @@ function LooksOnStage(props: {
   );
 }
 
+/** The picture on the Edit tab, and the line under it, as Picture-Edit draws them: or, for one
+ * that can't be shown, why, in its place. */
+function EditOnStage(props: {
+  picture: PictureDetails;
+  edit: EditStep | null;
+  tool: EditTool;
+  picking: ReturnType<typeof usePicking>;
+  /** Parts can be picked: not on a picture too big to edit. */
+  pickable: boolean;
+  working: string | null;
+  workingOn: Place | null;
+  problem: string | null;
+  strokes: Stroke[];
+  brush: number;
+  held: boolean;
+  edited: boolean;
+  onStroke: (stroke: Stroke) => void;
+}) {
+  const { picture, picking, tool } = props;
+  const explorer = useExplorer();
+  if (picture.state !== "ready") {
+    return (
+      <Unshown
+        picture={picture}
+        onShow={() => explorer.run(() => showInFolder(picture.path))}
+        problem={explorer.problem}
+      >
+        {null}
+      </Unshown>
+    );
+  }
+  const read = picking.picked.read;
+  return (
+    <>
+      <EditStage
+        picture={picture}
+        edit={props.edit}
+        tool={props.pickable ? tool : "cutout"}
+        picked={picking.picked}
+        working={props.working}
+        workingOn={props.workingOn}
+        problem={props.problem}
+        strokes={props.strokes}
+        brush={props.brush}
+        held={props.held}
+        label={props.pickable ? undefined : "Too big to edit"}
+        onClick={(x, y, alt) => props.pickable && picking.click({ x, y, keep: !alt })}
+        onStep={picking.step}
+        onStroke={props.onStroke}
+      />
+      <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
+        {tool === "select" && read !== null && (
+          <span>
+            Mado read the picture in <span className="font-mono text-fg">{read.toFixed(1)} s</span>
+            {picking.picked.place === "processor" && " on the processor"}
+            {"; every click after that is instant"}
+          </span>
+        )}
+        {tool === "select" && props.pickable && (
+          <span>Click to add · Alt-click to take away · Esc to start again</span>
+        )}
+        {tool === "erase" && props.pickable && (
+          <span>Paint over what to erase · Alt to take away</span>
+        )}
+        {tool === "cutout" && props.pickable && (
+          <span>Mado finds the subject itself: no click needed</span>
+        )}
+        {props.edited && <span>Hold \ to see the original</span>}
+      </p>
+    </>
+  );
+}
+
 /** The picture, and the line under it: or, for one that can't be shown, why, in its place. With
  * a size chosen, the picture as it'd be made. */
 function OnStage({
   picture,
+  edit,
   zoom,
   sized,
   look,
@@ -382,6 +716,7 @@ function OnStage({
   onFocus,
 }: {
   picture: PictureDetails;
+  edit: EditStep | null;
   zoom: Zoom;
   sized: SizeStep | null;
   look: LookStep | null;
@@ -418,11 +753,28 @@ function OnStage({
       {sized && plan ? (
         <SizeStage
           picture={picture}
+          edit={edit}
           plan={plan}
           size={sized}
           look={look}
           zoom={zoom}
           onFocus={onFocus}
+        />
+      ) : edit ? (
+        <EditStage
+          picture={picture}
+          edit={edit}
+          tool="cutout"
+          picked={NOTHING}
+          working={null}
+          problem={null}
+          strokes={[]}
+          brush={0}
+          held={false}
+          label="As edited"
+          onClick={() => undefined}
+          onStep={() => undefined}
+          onStroke={() => undefined}
         />
       ) : (
         <Stage
@@ -544,6 +896,29 @@ function Unshown(props: {
       )}
     </section>
   );
+}
+
+/** Where an edit's model runs: erasing and cutting out the subject as this PC has them; a part
+ * cut out or blurred behind is refined on the processor. */
+function placeOf(edit: Edit | undefined, places: EditingPlaces | undefined): Place | null {
+  if (!edit || !places) return null;
+  switch (edit.kind) {
+    case "erase":
+      return edit.quality === "best" ? places.eraseBest : places.eraseFast;
+    case "subject":
+      return edit.quality === "best" ? places.cutBest : places.cutFast;
+    default:
+      return "processor";
+  }
+}
+
+/** The picture's latest job is Mado's own Save in its original's place, asked for since the
+ * edits began (`since`), under way or done: what changes its file then is the edits going in. */
+function savedInPlace(job: Job | undefined, since: number | null): boolean {
+  if (job?.how !== "replace" || since === null) return false;
+  if (Date.parse(job.queuedAt) < since - 1000) return false; // the engine's times are to the second
+  if (job.state === "queued" || job.state === "running") return true;
+  return job.state === "done" && job.resultName === job.name;
 }
 
 /** The job that replaced a picture with one in another format, which the library lists apart. */

@@ -32,9 +32,10 @@ class Job(ApiModel):
     name: str  # the original's file name
     made_for: str | None  # what its size makes it for: "TV 8K"; None with no size
     look: str | None  # what it's made with: "Warm film at 60%"; None with no look
+    edit: str | None  # what's edited first: "erased a part"; None with no edits
     how: Literal["new", "replace"]
     state: JobState
-    stage: Literal["reading", "shaping", "making", "looking", "saving"] | None
+    stage: Literal["reading", "editing", "shaping", "making", "looking", "saving"] | None
     progress: float  # 0 to 1
     seconds_left: float | None
     queued_at: str
@@ -154,6 +155,7 @@ def job_of(conn: sqlite3.Connection, jobs: Jobs, job_id: int) -> Job:
         name=Path(row["source"]).name,
         made_for=str(order["label"]) if order.get("label") else None,
         look=str(order["look"]) if order.get("look") else None,
+        edit=str(order["edit"]) if order.get("edit") else None,
         how="replace" if saving.get("how") == "replace" else "new",
         state=row["state"],
         stage=live.stage if live else row["stage"],

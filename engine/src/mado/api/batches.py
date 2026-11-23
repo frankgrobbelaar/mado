@@ -17,6 +17,7 @@ from mado.api.looks import LookIn
 from mado.api.making import Need, SizeIn
 from mado.batches import BatchError, Picture
 from mado.core.batch import Starts, sampled, steps_in_order
+from mado.core.models import Quality
 from mado.core.quality import Format
 from mado.making import saving_from
 from mado.previews import version
@@ -40,7 +41,17 @@ class LookStep(LookIn):
     step: Literal["look"] = "look"
 
 
-type Step = Annotated[SizeStep | LookStep, Field(discriminator="step")]
+class CutoutStep(ApiModel):
+    """Cut out the subject, found without a click: Fast, Best, or as this PC suits; with nothing,
+    a colour or the rest of the picture blurred behind it."""
+
+    step: Literal["cutout"] = "cutout"
+    quality: Quality | None = None
+    behind: Literal["nothing", "colour", "blurred"] = "nothing"
+    colour: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+type Step = Annotated[CutoutStep | SizeStep | LookStep, Field(discriminator="step")]
 
 
 class BatchSaving(ApiModel):
@@ -275,6 +286,7 @@ def see_first(body: SamplesIn, conn: Database, samples: FirstLook) -> SamplesOut
     first. `round` asks for three others."""
     steps = steps_of(body.steps)
     saving = body.saving.model_dump(by_alias=True)
+    saves_see_through(steps, saving)
     try:
         recipe = batches.recipe_from_steps(conn, steps)
     except BatchError as error:
@@ -341,6 +353,7 @@ def put_in(
     pictures made to the same steps are kept rather than made again."""
     steps = steps_of(body.steps)
     saving = body.saving.model_dump(by_alias=True)
+    saves_see_through(steps, saving)
     folder = Path(body.saving.folder) if body.saving.folder else None
     if body.saving.how == "new" and folder and folder.is_absolute() and not folder.is_dir():
         raise HTTPException(
@@ -495,6 +508,21 @@ def steps_of(body: list[Step]) -> list[dict[str, object]]:
             kept.pop("focus", None)
         found.append(kept)
     return steps_in_order(found)
+
+
+def saves_see_through(steps: list[dict[str, object]], saving: dict[str, object]) -> None:
+    """Refuses a save that would lose a cut-out's see-through parts: only PNG and WebP keep
+    them."""
+    nothing = any(
+        each.get("step") == "cutout" and each.get("behind", "nothing") == "nothing"
+        for each in steps
+    )
+    if nothing and saving.get("format") not in ("PNG", "WebP"):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "A cut-out with nothing behind it keeps its see-through parts only as PNG or WebP: "
+            "pick one of those.",
+        )
 
 
 _MAKES = ("format", "quality", "keepCamera", "keepColours", "keepLocation")

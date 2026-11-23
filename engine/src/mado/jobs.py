@@ -53,7 +53,7 @@ from mado.upscale import StoppedError
 
 log = logging.getLogger(__name__)
 
-type Stage = Literal["reading", "shaping", "making", "looking", "saving"]
+type Stage = Literal["reading", "editing", "shaping", "making", "looking", "saving"]
 type Where = Literal["next", "last"]
 
 PARTIAL = ".mado-partial"  # a picture being written, beside where it goes
@@ -66,8 +66,9 @@ HOLD_EVERY = timedelta(seconds=30)  # a picture open in another app is tried aga
 HOLD_FOR = timedelta(minutes=10)  # and for this long, before it counts as not working
 _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's whole
     "reading": (0.0, 0.05),
-    "shaping": (0.05, 0.2),
-    "making": (0.2, 0.85),
+    "editing": (0.05, 0.12),
+    "shaping": (0.12, 0.22),
+    "making": (0.22, 0.85),
     "looking": (0.85, 0.93),
     "saving": (0.93, 1.0),
 }
@@ -711,13 +712,14 @@ class Jobs:
             "SELECT recipe FROM jobs WHERE batch_id = ? ORDER BY position LIMIT 1", (batch_id,)
         ).fetchone()
         order = _object(json.loads(first["recipe"])) if first else {}
-        label, look = order.get("label"), order.get("look")
+        label, look, edit = order.get("label"), order.get("look"), order.get("edit")
         title, body = told(
             batch["name"],
             made=row["made"],
             failed=row["failed"],
             made_for=label if isinstance(label, str) else None,
             look=look if isinstance(look, str) else None,
+            edit=edit if isinstance(edit, str) else None,
         )
         self._notify(title, body, link="/")
 

@@ -138,7 +138,11 @@ it, and each runs on your PC.
 | Real-ESRGAN general (`realesr-general-x4v3`), and its weak-denoise twin | Fast: makes photos and drawings four times bigger, cleaning noise and JPEG blocks, or keeping grain | BSD-3-Clause |
 | RealESRGAN x4plus anime 6B | Best for drawings, comics and flat colour | BSD-3-Clause, Apache-2.0 |
 | RealESRGAN x4plus | Best for photos (downloaded the first time it's asked for, 67 MB) | BSD-3-Clause, Apache-2.0 |
-| LaMa | Draws more of a picture at its edges, to fit a screen's shape (downloaded the first time, 209 MB) | Apache-2.0 |
+| LaMa | Draws more of a picture at its edges, to fit a screen's shape, and erases a part at Best (downloaded the first time, 209 MB) | Apache-2.0 |
+| SAM 2.1 (tiny) | Picks a part of a picture with a click, to erase it, cut it out, blur what's behind it or give it a look (downloaded the first time, 156 MB) | Apache-2.0 |
+| MI-GAN | Fast: erases a part, filling it from what's around it (downloaded the first time, 28 MB) | MIT |
+| U²-Net, its small model (`u2netp`) | Fast: finds a picture's subject and cuts it out, no click needed (comes with Mado, 4.6 MB) | Apache-2.0, its ONNX conversion MIT |
+| BiRefNet lite | Best: cuts out a picture's subject with the finest edges (downloaded the first time, 224 MB) | MIT |
 
 They run on ONNX Runtime (MIT) with Microsoft's DirectML, which Mado carries under Microsoft's
 terms.

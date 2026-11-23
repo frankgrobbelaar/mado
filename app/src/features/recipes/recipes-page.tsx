@@ -15,13 +15,21 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import { useOpenPictures } from "@/features/batch/open";
-import { LookDialog, SavingDialog, SizeDialog } from "@/features/batch/step-dialogs";
-import { savingFrom, withStep, wordsFor } from "@/features/batch/steps";
+import { CutoutDialog, LookDialog, SavingDialog, SizeDialog } from "@/features/batch/step-dialogs";
+import {
+  cutoutStep,
+  keepsNothing,
+  savingFor,
+  savingFrom,
+  withStep,
+  wordsFor,
+} from "@/features/batch/steps";
 import { RecipeLine, StepsPanel } from "@/features/batch/steps-panel";
 import { pickFolder } from "@/lib/dialogs";
 import {
   type BatchSaving,
   type BatchStep,
+  type CutoutStepItem,
   type KeptRecipe,
   type LookStepItem,
   type SizeStepItem,
@@ -320,9 +328,11 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
   const settings = useSettings();
   const [name, setName] = useState(recipe?.name ?? "");
   const [steps, setSteps] = useState<BatchStep[]>(recipe?.steps ?? []);
-  const [saving, setSaving] = useState<BatchSaving>(
+  const [chosenSaving, setSaving] = useState<BatchSaving>(
     recipe?.saving ?? { ...savingFrom(settings.data), how: "new", folder: "Edited" },
   );
+  const saving = savingFor(steps, chosenSaving);
+  const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const keep = useKeepRecipe();
@@ -359,7 +369,15 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             placeholder="Holiday prints"
             onChange={(event) => setName(event.target.value)}
           />
-          <StepsPanel steps={steps} words={words} onChange={setEditing} onAdd={setEditing} />
+          <StepsPanel
+            steps={steps}
+            words={words}
+            onChange={setEditing}
+            onAdd={(kind) => {
+              if (kind === "cutout") setSteps(withStep(steps, cutoutStep(), "cutout"));
+              setEditing(kind);
+            }}
+          />
           {(doing.isError || remove.isError) && (
             <p role="alert" className="text-13 text-broken-fg">
               {doing.error?.message ?? remove.error?.message}
@@ -423,8 +441,24 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             onClose={() => setEditing(null)}
           />
         )}
+        {editing === "cutout" && cut && (
+          <CutoutDialog
+            step={cut}
+            onStep={(step) => setSteps(withStep(steps, step, "cutout"))}
+            onRemove={() => {
+              setSteps(withStep(steps, null, "cutout"));
+              setEditing(null);
+            }}
+            onClose={() => setEditing(null)}
+          />
+        )}
         {editing === "save" && (
-          <SavingDialog saving={saving} onSaving={setSaving} onClose={() => setEditing(null)} />
+          <SavingDialog
+            saving={saving}
+            onSaving={setSaving}
+            clear={keepsNothing(steps)}
+            onClose={() => setEditing(null)}
+          />
         )}
         {deleting && recipe && (
           <Dialog open onOpenChange={(open) => !open && setDeleting(false)}>

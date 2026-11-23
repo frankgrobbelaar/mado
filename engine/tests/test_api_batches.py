@@ -702,3 +702,72 @@ def test_what_a_batch_takes_counts_the_pictures_see_it_first_made_as_done(
     # All three were seen first, so what's left is keeping them: moments each, not making them.
     assert reckoned["seconds"] == pytest.approx(3 * KEPT_SECONDS)
     assert guessed["seconds"] > 0
+
+
+CUT_OUT = [{"step": "cutout", "quality": "fast", "behind": "nothing"}]
+AS_PNG = {"how": "new", "format": "PNG", "folder": "Cut-outs"}
+
+
+def test_cutting_out_the_subject_is_a_step_said_first_and_reckoned_in_what_it_takes(
+    client: TestClient, library: Library
+):
+    picked = _picked(client, how="ticked", ids=[library["ids"]["Warm dunes.jpg"]])
+    takes = client.post(
+        "/batches/takes",
+        json={"pictures": picked["pictures"], "steps": [*STEPS, *CUT_OUT], "saving": AS_PNG},
+    ).json()
+
+    assert [(each["kind"], each["title"]) for each in takes["words"]] == [
+        ("cutout", "Cut out the subject"),
+        ("size", "Make it for a screen"),
+        ("save", "Save"),
+    ]
+    assert takes["words"][0]["detail"] == "Fast, with nothing behind it"
+    assert takes["words"][0]["chip"] == "Cut out the subject"
+    assert takes["words"][-1]["chip"] == "PNG into Cut-outs"
+    assert takes["seconds"] > 0
+    assert takes["needs"] == []  # Fast's model ships inside Mado
+
+
+def test_a_batch_of_cut_outs_keeps_their_nothing_as_png_and_history_says_what_was_done(
+    client: TestClient, library: Library
+):
+    picked = _picked(client, how="ticked", ids=[library["ids"]["Still lake.png"]])
+    body = {
+        "source": picked["source"],
+        "shared": picked["shared"],
+        "pictures": picked["pictures"],
+        "steps": CUT_OUT,
+        "starts": "now",
+    }
+
+    refused = client.post("/batches", json={**body, "saving": SAVING})
+    response = client.post("/batches", json={**body, "saving": AS_PNG})
+    _wait(client)
+
+    assert refused.status_code == 422
+    assert "PNG or WebP" in refused.json()["detail"]
+    assert response.status_code == 201, response.text
+    made = library["folder"] / "Cut-outs" / "Still lake (Cut out).png"
+    with Image.open(made) as saved:
+        assert saved.mode == "RGBA"
+    line = client.get("/history").json()["batches"][0]
+    assert line["edit"] == "cut out the subject"
+    app: Any = client.app
+    assert not list((app.state.paths.cache / "edits").rglob("*.png"))  # no mask kept for them
+
+
+def test_a_recipe_of_cut_outs_for_cards_is_kept_and_said_as_its_line(client: TestClient):
+    kept = client.post(
+        "/recipes", json={"name": "Cut-outs for cards", "steps": CUT_OUT, "saving": AS_PNG}
+    )
+    refused = client.post(
+        "/recipes", json={"name": "Cut-outs as JPEG", "steps": CUT_OUT, "saving": SAVING}
+    )
+
+    assert kept.status_code == 201, kept.text
+    assert [each["chip"] for each in kept.json()["words"]] == [
+        "Cut out the subject",
+        "PNG into Cut-outs",
+    ]
+    assert refused.status_code == 422

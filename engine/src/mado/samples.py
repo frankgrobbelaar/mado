@@ -22,12 +22,13 @@ from typing import Literal, cast
 from PIL import Image
 
 from mado import db
-from mado.ai import Ai, Timer
+from mado.ai import BIREFNET, Ai, Timer
 from mado.batches import Picture, kept_key
 from mado.config import DataPaths
 from mado.core.naming import EXTENSIONS
 from mado.core.quality import about_bytes
 from mado.core.recipe import Recipe
+from mado.editing import Editor, picture_key
 from mado.jobs import JobError
 from mado.looks import seed_of
 from mado.making import (
@@ -69,6 +70,7 @@ class Sample:
     named: str | None = None  # what its name says it was made for and with
     made_for: str | None = None
     look: str | None = None
+    edit: str | None = None
     problem: str | None = None
 
 
@@ -103,13 +105,16 @@ class Samples:
         ffmpeg: Callable[[], Command | None],
         *,
         wake: Callable[[], None],
+        editor: Editor | None = None,
     ) -> None:
-        """`wake` asks the jobs' worker to look for work: three to make."""
+        """`wake` asks the jobs' worker to look for work: three to make; `editor` makes a step
+        that cuts out the subject."""
         self._paths = paths
         self._folder = paths.cache / "samples"
         self._ai = ai
         self._ffmpeg = ffmpeg
         self._wake = wake
+        self._editor = editor
         self._lock = threading.Lock()
         self._asked: dict[str, _Asked] = {}
         self._order: list[str] = []  # oldest first
@@ -223,6 +228,7 @@ class Samples:
                 "named": sample.named,
                 "madeFor": sample.made_for,
                 "look": sample.look,
+                "edit": sample.edit,
             }
         return kept
 
@@ -277,7 +283,7 @@ class Samples:
             raise JobError("There's nothing to make: no size, and no look that changes it.")
         if waiting_for(made, self._ai):
             raise JobError("It needs a model Mado downloads the first time it's asked for.")
-        guess = estimated(made, here)
+        guess = estimated(made, here, self._ai.edit_place(BIREFNET))
 
         def report(_stage: object, within: float) -> None:
             with self._lock:
@@ -292,6 +298,9 @@ class Samples:
             stop=stop,
             timer=Timer(),
             seed=seed_of(picture.path),
+            editor=self._editor,
+            key=picture_key(picture.path, sample.picture.version),
+            keep=False,  # made once, for a batch
         )
         if stop():
             raise StoppedError
@@ -332,6 +341,7 @@ class Samples:
             named=made.named,
             made_for=made.made_for,
             look=made.look,
+            edit=made.edit,
         )
 
     def _update(self, asked: _Asked, sample: Sample) -> None:

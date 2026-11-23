@@ -62,8 +62,8 @@ type Answer = unknown | ((init: RequestInit | undefined, url: URL) => unknown);
 
 /**
  * Stands in for the engine's HTTP API: `answers` maps "GET /tools" (or just "/tools" for GET) to
- * the JSON to send back, or to a function of the request (its init and address, query and all).
- * Anything else gets a 404.
+ * the JSON to send back, or to a function of the request (its init and address, query and all),
+ * which may answer later (a promise). Anything else gets a 404.
  */
 /** A moment by this PC's clock, as the engine writes one: a test reads the same hours in any
  * time zone (CI's is UTC). */
@@ -82,7 +82,7 @@ export function fakeEngine(answers: Record<string, Answer>) {
     if (answer === undefined) return Response.json({ detail: "Not found" }, { status: 404 });
     const body =
       typeof answer === "function"
-        ? (answer as (init: RequestInit | undefined, url: URL) => unknown)(init, url)
+        ? await (answer as (init: RequestInit | undefined, url: URL) => unknown)(init, url)
         : answer;
     if (body instanceof Response) return body;
     return body === null ? new Response(null, { status: 204 }) : Response.json(body);
@@ -358,6 +358,7 @@ export function plan(overrides: Partial<Plan> = {}): Plan {
     warning: null,
     cleanMatters: true,
     look: null,
+    edit: null,
     seconds: 40,
     place: "card",
     measured: true,
@@ -367,6 +368,7 @@ export function plan(overrides: Partial<Plan> = {}): Plan {
     colour: "sRGB",
     bytes: 18_000_000,
     seeThrough: false,
+    nothingBehind: false,
     needs: [],
     ...overrides,
   };
@@ -380,6 +382,7 @@ export function job(overrides: Partial<Job> = {}): Job {
     name: "Harbour at dusk.heic",
     madeFor: "TV 8K",
     look: null,
+    edit: null,
     how: "new",
     state: "running",
     stage: "making",
@@ -417,6 +420,13 @@ export const PC: Pc = {
   timing: false,
   measured: { at: "2026-11-22T09:30:00+02:00", tested: true, pictures: 3 },
   startsOn: { photo: "best", drawing: "best" },
+  editing: {
+    select: "card",
+    eraseFast: "card",
+    eraseBest: "card",
+    cutFast: "processor",
+    cutBest: "processor",
+  },
   abilities: [
     {
       kind: "photo",
@@ -464,6 +474,7 @@ export function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     name: "Harbour at dusk.heic",
     madeFor: "TV 8K",
     look: null,
+    edit: null,
     original: "D:\\Pictures\\Phone\\Harbour at dusk.heic",
     result: "D:\\Pictures\\Phone\\Harbour at dusk (TV 8K).jpg",
     resultName: "Harbour at dusk (TV 8K).jpg",

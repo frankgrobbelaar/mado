@@ -6,7 +6,9 @@ DirectML has three rules on Windows (docs/stack/upscaling.md, tested on the owne
 
 - One call at a time. Two threads making or running sessions at once can crash the graphics
   driver, so every DirectML call is made under LOCK, a tile at a time, taking turns with any
-  other use of it in the engine.
+  other use of it in the engine. A session on the processor is made and run without it, and a
+  session made already is handed out without it: neither touches the card, so a click picked
+  on the processor never waits for the queue's picture.
 - Never let a session go. Releasing one session crashed another that was still in use (five
   times out of five), so a session, once made, stays until the engine ends.
 - Fixed sizes. A session made for one size runs much faster than one left free, and its first
@@ -22,7 +24,7 @@ models at all (the PC check finds that) gets sessions on the processor, and Mado
 import threading
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
 
 type Place = Literal["card", "processor"]
 type Tensor = npt.NDArray[np.float32]
+type Array = npt.NDArray[Any]  # what a model takes and gives: floats, or bytes, or labels
 
 # The PC's high-performance card: on a laptop with two, its own rather than the processor's.
 PROVIDER = ("DmlExecutionProvider", {"performance_preference": "high_performance"})
@@ -43,16 +46,21 @@ class ModelError(Exception):
 
 
 class Session(Protocol):
-    def run(self, feed: Mapping[str, Tensor], /) -> list[Tensor]: ...
+    def run(self, feed: Mapping[str, Array], /) -> list[Array]: ...
 
 
 class _Kept:
-    """An ONNX Runtime session, run under the lock."""
+    """An ONNX Runtime session: on the card, run under the lock; on the processor, run as it's
+    asked, as it doesn't touch the card (a click's few milliseconds there never wait for the
+    queue's picture)."""
 
-    def __init__(self, session: InferenceSession) -> None:
+    def __init__(self, session: InferenceSession, place: Place) -> None:
         self._session = session
+        self._place = place
 
-    def run(self, feed: Mapping[str, Tensor], /) -> list[Tensor]:
+    def run(self, feed: Mapping[str, Array], /) -> list[Array]:
+        if self._place == "processor":
+            return self._session.run(None, feed)
         with LOCK:
             return self._session.run(None, feed)
 
@@ -61,23 +69,56 @@ class Sessions:
     """Every session the engine has made, by model file, size and place, each kept for good."""
 
     def __init__(self) -> None:
-        self._kept: dict[tuple[str, int | None, Place], Session] = {}
+        self._kept: dict[tuple[object, ...], Session] = {}
+        self._guard = threading.Lock()  # the list itself, held a moment at a time
+        self._making = threading.Lock()  # one made on the processor at a time
 
-    def get(self, model: Path, size: int | None, place: Place) -> Session:
+    def get(
+        self,
+        model: Path,
+        size: int | None,
+        place: Place,
+        *,
+        fixed: Mapping[str, int] | None = None,
+        settings: Mapping[str, str] | None = None,
+    ) -> Session:
         """The session for a model at a fixed square `size` (its free height and width pinned;
-        None for a model whose size is fixed already), on the card or the processor. Made the
-        first time it's asked for, then kept. Raises ModelError when it can't be made where it
-        should run."""
-        key = (str(model).casefold(), size, place)
-        with LOCK:
+        None for a model whose size is fixed already, or whose sizes are pinned by name in
+        `fixed`), on the card or the processor, with ONNX Runtime's `settings` for the card.
+        Made the first time it's asked for, then kept. Raises ModelError when it can't be made
+        where it should run."""
+        pinned = tuple(sorted((fixed or {}).items()))
+        configured = tuple(sorted((settings or {}).items()))
+        key = (str(model).casefold(), size, place, pinned, configured)
+        with self._guard:
             found = self._kept.get(key)
+        if found is not None:
+            return found
+        # Made on the card under the card's lock, as any DirectML call; on the processor without
+        # it, never waiting for the queue's picture. Either way made once.
+        with LOCK if place == "card" else self._making:
+            with self._guard:
+                found = self._kept.get(key)
             if found is None:
-                found = _make(model, size, place)
-                self._kept[key] = found
+                found = _make(model, size, place, dict(pinned), dict(configured))
+                with self._guard:
+                    self._kept[key] = found
             return found
 
+    def has(self, model: Path, place: Place) -> bool:
+        """Whether a session for a model was made on the card or the processor already."""
+        named = str(model).casefold()
+        with self._guard:
+            return any(key[0] == named and key[2] == place for key in self._kept)
 
-def _make(model: Path, size: int | None, place: Place) -> Session:
+
+def _make(
+    model: Path,
+    size: int | None,
+    place: Place,
+    fixed: Mapping[str, int] | None = None,
+    settings: Mapping[str, str] | None = None,
+) -> Session:
     try:
         import onnxruntime as ort  # loaded when first needed: the engine starts sooner
     except ImportError as error:
@@ -93,6 +134,11 @@ def _make(model: Path, size: int | None, place: Place) -> Session:
         options.add_free_dimension_override_by_name("batch", 1)
         options.add_free_dimension_override_by_name("height", size)
         options.add_free_dimension_override_by_name("width", size)
+    for name, value in (fixed or {}).items():
+        options.add_free_dimension_override_by_name(name, value)
+    if place == "card":
+        for name, setting in (settings or {}).items():
+            options.add_session_config_entry(name, setting)
     providers: list[str | tuple[str, Mapping[str, object]]] = (
         [PROVIDER] if place == "card" else ["CPUExecutionProvider"]
     )
@@ -103,7 +149,7 @@ def _make(model: Path, size: int | None, place: Place) -> Session:
         raise ModelError(f"{where} couldn't run the AI model ({error}).") from error
     if place == "card" and "DmlExecutionProvider" not in session.get_providers():
         raise ModelError("The graphics card couldn't run the AI model: it needs DirectX 12.")
-    return _Kept(session)
+    return _Kept(session, place)
 
 
 def tensor(values: npt.ArrayLike) -> Tensor:

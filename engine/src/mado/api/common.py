@@ -13,6 +13,7 @@ from mado import db
 from mado.ai import Ai
 from mado.config import DataPaths
 from mado.duplicates import Finder
+from mado.editing import Editor
 from mado.jobs import Jobs
 from mado.making import Sight
 from mado.pc_check import PcCheck
@@ -94,6 +95,11 @@ def _finder(request: Request) -> Finder:
     return found
 
 
+def _editor(request: Request) -> Editor:
+    found: Editor = request.app.state.editor
+    return found
+
+
 def _pc(request: Request) -> PcCheck:
     found: PcCheck = request.app.state.pc
     return found
@@ -113,3 +119,4 @@ Working = Annotated[Jobs, Depends(_jobs)]  # the jobs that make pictures
 ThisPc = Annotated[PcCheck, Depends(_pc)]
 FirstLook = Annotated[Samples, Depends(_samples)]  # See it first's pictures
 Finding = Annotated[Finder, Depends(_finder)]  # duplicates and bursts, found in the background
+Editors = Annotated[Editor, Depends(_editor)]  # editing by clicking: parts picked, edits made
