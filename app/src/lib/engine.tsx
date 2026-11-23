@@ -1461,11 +1461,11 @@ export interface Picked {
   shared: string | null;
   /** "ticked in Holiday", "found by “beach”", "dropped from Desktop". */
   words: string;
-  leftOut: LeftOut[];
+  leftOut: BatchLeftOut[];
 }
 
 /** A picture left out, and why. */
-export interface LeftOut {
+export interface BatchLeftOut {
   name: string;
   why: string;
   /** A camera RAW, left out only till Mado's RAW reader has read it (asked again till then). */
@@ -1714,7 +1714,7 @@ export interface Opened {
   /** Several pictures, or a folder: Many at once, with them chosen. */
   picked: Picked | null;
   /** Beside one picture, what wasn't taken, and why. */
-  leftOut: LeftOut[];
+  leftOut: BatchLeftOut[];
 }
 
 /** Opens paths: `open.mutate({ path: "/open", body: { paths, how } })`. */
