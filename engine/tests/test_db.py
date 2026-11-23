@@ -213,6 +213,34 @@ def test_records_from_mado_0_5_keep_every_picture_and_what_refers_to_it_and_lear
         assert conn.execute("SELECT picture_id FROM jobs").fetchone()[0] is None
 
 
+def test_records_brought_up_to_date_with_a_change_still_unsaved_keep_what_refers_to_a_picture(
+    tmp_path: Path,
+):
+    # Foreign keys can't be turned off inside a transaction: one left open by whoever asked
+    # would have had making the pictures table again empty the tables that refer to it.
+    with closing(db.connect(tmp_path / "mado.db")) as conn:
+        for number, sql in enumerate(MIGRATIONS[:7], start=1):
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        conn.execute("INSERT INTO folders (path, added_at) VALUES (?, 'x')", (r"D:\Pictures",))
+        conn.execute(
+            """INSERT INTO pictures (folder_id, path, dir, name, size, modified, found_at,
+                                     seen_at, taken_at, taken_from)
+               VALUES (1, ?, '', 'Pier.jpg', 10, 1, 'x', 'x', 'x', 'file')""",
+            (r"D:\Pictures\Pier.jpg",),
+        )
+        conn.execute("INSERT INTO prints (picture_id, size, modified, at) VALUES (1, 10, 1, 'x')")
+        conn.execute(
+            "INSERT INTO choices (picture_id, keep, size, modified, at) VALUES (1, 1, 10, 1, 'x')"
+        )
+        assert conn.in_transaction  # nothing saved yet
+
+        assert db.migrate(conn) == len(MIGRATIONS)
+
+        assert conn.execute("SELECT picture_id FROM prints").fetchall()[0][0] == 1
+        assert conn.execute("SELECT picture_id FROM choices").fetchall()[0][0] == 1
+        assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+
 def test_a_migration_that_breaks_a_reference_changes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

@@ -48,7 +48,14 @@ def migrate(conn: sqlite3.Connection) -> int:
         )
     if current == len(MIGRATIONS):
         return current
-    conn.execute("PRAGMA foreign_keys = OFF")  # only outside a transaction: so, first
+    if conn.in_transaction:  # turning foreign keys off does nothing inside one
+        conn.commit()  # what was asked before is kept, as executescript would have
+    conn.execute("PRAGMA foreign_keys = OFF")
+    if conn.execute("PRAGMA foreign_keys").fetchone()[0]:
+        raise sqlite3.OperationalError(
+            "Mado couldn't turn foreign keys off to bring its records up to date, so it left "
+            "them as they were."
+        )
     try:
         for number, sql in enumerate(MIGRATIONS[current:], start=current + 1):
             before = _dangling(conn)
