@@ -1037,6 +1037,9 @@ def test_a_set_or_save_cut_short_isnt_finished_at_the_next_start_but_a_days_chan
     client: TestClient, paths: DataPaths
 ):
     clock = Clock(client)  # the 22nd
+    app: Any = client.app
+    jobs: Jobs = app.state.jobs
+    jobs.stop()  # the queue's worker held: what's put back waits, rather than made at once
     with closing(db.connect(paths.database)) as conn:
         with conn:
             for purpose, day, state in (
