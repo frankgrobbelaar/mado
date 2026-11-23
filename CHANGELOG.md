@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.7.0 - 2026-11-23
+
 ### Added
 - The wallpaper studio, a new place in the rail: your monitors drawn as Windows arranges them,
   each with its name, its size and the wallpaper on it now. Pick a picture for each (from your
