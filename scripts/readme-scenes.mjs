@@ -277,12 +277,15 @@ export function parseScene(spec) {
     cutout: null,
     region: null,
     blur: 0,
+    dark: 0,
+    blocks: 0,
     flip: false,
   };
   for (const ask of asks) {
     const [key, value = ""] = ask.split("=");
     if (key === "look") scene.look = value;
-    else if (["strength", "grain", "vignette", "blur"].includes(key)) scene[key] = Number(value);
+    else if (["strength", "grain", "vignette", "blur", "dark", "blocks"].includes(key))
+      scene[key] = Number(value);
     else if (key === "part") scene.part = value;
     else if (key === "cutout") scene.cutout = value;
     else if (key === "region") scene.region = value.split(",").map(Number);
@@ -294,8 +297,9 @@ export function parseScene(spec) {
 
 /** The scene as an SVG document: its sky and drawing, with a look at a strength and finishing
  * touches (grain and a vignette, 0 to 100), on all of it or a part; cut out (only a part, on
- * nothing); blurred (a picture only stretched); a region of it (fractions of the picture: x, y,
- * width, height); or mirrored, a scene twice over looking like two. */
+ * nothing); blurred (a picture only stretched, or shaken); its colours squeezed into `blocks`
+ * steps (a JPEG saved small); darkened by `dark` stops; a region of it (fractions of the picture:
+ * x, y, width, height); or mirrored, a scene twice over looking like two. */
 export function drawScene(spec) {
   const asked = parseScene(spec);
   const scene = SCENES[asked.name];
@@ -339,6 +343,20 @@ export function drawScene(spec) {
   if (asked.blur > 0) {
     defs.push(`<filter id="soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${asked.blur}"/></filter>`);
     picture = `<g filter="url(#soft)">${picture}</g>`;
+  }
+  if (asked.blocks > 1) {
+    // A picture saved small: its colours squeezed into few steps, as a JPEG's blocks flatten them.
+    const steps = Array.from({ length: asked.blocks }, (_, at) => round(at / (asked.blocks - 1))).join(" ");
+    const funcs = ["R", "G", "B"].map((c) => `<feFunc${c} type="discrete" tableValues="${steps}"/>`).join("");
+    defs.push(`<filter id="blocks" color-interpolation-filters="sRGB"><feComponentTransfer>${funcs}</feComponentTransfer></filter>`);
+    picture = `<g filter="url(#blocks)">${picture}</g>`;
+  }
+  if (asked.dark > 0) {
+    // An exposure cut in linear light, by stops, as a camera given too little light.
+    const slope = round(2 ** -asked.dark);
+    const funcs = ["R", "G", "B"].map((c) => `<feFunc${c} type="linear" slope="${slope}" intercept="0"/>`).join("");
+    defs.push(`<filter id="dark" color-interpolation-filters="linearRGB"><feComponentTransfer>${funcs}</feComponentTransfer></filter>`);
+    picture = `<g filter="url(#dark)">${picture}</g>`;
   }
   if (asked.flip) picture = `<g transform="matrix(-1 0 0 1 400 0)">${picture}</g>`;
   const [x, y, width, height] = asked.region ?? [0, 0, 1, 1];

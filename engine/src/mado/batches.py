@@ -37,6 +37,9 @@ from mado.core.batch import (
 from mado.core.edits import phrase as edit_phrase
 from mado.core.estimate import key
 from mado.core.files import kind_of, skipped_folder
+from mado.core.fixes import BLOCKY, FixError, fixing_from
+from mado.core.fixes import detail as fix_detail
+from mado.core.fixes import phrase as fix_phrase
 from mado.core.looks import phrase
 from mado.core.naming import EXTENSIONS, QUARANTINE
 from mado.core.quality import Format, about_bytes
@@ -59,6 +62,7 @@ type How = Literal[
 MOST = 10_000  # pictures a batch holds at most
 _WALKED = 50_000  # files looked at in folders dropped, at most
 _FOCUS = (0.5, 0.5)  # where a picture's subject is reckoned to be, for what it takes
+_JPEGS = (".jpg", ".jpeg", ".jpe", ".jfif")  # a JPEG's names, for what its fixes take
 
 
 class BatchError(ValueError):
@@ -262,6 +266,7 @@ def takes(
         raise BatchError("There are no pictures to make.")
     here = ai.where()
     starts = ai.starts_on(here)
+    fix_starts = ai.fix_starts_on()
     cut_on = ai.edit_place(BIREFNET)
     format_ = saving.get("format")
     quality = saving.get("quality")
@@ -277,6 +282,9 @@ def takes(
             guessed_kind="photo",
             found_focus=_FOCUS,
             starts_on=starts,
+            fix_starts_on=fix_starts,
+            # A JPEG's blocks take as long however hard they come out: any quality will do here.
+            jpeg_saved_at=BLOCKY if picture.path.suffix.casefold() in _JPEGS else None,
         )
         first = first or made
         bytes_ = about_bytes(chosen, level, "photo", made.width * made.height)
@@ -316,7 +324,7 @@ def recipe_from_steps(conn: sqlite3.Connection, steps: Sequence[dict[str, object
         return recipe_from(
             recipe_of(steps), screens_kept(conn), lambda look: own_looks.resolve(conn, look)
         )
-    except (StepError, SizeError, MissingLookError) as error:
+    except (StepError, SizeError, MissingLookError, FixError) as error:
         raise BatchError(str(error)) from None
 
 
@@ -443,6 +451,7 @@ def _orders(
             "label": words[0],
             "look": words[1],
             "edit": words[2],
+            "fix": words[3],
             "seconds": round(seconds, 2),
             "bytes": bytes_,
         }
@@ -473,6 +482,23 @@ def words_for(
                         behind if isinstance(behind, str) else "nothing",
                     ),
                     "Cut out the subject",
+                    None,
+                )
+            )
+        elif kind == "fix":
+            try:
+                fixing = fixing_from({k: v for k, v in step.items() if k != "step"})
+            except FixError:
+                fixing = None
+            if fixing is None:
+                found.append(("fix", "Fix", "Fixes Mado can't read", "?", None))
+                continue
+            found.append(
+                (
+                    "fix",
+                    "Fix",
+                    fix_detail(fixing, fixing.jpeg_quality),
+                    _fix_chip(fixing.on),
                     None,
                 )
             )
@@ -567,13 +593,23 @@ def purpose_of(conn: sqlite3.Connection, steps: Sequence[dict[str, object]]) -> 
     return None
 
 
-def _made_words(recipe: Recipe) -> tuple[str | None, str | None, str | None]:
-    """What a batch's pictures are made for and with, and what's edited first, as a job and
-    History say them."""
+def _made_words(
+    recipe: Recipe,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """What a batch's pictures are made for and with, what's edited first and what the fixes do,
+    as a job and History say them."""
     made_for = recipe.sizing.size.label if recipe.sizing else None
     styling = recipe.styling
     look = phrase(styling.look, styling.strength, styling.touches) if styling else None
-    return made_for, look, edit_phrase(recipe.editing)
+    return made_for, look, edit_phrase(recipe.editing), fix_phrase(recipe.fixing)
+
+
+def _fix_chip(on: tuple[str, ...]) -> str:
+    """The fixes as a recipe's line says them: "Noise and JPEG blocks", "Dark photo"."""
+    names = {"noise": "noise", "blur": "blur", "jpeg": "JPEG blocks", "dark": "dark photo"}
+    said = [names[kind] for kind in on]
+    joined = said[0] if len(said) == 1 else f"{', '.join(said[:-1])} and {said[-1]}"
+    return joined[:1].upper() + joined[1:]
 
 
 def _look_detail(styling: Styling) -> str:

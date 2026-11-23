@@ -971,9 +971,25 @@ export interface EditStep {
   edits: Edit[];
 }
 
-/** One picture, one recipe: what the Edit, Size and Looks tabs set together, made by one Save. */
+/** The quick fixes, each off (null) or on at its one setting: what the Fix tab asks for. */
+export interface FixStep {
+  /** Noise: how much of SCUNet's change is kept, 0 to 1. */
+  noise: { strength: number } | null;
+  /** Blur from a shaking camera or a moving subject: how much of NAFNet's change is kept. */
+  blur: { strength: number } | null;
+  /** JPEG blocks: Fast (SCUNet) or Best (FBCNN), null as this PC has them; how hard, 0 to 1 (at
+   * Best, FBCNN's quality setting: 0.7 takes it for a JPEG saved at 30), or null as hard as each
+   * JPEG was squeezed (a batch's: a picture that isn't a JPEG is left as it is). */
+  jpeg: { quality: Quality | null; strength: number | null } | null;
+  /** A dark photo, brightened as it measures: how much local contrast after it, 0 to 1. */
+  dark: { contrast: number } | null;
+}
+
+/** One picture, one recipe: what the Edit, Fix, Size and Looks tabs set together, made by one
+ * Save. */
 export interface Recipe {
   edit?: EditStep | null;
+  fix?: FixStep | null;
   size: SizeStep | null;
   look: LookStep | null;
 }
@@ -1057,10 +1073,21 @@ export interface Plan {
   warning: string | null;
   /** Cleaning first changes the model (Fast keeps grain without it). */
   cleanMatters: boolean;
+  /** The fixes take noise and blocks out first, so the model doesn't clean them again. */
+  cleanedFirst: boolean;
   /** The look, as Save says it after "with": "Warm film at 60%"; null with no look. */
   look: string | null;
   /** The edits, as Save and History say them: "erased a part"; null with none. */
   edit: string | null;
+  /** The fixes, as Save and History say them: "took out noise"; null with none. */
+  fix: string | null;
+  /** JPEG blocks at Fast or Best, as decided; null without them. */
+  fixQuality: Quality | null;
+  /** Of `seconds`, about how long the fixes take. */
+  fixSeconds: number;
+  /** Where the fixes' models run: the processor when the card has no room left for them; null
+   * without fixes. */
+  fixPlace: "card" | "processor" | null;
   seconds: number;
   place: "card" | "processor";
   /** The time is this PC's own, not a guess. */
@@ -1110,6 +1137,34 @@ function useEnginePost<T>(path: string, body: unknown, enabled = true, once = fa
 /** How a picture would be made to a recipe (null: nothing chosen yet). */
 export const usePlan = (id: number, recipe: Recipe | null) =>
   useEnginePost<Plan>(`/pictures/${id}/plan`, recipe, recipe !== null);
+
+/** What Mado measures of a picture for the Fix tab: only what it can measure cheaply and
+ * reliably. */
+export interface Fixes {
+  /** A JPEG's own quality, from its tables; null for any other file. */
+  jpegQuality: number | null;
+  /** Mado suggests taking its JPEG blocks out. */
+  blocks: boolean;
+  /** How many stops brighter the dark photo fix makes it: 0 when it isn't dark. */
+  stops: number;
+  /** Mado suggests brightening it. */
+  dark: boolean;
+  /** Black and white: the fixes keep it so. */
+  grey: boolean;
+  /** Its see-through parts stay as they are. */
+  seeThrough: boolean;
+  /** Its colours, kept: "sRGB", "Display P3". */
+  colour: string;
+  megapixels: number;
+}
+
+/** What the Fix tab suggests for a picture, asked again once its file changes. */
+export const useFixes = (picture: { id: number; version: string } | null) =>
+  useEngineQuery<Fixes>(
+    picture ? `/pictures/${picture.id}/fixes?v=${encodeURIComponent(picture.version)}` : "",
+    undefined,
+    picture !== null,
+  );
 
 // Looks: Mado's and the owner's own (the Looks tab).
 
@@ -1326,9 +1381,11 @@ export interface Job {
   look: string | null;
   /** What's edited first: "erased a part"; null with no edits. */
   edit: string | null;
+  /** What the fixes do: "took out noise"; null with no fixes. */
+  fix: string | null;
   how: "new" | "replace";
   state: JobState;
-  stage: "reading" | "editing" | "shaping" | "making" | "looking" | "saving" | null;
+  stage: "reading" | "editing" | "shaping" | "fixing" | "making" | "looking" | "saving" | null;
   /** 0 to 1. */
   progress: number;
   secondsLeft: number | null;
@@ -1387,6 +1444,8 @@ export interface HistoryEntry {
   look: string | null;
   /** What was edited first: "erased a part". */
   edit: string | null;
+  /** What the fixes did: "took out noise". */
+  fix: string | null;
   original: string | null;
   result: string | null;
   resultName: string | null;
@@ -1543,6 +1602,11 @@ export interface LookStepItem extends LookStep {
   step: "look";
 }
 
+/** The fixes, as a batch's step: the Fix tab's choices. */
+export interface FixStepItem extends FixStep {
+  step: "fix";
+}
+
 /** Cut out the subject, as a batch's step: found without a click in each picture. */
 export interface CutoutStepItem {
   step: "cutout";
@@ -1553,7 +1617,7 @@ export interface CutoutStepItem {
 }
 
 /** A batch's step. Later pieces add kinds of their own. */
-export type BatchStep = CutoutStepItem | SizeStepItem | LookStepItem;
+export type BatchStep = CutoutStepItem | FixStepItem | SizeStepItem | LookStepItem;
 
 /** How a batch saves: new pictures (beside the originals, into a folder by name beside each,
  * or into a folder of their own), or in the originals' places, each original to quarantine. */
@@ -1812,6 +1876,8 @@ export interface BatchLine {
   look: string | null;
   /** "cut out the subject" */
   edit: string | null;
+  /** "took out noise" */
+  fix: string | null;
   purpose: string | null;
   into: string;
   made: number;
@@ -1833,6 +1899,7 @@ export interface MadeToday {
   madeFor: string | null;
   look: string | null;
   edit: string | null;
+  fix: string | null;
 }
 
 // "/batches/done", not "/batches": that would ask again for the pictures a batch is made of.

@@ -646,8 +646,8 @@ function Small(props: {
 }
 
 /** A model a tool waits for: downloaded the first time it's needed, its size and progress here,
- * and what to do while there's no network. */
-export function ModelCard(props: { tool: Tool; doing: string }) {
+ * and what to do while there's no network (`offline`: what works meanwhile). */
+export function ModelCard(props: { tool: Tool; doing: string; offline?: string }) {
   const { tool } = props;
   const download = useDownloadTool();
   const online = useOnline();
@@ -694,8 +694,8 @@ export function ModelCard(props: { tool: Tool; doing: string }) {
         </Button>
       ) : (
         <p className="text-13 text-fg-muted leading-normal">
-          You're offline, so it waits till you're back. Cutting out the subject at Fast works now:
-          its model came with Mado.
+          You're offline, so it waits till you're back.{" "}
+          {props.offline ?? "Cutting out the subject at Fast works now: its model came with Mado."}
         </p>
       )}
       {tool.state === "failed" && tool.problem && (

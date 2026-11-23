@@ -72,6 +72,9 @@ def test_the_list_says_what_each_download_is_and_where_it_comes_from():
         "birefnet-lite",
         "siglip-base-patch16-224",
         "pp-ocrv6-small",
+        "scunet",
+        "fbcnn",
+        "nafnet",
     ]
     for item in items:
         addresses = [each.url for each in item.files] if item.files else [item.url]
@@ -148,6 +151,23 @@ def test_the_editing_models_come_from_mados_second_set_of_models_with_their_lice
     ]
 
 
+def test_the_fixes_models_come_from_mados_first_and_third_sets_with_their_licences():
+    models = {item.id: item for item in manifest() if item.id in ("scunet", "fbcnn", "nafnet")}
+
+    assert sorted(models) == ["fbcnn", "nafnet", "scunet"]
+    for item in models.values():
+        assert item.when == "asked"
+        assert item.size == sum(each.size for each in item.files)
+        assert any(each.name.startswith("LICENSE") for each in item.files)
+        assert all(re.fullmatch(r"[0-9a-f]{64}", each.sha256) for each in item.files)
+    sets = {name: {each.url.split("/")[-2] for each in item.files} for name, item in models.items()}
+    assert sets == {"scunet": {"models-1"}, "fbcnn": {"models-1"}, "nafnet": {"models-3"}}
+    # Each model's file is named as the fixes look for it.
+    assert next(each.name for each in models["scunet"].files) == "scunet-color-real-psnr.onnx"
+    assert next(each.name for each in models["fbcnn"].files) == "fbcnn-color.onnx"
+    assert next(each.name for each in models["nafnet"].files) == "nafnet-gopro-width32.onnx"
+
+
 def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
     tools = Tools(paths, fetch=serving(BUILD))
 
@@ -161,6 +181,9 @@ def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
         "birefnet-lite",
         "siglip-base-patch16-224",
         "pp-ocrv6-small",
+        "scunet",
+        "fbcnn",
+        "nafnet",
     ]
     with pytest.raises(KeyError):
         tools.start("webview2")

@@ -124,13 +124,22 @@ def test_the_checks_process_is_read_by_its_last_json_line():
 
 
 def test_a_picture_made_teaches_mado_this_pcs_speed(conn: sqlite3.Connection):
-    hardware.learn(conn, FAST.id, "processor", 10.0, NOW)
-    hardware.learn(conn, FAST.id, "processor", 20.0, NOW)
+    hardware.learn(conn, {f"{FAST.id}@processor": 10.0}, NOW)
+    hardware.learn(conn, {f"{FAST.id}@processor": 20.0}, NOW)
 
     assert hardware.speeds(conn)[f"{FAST.id}@processor"] == pytest.approx(13.0)
     measured = hardware.measured(conn)
     assert measured is not None
     assert measured.pictures == 2
+
+
+def test_a_picture_made_by_two_models_is_counted_once(conn: sqlite3.Connection):
+    hardware.learn(conn, {f"{FAST.id}@card": 0.5, "scunet@processor": 30.0}, NOW)
+
+    assert hardware.speeds(conn)["scunet@processor"] == pytest.approx(30.0)
+    measured = hardware.measured(conn)
+    assert measured is not None
+    assert measured.pictures == 1
 
 
 def test_a_model_is_timed_in_seconds_for_a_megapixel_of_tiles():

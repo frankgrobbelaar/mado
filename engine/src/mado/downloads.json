@@ -305,6 +305,102 @@
           "sha256": "c5fd0e8603d3df743355b546121e6fe0f4ef8ff455c5a85c1681fd3ae520e153"
         }
       ]
+    },
+    {
+      "id": "scunet",
+      "name": "SCUNet",
+      "version": "models-1",
+      "purpose": "Takes noise out of a picture (the grain of a small sensor or a dark room, and the noise brightening a dark photo brings out) and JPEG blocks at Fast. Mado fetches it the first time a fix needs it.",
+      "licence": "Apache-2.0 AND MIT",
+      "home": "https://github.com/cszn/SCUNet",
+      "url": null,
+      "size": 72932271,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "scunet-color-real-psnr.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/scunet-color-real-psnr.onnx",
+          "size": 72919796,
+          "sha256": "9fe815293b7940c5754f7a8231a890853109b3e8e6b6d1bc47b404b92555a9f0"
+        },
+        {
+          "name": "LICENSE-SCUNet.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-SCUNet.txt",
+          "size": 11409,
+          "sha256": "db7c4e3148d7ff287423d0d62716c6519c71cbcabeb0369cf24c4e14a33865cb"
+        },
+        {
+          "name": "LICENSE-KAIR.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-KAIR.txt",
+          "size": 1066,
+          "sha256": "448e69b705d64f21bf8cb86562301e0edd99ac79026064ddd75af8242b067be5"
+        }
+      ]
+    },
+    {
+      "id": "fbcnn",
+      "name": "FBCNN",
+      "version": "models-1",
+      "purpose": "Takes JPEG blocks out at Best, and the halos round edges and letters, as hard as you choose. Mado fetches it the first time Best is asked for.",
+      "licence": "Apache-2.0 AND MIT",
+      "home": "https://github.com/jiaxi-jiang/FBCNN",
+      "url": null,
+      "size": 287709421,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "fbcnn-color.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/fbcnn-color.onnx",
+          "size": 287696998,
+          "sha256": "4b3d0f2443ff4a6ad3abfb993efcc1cd74c7567585a5bf07e9e760a405f18b26"
+        },
+        {
+          "name": "LICENSE-FBCNN.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-FBCNN.txt",
+          "size": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        },
+        {
+          "name": "LICENSE-KAIR.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-KAIR.txt",
+          "size": 1066,
+          "sha256": "448e69b705d64f21bf8cb86562301e0edd99ac79026064ddd75af8242b067be5"
+        }
+      ]
+    },
+    {
+      "id": "nafnet",
+      "name": "NAFNet",
+      "version": "models-3",
+      "purpose": "Mends blur from a shaking camera or a moving subject, a tile at a time, with a guard that keeps it from inventing detail. Mado fetches it the first time the blur fix is asked for.",
+      "licence": "MIT AND Apache-2.0",
+      "home": "https://github.com/megvii-research/NAFNet",
+      "url": null,
+      "size": 68940956,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "nafnet-gopro-width32.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/nafnet-gopro-width32.onnx",
+          "size": 68928490,
+          "sha256": "2ac744ecfec70d9cdf11b3d4e7cfb030c7332c94a2de52401b92e8c45eb090cd"
+        },
+        {
+          "name": "LICENSE-NAFNet.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-NAFNet.txt",
+          "size": 12466,
+          "sha256": "a29ecef3456149898f08e4c71b11b33e7d333664e087bc212e84e18ddd6599ad"
+        }
+      ]
     }
   ]
 }

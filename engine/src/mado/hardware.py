@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Literal, cast
 
-from mado.core.estimate import blended, key
+from mado.core.estimate import blended
 from mado.core.hardware import (
     Card,
     Checked,
@@ -165,17 +165,17 @@ def forget_speeds(conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM settings WHERE key = ?", (_SPEEDS,))
 
 
-def learn(
-    conn: sqlite3.Connection, model: str, place: Place, seconds_a_megapixel: float, now: datetime
-) -> None:
-    """A picture just made took its model `seconds_a_megapixel` of tiles: blended into the time
-    kept for that model where it ran."""
-    if seconds_a_megapixel <= 0:
+def learn(conn: sqlite3.Connection, paces: Mapping[str, float], now: datetime) -> None:
+    """A picture just made took each model the seconds a megapixel of tiles in `paces` (by
+    `key(model, place)`, where it ran): each blended into the time kept for it, and the picture
+    counted once, however many models made it."""
+    paces = {name: seconds for name, seconds in paces.items() if seconds > 0}
+    if not paces:
         return
     kept = _setting(conn, _SPEEDS)
     times = speeds(conn)
-    name = key(model, place)
-    times[name] = blended(times.get(name), seconds_a_megapixel)
+    for name, seconds in paces.items():
+        times[name] = blended(times.get(name), seconds)
     made = kept.get("pictures")
     since = kept.get("at") if isinstance(kept.get("at"), str) else now.isoformat(timespec="seconds")
     _save(

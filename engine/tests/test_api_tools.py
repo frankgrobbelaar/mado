@@ -84,4 +84,7 @@ def test_the_engine_offers_what_it_fetches_itself_and_not_the_installers(paths: 
         ("birefnet-lite", "asked"),
         ("siglip-base-patch16-224", "asked"),  # the first time the library is searched
         ("pp-ocrv6-small", "asked"),
+        ("scunet", "asked"),  # the first time a fix needs it
+        ("fbcnn", "asked"),
+        ("nafnet", "asked"),
     ]

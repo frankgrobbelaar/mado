@@ -33,8 +33,10 @@ tools column: the Size tab, with the shape over the picture, before and after at
 zoomed; the Looks tab, every look as a small copy of the picture, its strength, the finishing
 touches, "Only on a part", the owner's own looks, and "Hold to see the original"; the Edit tab
 (`edit-tab.tsx`, `edit-stage.tsx`, `editing.ts`: Select, Erase and Cut out, what's picked and what
-to do with it, the brush, undo and Start again, each model downloaded the first time); one Save for
-all three, and the job making it), History (a week at a time, a batch or a review as one line with
+to do with it, the brush, undo and Start again, each model downloaded the first time); the Fix tab
+(`fix-tab.tsx`, `fix-stage.tsx`, `fixes.ts`: noise, blur, JPEG blocks and dark photos, each with its
+one setting, what Mado suggests, before and after fitted or at full detail, each model downloaded
+the first time); one Save for all four, and the job making it), History (a week at a time, a batch or a review as one line with
 Take them away or Put them back, take away and put back, replace again), Settings (General with
 Saving and Search, Your data with Set aside, Updates, About with This PC and the downloads), the
 update card, the notes at the window's foot (a picture open in another app among them,

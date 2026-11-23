@@ -26,7 +26,21 @@ router = APIRouter()
 
 _LISTED = 3  # waiting pictures, and pictures done, listed before "+28 more"
 _KEPT = timedelta(days=7)  # a batch whose pictures didn't all work stays this long, uncleared
-_STEPS = {"size": "Make it for a screen", "look": "A look"}
+_STEPS = {
+    "cutout": "Cut out the subject",
+    "fix": "Fix",
+    "size": "Make it for a screen",
+    "look": "A look",
+}
+# A job's stage as the step of its batch it's at: the edits are a batch's cut-out; reading the
+# picture is its first step's.
+_STAGE_STEP = {
+    "editing": "cutout",
+    "fixing": "fix",
+    "shaping": "size",
+    "making": "size",
+    "looking": "look",
+}
 
 
 class Row(ApiModel):
@@ -325,9 +339,7 @@ def _steps_of(conn: sqlite3.Connection, batch_id: int) -> list[str]:
 
 def _step(stage: str | None, steps: list[str]) -> str:
     """What a picture being made is at, as a step of its batch's: "A look 2/3"."""
-    kind = {"reading": "size", "shaping": "size", "making": "size", "looking": "look"}.get(
-        stage or "", "save"
-    )
+    kind = steps[0] if stage == "reading" else _STAGE_STEP.get(stage or "", "save")
     if kind not in steps:
         kind = steps[0]
     at = steps.index(kind)

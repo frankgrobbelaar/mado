@@ -122,6 +122,20 @@ const ALL_LOOKS = {
   ],
 };
 
+/** A fix's model, downloaded, as the engine lists it. */
+const FIX_MODEL = {
+  id: "",
+  name: "",
+  version: "models-1",
+  purpose: "",
+  licence: "Apache-2.0 AND MIT",
+  size: 0,
+  when: "asked",
+  state: "ready",
+  done: 0,
+  problem: null,
+} as const;
+
 /** See it first's three, in a batch of Trip's pictures, each made with Warm film. */
 const SAMPLE_SCENES = ["warm-dunes", "still-lake", "snowfield"];
 
@@ -187,11 +201,31 @@ function looked(step: LookStep | null, part: string | null): string {
   return words.filter(Boolean).join("/");
 }
 
+/** Pictures shown with something wrong with them while a screen fixes it, by their number: the
+ * scene as the picture is, before its fixes ("low-tide/dark=2.6/grain=45"). */
+const DAMAGED = new Map<number, string>();
+
+/** What's still wrong with a damaged picture after the fixes asked for ("low-tide/dark=2.6/grain=45"
+ * brightened is "low-tide/grain=45"), as the engine makes them: all of a picture fitted is sent
+ * only the brightening; a part at full detail every fix. */
+function unfixed(damaged: string, fix: Recipe["fix"]): string {
+  const [drawn = "", ...wrong] = damaged.split("/");
+  const out: Record<string, boolean> = {
+    dark: Boolean(fix?.dark),
+    grain: Boolean(fix?.noise),
+    blocks: Boolean(fix?.jpeg),
+  };
+  return [drawn, ...wrong.filter((word) => !out[word.split("=")[0] ?? ""])].join("/");
+}
+
 /** The made-up pictures the engine sends: each picture's scene, as the screen asks for it. */
 function pictureFor(url: URL, init: RequestInit | undefined): Response | undefined {
   const path = url.pathname;
   const copy = path.match(/^\/pictures\/(\d+)\/(thumbnail|view|full)$/);
-  if (copy) return scene(SCENES.get(Number(copy[1])) ?? "harbour");
+  if (copy) {
+    const id = Number(copy[1]);
+    return scene(DAMAGED.get(id) ?? SCENES.get(id) ?? "harbour");
+  }
   const look = path.match(/^\/pictures\/(\d+)\/looks\/([\w-]+)$/);
   if (look) {
     const drawn = SCENES.get(Number(look[1])) ?? "harbour";
@@ -199,9 +233,12 @@ function pictureFor(url: URL, init: RequestInit | undefined): Response | undefin
   }
   const preview = path.match(/^\/pictures\/(\d+)\/preview$/);
   if (preview) {
-    const asked = JSON.parse(String(init?.body)) as { recipe: Recipe };
+    const asked = JSON.parse(String(init?.body)) as { recipe: Recipe; side: string };
     const words = looked(asked.recipe.look, "sky");
-    const drawn = SCENES.get(Number(preview[1])) ?? "harbour";
+    const id = Number(preview[1]);
+    const fix = asked.side === "after" ? asked.recipe.fix : null;
+    const damaged = DAMAGED.get(id);
+    const drawn = (damaged ? unfixed(damaged, fix) : null) ?? SCENES.get(id) ?? "harbour";
     return scene(words ? `${drawn}/${words}` : drawn, { "X-Made-In": "0.9" });
   }
   const made = path.match(/^\/history\/(\d+)\/thumbnail$/);
@@ -438,6 +475,50 @@ describe.runIf(SHOTS)("The README's screens", () => {
     await screen.findByText(/picked with one click/);
     await settle();
     await dump("edit");
+  });
+
+  it("fix", async () => {
+    DAMAGED.set(13, "low-tide/dark=2.6/grain=45");
+    try {
+      engine({
+        ...opened(13),
+        "/pictures/13/fixes": {
+          jpegQuality: 94,
+          blocks: false,
+          stops: 2.6,
+          dark: true,
+          grey: false,
+          seeThrough: false,
+          colour: "sRGB",
+          megapixels: 12.2,
+        },
+        "/tools": [
+          { ...FIX_MODEL, id: "scunet", name: "SCUNet", size: 72_932_271 },
+          { ...FIX_MODEL, id: "nafnet", name: "NAFNet", size: 68_940_956 },
+        ],
+        "POST /pictures/13/plan": plan({
+          width: 4032,
+          height: 3024,
+          label: "",
+          method: "keep",
+          model: null,
+          sides: "none",
+          fix: "took out noise and brightened it",
+          fixSeconds: 26,
+          seconds: 27,
+        }),
+      });
+      await measuredBoxes("fix");
+      draw("/library/pictures/:id", "/library/pictures/13?folder=1", <PicturePage />);
+      fireEvent.click(await screen.findByRole("tab", { name: "Fix" }));
+      fireEvent.click(await screen.findByRole("switch", { name: "Dark photo" }));
+      fireEvent.click(await screen.findByRole("switch", { name: "Noise" }));
+      await screen.findByText(/Mado brightens it by about 2\.6 stops/);
+      await settle(2500);
+      await dump("fix");
+    } finally {
+      DAMAGED.clear();
+    }
   });
 
   it("save", async () => {

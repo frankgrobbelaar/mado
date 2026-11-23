@@ -412,22 +412,55 @@ function QualityCard(props: {
           {plan.warning}
         </p>
       )}
-      <div className="flex items-center gap-2.5 text-13">
-        <Switch
-          id={clean}
-          checked={plan.cleanMatters ? size.clean : true}
-          disabled={!plan.cleanMatters}
-          onCheckedChange={props.onClean}
-        />
-        <label htmlFor={clean} className="cursor-pointer">
-          Clean noise and blocks first
-        </label>
-      </div>
-      {!plan.cleanMatters && plan.method === "ai" && (
-        <p className="text-12 text-fg-faint">Best cleans as it makes the picture bigger.</p>
+      {plan.cleanedFirst ? (
+        <p className="text-12 text-fg-faint leading-normal">
+          {plan.method !== "ai"
+            ? "The Fix tab takes noise and blocks out first."
+            : plan.quality === "best"
+              ? "The Fix tab takes noise and blocks out first, so Best has little left to clean."
+              : "The Fix tab takes noise and blocks out first, so Fast doesn't clean them again."}
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2.5 text-13">
+            <Switch
+              id={clean}
+              checked={plan.cleanMatters ? size.clean : true}
+              disabled={!plan.cleanMatters}
+              onCheckedChange={props.onClean}
+            />
+            <label htmlFor={clean} className="cursor-pointer">
+              Clean noise and blocks first
+            </label>
+          </div>
+          {!plan.cleanMatters && plan.method === "ai" && (
+            <p className="text-12 text-fg-faint">Best cleans as it makes the picture bigger.</p>
+          )}
+        </>
       )}
     </section>
   );
+}
+
+/** What a download a plan waits for is for, in a sentence. */
+function neededFor(need: Need): string {
+  const size = sizeOf(need.size);
+  switch (need.id) {
+    case "lama":
+      return `Extending draws the new edges with ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
+    case "realesrgan-x4plus":
+      return `Best for photos is ${need.name}, a ${size} download Mado fetches the first time it's asked for.`;
+    case "scunet":
+      return `Noise comes out with ${need.name}, an AI model Mado downloads the first time a fix needs it (${size}).`;
+    case "fbcnn":
+      return `JPEG blocks come out at Best with ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
+    case "nafnet":
+      return `Blur is mended with ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
+    case "birefnet-lite":
+      return `Cutting out at Best is ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
+    default:
+      return `It needs ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
+  }
 }
 
 /** A model the plan waits for: downloaded the first time it's asked for, its progress here. */
@@ -459,11 +492,7 @@ export function Needs(props: {
         const percent = tool?.size ? Math.round((tool.done / tool.size) * 100) : 0;
         return (
           <div key={need.id} className="flex flex-col gap-2">
-            <p className="text-13 leading-normal">
-              {need.id === "lama"
-                ? `Extending draws the new edges with ${need.name}, an AI model Mado downloads the first time it's asked for (${sizeOf(need.size)}).`
-                : `Best for photos is ${need.name}, a ${sizeOf(need.size)} download Mado fetches the first time it's asked for.`}
-            </p>
+            <p className="text-13 leading-normal">{neededFor(need)}</p>
             {busy ? (
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-12 text-fg-muted">
@@ -497,7 +526,7 @@ export function Needs(props: {
                     Crop instead
                   </Button>
                 )}
-                {need.id !== "lama" && props.onFast && (
+                {need.id === "realesrgan-x4plus" && props.onFast && (
                   <Button size="sm" variant="ghost" onClick={props.onFast}>
                     Use Fast
                   </Button>

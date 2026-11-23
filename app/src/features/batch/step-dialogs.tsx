@@ -12,12 +12,14 @@ import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { BehindIt } from "@/features/picture/edit-tab";
+import { FixControls } from "@/features/picture/fix-tab";
 import { LookGrid, Touches } from "@/features/picture/looks-tab";
 import { Chip, OtherSize, SizeButton } from "@/features/picture/size-tab";
 import { pickFolder } from "@/lib/dialogs";
 import {
   type BatchSaving,
   type CutoutStepItem,
+  type FixStepItem,
   type LookStepItem,
   type Quality,
   type SaveFormat,
@@ -82,6 +84,8 @@ export function SizeDialog(props: {
   onStep: (step: SizeStepItem) => void;
   onRemove: (() => void) | null;
   onClose: () => void;
+  /** The batch's Fix step takes noise or JPEG blocks out first, so Fast doesn't clean again. */
+  cleanedFirst?: boolean;
 }) {
   const { step, onStep } = props;
   const sizes = useSizes();
@@ -159,16 +163,22 @@ export function SizeDialog(props: {
             }
             className="flex [&>button]:flex-1"
           />
-          <div className="flex items-center gap-2.5 text-13">
-            <Switch
-              id={clean}
-              checked={step.clean}
-              onCheckedChange={(on) => change({ clean: on })}
-            />
-            <label htmlFor={clean} className="cursor-pointer">
-              Clean noise and blocks first
-            </label>
-          </div>
+          {props.cleanedFirst ? (
+            <p className="text-12 text-fg-faint leading-normal">
+              The Fix step takes noise and blocks out first, so Fast doesn't clean them again.
+            </p>
+          ) : (
+            <div className="flex items-center gap-2.5 text-13">
+              <Switch
+                id={clean}
+                checked={step.clean}
+                onCheckedChange={(on) => change({ clean: on })}
+              />
+              <label htmlFor={clean} className="cursor-pointer">
+                Clean noise and blocks first
+              </label>
+            </div>
+          )}
         </section>
       )}
     </StepCard>
@@ -264,6 +274,36 @@ export function LookDialog(props: {
           </div>
         </section>
       )}
+    </StepCard>
+  );
+}
+
+/**
+ * Fix them, as the Fix tab chooses: noise, blur, JPEG blocks and a dark photo, each turned on
+ * with its one setting. Made before the size, so noise and blocks come out before a picture
+ * grows; a fix that finds nothing to do on a picture (a picture that isn't dark) leaves it be.
+ */
+export function FixDialog(props: {
+  step: FixStepItem;
+  onStep: (step: FixStepItem) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const { step, onStep } = props;
+  return (
+    <StepCard
+      title="Fix them"
+      description="Each picture's noise, blur, JPEG blocks or darkness taken out before it's made bigger, as the Fix tab does it."
+      onClose={props.onClose}
+      onRemove={props.onRemove}
+    >
+      <div className="max-w-md">
+        <FixControls fix={step} onFix={(fix) => onStep({ ...fix, step: "fix" })} many />
+      </div>
+      <p className="max-w-md text-12 text-fg-faint leading-normal">
+        Each dark photo is brightened as it measures, and each JPEG's blocks come out as hard as it
+        was squeezed. A picture with nothing for them to fix is left as it is, and Mado says so.
+      </p>
     </StepCard>
   );
 }

@@ -1,15 +1,17 @@
-"""Making a picture to a recipe, as the Size, Looks and Edit tabs ask: the sizes there are, the
-owner's screens, the plan for a recipe (its shape, model, look, edits, time and quality), a preview
-(all of it fitted, or a part at full detail), the name it would be saved as, and making it, as a
-job (mado/api/jobs.py). A recipe is its edits, a size step and a look step, any of them left out,
-made by one Save."""
+"""Making a picture to a recipe, as the Size, Looks, Edit and Fix tabs ask: the sizes there are,
+the owner's screens, the plan for a recipe (its shape, model, look, edits, fixes, time and
+quality), a preview (all of it fitted, or a part at full detail), the name it would be saved as,
+what the Fix tab suggests, and making it, as a job (mado/api/jobs.py). A recipe is its edits, its
+fixes, a size step and a look step, any of them left out, made by one Save."""
 
 import io
 import json
 import logging
 import sqlite3
+import threading
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from math import ceil
 from pathlib import Path
@@ -37,10 +39,20 @@ from mado.api.common import (
 )
 from mado.api.editing import changed
 from mado.api.edits import EditStepIn, PartIn, editing_of, picked
+from mado.api.fixes import FixesOut, FixStepIn, fixing_of
 from mado.api.jobs import Job, job_of
 from mado.api.looks import LookIn
 from mado.core.edits import EditError, Editing, as_json
 from mado.core.estimate import key
+from mado.core.fixes import (
+    LEAST_STOPS,
+    FixError,
+    blocks_suggested,
+    dark_suggested,
+    fixing_json,
+    unchanged,
+)
+from mado.core.fixes import models_for as fix_models
 from mado.core.framing import Box, Shape
 from mado.core.kind import Kind
 from mado.core.models import Quality
@@ -59,18 +71,22 @@ from mado.core.sizes import (
 )
 from mado.directml import ModelError
 from mado.editing import EditingError, Editor, picture_key
+from mado.fixing import MARGIN, Measure, fixed
 from mado.looks import Placement, seed_of, styled
 from mado.making import (
+    GREY_MODES,
     NO_RAW_REPLACE,
     Picture,
     Seen,
     Sight,
     estimated,
+    fix_seconds,
     only_on,
     picture_of,
     placed,
     planned,
     screens_kept,
+    split_alpha,
     waiting_for,
 )
 from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
@@ -147,9 +163,11 @@ class LookHereIn(LookIn):
 
 
 class RecipeIn(ApiModel):
-    """A recipe: the edits, the size step, then the look step; any can be left out."""
+    """A recipe: the edits, the fixes, the size step, then the look step; any can be left
+    out."""
 
     edit: EditStepIn | None = None
+    fix: FixStepIn | None = None
     size: SizeIn | None = None
     look: LookHereIn | None = None
 
@@ -189,8 +207,13 @@ class PlanOut(ApiModel):
     how: str  # "Made with the photo model, guessed from the picture."
     warning: str | None  # what it can't make look real
     clean_matters: bool  # cleaning first changes the model (Fast keeps grain without it)
+    cleaned_first: bool  # the fixes take noise and blocks out first, so the model doesn't again
     look: str | None  # the look, as Save says it after "with": "Warm film at 60%"
     edit: str | None  # the edits, as Save and History say them: "erased a part"
+    fix: str | None  # the fixes, as Save and History say them: "took out noise"
+    fix_quality: Quality | None  # JPEG blocks at Fast or Best, as decided; None without them
+    fix_seconds: float  # of `seconds`, about how long the fixes take
+    fix_place: Literal["card", "processor"] | None  # where the fixes' models run; None without
     seconds: float  # about how long it takes here
     place: Literal["card", "processor"]
     measured: bool  # the time is this PC's own, not a guess
@@ -284,14 +307,22 @@ def seen_screens(body: ScreensSeen, conn: Database) -> list[SizeOut]:
 
 @router.post("/pictures/{picture_id}/plan")
 def plan_for(
-    picture_id: int, body: RecipeIn, conn: Database, sight: Seeing, ai: Models, toolbox: Toolbox
+    picture_id: int,
+    body: RecipeIn,
+    conn: Database,
+    sight: Seeing,
+    ai: Models,
+    toolbox: Toolbox,
+    editor: Editors,
 ) -> PlanOut:
     """How a picture would be made to a recipe: its shape, the model, its look, about how long it
     takes here and how it would be saved."""
     picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body, conn, source.version, picture.path.name)
     here = ai.where()
-    made = planned(recipe, seen, ai.starts_on(here))
+    made = _planned(recipe, picture, source, seen, sight, ai, editor)
+    fixers = fix_models(made.fixing, made.fix_quality)
+    fix_on = ai.fix_place(fixers) if fixers else None
     purpose = recipe.sizing.size.purpose if recipe.sizing else "screen"
     clear = seen.alpha or made.see_through
     # A cut-out with nothing behind it keeps its nothing: PNG, or WebP when it was WebP.
@@ -318,10 +349,15 @@ def plan_for(
         model=made.model.name if made.model else None,
         how=made.how,
         warning=made.warning,
-        clean_matters=made.method == "ai" and made.quality == "fast",
+        clean_matters=made.method == "ai" and made.quality == "fast" and not made.cleaned_first,
+        cleaned_first=made.cleaned_first,
         look=made.look,
         edit=made.edit,
-        seconds=estimated(made, here, ai.edit_place(BIREFNET)),
+        fix=made.fix,
+        fix_quality=made.fix_quality if made.fixing and made.fixing.jpeg is not None else None,
+        fix_seconds=fix_seconds(made, here, fix_on),
+        fix_place=fix_on if made.fixing is not None else None,
+        seconds=estimated(made, here, ai.edit_place(BIREFNET), fix_on),
         place=here.place,
         measured=measured,
         format=suits.format,
@@ -360,18 +396,22 @@ def preview(
     make as looks are gone through (WebP when it has see-through parts); a part as WebP."""
     picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
-    made = planned(recipe, seen, ai.starts_on())
+    made = _planned(recipe, picture, source, seen, sight, ai, editor)
     missing = waiting_for(made, ai)
     upscaler = made.model.download if made.model is not None else None
-    # Extending and the edits need their models on either side; the upscaler only for a part
-    # made at full detail.
-    if any(each != upscaler for each in missing) or (
-        missing and body.region is not None and body.side == "after"
-    ):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "It needs a model Mado downloads the first time it's asked for: download it first.",
-        )
+    fixers = {model.id for model in fix_models(made.fixing, made.fix_quality)}
+    # Extending and the edits need their models on either side; the upscaler and the fixes' only
+    # for a part made at full detail (all of it shows only the brightening, which needs none).
+    for each in missing:
+        if each == upscaler or each in fixers:
+            needed = body.region is not None and body.side == "after"
+        else:
+            needed = True
+        if needed:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "It needs a model Mado downloads the first time it's asked for: download it first.",
+            )
     began = time.perf_counter()
     try:
         image = _previewed(picture, source, seen, made, body, sight, ai, copies, editor)
@@ -381,8 +421,10 @@ def preview(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
         raise _refused(error) from None
-    except StoppedError:  # never asked to stop: a preview runs to its end
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The preview stopped.") from None
+    except StoppedError:  # a part's fixes, stopped as a newer preview of the picture came
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "A newer preview took this one's place."
+        ) from None
     except OSError as error:  # keeping the copy it's made from, not the picture
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -403,9 +445,40 @@ def preview(
     return Response(out.getvalue(), media_type=media, headers={"X-Made-In": took})
 
 
+@router.get("/pictures/{picture_id}/fixes")
+def fixes_for(picture_id: int, conn: Database, sight: Seeing) -> FixesOut:
+    """What the Fix tab suggests fixing, from what Mado can measure cheaply and reliably: a
+    JPEG's own quality from its tables, and how dark the picture is."""
+    picture, seen, source = _seen(conn, sight, picture_id)
+    quality = seen.jpeg
+    try:
+        measured = sight.measured(
+            (str(picture.path).casefold(), source.version, None),
+            lambda: sight.picture(picture, source.version),
+        )
+    except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
+        raise _refused(error) from None
+    stops = round(measured.stops, 1) if measured.stops >= LEAST_STOPS else 0.0
+    return FixesOut(
+        jpeg_quality=quality,
+        blocks=blocks_suggested(quality),
+        stops=stops,
+        dark=dark_suggested(stops),
+        grey=seen.grey,
+        see_through=seen.alpha,
+        colour=colour_words(seen.profile, keep=True),
+        megapixels=round(seen.width * seen.height / 1e6, 1),
+    )
+
+
 @router.post("/pictures/{picture_id}/saving")
 def saving_name(
-    picture_id: int, body: SavingAsk, conn: Database, sight: Seeing, ai: Models
+    picture_id: int,
+    body: SavingAsk,
+    conn: Database,
+    sight: Seeing,
+    ai: Models,
+    editor: Editors,
 ) -> SavingName:
     """What a picture made would be saved as, and about how big it would be: a pasted one, into
     the owner's Pictures folder till another is chosen."""
@@ -414,9 +487,9 @@ def saving_name(
     if body.how == "new" and not body.folder and pasted:
         body = body.model_copy(update={"folder": str(pictures_folder())})
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
-    made = planned(recipe, seen, ai.starts_on())
+    made = _planned(recipe, picture, source, seen, sight, ai, editor)
     if made.empty and not pasted:  # a paste saved as it is is something to save
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _nothing(recipe))
     extension = EXTENSIONS[body.format]
     original = picture.path
     taken: str | None = None
@@ -450,6 +523,7 @@ def make(
     ai: Models,
     jobs: Working,
     aside: SetAside,
+    editor: Editors,
 ) -> Job:
     """Makes a picture to its recipe and saves it as the owner chose, as a job: its progress,
     the time left and Cancel come from /jobs. A picture waiting in a quarantine is opened to look
@@ -457,10 +531,10 @@ def make(
     _may_save(conn, picture_id, body.saving, aside)
     picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
-    made = planned(recipe, seen, ai.starts_on())
+    made = _planned(recipe, picture, source, seen, sight, ai, editor)
     as_is = made.empty and _pasted(conn, picture_id)  # a paste saved as it is
     if made.empty and not as_is:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _NOTHING)
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _nothing(recipe))
     if made.see_through and body.saving.format not in ("PNG", "WebP"):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -496,9 +570,16 @@ def make(
         else None
     )
     look = asked.look if made.styling is not None else None  # a look that changes nothing isn't
+    # The fixes as the plan decided them too: JPEG blocks at the model previewed.
+    fixing = (
+        replace(made.fixing, jpeg_quality=made.fix_quality)
+        if made.fixing is not None and made.fixing.jpeg is not None
+        else made.fixing
+    )
     order = {
         "recipe": {
             "edit": as_json(recipe.editing) if recipe.editing else None,  # its version too
+            "fix": fixing_json(fixing),
             "size": decided.model_dump(by_alias=True) if decided else None,
             "look": look.model_dump(by_alias=True) if look else None,
         },
@@ -506,6 +587,7 @@ def make(
         "label": made.made_for,
         "look": made.look,
         "edit": made.edit,
+        "fix": made.fix,
         "estimate": round(made.scale, 3),
         "as_is": as_is,
     }
@@ -538,7 +620,15 @@ def _previewed(
         scale = min(fit.width / target[0], fit.height / target[1], 1.0)
         size = (max(1, round(target[0] * scale)), max(1, round(target[1] * scale)))
         base = sight.fitted(
-            (str(picture.path).casefold(), source.version, made.frame, size, made.editing),
+            (
+                str(picture.path).casefold(),
+                source.version,
+                made.frame,
+                size,
+                made.editing,
+                made.fixing,
+                made.fix_quality,
+            ),
             lambda: _fitted(picture, source, seen, made, size, sight, ai, copies, editor),
         )
         if looked is None:
@@ -590,12 +680,23 @@ def _previewed(
             box=(part.x, part.y, part.x + part.width, part.y + part.height),
         )
         return _profiled(stretched, profile)
-    if pixels.shape[2] == 4:  # see-through parts (a cut-out's) apart, as Save makes them
-        colours, clear, here = _round(pixels, part, size)
+    source_pixels, source_part = pixels, part
+    if made.fixing is not None:  # fixed round the part, as the whole picture measures
+        measured = (
+            _measure(picture, version_, made.editing, sight, editor, decoded)
+            if made.fixing.dark is not None
+            else None
+        )
+        newer = _NEWEST.started(picture.path)
+        source_pixels, source_part = _fixed_round(
+            pixels, part, made, measured, ai, offset, stop=newer
+        )
+    if source_pixels.shape[2] == 4:  # see-through parts (a cut-out's) apart, as Save makes them
+        colours, clear, here = _round(source_pixels, source_part, size)
         made_part = Image.fromarray(_made_part(colours, here, size, made, ai))
         made_part.putalpha(Image.fromarray(resize_alpha(clear, here, size)))
     else:
-        made_part = Image.fromarray(_made_part(pixels, part, size, made, ai))
+        made_part = Image.fromarray(_made_part(source_pixels, source_part, size, made, ai))
     made_part = _profiled(made_part, profile)
     if looked is None:
         return made_part
@@ -618,6 +719,123 @@ def _previewed(
         )
         shown = only_on(shown, made_part, here)
     return shown
+
+
+class Newest:
+    """Which preview of each picture's part with its fixes is the newest: an older one still
+    being made stops at its next tile, as the window has let it go for the newer (a slider
+    moved, the part dragged), so the card and processor aren't kept on what no one will see."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._latest: dict[str, int] = {}
+
+    def started(self, path: Path) -> Callable[[], bool]:
+        """A preview of the picture at `path` starts: whether a newer one has started since."""
+        name = str(path).casefold()
+        with self._lock:
+            mine = self._latest.get(name, 0) + 1
+            self._latest[name] = mine
+
+        def newer() -> bool:
+            with self._lock:
+                return self._latest.get(name) != mine
+
+        return newer
+
+
+_NEWEST = Newest()
+
+
+def _planned(
+    recipe: Recipe,
+    picture: Picture,
+    source: Source,
+    seen: Seen,
+    sight: Sight,
+    ai: Models,
+    editor: Editor,
+) -> Plan:
+    """The plan for a recipe, with how dark the picture measures as its edits leave it, once
+    the dark photo fix asks (worked out once, as the previews' own)."""
+    stops = None
+    if recipe.fixing is not None and recipe.fixing.dark is not None:
+        editing = recipe.editing if recipe.editing and recipe.editing.edits else None
+        try:
+            stops = _measure(picture, source.version, editing, sight, editor).stops
+        except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
+            raise _refused(error) from None
+        except EditingError as error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+        except ModelError as error:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
+    return planned(recipe, seen, ai.starts_on(), ai.fix_starts_on(), stops)
+
+
+def _nothing(recipe: Recipe) -> str:
+    """What a Save with nothing to make says: why its fixes change nothing in the picture, or
+    to pick a size or a look."""
+    if recipe.fixing is not None and recipe.sizing is None and recipe.styling is None:
+        return unchanged(recipe.fixing)
+    return _NOTHING
+
+
+def _measure(
+    picture: Picture,
+    version_: str,
+    editing: Editing | None,
+    sight: Sight,
+    editor: Editor,
+    decoded: Image.Image | None = None,
+) -> Measure:
+    """What the dark photo fix takes from the whole picture, as its edits leave it, worked out
+    once."""
+    edits = editing.edits if editing else ()
+
+    def image() -> Image.Image:
+        whole = decoded if decoded is not None else sight.picture(picture, version_)
+        if not edits:
+            return whole
+        return editor.state(whole, picture_key(picture.path, version_), edits)
+
+    return sight.measured((str(picture.path).casefold(), version_, editing), image)
+
+
+def _fixed_round(
+    pixels: Pixels,
+    part: Box,
+    made: Plan,
+    measured: Measure | None,
+    ai: Models,
+    offset: tuple[int, int],
+    *,
+    stop: Callable[[], bool] = lambda: False,
+) -> tuple[Pixels, Box]:
+    """The picture round a part, with a margin so the fixes' edges see what's beside them, its
+    fixes made (see-through parts kept as they are); and where the part is on it. `offset` is
+    where the picture itself is on `pixels` (its extended canvas); `stop` stops it at its next
+    tile (StoppedError)."""
+    assert made.fixing is not None  # noqa: S101 - asked for with fixes
+    height, width = pixels.shape[:2]
+    left, top = max(int(part.x) - MARGIN, 0), max(int(part.y) - MARGIN, 0)
+    right = min(ceil(part.x + part.width) + MARGIN, width)
+    bottom = min(ceil(part.y + part.height) + MARGIN, height)
+    around = np.ascontiguousarray(pixels[top:bottom, left:right])
+    colours = around[..., :3]
+    if around.shape[2] == 4:
+        colours = bled(np.ascontiguousarray(colours), np.ascontiguousarray(around[..., 3]))
+    done = fixed(
+        np.ascontiguousarray(colours),
+        made.fixing,
+        measured,
+        made.fix_quality,
+        ai,
+        at=(left - offset[0], top - offset[1]),
+        stop=stop,
+    )
+    if around.shape[2] == 4:
+        done = np.dstack([done, around[..., 3]])
+    return done, Box(part.x - left, part.y - top, part.width, part.height)
 
 
 def _round(
@@ -656,9 +874,51 @@ def _fitted(
     copies: Previews,
     editor: Editor,
 ) -> Image.Image:
-    """The picture made, `size` big: from its view the size of a screen, cut as its plan says
-    (or from the picture itself, when the view has fewer pixels than that, or as its edits left
-    it); or, with its edges extended, from the canvas LaMa drew."""
+    """The picture made, `size` big, as `_cut` cuts it, a dark photo brightened (and given its
+    local contrast) on that copy as the whole picture measures. Noise, blur and blocks show only
+    on a part at full detail: on a copy this size they're too small to judge, and their models
+    would take seconds to minutes over all of it."""
+    image = _cut(picture, source, seen, made, size, sight, ai, copies, editor)
+    if made.fixing is None or made.fixing.dark is None:
+        return image
+    measured = _measure(picture, _version_of(picture), made.editing, sight, editor)
+    extending = made.frame.shape == "extend" and made.frame.sides != "none"
+    shown = made.frame.canvas if extending else made.frame.kept
+    profile = image.info.get("icc_profile")
+    grey = image.mode in GREY_MODES
+    colours, alpha = split_alpha(image)
+    done = fixed(
+        colours,
+        made.fixing,
+        measured,
+        made.fix_quality,
+        ai,
+        at=(shown.x, shown.y),
+        step=shown.width / size[0],
+        light_only=True,
+    )
+    result = Image.fromarray(done)
+    if alpha is not None:
+        result.putalpha(Image.fromarray(alpha))
+    elif grey:
+        result = result.convert("L")
+    return _profiled(result, profile)
+
+
+def _cut(
+    picture: Picture,
+    source: Source,
+    seen: Seen,
+    made: Plan,
+    size: tuple[int, int],
+    sight: Sight,
+    ai: Models,
+    copies: Previews,
+    editor: Editor,
+) -> Image.Image:
+    """The picture made, `size` big, before its fixes: from its view the size of a screen, cut
+    as its plan says (or from the picture itself, when the view has fewer pixels than that, or
+    as its edits left it); or, with its edges extended, from the canvas LaMa drew."""
     edits = made.editing.edits if made.editing else ()
     key = picture_key(picture.path, source.version)
     if made.frame.shape == "extend" and made.frame.sides != "none":
@@ -796,7 +1056,8 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
                 look, body.look.strength, body.look.touches.touches(), picked(body.look.parts)
             )
         editing: Editing | None = editing_of(body.edit)
-    except EditError as error:
+        fixing = fixing_of(body.fix)
+    except (EditError, FixError) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     if editing is not None and editing.version is not None and editing.version != now:
         raise HTTPException(status.HTTP_409_CONFLICT, changed(name, edited=bool(editing.edits)))
@@ -804,7 +1065,7 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
         # Parts picked for a look are tied to the picture as it is, as edits are: a Save that
         # finds it changed saves nothing.
         editing = Editing(editing.edits if editing else (), now)
-    return Recipe(sizing, styling, editing)
+    return Recipe(sizing, styling, editing, fixing)
 
 
 def _refused(error: Exception) -> HTTPException:

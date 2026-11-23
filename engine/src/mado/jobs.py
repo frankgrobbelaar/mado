@@ -53,7 +53,7 @@ from mado.upscale import StoppedError
 
 log = logging.getLogger(__name__)
 
-type Stage = Literal["reading", "editing", "shaping", "making", "looking", "saving"]
+type Stage = Literal["reading", "editing", "shaping", "fixing", "making", "looking", "saving"]
 type Where = Literal["next", "last"]
 
 PARTIAL = ".mado-partial"  # a picture being written, beside where it goes
@@ -68,9 +68,22 @@ _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's who
     "reading": (0.0, 0.05),
     "editing": (0.05, 0.12),
     "shaping": (0.12, 0.22),
+    "fixing": (0.22, 0.22),
     "making": (0.22, 0.85),
     "looking": (0.85, 0.93),
     "saving": (0.93, 1.0),
+}
+# A job with fixes: they take the first part of making's, as they take about as long; all of it
+# when nothing is made bigger.
+_FIXED_SHARE: dict[Stage, tuple[float, float]] = {
+    **_SHARE,
+    "fixing": (0.22, 0.45),
+    "making": (0.45, 0.85),
+}
+_ONLY_FIXED_SHARE: dict[Stage, tuple[float, float]] = {
+    **_SHARE,
+    "fixing": (0.22, 0.85),
+    "making": (0.85, 0.85),
 }
 
 
@@ -713,6 +726,7 @@ class Jobs:
         ).fetchone()
         order = _object(json.loads(first["recipe"])) if first else {}
         label, look, edit = order.get("label"), order.get("look"), order.get("edit")
+        fix = order.get("fix")
         title, body = told(
             batch["name"],
             made=row["made"],
@@ -720,6 +734,7 @@ class Jobs:
             made_for=label if isinstance(label, str) else None,
             look=look if isinstance(look, str) else None,
             edit=edit if isinstance(edit, str) else None,
+            fix=fix if isinstance(fix, str) else None,
         )
         self._notify(title, body, link="/")
 
@@ -727,9 +742,10 @@ class Jobs:
         job_id: int = row["id"]
         began = time.monotonic()
         expected: list[float] = []
+        shares = _shares(row["recipe"])
 
         def report(stage: Stage, within: float) -> None:
-            low, high = _SHARE[stage]
+            low, high = shares[stage]
             progress = low + (high - low) * min(max(within, 0.0), 1.0)
             with self._lock:
                 self._live[job_id] = Live(stage, progress, _left(began, progress, expected))
@@ -1046,6 +1062,18 @@ _LEFT_ASIDE = (
     "Mado stopped while saving this one, and its original waits in quarantine: History puts it "
     "back."
 )
+
+
+def _shares(kept: str) -> dict[Stage, tuple[float, float]]:
+    """Each stage's part of a job's whole, by its recipe (as the jobs table keeps it): its fixes
+    take a part of making's, or all of it when there's no size to make."""
+    try:
+        recipe = _object(_object(json.loads(kept)).get("recipe"))
+    except ValueError:
+        return _SHARE
+    if recipe.get("fix") is None:
+        return _SHARE
+    return _FIXED_SHARE if recipe.get("size") is not None else _ONLY_FIXED_SHARE
 
 
 def _left(began: float, progress: float, expected: list[float]) -> float | None:

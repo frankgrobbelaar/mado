@@ -22,6 +22,7 @@ from mado.api.common import (
     Toolbox,
     Working,
 )
+from mado.api.fixes import FixStepIn
 from mado.api.looks import LookIn
 from mado.api.making import Need, SizeIn
 from mado.api.pictures import Shown
@@ -65,7 +66,14 @@ class CutoutStep(ApiModel):
     colour: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
 
 
-type Step = Annotated[CutoutStep | SizeStep | LookStep, Field(discriminator="step")]
+class FixStep(FixStepIn):
+    """The fixes: noise, blur, JPEG blocks and a dark photo, each off or at its setting: the Fix
+    tab's choices."""
+
+    step: Literal["fix"] = "fix"
+
+
+type Step = Annotated[CutoutStep | FixStep | SizeStep | LookStep, Field(discriminator="step")]
 
 
 class BatchSaving(ApiModel):

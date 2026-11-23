@@ -1,23 +1,33 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
-import type { EditStep, LookStep, PictureDetails, Plan, Recipe, SizeStep } from "@/lib/engine";
+import type {
+  EditStep,
+  FixStep,
+  LookStep,
+  PictureDetails,
+  Plan,
+  Recipe,
+  SizeStep,
+} from "@/lib/engine";
 import { cn } from "@/lib/utils";
 import { LooksTab } from "./looks-tab";
 import { SizeTab } from "./size-tab";
 
-export type Tool = "size" | "looks" | "edit";
+export type Tool = "size" | "looks" | "edit" | "fix";
 
 const TOOLS = [
   { key: "size", label: "Size" },
   { key: "looks", label: "Looks" },
   { key: "edit", label: "Edit" },
+  { key: "fix", label: "Fix" },
 ] as const;
 
 /**
  * The column beside the picture where its tools are, as the Picture boards draw it: Size, Looks
- * and Edit along its top. Size makes the picture right for a screen or a print, Looks gives it a
- * look and finishing touches (on the whole picture or a part), Edit picks parts with a click to
- * erase, cut out or blur behind; one Save on any of them makes all three.
+ * and Edit along its top, and Fix after them. Size makes the picture right for a screen or a
+ * print, Looks gives it a look and finishing touches (on the whole picture or a part), Edit
+ * picks parts with a click to erase, cut out or blur behind, Fix takes noise, blur, JPEG blocks
+ * and darkness out; one Save on any of them makes them all.
  */
 export function ToolsColumn(props: {
   picture: PictureDetails;
@@ -35,10 +45,14 @@ export function ToolsColumn(props: {
   settling: boolean;
   /** The edits made, which the Looks tab's small copies show; null for none. */
   edited: EditStep | null;
+  /** The fixes chosen, settled: the Looks tab's small copies show a dark photo brightened. */
+  fixed?: FixStep | null;
   /** The Looks tab's "Only on a part". */
   part: ReactNode;
   /** The Edit tab, as the page holds its edits. */
   edit: ReactNode;
+  /** The Fix tab, as the page holds its fixes. */
+  fix: ReactNode;
 }) {
   const ready = props.picture.state === "ready";
   const tabs = useRef<Partial<Record<Tool, HTMLButtonElement | null>>>({});
@@ -112,11 +126,13 @@ export function ToolsColumn(props: {
         {!ready ? (
           <p className="text-13 text-fg-muted leading-normal">
             {props.picture.state === "waiting"
-              ? "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look or edited."
-              : "Mado can't open this picture, so it can't make it for a screen, give it a look or edit it."}
+              ? "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look, edited or fixed."
+              : "Mado can't open this picture, so it can't make it for a screen, give it a look, edit it or fix it."}
           </p>
         ) : props.tool === "edit" ? (
           props.edit
+        ) : props.tool === "fix" ? (
+          props.fix
         ) : props.tool === "looks" ? (
           <LooksTab
             picture={props.picture}
@@ -127,6 +143,7 @@ export function ToolsColumn(props: {
             plan={plan}
             settling={props.settling}
             edit={props.edited}
+            fix={props.fixed ?? null}
             part={props.part}
           />
         ) : (

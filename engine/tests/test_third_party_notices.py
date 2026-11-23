@@ -189,8 +189,12 @@ def test_what_mado_downloads_is_told_apart_from_what_it_ships():
     assert "Not inside Mado" in libraw.texts[0]
     assert "https://www.libraw.org/data/LibRaw-0.22.3-Win64.zip" in libraw.texts[0]
     # Each keeps the licence files it comes with: an archive's (its `notices`), or a model's own.
-    for name in ("LibRaw", "ffmpeg", "LaMa"):
+    for name in ("LibRaw", "ffmpeg", "LaMa", "SCUNet", "FBCNN", "NAFNet"):
         assert "keeps its licence files beside it" in found[name].texts[0]
+    # The fixes' models are on licences Mado could ship, though it only downloads them.
+    for name in ("SCUNet", "FBCNN", "NAFNet"):
+        assert allowed(found[name].licence), name
+        assert "the first time it's needed" in found[name].texts[0]
     text = render("0.1.0", {"The installer": []}, list(found.values()))
     assert "  2. Downloaded to the PC, never shipped:" in text
     assert text.index("Downloaded to the PC, never shipped") > text.index("1. The installer")

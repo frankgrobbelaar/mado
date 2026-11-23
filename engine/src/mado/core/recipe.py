@@ -2,10 +2,16 @@
 it (a plan). Pure.
 
 The steps, in the order they're made: the edits (erased, cut out, blurred behind: the Edit tab,
-mado/core/edits.py), the size (cropped or extended, then made bigger: the Size tab) and a look
+mado/core/edits.py), the fixes (noise, blur, JPEG blocks and darkness taken out: the Fix tab,
+mado/core/fixes.py), the size (cropped or extended, then made bigger: the Size tab) and a look
 with its finishing touches, on the whole picture or only a part (the Looks tab); then the picture
-is saved. Any step can be left out. Each step is a value that says all it does, so a recipe can be
-kept by name and run on many pictures ("4K, then Warm film at 60%, then JPEG into Edited").
+is saved. The fixes are made on the part of the picture the size keeps, before it grows: noise
+and blocks come out first, and the upscaler, given a picture cleaned already, doesn't clean it
+again (Fast keeps what's left, with its weak-denoise twin). What the fixes make goes by what the
+picture measures: a picture that isn't dark isn't brightened, and a batch's JPEG blocks come out
+as hard as each JPEG was squeezed. Any step can be left out. Each step
+is a value that says all it does, so a recipe can be kept by name and run on many pictures ("4K,
+then Warm film at 60%, then JPEG into Edited").
 
 The ways of making a picture bigger: the AI model, four times bigger, then resized exactly to
 the size made ("ai"); pixel art grown by repeating its pixels ("pixels"); a screenshot resized
@@ -20,6 +26,9 @@ from typing import Literal
 from mado.core.edits import Editing, Part, see_through
 from mado.core.edits import label as edit_label
 from mado.core.edits import phrase as edit_phrase
+from mado.core.fixes import MOST_STOPS, Fixing, changing, cleans, for_picture
+from mado.core.fixes import label as fix_label
+from mado.core.fixes import phrase as fix_phrase
 from mado.core.framing import Frame, Shape, frame, note
 from mado.core.kind import Kind
 from mado.core.looks import Look, changes, label, phrase
@@ -60,6 +69,7 @@ class Recipe:
     sizing: Sizing | None = None
     styling: Styling | None = None
     editing: Editing | None = None  # made first, on the picture at its own size
+    fixing: Fixing | None = None  # made next, on the part the size keeps, before it grows
 
 
 @dataclass(frozen=True)
@@ -85,11 +95,22 @@ class Plan:
     editing: Editing | None = None  # the edits, made first
     edit: str | None = None  # the edits as History says them: "erased a part"
     see_through: bool = False  # the edits leave see-through parts: a cut-out with nothing behind
+    fixing: Fixing | None = None  # the fixes, made before the picture grows: None when they
+    # change nothing in it (a dark photo's fix on a picture that isn't dark)
+    fix: str | None = None  # the fixes as History says them: "took out noise"
+    fix_quality: Quality = "fast"  # JPEG blocks at Fast (SCUNet) or Best (FBCNN), as decided
+    cleaned_first: bool = False  # the fixes clean it, so the upscaler doesn't clean it again
+    fix_stops: float = 0.0  # how dark the fixes take it for: as measured, or MOST_STOPS till then
 
     @property
     def empty(self) -> bool:
-        """Nothing to make: no edits, no size, and no look that changes the picture."""
-        return self.method == "keep" and self.styling is None and self.editing is None
+        """Nothing to make: no edits, no fixes, no size, and no look that changes the picture."""
+        return (
+            self.method == "keep"
+            and self.styling is None
+            and self.editing is None
+            and self.fixing is None
+        )
 
 
 def plan(
@@ -100,10 +121,16 @@ def plan(
     guessed_kind: Kind,
     found_focus: tuple[float, float],
     starts_on: dict[Literal["photo", "drawing"], Quality],
+    fix_starts_on: Quality = "fast",
+    stops: float | None = None,
+    jpeg_saved_at: int | None = None,
 ) -> Plan:
     """How a `width` by `height` picture (as it's shown) is made to `recipe`. `guessed_kind` is
-    what Mado takes it for, `found_focus` where it found the subject, and `starts_on` the
-    quality each kind starts on here."""
+    what Mado takes it for, `found_focus` where it found the subject, `starts_on` the quality
+    each kind starts on here, and `fix_starts_on` the one JPEG blocks start on (Best once its
+    model is downloaded). `stops`: how dark the picture measures, as its edits leave it (None
+    till it's measured: planned as if it's dark); `jpeg_saved_at`: its quality, when it's a
+    JPEG."""
     sizing = recipe.sizing
     kind = sizing.kind if sizing and sizing.kind else guessed_kind
     quality = (sizing.quality if sizing else None) or starts_on[
@@ -120,6 +147,16 @@ def plan(
     edited = edit_label(editing)
     edit_words = edit_phrase(editing)
     clear = see_through(editing)
+    dark = MOST_STOPS if stops is None else stops
+    fixing = for_picture(
+        recipe.fixing if recipe.fixing and recipe.fixing.on else None, jpeg_saved_at
+    )
+    if not changing(fixing, dark):
+        fixing = None  # the fixes change nothing in this picture: no step
+    fix_quality = (fixing.jpeg_quality if fixing else None) or fix_starts_on
+    fixed_as = fix_label(fixing, dark)
+    fix_words = fix_phrase(fixing, dark)
+    cleaned = cleans(fixing, dark)
     if sizing is None:
         return Plan(
             width=width,
@@ -139,17 +176,22 @@ def plan(
             made_for=None,
             styling=styling,
             look=look,
-            named=", ".join(each for each in (edited, looks_as) if each),
+            named=", ".join(each for each in (edited, fixed_as, looks_as) if each),
             editing=editing,
             edit=edit_words,
             see_through=clear,
+            fixing=fixing,
+            fix=fix_words,
+            fix_quality=fix_quality,
+            cleaned_first=cleaned,
+            fix_stops=dark,
         )
     target = turned(sizing.size, width, height)
     focus = sizing.focus or found_focus
     made = frame(width, height, *target, sizing.shape, focus)
     scale = target[0] / made.canvas.width
-    method, model = way(scale, kind, quality, sizing.clean)
-    named = ", ".join(each for each in (edited, sizing.size.label, looks_as) if each)
+    method, model = way(scale, kind, quality, sizing.clean and not cleaned)
+    named = ", ".join(each for each in (edited, fixed_as, sizing.size.label, looks_as) if each)
     return Plan(
         width=target[0],
         height=target[1],
@@ -172,6 +214,11 @@ def plan(
         editing=editing,
         edit=edit_words,
         see_through=clear,
+        fixing=fixing,
+        fix=fix_words,
+        fix_quality=fix_quality,
+        cleaned_first=cleaned,
+        fix_stops=dark,
     )
 
 

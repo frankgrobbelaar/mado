@@ -52,7 +52,10 @@ times its model again (`mado/ai.py`'s `Timer`), moved 30% of the way into the sp
 (`hardware.learn`), so the estimates become this PC's own; before anything is measured they're
 the owner's PC's, and the Size tab says they're a guess. A tile is timed once it has the card,
 not while it waits its turn behind a preview, and LaMa's squares aren't counted in the
-upscaler's pace.
+upscaler's pace. A picture fixed by one model times that model too, where it ran
+(`scunet@card`, say, or `scunet@processor` when the card had no room left for it); fixes by more
+than one model teach nothing, as their times can't be told apart. However many models made it, a
+picture counts once among the pictures made since the times were last measured.
 
 ## Fast and Best
 

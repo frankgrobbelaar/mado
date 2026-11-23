@@ -52,8 +52,13 @@ picture, RAWs among duplicates and bursts but never with their JPEGs); and searc
 them and the second of 1.1 (the library read in the background by SigLIP for what each picture
 shows and by a reader of words, PP-OCRv6 at Best or Windows' own at Fast; the Library's search box
 finding by what a picture shows, the words in it and its name, in groups, Many at once from them;
-More like this on a picture's page). Next: the rest of 1.1 and 1.2, by
-[What's next](#whats-next).
+More like this on a picture's page); and the quick fixes, the eleventh and the first of 1.2 (the
+Fix tab: noise, blur from a shaking camera or a moving subject, JPEG blocks and dark photos, each
+with its one setting and compared before and after, the brightening over the whole picture and
+every fix at full detail; suggested only where Mado can measure the need; made before a picture
+grows, never cleaned twice; a step for batches and recipes, each JPEG's blocks as hard as it was
+squeezed; SCUNet, FBCNN and NAFNet downloaded the first time each is needed, on the card while it
+has room). Next: the rest of 1.1 and 1.2, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -209,11 +214,11 @@ Everything decided so far. Don't ask again; change only with the owner.
 - The README is a tour, as Kura's and Maku's are (the owner, 2026-11-22: "build the README really
   nice as we have for the others"): the mark, a volt "Download for Windows" button (IBM Plex Sans
   outlines, `docs/readme/download.svg`, "Coming soon" until the first release, then a line saying
-  what the latest version has), seven steps with pictures (the wallpaper studio the fifth, since
-  0.7.0), Safe by design, The AI inside, what a PC needs, the siblings. Its pictures
-  (`docs/readme/`) are Mado's own screens, taken from its tests with made-up data and pictures
-  drawn by code (the boards' scenes), framed in headless Edge as the boards were
-  (`node scripts/readme-pictures.mjs`), and taken again when the screens they show change
+  what the latest version has), eight steps with pictures (the quick fixes the fourth, the wallpaper
+  studio the sixth), Safe by design, The AI inside, what a PC needs, the siblings. Its pictures
+  (`docs/readme/`) are Mado's own screens, taken from its tests with made-up data and pictures drawn
+  by code (the boards' scenes), framed in headless Edge as the boards were (`node
+  scripts/readme-pictures.mjs`), and taken again when the screens they show change
   (docs/development.md, "Taking the README's pictures again"). Where a step's words and the app
   disagree, the words change to match the app.
 - Everything happens on the PC: nothing is uploaded, AI included. Mado works on pictures already
@@ -722,6 +727,92 @@ Everything decided so far. Don't ask again; change only with the owner.
   its kind first every time and a paraphrase 98.3% of the time (all in the first ten), the cut
   letting in 13 scenes of other kinds over 900; searching 100,000 vectors takes 19 ms once they're
   loaded.
+- The quick fixes, as built (2026-11-23, Claude's calls while the owner is away;
+  docs/stack/fixes.md): a tab of their own, "Fix", after Size, Looks and Edit, rather than a place
+  in one of them: Size is about what a picture is made for and Edit about parts picked, while the
+  four fixes are about the whole picture's flaws, each with its own setting, its model to download
+  and Mado's suggestion, and they want the Size tab's before-and-after stage at Fit as at 100% and
+  400%; on their own tab each tab stays simple. No board drew it, so it's the Edit tab's patterns: a
+  card of rows, each a fix with its switch, its one setting once on, and "Suggested" where Mado
+  measured the need. Noise is SCUNet (strength blends its answer, 100% at first: it measured best at
+  every level); blur is NAFNet in 384 px tiles overlapping by 32, always held by the guard (each
+  pixel's change kept within its input's light range over 31 px, plus 2/255), never a whole picture,
+  a tile it breaks down on (colours anywhere, 3 tiles in 100 of the made-up blurred scenes: flat
+  tarmac beside a road's straight lines) left as it was, saying it mends a shaking camera or a
+  moving subject and only sharpens a picture out of focus a little; JPEG blocks are SCUNet at Fast
+  and FBCNN at Best ("as this PC has it" is Best once FBCNN is downloaded, else Fast, whose model
+  also takes noise out, so a fix needs one download), the strength FBCNN's own quality setting,
+  started at the JPEG's own quality from its tables (82% for one saved at 18; 60% when unknown), a
+  screenshot starting on Best, which keeps letters crisp; a dark photo by classic means: the gain
+  from its brightest 0.5% to just under white (1 to 16 times, never the average, so a night with
+  lights stays a night), the extended Reinhard curve, then SCUNet as much as brightening brought
+  noise out (all of it from two stops), CLAHE a slider after it (off at first: it lowers PSNR and
+  SSIM against the truth); a picture under a stop dark isn't (a well-lit one with nothing white in
+  it measures about 0.6), and the fix leaves it as it is. Brightened four times or more, an 8-bit
+  file's own steps are smoothed first where it's flat to within a level or two, as the denoise keeps
+  a clean step as an edge: no jump of more than a level came through either way (SCUNet smooths the
+  steps too), and the debanding brought a smooth dark gradient 1.6 dB closer to the truth. The fixes
+  are the recipe's step after the edits (`fix`, each null or its setting), made on the part the size
+  keeps (its crop, or its canvas extended, LaMa's edges fixed with the rest, with 96 px of the
+  picture round it, then cut back) before it grows, in this order: JPEG blocks at Best, brightening,
+  noise (one SCUNet pass at the strongest strength any fix asks: noise, a dark photo's denoise, JPEG
+  blocks at Fast), blur, local contrast; a fix at 0% does nothing. Nothing is cleaned twice: a
+  picture the fixes cleaned (the noise fix or JPEG blocks above 0%, or a photo two stops dark or
+  more, whose denoise ran in full; under that it takes out only what brightening brought) goes to
+  Fast's weak-denoise twin, and the Size tab (and a batch's Size card) says "The Fix tab takes noise
+  and blocks out first" where its switch was; Best cleans as it grows and finds little left. What
+  the dark photo fix takes from the whole picture (the gain, the white, local contrast's tables) is
+  measured once on a 1024 px copy of it as its edits leave it (see-through parts left out), and the
+  plan is made for it (in a job, again once the picture is read), so a picture that isn't dark isn't
+  brightened, named "Brightened" or left unclean, and a Save of only fixes that change nothing says
+  so ("It isn't dark, so there was nothing to fix."), saving nothing. A part previewed at 100% is
+  made with 96 px round it, as Save makes it, and a newer preview stops the one before at its next
+  tile; all of a picture fitted (the stages, the Looks tab's small copies) shows only a dark photo's
+  brightening and local contrast, with no model to download first, as noise, blur and blocks are too
+  small to judge there and their models would take seconds to minutes over it, and the Fix stage
+  says they show at 100%. Mado suggests only what it measures cheaply and reliably: JPEG blocks from
+  a JPEG's tables (quality 60 or under) and a dark photo from its brightest 0.5% (1.5 stops or
+  more); measured on made-up pictures, the quality was exact for all 152 JPEGs (tables moved by up
+  to 10% too) and darkness right in all 74 cases (two to four stops under suggested, normal pictures
+  and night scenes with lights not); noise and blur aren't suggested, as a texture reads as noise
+  and sharpness can't tell shake from focus. Nothing measured to fix says so, and that noise and
+  shake are for trying. The small things: each model downloaded the first time with its size and
+  progress (offline, the fixes whose models are here work); the card busy with the queue ("Waiting
+  for the graphics card: Phone wallpapers lets it go after the tile it's on", a preview a tile at a
+  time); the card too full of the models used since Mado started (each fix model goes on it only
+  while it has room, as the editing models; else the processor, and the tab says restarting Mado
+  frees it); a huge picture fixed a tile at a time, saying the time first from 40 megapixels; grey
+  pictures stay grey (made in colour, made grey again), see-through parts stay as they are, a
+  phone's wide colours are kept with their profile (Display P3 has sRGB's curve), and a camera RAW
+  is fixed as Mado develops it with its JPEG blocks off ("a camera RAW has no JPEG blocks"). A fix
+  on a part is left out: the flaws lie over the whole picture and a part fixed alone leaves a seam
+  where cleaned grain meets the rest's; the one local case, a moving subject, the guarded blur fix
+  mends while the sharp rest changes by 0.17 levels on average (the ball 24.6 to 28.0 dB); and the
+  stage drags to compare, where a click to pick would fight it. Fix is a batch's step after a
+  cut-out and before the size (`{"step": "fix", ...}`), its card the tab's own rows, with no JPEG
+  strength to set: each JPEG's blocks come out as hard as it was squeezed, read from its tables, and
+  a picture that isn't a JPEG is left as it is (one strength for all smoothed camera JPEGs and PNGs
+  alike); its words "Noise at 80%, JPEG blocks as each JPEG was saved, Best"; a recipe or watch
+  folder runs it as any step, and a picture with nothing for it to fix is a line saying why. History
+  has a `fix` column (migration 11), "took out noise and JPEG blocks, brightened it and mended the
+  blur", beside the edits in brackets; a new picture is named "Cleaned" (noise or blocks),
+  "Sharpened", "Brightened" or "Fixed" for more than one kind, after the edits and before the size
+  ("Harbour at dusk (Brightened, TV 8K).jpg"); Save's header, jobs and See it first carry the words,
+  and a job's stage "Fixing it", its share of the bar only in a job with fixes. The three models
+  come from `models-1` (SCUNet 73 MB, FBCNN 288 MB) and `models-3` (NAFNet 69 MB), each in
+  downloads.json with its licence files, in full precision (fp16 is slower on a GTX 16 card and
+  fails on the processor at the highest optimisation), on the card in 384 tiles, sessions kept:
+  SCUNet holds 1.3 GB of the card, FBCNN 1.3, NAFNet 0.4 (at 512 the same speed a megapixel, at 256
+  SCUNet 0.8 GB less for 15% more time). Measured on the owner's PC through Mado's own code: a
+  12-megapixel photo's noise in 23 s on the card and 8.3 min on the processor, JPEG blocks at Best
+  16 s and 4.7 min, blur 7.2 s and 1.5 min, a dark photo 26 s on the card; a 1080p one in 1.2 to 5 s
+  on the card, 16 to 80 s on the processor. Gains on made-up pictures (PSNR): noise σ 10, 25 and 50
+  from 28.3, 20.6 and 15.2 dB to 40.7, 39.1 and 36.4; JPEG quality 10, 30 and 50 at Best from 30.2,
+  34.8 and 36.4 to 33.8, 39.8 and 40.9 (Fast about half the gain); a straight shake 29.0 to 32.7, a
+  moving subject 35.3 to 38.3, a slight blur out of focus 29.1 to 32.3, a hand's long shake not at
+  all (26.3); darkened 4 and 16 times from 9.9 and 6.0 to 36.1 and 37.0. Found on the way: the Queue
+  said a picture being cut out was at its save step, and Many at once called every model it waited
+  for "Best for photos", offering Fast for it.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -813,7 +904,7 @@ Everything decided so far. Don't ask again; change only with the owner.
   bundled and stops the build on a licence that isn't allowed.
 - **Every download is listed in the installer.** No one installs anything by hand. What isn't
   inside the installer (WebView2 on a PC without it, ffmpeg, LibRaw, the bigger AI models, from
-  Mado's own prereleases `models-1` and `models-2`) goes in one manifest,
+  Mado's own prereleases `models-1`, `models-2` and `models-3`) goes in one manifest,
   `engine/src/mado/downloads.json`: what it's for, version, size, licence, source and checksum.
   The installer's first page lists it (`scripts/installer-notes.mjs`), Setup downloads ffmpeg,
   the rest come the first time they're needed (`engine/src/mado/tools.py`), and Mado downloads
@@ -853,7 +944,8 @@ Everything decided so far. Don't ask again; change only with the owner.
    the wallpaper studio, with favourites, and search (by describing a picture, by the words in it,
    and More like this).
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG
-   blocks, dark photos), portrait blur and 3D photos.
+   blocks, dark photos), portrait blur and 3D photos. Built: the quick fixes (the Fix tab, a step
+   for batches and recipes).
 5. Later: people (faces grouped, on the PC only), renaming by date taken, shrinking the library
    (AVIF or JPEG XL, originals to quarantine), and captions.
 

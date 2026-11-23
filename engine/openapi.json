@@ -1219,6 +1219,51 @@
         }
       }
     },
+    "/pictures/{picture_id}/fixes": {
+      "get": {
+        "summary": "Fixes For",
+        "description": "What the Fix tab suggests fixing, from what Mado can measure cheaply and reliably: a\nJPEG's own quality from its tables, and how dark the picture is.",
+        "operationId": "fixes_for_pictures__picture_id__fixes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/pictures/{picture_id}/saving": {
       "post": {
         "summary": "Saving Name",
@@ -1442,7 +1487,7 @@
     "/pictures/{picture_id}/looks/{look_id}": {
       "post": {
         "summary": "Small Edited",
-        "description": "A small copy of the picture as its edits leave it, in a look: the Looks tab's, once the\nEdit tab has made edits (without any, it asks for the kept copy by GET).",
+        "description": "A small copy of the picture as its edits leave it, in a look: the Looks tab's, once the\nEdit tab has made edits or the Fix tab brightens it (without either, it asks for the kept\ncopy by GET). A dark photo is brightened, and given its local contrast, as the whole picture\nmeasures; noise, blur and blocks are too small to see at this size.",
         "operationId": "small_edited_pictures__picture_id__looks__look_id__post",
         "security": [
           {
@@ -5143,6 +5188,17 @@
             ],
             "title": "Edit"
           },
+          "fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix"
+          },
           "purpose": {
             "anyOf": [
               {
@@ -5232,6 +5288,7 @@
           "madeFor",
           "look",
           "edit",
+          "fix",
           "purpose",
           "into",
           "made",
@@ -6143,6 +6200,20 @@
         "title": "Damage",
         "description": "Mado's records are damaged: what's wrong, and the newest backup that opens."
       },
+      "DarkIn": {
+        "properties": {
+          "contrast": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Contrast",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "DarkIn",
+        "description": "A dark photo, brightened as it measures: how much local contrast is laid on after, 0 to\n1."
+      },
       "DataSizes": {
         "properties": {
           "folder": {
@@ -6622,6 +6693,17 @@
             ],
             "title": "Edit"
           },
+          "fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix"
+          },
           "original": {
             "anyOf": [
               {
@@ -6786,6 +6868,7 @@
           "madeFor",
           "look",
           "edit",
+          "fix",
           "original",
           "result",
           "resultName",
@@ -6916,6 +6999,162 @@
           "drive"
         ],
         "title": "FitOn"
+      },
+      "FixStep": {
+        "properties": {
+          "noise": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blur": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jpeg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JpegIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DarkIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "step": {
+            "type": "string",
+            "const": "fix",
+            "title": "Step",
+            "default": "fix"
+          }
+        },
+        "type": "object",
+        "title": "FixStep",
+        "description": "The fixes: noise, blur, JPEG blocks and a dark photo, each off or at its setting: the Fix\ntab's choices."
+      },
+      "FixStepIn": {
+        "properties": {
+          "noise": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blur": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jpeg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JpegIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DarkIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FixStepIn",
+        "description": "The fixes: noise, blur from a shaking camera or a moving subject, JPEG blocks and a dark\nphoto, each null (off) or its setting."
+      },
+      "FixesOut": {
+        "properties": {
+          "jpegQuality": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jpegquality"
+          },
+          "blocks": {
+            "type": "boolean",
+            "title": "Blocks"
+          },
+          "stops": {
+            "type": "number",
+            "title": "Stops"
+          },
+          "dark": {
+            "type": "boolean",
+            "title": "Dark"
+          },
+          "grey": {
+            "type": "boolean",
+            "title": "Grey"
+          },
+          "seeThrough": {
+            "type": "boolean",
+            "title": "Seethrough"
+          },
+          "colour": {
+            "type": "string",
+            "title": "Colour"
+          },
+          "megapixels": {
+            "type": "number",
+            "title": "Megapixels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "jpegQuality",
+          "blocks",
+          "stops",
+          "dark",
+          "grey",
+          "seeThrough",
+          "colour",
+          "megapixels"
+        ],
+        "title": "FixesOut",
+        "description": "What Mado measures of a picture, for the Fix tab: only what it can measure cheaply and\nreliably (docs/stack/fixes.md says how often each suggestion was right)."
       },
       "FolderNode": {
         "properties": {
@@ -7423,6 +7662,17 @@
             ],
             "title": "Edit"
           },
+          "fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix"
+          },
           "how": {
             "type": "string",
             "enum": [
@@ -7442,6 +7692,7 @@
                   "reading",
                   "editing",
                   "shaping",
+                  "fixing",
                   "making",
                   "looking",
                   "saving"
@@ -7557,6 +7808,7 @@
           "madeFor",
           "look",
           "edit",
+          "fix",
           "how",
           "state",
           "stage",
@@ -7582,6 +7834,37 @@
           "failed",
           "cancelled"
         ]
+      },
+      "JpegIn": {
+        "properties": {
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strength": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strength",
+            "default": 0.6
+          }
+        },
+        "type": "object",
+        "title": "JpegIn",
+        "description": "JPEG blocks: at Fast (SCUNet) or Best (FBCNN), null as this PC has them; how hard, 0 to 1\n(at Best, FBCNN's quality setting: 0.7 takes it for a JPEG saved at 30), or null as hard as\neach JPEG was squeezed (a batch's, a picture that isn't a JPEG left as it is)."
       },
       "Keep": {
         "properties": {
@@ -8058,6 +8341,17 @@
               }
             ],
             "title": "Edit"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix"
           }
         },
         "type": "object",
@@ -8066,7 +8360,8 @@
           "name",
           "madeFor",
           "look",
-          "edit"
+          "edit",
+          "fix"
         ],
         "title": "MadeToday"
       },
@@ -9441,6 +9736,10 @@
             "type": "boolean",
             "title": "Cleanmatters"
           },
+          "cleanedFirst": {
+            "type": "boolean",
+            "title": "Cleanedfirst"
+          },
           "look": {
             "anyOf": [
               {
@@ -9462,6 +9761,46 @@
               }
             ],
             "title": "Edit"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix"
+          },
+          "fixQuality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fixSeconds": {
+            "type": "number",
+            "title": "Fixseconds"
+          },
+          "fixPlace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "processor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixplace"
           },
           "seconds": {
             "type": "number",
@@ -9541,8 +9880,13 @@
           "how",
           "warning",
           "cleanMatters",
+          "cleanedFirst",
           "look",
           "edit",
+          "fix",
+          "fixQuality",
+          "fixSeconds",
+          "fixPlace",
           "seconds",
           "place",
           "measured",
@@ -9827,6 +10171,16 @@
               }
             ]
           },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FixStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "size": {
             "anyOf": [
               {
@@ -9850,7 +10204,7 @@
         },
         "type": "object",
         "title": "RecipeIn",
-        "description": "A recipe: the edits, the size step, then the look step; any can be left out."
+        "description": "A recipe: the edits, the fixes, the size step, then the look step; any can be left\nout."
       },
       "Region": {
         "properties": {
@@ -11449,6 +11803,16 @@
         "properties": {
           "edit": {
             "$ref": "#/components/schemas/EditStepIn"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FixStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -11505,6 +11869,9 @@
             "$ref": "#/components/schemas/CutoutStep"
           },
           {
+            "$ref": "#/components/schemas/FixStep"
+          },
+          {
             "$ref": "#/components/schemas/SizeStep"
           },
           {
@@ -11515,10 +11882,25 @@
           "propertyName": "step",
           "mapping": {
             "cutout": "#/components/schemas/CutoutStep",
+            "fix": "#/components/schemas/FixStep",
             "look": "#/components/schemas/LookStep",
             "size": "#/components/schemas/SizeStep"
           }
         }
+      },
+      "StrengthIn": {
+        "properties": {
+          "strength": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strength",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "title": "StrengthIn",
+        "description": "How much of the model's change is kept, 0 to 1."
       },
       "StrokeIn": {
         "properties": {

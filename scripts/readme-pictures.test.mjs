@@ -65,7 +65,7 @@ describe("the README's pictures", () => {
   it("names every picture the README shows, Home cut in two among them", () => {
     assert.deepEqual(
       PICTURES.map((each) => each.file),
-      ["home.png", "size.png", "looks.png", "edit.png", "batch.png", "library.png", "wallpaper.png", "light-dark.png", "save.png"],
+      ["home.png", "size.png", "looks.png", "edit.png", "fix.png", "batch.png", "library.png", "wallpaper.png", "light-dark.png", "save.png"],
     );
     const split = PICTURES.find((each) => each.split);
     assert.equal(split?.screen, "home");
@@ -149,6 +149,8 @@ describe("the made-up scenes", () => {
       cutout: null,
       region: null,
       blur: 0,
+      dark: 0,
+      blocks: 0,
       flip: false,
     });
     assert.deepEqual(parseScene("harbour/region=0.1,0.2,0.3,0.4/blur=1.5/flip"), {
@@ -203,6 +205,21 @@ describe("the made-up scenes", () => {
     assert.match(drawScene("night-market/flip"), /<g transform="matrix\(-1 0 0 1 400 0\)">/);
     const region = drawScene("harbour/region=0.5,0.5,0.25,0.25");
     assert.match(region, /viewBox="200 150 100 75" width="100" height="75" preserveAspectRatio="none"/);
+  });
+
+  it("darkens a scene by stops and squeezes it into blocks, for a picture the Fix tab mends", () => {
+    assert.deepEqual(parseScene("harbour/dark=3/blocks=6"), {
+      ...parseScene("harbour"),
+      dark: 3,
+      blocks: 6,
+    });
+    const dark = drawScene("harbour/dark=3");
+    assert.match(dark, /<filter id="dark" color-interpolation-filters="linearRGB">/);
+    assert.match(dark, /<feFuncR type="linear" slope="0.125" intercept="0"\/>/);
+    assert.match(dark, /<g filter="url\(#dark\)">/);
+    const blocky = drawScene("harbour/blocks=6");
+    assert.match(blocky, /<feFuncG type="discrete" tableValues="0 0.2 0.4 0.6 0.8 1"\/>/);
+    assert.match(blocky, /<g filter="url\(#blocks\)">/);
   });
 
   it("turns CSS filters into the Filter Effects spec's own matrices", () => {

@@ -49,6 +49,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Real-ESRGAN models | general x4v3 and its twin, x4plus anime 6B (shipped); x4plus (downloaded) | Making pictures bigger, Fast and Best | [upscaling.md](stack/upscaling.md) |
 | LaMa | big-lama, reshaped for DirectML (downloaded) | Extending a picture's edges; erasing at Best | [upscaling.md](stack/upscaling.md), [editing.md](stack/editing.md) |
 | Editing models | SAM 2.1 tiny, MI-GAN v2 pipeline, BiRefNet lite (downloaded); U²-Net small (shipped) | Picking parts with a click, erasing, cutting out | [editing.md](stack/editing.md) |
+| The quick fixes | SCUNet, FBCNN, NAFNet (downloaded); Mado's own code for dark photos | Noise, JPEG blocks, blur from a shaking camera or a moving subject, dark photos | [fixes.md](stack/fixes.md) |
 | This PC | | What the graphics card can do, tested and timed | [hardware.md](stack/hardware.md) |
 | The queue | Mado's own code | Many at once: batches made one at a time, nights, room on a drive, See it first, recipes and watch folders | [queue.md](stack/queue.md) |
 | Duplicates and bursts | Mado's own code, on NumPy and Pillow | Fingerprints from the thumbnails, groups, which to keep, setting the rest aside | [duplicates.md](stack/duplicates.md) |

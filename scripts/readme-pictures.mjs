@@ -40,6 +40,7 @@ export const PICTURES = [
   { file: "size.png", screen: "size" },
   { file: "looks.png", screen: "looks" },
   { file: "edit.png", screen: "edit" },
+  { file: "fix.png", screen: "fix" },
   { file: "batch.png", screen: "batch" },
   { file: "library.png", screen: "library" },
   { file: "wallpaper.png", screen: "wallpaper" },

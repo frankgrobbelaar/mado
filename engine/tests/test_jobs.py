@@ -63,6 +63,45 @@ def test_a_job_is_made_and_marked_done_with_the_picture_saved(
     assert stages == ["reading", "making", "saving"]
 
 
+def test_fixing_takes_a_part_of_a_jobs_progress_only_in_a_job_with_fixes(
+    paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
+):
+    seen: dict[str, float] = {}
+    jobs: Jobs
+
+    def work(
+        _conn: sqlite3.Connection,
+        row: sqlite3.Row,
+        report: Report,
+        _stop: Callable[[], bool],
+        _expect: Callable[[float], None],
+    ) -> Path:
+        name = Path(row["source"]).stem
+        report("fixing" if name == "Fixed" else "making", 1.0 if name == "Fixed" else 0.0)
+        live = jobs.live(row["id"])
+        assert live is not None
+        seen[name] = live.progress
+        return tmp_path / "Made.jpg"
+
+    jobs = _jobs(paths, work)
+    noise = {"noise": {"strength": 1}}
+    plain = {"recipe": {"size": {"size": "tv-8k"}}, "saving": {}}
+    sized = {"recipe": {"fix": noise, "size": {"size": "tv-8k"}}, "saving": {}}
+    fixed = {"recipe": {"fix": noise, "size": None}, "saving": {}}
+    jobs.add(conn, None, tmp_path / "Plain.jpg", plain)
+    jobs.add(conn, None, tmp_path / "Sized.jpg", sized)
+    jobs.add(conn, None, tmp_path / "Fixed.jpg", fixed)
+    jobs.start()
+    try:
+        assert jobs.wait(10)
+    finally:
+        jobs.stop()
+
+    assert seen["Plain"] == 0.22  # making starts where it always did
+    assert seen["Sized"] == 0.45  # after the fixes' part
+    assert seen["Fixed"] == 0.85  # fixed in full, with nothing made bigger: all making's part
+
+
 def test_a_job_that_cant_be_made_says_why(
     paths: DataPaths, conn: sqlite3.Connection, tmp_path: Path
 ):

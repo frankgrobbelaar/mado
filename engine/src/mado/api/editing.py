@@ -14,14 +14,18 @@ from PIL import Image
 from pydantic import Field
 
 from mado import own_looks
-from mado.api.common import ApiModel, Database, Editors, Seeing
+from mado.ai import Ai
+from mado.api.common import ApiModel, Database, Editors, Models, Seeing
 from mado.api.edits import ClickIn, EditIn, EditStepIn, PartIn, edits_of, picked
+from mado.api.fixes import FixStepIn, fixing_of
 from mado.api.looks import SMALL
 from mado.core.edits import Click, EditError, parts_named
+from mado.core.fixes import FixError, Fixing
 from mado.directml import ModelError
 from mado.editing import EditingError, picture_key
+from mado.fixing import Measure, fixed
 from mado.looks import through
-from mado.making import Picture, Sight, picture_of
+from mado.making import GREY_MODES, Picture, Sight, picture_of, split_alpha
 from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import version
 
@@ -130,21 +134,41 @@ def edit(picture_id: int, body: EditAsk, conn: Database, sight: Seeing, editor: 
 
 
 class SmallAsk(ApiModel):
-    edit: EditStepIn  # the edits made so far, on the picture as it was at their version
+    edit: EditStepIn  # the edits made so far (none: no edits), on the picture at their version
+    fix: FixStepIn | None = None  # the fixes chosen: a dark photo is shown brightened
 
 
 @router.post("/pictures/{picture_id}/looks/{look_id}", response_class=Response, responses=_WEBP)
 def small_edited(
-    picture_id: int, look_id: str, body: SmallAsk, conn: Database, sight: Seeing, editor: Editors
+    picture_id: int,
+    look_id: str,
+    body: SmallAsk,
+    conn: Database,
+    sight: Seeing,
+    editor: Editors,
+    ai: Models,
 ) -> Response:
     """A small copy of the picture as its edits leave it, in a look: the Looks tab's, once the
-    Edit tab has made edits (without any, it asks for the kept copy by GET)."""
+    Edit tab has made edits or the Fix tab brightens it (without either, it asks for the kept
+    copy by GET). A dark photo is brightened, and given its local contrast, as the whole picture
+    measures; noise, blur and blocks are too small to see at this size."""
     look = own_looks.resolve(conn, look_id)
     if look is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That look isn't in your looks any more.")
+    picture, now = opened_picture(conn, picture_id, body.edit.version)
     image, key = _opened(conn, sight, picture_id, body.edit.version)
     try:
-        small = editor.small(image, key, edits_of(body.edit.edits, body.edit.version).edits, SMALL)
+        editing = edits_of(body.edit.edits, body.edit.version)
+        small = editor.small(image, key, editing.edits, SMALL)
+        fixing = fixing_of(body.fix)
+        if fixing is not None and fixing.dark is not None:
+            measured = sight.measured(
+                (str(picture.path).casefold(), now, editing if editing.edits else None),
+                lambda: editor.state(image, key, editing.edits) if editing.edits else image,
+            )
+            small = _brightened(small, fixing, measured, image.width, ai)
+    except FixError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except EditError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except EditingError as error:
@@ -157,6 +181,26 @@ def small_edited(
     kept = {"icc_profile": profile} if isinstance(profile, bytes) else {}
     made.save(out, format="WEBP", quality=80, method=2, **kept)
     return Response(out.getvalue(), media_type="image/webp")
+
+
+def _brightened(
+    small: Image.Image, fixing: Fixing, measured: Measure, across: int, ai: Ai
+) -> Image.Image:
+    """A small copy of the picture (`across` pixels wide at full size) brightened as the dark
+    photo fix brightens all of it, with its local contrast; its see-through parts and colours
+    kept."""
+    profile = small.info.get("icc_profile")
+    grey = small.mode in GREY_MODES
+    colours, alpha = split_alpha(small)
+    done = fixed(colours, fixing, measured, "fast", ai, step=across / small.width, light_only=True)
+    shown = Image.fromarray(done)
+    if alpha is not None:
+        shown.putalpha(Image.fromarray(alpha))
+    elif grey:
+        shown = shown.convert("L")
+    if isinstance(profile, bytes):
+        shown.info["icc_profile"] = profile
+    return shown
 
 
 def opened_picture(

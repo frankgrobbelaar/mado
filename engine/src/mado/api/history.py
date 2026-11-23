@@ -46,6 +46,7 @@ class EntryOut(ApiModel):
     made_for: str | None  # what its size made it for: "TV 8K"
     look: str | None  # what it was made with: "Warm film at 60%"
     edit: str | None  # what was edited first: "erased a part"
+    fix: str | None  # what the fixes did: "took out noise"
     original: str | None
     result: str | None
     result_name: str | None
@@ -74,6 +75,7 @@ class BatchLine(ApiModel):
     made_for: str | None
     look: str | None
     edit: str | None  # "cut out the subject"
+    fix: str | None  # "took out noise"
     purpose: str | None  # what its size made them for: "tv"
     into: str  # where they went: "Holiday › Edited"
     made: int  # its pictures made, not taken away or put back
@@ -124,6 +126,7 @@ class MadeToday(ApiModel):
     made_for: str | None  # "TV 8K"
     look: str | None  # "Warm film at 60%"
     edit: str | None  # "erased a part"
+    fix: str | None  # "took out noise"
 
 
 class ClearHistory(ApiModel):
@@ -204,7 +207,7 @@ def made_today(conn: Database) -> list[MadeToday]:
     """The pictures made today, newest first, for Home."""
     today = _now().date().isoformat()
     rows = conn.execute(
-        """SELECT id, name, made_for, look, edit FROM history
+        """SELECT id, name, made_for, look, edit, fix FROM history
            WHERE kind IN ('made', 'replaced') AND undone_at IS NULL AND substr(at, 1, 10) = ?
            ORDER BY at DESC, id DESC LIMIT 12""",
         (today,),
@@ -216,6 +219,7 @@ def made_today(conn: Database) -> list[MadeToday]:
             made_for=row["made_for"],
             look=row["look"],
             edit=row["edit"],
+            fix=row["fix"],
         )
         for row in rows
     ]
@@ -346,6 +350,7 @@ def _out(conn: sqlite3.Connection, found: Entry) -> EntryOut:
         made_for=found.made_for,
         look=found.look,
         edit=found.edit,
+        fix=found.fix,
         original=found.original,
         result=found.result,
         result_name=PureWindowsPath(found.result).name if found.result else None,
@@ -421,6 +426,7 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
     ]
     order = batches.first_order(conn, batch_id)
     made_for, look, edit = order.get("label"), order.get("look"), order.get("edit")
+    fix = order.get("fix")
     started = row["started_at"]
     try:
         overnight = started is not None and at_night(datetime.fromisoformat(started))
@@ -436,6 +442,7 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
         made_for=made_for if isinstance(made_for, str) else None,
         look=look if isinstance(look, str) else None,
         edit=edit if isinstance(edit, str) else None,
+        fix=fix if isinstance(fix, str) else None,
         purpose=batches.purpose_of(conn, steps),
         into=batches.into_words(saving, row["shared"]),
         made=counts["made"],

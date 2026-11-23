@@ -148,6 +148,13 @@ on Radix) and are restyled to the tokens; see [stack/tailwind.md](stack/tailwind
   screen gets no more than a preview may be (4 megapixels), shown a little bigger to fill the
   stage. After waits, saying so, while its model downloads. Labels sit on the picture in white on
   black.
+- **Fixes** (the Fix tab, drawn in the Edit tab's patterns as no board drew it): a card of rows,
+  a fix each, its name, what it mends in a line, a switch, and its one setting under it once on;
+  "Suggested" in an accent pill where Mado measured the need, and a line above the card saying
+  what it measured, or that it found nothing it can measure. The stage compares before and after
+  as the Size tab does: fitted, the white line over the whole picture shows a dark photo
+  brightened (noise, blur and blocks are too small to judge there, and the stage says they show
+  at 100%); a part at 100% or 400% shows every fix.
 - **Going through looks** (the Looks tab): every look a small copy of the picture, three to a
   row, the one picked outlined in the accent; the arrow keys go along them (up and down a row at
   a time), and the pointer resting on one shows it on the big picture till it moves away. The big

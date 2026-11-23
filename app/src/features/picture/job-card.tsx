@@ -8,6 +8,7 @@ const STAGES = {
   reading: "Reading the picture",
   editing: "Making the edits",
   shaping: "Drawing the new edges",
+  fixing: "Fixing it",
   making: "Making it bigger",
   looking: "Giving it its look",
   saving: "Saving it",

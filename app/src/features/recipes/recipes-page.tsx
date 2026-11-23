@@ -16,9 +16,16 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import { useOpenPictures } from "@/features/batch/open";
-import { CutoutDialog, LookDialog, SavingDialog, SizeDialog } from "@/features/batch/step-dialogs";
+import {
+  CutoutDialog,
+  FixDialog,
+  LookDialog,
+  SavingDialog,
+  SizeDialog,
+} from "@/features/batch/step-dialogs";
 import {
   cutoutStep,
+  fixStep,
   keepsNothing,
   savingFor,
   savingFrom,
@@ -31,6 +38,7 @@ import {
   type BatchSaving,
   type BatchStep,
   type CutoutStepItem,
+  type FixStepItem,
   type KeptRecipe,
   type LookStepItem,
   type SizeStepItem,
@@ -334,6 +342,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
   );
   const saving = savingFor(steps, chosenSaving);
   const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
+  const fixing = steps.find((step): step is FixStepItem => step.step === "fix") ?? null;
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const keep = useKeepRecipe();
@@ -376,6 +385,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             onChange={setEditing}
             onAdd={(kind) => {
               if (kind === "cutout") setSteps(withStep(steps, cutoutStep(), "cutout"));
+              if (kind === "fix") setSteps(withStep(steps, fixStep(), "fix"));
               setEditing(kind);
             }}
           />
@@ -451,6 +461,22 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
               setEditing(null);
             }}
             onClose={() => setEditing(null)}
+          />
+        )}
+        {editing === "fix" && fixing && (
+          <FixDialog
+            step={fixing}
+            onStep={(step) => setSteps(withStep(steps, step, "fix"))}
+            onRemove={() => {
+              setSteps(withStep(steps, null, "fix"));
+              setEditing(null);
+            }}
+            onClose={() => {
+              if (!fixing.noise && !fixing.blur && !fixing.jpeg && !fixing.dark) {
+                setSteps(withStep(steps, null, "fix")); // fixes all off aren't a step
+              }
+              setEditing(null);
+            }}
           />
         )}
         {editing === "save" && (

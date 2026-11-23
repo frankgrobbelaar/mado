@@ -295,6 +295,7 @@ _HISTORY_COLUMNS = (
     ("madeFor", "made_for"),
     ("look", "look"),
     ("edit", "edit"),
+    ("fix", "fix"),
     ("original", "original"),
     ("result", "result"),
     ("aside", "aside"),
@@ -308,7 +309,7 @@ _HISTORY_COLUMNS = (
 
 def _history(conn: sqlite3.Connection) -> str:
     """What Mado did, oldest first, as CSV: each picture made, replaced or set aside, what it was
-    made for and with and what was edited (or the picture kept in its place), what waits in
+    made for and with, what was edited and fixed (or the picture kept in its place), what waits in
     quarantine, and what was undone."""
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")

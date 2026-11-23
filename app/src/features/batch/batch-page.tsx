@@ -28,6 +28,7 @@ import {
   type BatchSaving,
   type BatchStep,
   type CutoutStepItem,
+  type FixStepItem,
   type KeptRecipe,
   type LookStepItem,
   type Picked,
@@ -48,8 +49,17 @@ import { about, count, size } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 import { type BatchStart, useOpenPictures } from "./open";
 import { SeeFirst } from "./see-first";
-import { CutoutDialog, LookDialog, SavingDialog, SizeDialog } from "./step-dialogs";
-import { cutoutStep, keepsNothing, same, savingFor, savingFrom, withStep, wordsFor } from "./steps";
+import { CutoutDialog, FixDialog, LookDialog, SavingDialog, SizeDialog } from "./step-dialogs";
+import {
+  cutoutStep,
+  fixStep,
+  keepsNothing,
+  same,
+  savingFor,
+  savingFrom,
+  withStep,
+  wordsFor,
+} from "./steps";
 import { StepsPanel } from "./steps-panel";
 
 const WHEN: { value: Starts; label: ReactNode }[] = [
@@ -193,6 +203,7 @@ function Batch({ start }: { start: BatchStart }) {
   const words = takes.data?.words ?? wordsFor(steps, saving);
   const size_ = steps.find((each): each is SizeStepItem => each.step === "size") ?? null;
   const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
+  const fixing = steps.find((step): step is FixStepItem => step.step === "fix") ?? null;
   const look = steps.find((each): each is LookStepItem => each.step === "look") ?? null;
   const library = pictures.find((each) => each.id !== null);
   const ready =
@@ -285,6 +296,7 @@ function Batch({ start }: { start: BatchStart }) {
               onChange={setEditing}
               onAdd={(kind) => {
                 if (kind === "cutout") setSteps(withStep(steps, cutoutStep(), "cutout"));
+                if (kind === "fix") setSteps(withStep(steps, fixStep(), "fix"));
                 setEditing(kind);
               }}
               recipes={recipes.data}
@@ -409,6 +421,7 @@ function Batch({ start }: { start: BatchStart }) {
           onStep={(step) => setSteps(withStep(steps, step, "size"))}
           onRemove={size_ ? () => removed("size") : null}
           onClose={() => setEditing(null)}
+          cleanedFirst={Boolean(fixing?.noise?.strength || fixing?.jpeg)}
         />
       )}
       {editing === "look" && (
@@ -431,6 +444,19 @@ function Batch({ start }: { start: BatchStart }) {
           onStep={(step) => setSteps(withStep(steps, step, "cutout"))}
           onRemove={() => removed("cutout")}
           onClose={() => setEditing(null)}
+        />
+      )}
+      {editing === "fix" && fixing && (
+        <FixDialog
+          step={fixing}
+          onStep={(step) => setSteps(withStep(steps, step, "fix"))}
+          onRemove={() => removed("fix")}
+          onClose={() => {
+            if (!fixing.noise && !fixing.blur && !fixing.jpeg && !fixing.dark) {
+              setSteps(withStep(steps, null, "fix")); // fixes all off aren't a step
+            }
+            setEditing(null);
+          }}
         />
       )}
       {editing === "save" && (

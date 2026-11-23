@@ -1,6 +1,7 @@
 import { type MouseEvent, useId, useRef } from "react";
 import {
   type EditStep,
+  type FixStep,
   type LookStep,
   type PictureDetails,
   type Plan,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/engine";
 import { stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { brightening, fixed } from "./fixes";
 import { fitted, useBox } from "./stage-box";
 
 const LABEL = "absolute rounded-4 bg-black/70 px-2.5 py-1 text-12 text-white";
@@ -29,6 +31,8 @@ export function LooksStage(props: {
   picture: PictureDetails;
   /** The edits made on the Edit tab, which the picture shows; null with none. */
   edit: EditStep | null;
+  /** The fixes chosen on the Fix tab, which the picture shows; null with none. */
+  fix?: FixStep | null;
   /** The size step as the plan decided it (null: the picture keeps its pixels). */
   size: SizeStep | null;
   /** The plan for the whole recipe, while a size is chosen: the picture made's shape. */
@@ -57,16 +61,21 @@ export function LooksStage(props: {
     height: Math.min(4096, Math.ceil((fit.height * pixels) / STEP) * STEP),
   };
   const edit = props.edit;
-  const view = usePictureImage(size || edit ? null : pictureAddress(picture, "view"));
+  // Of the fixes, all of it shows a dark photo's brightening: the rest show at full detail.
+  const fix = brightening(props.fix);
+  const changed = size !== null || edit !== null || fix !== null;
+  const view = usePictureImage(changed ? null : pictureAddress(picture, "view"));
   const plain = usePreview(
     picture.id,
-    (size || edit) && box.measured
-      ? { recipe: { edit, size, look: null }, side: "after", fit: wanted }
+    changed && box.measured
+      ? { recipe: fixed({ edit, size, look: null }, fix), side: "after", fit: wanted }
       : null,
   );
   const looked = usePreview(
     picture.id,
-    look && box.measured ? { recipe: { edit, size, look }, side: "after", fit: wanted } : null,
+    look && box.measured
+      ? { recipe: fixed({ edit, size, look }, fix), side: "after", fit: wanted }
+      : null,
     { keep: true },
   );
   // What's shown is the picture itself, or the part of it (or more) the size step makes.
@@ -81,7 +90,7 @@ export function LooksStage(props: {
     const y = Math.min(Math.max(canvas.y + v * canvas.height, 0), 1);
     props.onPick(x, y, event.altKey);
   }
-  const original = size || edit ? plain.address : view.address;
+  const original = changed ? plain.address : view.address;
   const problem = looked.problem ?? plain.problem ?? view.problem;
 
   return (

@@ -5,12 +5,15 @@
    blurred behind, as the Edit tab picked them, or its subject cut out.
 3. Shaping: cropped around its subject (the crop is the part kept, resized from exactly), or its
    edges extended by LaMa (mado/extend.py).
-4. Making: four times bigger through the AI model a tile at a time, then resized exactly, or
+4. Fixing: JPEG blocks, darkness, noise and blur taken out of the part kept (mado/fixing.py),
+   before it grows, as the whole picture measures: once it's measured, the plan is made again
+   for how dark it is, so a picture that isn't dark isn't brightened, or named for it.
+5. Making: four times bigger through the AI model a tile at a time, then resized exactly, or
    without AI for pixel art, screenshots and a picture already big enough (mado/upscale.py).
    With no size, the picture keeps its pixels.
-5. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
+6. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
    never grow into blobs; only on a part, through its mask placed as the picture is.
-6. Saving: as a new picture beside the original (or in a folder the owner chose), named after
+7. Saving: as a new picture beside the original (or in a folder the owner chose), named after
    it with what it was made for and with, or in the original's place, the original going into
    quarantine; either way written beside first, checked, then put in place, and in History.
 
@@ -35,7 +38,7 @@ import numpy.typing as npt
 from PIL import Image
 
 from mado import encode, hardware, history, own_looks
-from mado.ai import BIREFNET, LAMA, MIGAN, SAM, Ai, Timer
+from mado.ai import BIREFNET, FIX_OVERLAP, FIX_TILE, LAMA, MIGAN, SAM, Ai, Timer
 from mado.core.edits import (
     Blur,
     CutOut,
@@ -46,9 +49,11 @@ from mado.core.edits import (
     models_for,
     parts_from,
 )
-from mado.core.estimate import seconds_for
+from mado.core.estimate import key, seconds_for, speed
 from mado.core.files import Kind as FileKind
 from mado.core.files import kind_of
+from mado.core.fixes import FixError, fixing_from, jpeg_quality, stages, unchanged
+from mado.core.fixes import models_for as fix_models
 from mado.core.framing import Box, subject
 from mado.core.hardware import Place, overlap_for, tile_for
 from mado.core.kind import Kind, guess
@@ -63,6 +68,7 @@ from mado.core.touches import named
 from mado.directml import ModelError
 from mado.editing import EditingError, Editor, cut_quality, picture_key
 from mado.extend import Filler, canvas_around, extended, squares_needed
+from mado.fixing import MARGIN, Measure, fixed, measure
 from mado.hardware import Here
 from mado.jobs import (
     PARTIAL,
@@ -103,6 +109,7 @@ log = logging.getLogger(__name__)
 
 type Report = Callable[[Stage, float], None]  # the stage, and how far within it, 0 to 1
 
+GREY_MODES = ("L", "LA", "I", "I;16", "1", "F")  # a black and white picture's modes
 _SMALL = 512  # the copy what a picture is is guessed from, when it's bigger than _AS_IS
 _AS_IS = 1024  # pictures this small are looked at pixel by pixel
 _GREY = 128  # the grey copy its subject is found in
@@ -128,6 +135,8 @@ class Seen:
     height: int
     profile: str | None  # its colour profile's name: "Display P3"
     alpha: bool  # it has see-through parts
+    grey: bool = False  # black and white
+    jpeg: int | None = None  # the quality a JPEG was saved at, from its tables; None otherwise
 
 
 @dataclass(frozen=True)
@@ -179,10 +188,13 @@ class Naming:
     made_for: str | None
     look: str | None
     edit: str | None = None  # what was edited: "erased a part"
+    fix: str | None = None  # what the fixes did: "took out noise"
 
     @classmethod
     def of(cls, made: Plan) -> Naming:
-        return cls(made.width, made.height, made.named, made.made_for, made.look, made.edit)
+        return cls(
+            made.width, made.height, made.named, made.made_for, made.look, made.edit, made.fix
+        )
 
 
 class MissingLookError(ValueError):
@@ -218,7 +230,22 @@ def see(image: Image.Image, picture: Picture) -> Seen:
         height=image.height,
         profile=encode.profile_name(profile if isinstance(profile, bytes) else None),
         alpha=_see_through(image),
+        grey=image.mode in GREY_MODES,
+        jpeg=jpeg_quality_of(picture.path) if picture.format == "JPEG" else None,
     )
+
+
+def jpeg_quality_of(path: Path) -> int | None:
+    """A JPEG's own quality, from its tables (read from its header, nothing decoded); None for
+    any other file, or one that can't be read."""
+    try:
+        with Image.open(path) as image:
+            if image.format != "JPEG":
+                return None
+            tables = cast("dict[int, list[int]]", getattr(image, "quantization", {}) or {})
+    except OSError, ValueError, Image.DecompressionBombError:
+        return None
+    return jpeg_quality(tables)
 
 
 def _see_through(image: Image.Image) -> bool:
@@ -244,6 +271,7 @@ class Sight:
         self._decoded: tuple[tuple[str, str], Image.Image] | None = None
         self._extended: tuple[tuple[object, ...], tuple[Pixels, Box, tuple[int, int]]] | None = None
         self._fitted: tuple[tuple[object, ...], Image.Image] | None = None
+        self._measured: dict[tuple[object, ...], Measure] = {}
         self._lock = threading.Lock()  # what's kept
         self._decoding = threading.Lock()
         self._extending = threading.Lock()
@@ -260,6 +288,20 @@ class Sight:
             with self._lock:
                 self._fitted = (key, image)
             return image
+
+    def measured(self, key: tuple[object, ...], image: Callable[[], Image.Image]) -> Measure:
+        """What the fixes take from the whole picture (`key` says which picture, version and
+        edits; `image` is it as the edits leave it), worked out once."""
+        with self._lock:
+            found = self._measured.get(key)
+        if found is not None:
+            return found
+        found = measure(image())
+        with self._lock:
+            if len(self._measured) > 64:
+                self._measured.clear()
+            self._measured[key] = found
+        return found
 
     def picture(self, picture: Picture, version: str) -> Image.Image:
         """The picture decoded at full size, upright. Raises what decoding raises."""
@@ -325,9 +367,14 @@ class Sight:
 
 
 def planned(
-    recipe: Recipe, seen: Seen, starts_on: dict[Literal["photo", "drawing"], Quality]
+    recipe: Recipe,
+    seen: Seen,
+    starts_on: dict[Literal["photo", "drawing"], Quality],
+    fix_starts_on: Quality = "fast",
+    stops: float | None = None,
 ) -> Plan:
-    """The plan for a recipe, from what Mado sees in the picture."""
+    """The plan for a recipe, from what Mado sees in the picture (and `stops`, how dark it
+    measures as its edits leave it, once the dark photo fix has measured it)."""
     return plan(
         recipe,
         seen.width,
@@ -335,7 +382,19 @@ def planned(
         guessed_kind=seen.kind,
         found_focus=seen.focus,
         starts_on=starts_on,
+        fix_starts_on=fix_starts_on,
+        stops=stops,
+        jpeg_saved_at=seen.jpeg,
     )
+
+
+@dataclass(frozen=True)
+class Made:
+    """A picture made, and its plan as it was made: made again for how dark the picture measured,
+    when the dark photo fix asked."""
+
+    image: Image.Image
+    plan: Plan
 
 
 def make(
@@ -350,13 +409,16 @@ def make(
     editor: Editor | None = None,
     key: str = "",
     keep: bool = True,
-) -> Image.Image:
+    fix_timer: Timer | None = None,
+    replan: Callable[[float], Plan] | None = None,
+) -> Made:
     """The picture made to its plan, from the picture decoded at full size and upright: its
     edits (by `editor`, `key` naming the picture and its version, keeping their masks unless
-    it's a batch's picture, made once), its size, then its look and touches at that size (`seed`
-    grows them), only on a part when the look says so. Its colour profile comes with it. Raises
-    StoppedError when stopped, ModelError when a model can't run, EditingError for edits Mado
-    can't make."""
+    it's a batch's picture, made once), its fixes on the part kept, its size, then its look and
+    touches at that size (`seed` grows them), only on a part when the look says so. Its colour
+    profile comes with it. A dark photo's fix measures the picture as its edits leave it, and
+    `replan` makes the plan again for how dark it is. Raises StoppedError when stopped,
+    ModelError when a model can't run, EditingError for edits Mado can't make."""
     edits = made.editing.edits if made.editing else ()
     parts = made.styling.parts if made.styling else ()
     if (edits or parts) and editor is None:
@@ -372,16 +434,25 @@ def make(
             report=lambda done: report("editing", done / len(edits)),
             keep=keep,
         )
-    sized = edited if made.method == "keep" else _sized(edited, made, ai, report, stop, timer)
+    measured = None
+    if made.fixing is not None and made.fixing.dark is not None:  # only the dark fix measures
+        measured = measure(edited)
+        if replan is not None:
+            made = replan(measured.stops)
+    sized = (
+        edited
+        if made.method == "keep" and made.fixing is None
+        else _sized(edited, made, ai, report, stop, timer, measured, fix_timer)
+    )
     if made.styling is None:
-        return sized
+        return Made(sized, made)
     report("looking", 0.0)
     looked = styled(sized, made.styling, seed=seed, stop=stop)
     if parts and editor is not None:
         mask = editor.look_mask(image, key, edits, parts, keep=keep)
         looked = only_on(looked, sized, placed(mask, made, looked.size))
     report("looking", 1.0)
-    return looked
+    return Made(looked, made)
 
 
 def placed(mask: npt.NDArray[np.uint8], made: Plan, size: tuple[int, int]) -> Image.Image:
@@ -423,13 +494,17 @@ def _sized(
     report: Report,
     stop: Callable[[], bool],
     timer: Timer | None,
+    measured: Measure | None = None,
+    fix_timer: Timer | None = None,
 ) -> Image.Image:
-    """The picture cropped or extended, and made the size its plan says."""
+    """The picture cropped or extended, its fixes made on the part kept (as `measured` from the
+    whole picture, when the dark photo fix measured it), and made the size its plan says."""
     profile = image.info.get("icc_profile")
-    grey = image.mode in ("L", "I", "I;16", "1", "F")
+    grey = image.mode in GREY_MODES
     pixels, alpha = split_alpha(image)
     kept = made.frame.kept
     target = (made.width, made.height)
+    at = (0, 0)  # where the picture is on what's made: its canvas, when extended
     if made.frame.shape == "extend" and made.frame.sides != "none":
         report("shaping", 0.0)
         fill = ai.filler()  # LaMa's time apart: the timer learns the upscaler's pace
@@ -442,7 +517,23 @@ def _sized(
         )
         if alpha is not None:
             alpha = _extended_alpha(alpha, pixels.shape[1], pixels.shape[0], at)
-    report("making", 0.0)
+    if made.fixing is not None:
+        report("fixing", 0.0)
+        pixels, kept, cut = fixed_part(
+            pixels,
+            kept,
+            made,
+            measured,
+            ai,
+            at=at,
+            told=lambda done, total: report("fixing", done / max(total, 1)),
+            stop=stop,
+            timer=fix_timer,
+        )
+        if alpha is not None:
+            alpha = np.ascontiguousarray(alpha[cut[1] : cut[3], cut[0] : cut[2]])
+    if made.method != "keep":  # a picture only fixed isn't made bigger: no step to show for it
+        report("making", 0.0)
     match made.method:
         case "ai":
             assert made.model is not None  # noqa: S101 - the plan names one for "ai"
@@ -469,6 +560,49 @@ def _sized(
     if isinstance(profile, bytes):
         result.info["icc_profile"] = profile
     return result
+
+
+def fixed_part(
+    pixels: Pixels,
+    kept: Box,
+    made: Plan,
+    measured: Measure | None,
+    ai: Ai,
+    *,
+    at: tuple[int, int] = (0, 0),
+    told: Callable[[int, int], None] = lambda _done, _total: None,
+    stop: Callable[[], bool] = lambda: False,
+    timer: Timer | None = None,
+) -> tuple[Pixels, Box, tuple[int, int, int, int]]:
+    """The part of `pixels` a plan keeps, in whole pixels, with its fixes made: the part, where
+    the kept box is on it, and where it was cut from (left, top, right, bottom). It's fixed with
+    the picture round it (`MARGIN`, as a preview of a part is), so its edges see what's beside
+    them, then cut back. `at` is where the picture itself is on `pixels` (its canvas, when
+    extended), so the fixes go by the picture's own places."""
+    assert made.fixing is not None  # noqa: S101 - asked for with fixes
+    height, width = pixels.shape[:2]
+    left, top = max(int(kept.x), 0), max(int(kept.y), 0)
+    right = min(ceil(kept.x + kept.width), width)
+    bottom = min(ceil(kept.y + kept.height), height)
+    outer_left, outer_top = max(left - MARGIN, 0), max(top - MARGIN, 0)
+    outer_right, outer_bottom = min(right + MARGIN, width), min(bottom + MARGIN, height)
+    around = np.ascontiguousarray(pixels[outer_top:outer_bottom, outer_left:outer_right])
+    made_around = fixed(
+        around,
+        made.fixing,
+        measured,
+        made.fix_quality,
+        ai,
+        at=(outer_left - at[0], outer_top - at[1]),
+        told=told,
+        stop=stop,
+        timer=timer,
+    )
+    made_part = np.ascontiguousarray(
+        made_around[top - outer_top : bottom - outer_top, left - outer_left : right - outer_left]
+    )
+    moved = Box(kept.x - left, kept.y - top, kept.width, kept.height)
+    return made_part, moved, (left, top, right, bottom)
 
 
 def write(
@@ -569,6 +703,7 @@ def keep(
                 original=original,
                 result=target,
                 edit=naming.edit,
+                fix=naming.fix,
             )
             try:
                 target = _into_place(
@@ -594,6 +729,7 @@ def keep(
             result=target,
             aside=aside,
             edit=naming.edit,
+            fix=naming.fix,
         )
         _replacing(
             partial, target, original, aside, quarantine, now, lambda: history.forget(conn, entry)
@@ -707,7 +843,8 @@ def recipe_from(
     """A recipe as a job keeps it (JSON: its edit step, its size step and its look step, any of
     them none), the owner's screens naming theirs and `looks` finding a look by its id. A job
     Mado 0.1 kept is its size step alone, flat. Raises SizeError for a size Mado can't make,
-    MissingLookError for a look that isn't there any more, EditError for edits it can't make."""
+    MissingLookError for a look that isn't there any more, EditError for edits it can't make,
+    FixError for fixes it can't read."""
     if isinstance(data.get("size"), str):  # Mado 0.1's: the size step's fields, flat
         return Recipe(sizing=_sizing_from(data, screens))
     size, look = data.get("size"), data.get("look")
@@ -729,7 +866,12 @@ def recipe_from(
             touches=named(cast("dict[str, int]", amounts) if isinstance(amounts, dict) else {}),
             parts=parts_from(asked.get("parts")),
         )
-    return Recipe(sizing=sizing, styling=styling, editing=editing_from(data.get("edit")))
+    return Recipe(
+        sizing=sizing,
+        styling=styling,
+        editing=editing_from(data.get("edit")),
+        fixing=fixing_from(data.get("fix")),
+    )
 
 
 def _sizing_from(data: dict[str, object], screens: list[Screen]) -> Sizing:
@@ -771,12 +913,16 @@ def saving_from(data: dict[str, object]) -> Saving:
     )
 
 
-def estimated(made: Plan, here: Here, cut_on: Place | None = None) -> float:
+def estimated(
+    made: Plan, here: Here, cut_on: Place | None = None, fix_on: Place | None = None
+) -> float:
     """How long making a plan takes here, in seconds. `cut_on`: where cutting out a subject at
-    its best runs (on the processor, unless the card has a great deal of room)."""
+    its best runs (on the processor, unless the card has a great deal of room); `fix_on`: where
+    the fixes' models run (None: where this PC runs the models)."""
     pixels = made.width * made.height
     canvas = made.frame.canvas
     seconds = _edit_seconds(made, here.place, cut_on or "processor")
+    seconds += fix_seconds(made, here, fix_on)
     if made.styling is not None:
         drawn = made.styling.touches.spatial()
         seconds += pixels / 1e6 * (_LOOK_SECONDS + (_TOUCHES_SECONDS if drawn else 0.0))
@@ -794,6 +940,32 @@ def estimated(made: Plan, here: Here, cut_on: Place | None = None) -> float:
     tile = tile_for(made.model, here.place, here.card)
     tiles = count(ceil(canvas.width), ceil(canvas.height), tile, overlap_for(tile))
     return seconds + seconds_for(made.model.id, here.place, tiles, tile, pixels, here.speeds)
+
+
+def fix_seconds(made: Plan, here: Here, fix_on: Place | None = None) -> float:
+    """About how long a plan's fixes take here (their models `fix_on`, or where this PC runs
+    the models): each model's tiles over the part kept with its margin (a dark photo's denoise
+    as dark as it measures, or as if it's dark till then), and brightening and local contrast by
+    the megapixel."""
+    if made.fixing is None:
+        return 0.0
+    width = ceil(made.frame.kept.width) + 2 * MARGIN
+    height = ceil(made.frame.kept.height) + 2 * MARGIN
+    tiles = count(width, height, FIX_TILE, FIX_OVERLAP)
+    place = fix_on or here.place
+    seconds = 0.0
+    for stage in stages(made.fixing, made.fix_quality, made.fix_stops):
+        if stage.model is None:
+            seconds += _NUMPY_SECONDS * width * height / 1e6
+        else:
+            megapixels = tiles * FIX_TILE * FIX_TILE / 1e6
+            seconds += megapixels * speed(stage.model.id, place, here.speeds)
+            seconds += tiles * _PER_FIX_TILE
+    return seconds
+
+
+_NUMPY_SECONDS = 0.15  # a megapixel brightened, or given local contrast, on the owner's i5-9600K
+_PER_FIX_TILE = 0.01  # each fix tile laid back in place
 
 
 def _edit_seconds(made: Plan, place: Place, cut_on: Place) -> float:
@@ -834,7 +1006,7 @@ _EDIT_SECONDS = {"mask": 0.1, "blur": 0.05}
 
 def waiting_for(made: Plan, ai: Ai) -> list[str]:
     """The downloads a plan waits for: the Best photo model, LaMa to extend edges or erase at its
-    best, and the editing models its edits and its look's part use."""
+    best, the editing models its edits and its look's part use, and its fixes' models."""
     found: list[str] = []
     if made.model is not None and made.model.download and ai.file(made.model) is None:
         found.append(made.model.download)
@@ -852,6 +1024,9 @@ def waiting_for(made: Plan, ai: Ai) -> list[str]:
     for need, (download, file) in wanted.items():
         if need in edits and ai.edit_file(download, file) is None:
             found.append(download)
+    for model in fix_models(made.fixing, made.fix_quality):
+        if ai.fix_file(model) is None:
+            found.append(model.id)
     return found
 
 
@@ -901,7 +1076,7 @@ class Maker:
             recipe = recipe_from(
                 order["recipe"], screens_kept(conn), lambda look: own_looks.resolve(conn, look)
             )
-        except (SizeError, MissingLookError, EditError) as error:
+        except (SizeError, MissingLookError, EditError, FixError) as error:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
@@ -943,12 +1118,12 @@ class Maker:
         if edited_on is not None and edited_on != now_version:
             raise JobError(_CHANGED.format(name=picture.path.name))
         here = self._ai.where()
-        made = planned(recipe, see(image, picture), self._ai.starts_on(here))
-        if made.empty and not order.get("as_is"):  # a paste saved as it is is something to save
-            raise JobError(
-                "There was nothing to make: no size, and no look that changes it. Nothing was "
-                "saved, and the original is as it was."
-            )
+        seen = see(image, picture)
+        starts_on, fix_starts_on = self._ai.starts_on(here), self._ai.fix_starts_on()
+        made = planned(recipe, seen, starts_on, fix_starts_on)
+        as_is = bool(order.get("as_is"))  # a paste saved as it is is something to save
+        if made.empty and not as_is:
+            raise JobError(nothing_to_make(recipe))
         if waiting_for(made, self._ai):
             raise JobError(
                 "It needs a model Mado downloads the first time it's asked for. Download it on "
@@ -956,12 +1131,14 @@ class Maker:
             )
         if made.see_through and saving.format not in ("PNG", "WebP"):
             saving = replace(saving, format="PNG", quality=None)  # a cut-out keeps its nothing
-        expect(estimated(made, here, self._ai.edit_place(BIREFNET)))
+        fixers = fix_models(made.fixing, made.fix_quality)
+        expect(estimated(made, here, self._ai.edit_place(BIREFNET), self._ai.fix_place(fixers)))
         timer = Timer()
+        fix_timers = {model.id: Timer() for model in fixers}
         if stop():  # cancelled while it was read: a way without a model never asks again
             raise StoppedError
         try:
-            result = make(
+            making = make(
                 image,
                 made,
                 self._ai,
@@ -972,11 +1149,16 @@ class Maker:
                 editor=self._editor,
                 key=picture_key(picture.path, now_version or ""),
                 keep=edited_on is not None,  # a batch's picture is made once: nothing kept
+                fix_timer=_one_timer(fix_timers),
+                replan=lambda stops: planned(recipe, seen, starts_on, fix_starts_on, stops),
             )
         except ModelError as error:
             raise JobError(f"{error} Nothing was saved; the original is as it was.") from None
         except EditingError as error:
             raise JobError(str(error)) from None
+        result, made = making.image, making.plan
+        if made.empty and not as_is:  # measured, its fixes change nothing in it
+            raise JobError(nothing_to_make(recipe))
         if stop():  # cancelled as its last tile was made
             raise StoppedError
         report("saving", 0.0)  # past cancelling from here: a picture half moved helps no one
@@ -997,9 +1179,15 @@ class Maker:
             conn=conn,
             job_id=job_id,
         )
+        paces: dict[str, float] = {}
         pace = timer.per_megapixel
         if made.model is not None and pace is not None:
-            hardware.learn(conn, made.model.id, here.place, pace, self._now())
+            paces[key(made.model.id, here.place)] = pace
+        if len(fix_timers) == 1:  # a fix's own pace, when one model made them all
+            [(model_id, clock)] = fix_timers.items()
+            if clock.per_megapixel is not None:  # where it ran: the processor, the card full
+                paces[key(model_id, clock.place or here.place)] = clock.per_megapixel
+        hardware.learn(conn, paces, self._now())  # one picture, however many models it took
         report("saving", 1.0)
         return saved.path
 
@@ -1056,6 +1244,23 @@ NO_RAW_REPLACE = (
 )
 
 
+def nothing_to_make(recipe: Recipe) -> str:
+    """What a job with nothing to make says: why its fixes change nothing in its picture (it
+    isn't dark, or isn't a JPEG), or that it was asked for nothing at all."""
+    if recipe.fixing is not None and recipe.sizing is None and recipe.styling is None:
+        return f"{unchanged(recipe.fixing)} Nothing was saved, and the original is as it was."
+    return (
+        "There was nothing to make: no size, and no look that changes it. Nothing was saved, "
+        "and the original is as it was."
+    )
+
+
+def _one_timer(timers: dict[str, Timer]) -> Timer | None:
+    """The timer a picture's fixes are timed by, when one model makes them all (its pace is then
+    that model's own); None when it takes more than one."""
+    return next(iter(timers.values())) if len(timers) == 1 else None
+
+
 def _file_version(path: Path) -> str | None:
     """A picture's version as its file is now (mado/previews.py names its copies by it)."""
     try:
@@ -1100,6 +1305,7 @@ def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
     if f"{stat.st_mtime_ns:x}-{stat.st_size:x}" != version_ or not Path(path).is_file():
         return None
     made_for, look, edit = made.get("madeFor"), made.get("look"), made.get("edit")
+    fix = made.get("fix")
     return Path(path), Naming(
         width,
         height,
@@ -1107,6 +1313,7 @@ def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
         made_for if isinstance(made_for, str) else None,
         look if isinstance(look, str) else None,
         edit if isinstance(edit, str) else None,
+        fix if isinstance(fix, str) else None,
     )
 
 

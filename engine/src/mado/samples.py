@@ -25,6 +25,7 @@ from mado import db
 from mado.ai import BIREFNET, Ai, Timer
 from mado.batches import Picture, kept_key
 from mado.config import DataPaths
+from mado.core.fixes import models_for as fix_models
 from mado.core.naming import EXTENSIONS
 from mado.core.quality import about_bytes
 from mado.core.recipe import Recipe
@@ -37,6 +38,7 @@ from mado.making import (
     dpi_of,
     estimated,
     make,
+    nothing_to_make,
     picture_of,
     planned,
     see,
@@ -79,6 +81,7 @@ class Sample:
     made_for: str | None = None
     look: str | None = None
     edit: str | None = None
+    fix: str | None = None
     problem: str | None = None
 
 
@@ -239,6 +242,7 @@ class Samples:
                 "madeFor": sample.made_for,
                 "look": sample.look,
                 "edit": sample.edit,
+                "fix": sample.fix,
             }
         return kept
 
@@ -300,19 +304,22 @@ class Samples:
             reader=self._reader,
         )
         here = self._ai.where()
-        made = planned(asked.recipe, see(image, picture), self._ai.starts_on(here))
+        seen = see(image, picture)
+        starts_on, fix_starts_on = self._ai.starts_on(here), self._ai.fix_starts_on()
+        made = planned(asked.recipe, seen, starts_on, fix_starts_on)
         if made.empty:
-            raise JobError("There's nothing to make: no size, and no look that changes it.")
+            raise JobError(nothing_to_make(asked.recipe))
         if waiting_for(made, self._ai):
             raise JobError("It needs a model Mado downloads the first time it's asked for.")
-        guess = estimated(made, here, self._ai.edit_place(BIREFNET))
+        fixers = fix_models(made.fixing, made.fix_quality)
+        guess = estimated(made, here, self._ai.edit_place(BIREFNET), self._ai.fix_place(fixers))
 
         def report(_stage: object, within: float) -> None:
             with self._lock:
                 current = next(s for s in asked.shown.samples if s.index == sample.index)
                 self._update(asked, replace(current, progress=min(max(within, 0.0), 1.0) * 0.9))
 
-        result = make(
+        making = make(
             image,
             made,
             self._ai,
@@ -323,7 +330,11 @@ class Samples:
             editor=self._editor,
             key=picture_key(picture.path, sample.picture.version),
             keep=False,  # made once, for a batch
+            replan=lambda stops: planned(asked.recipe, seen, starts_on, fix_starts_on, stops),
         )
+        result, made = making.image, making.plan
+        if made.empty:  # measured, its fixes change nothing in it
+            raise JobError(nothing_to_make(asked.recipe))
         if stop():
             raise StoppedError
         full = self._path(asked.shown.id, sample.index, "full", asked.saving)
@@ -372,6 +383,7 @@ class Samples:
             made_for=made.made_for,
             look=made.look,
             edit=made.edit,
+            fix=made.fix,
         )
 
     def _update(self, asked: _Asked, sample: Sample) -> None:

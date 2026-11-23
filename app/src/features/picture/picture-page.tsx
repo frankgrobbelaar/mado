@@ -13,6 +13,7 @@ import {
   type EditingPlaces,
   type EditStep,
   EngineError,
+  type FixStep,
   type Job,
   type LookStep,
   type Part,
@@ -43,6 +44,9 @@ import { cn } from "@/lib/utils";
 import { EditStage, type EditTool } from "./edit-stage";
 import { type Backing, EditTab } from "./edit-tab";
 import { bare, NOTHING, tooBig, usePicking } from "./editing";
+import { FixStage } from "./fix-stage";
+import { FixTab } from "./fix-tab";
+import { fixed, hasFix, NO_FIX } from "./fixes";
 import { LooksStage } from "./looks-stage";
 import { changes, OnlyOnAPart, ORIGINAL, PLAIN, TOUCHES } from "./looks-tab";
 import { NeighbourStrip } from "./neighbour-strip";
@@ -76,8 +80,9 @@ const ZOOMS = [
  * Picture-Looks draws it: the picture with its look, on the whole picture or only a part, and
  * "Hold to see the original". On the Edit tab, as Picture-Edit draws it: parts picked with a
  * click, then erased, cut out, given a look or blurred behind; a brush for what clicking can't
- * pick; and the subject cut out without a click. What the three tabs set together is one recipe,
- * made by one Save.
+ * pick; and the subject cut out without a click. On the Fix tab: before and after its fixes,
+ * fitted or at 100% or 400%, the line between them dragged. What the four tabs set together is one
+ * recipe, made by one Save.
  */
 export function PicturePage() {
   const id = Number(useParams().id);
@@ -106,6 +111,8 @@ export function PicturePage() {
   const [eraseQuality, setEraseQuality] = useState<Quality>("fast");
   const [cutQuality, setCutQuality] = useState<Quality>("fast");
   const [backing, setBacking] = useState<Backing>({ behind: "nothing", colour: "#ffffff" });
+  // The fixes are each picture's own, as its flaws are.
+  const [fix, setFix] = useState<FixStep>(NO_FIX);
   const [smeared, setSmeared] = useState(false);
   const [letGo, setLetGo] = useState<string | null>(null);
   const [shownFor, setShownFor] = useState(id);
@@ -121,6 +128,7 @@ export function PicturePage() {
     setStrokes([]);
     setSmeared(false);
     setLetGo(null);
+    setFix(NO_FIX);
     if (opened?.fresh) {
       // A picture Mado just made, opened from its job: shown as it is, not made again.
       setSized(null);
@@ -159,8 +167,11 @@ export function PicturePage() {
   const picking = usePicking(id, version, edits, { keyedByEdits: true });
   const lookPicking = usePicking(id, version, edits, { keyedByEdits: false });
   const editing = useEdit();
-  // The plan follows the look once it stops changing (a strength being dragged, say).
+  // The plan follows the look and the fixes once they stop changing (a strength being dragged).
   const settled = useSettled(look, 300);
+  const settledFix = useSettled(fix, 300);
+  // A picture opened next starts with no fixes: the last one's, still settling, never reach it.
+  const fixStep = hasFix(fix) && hasFix(settledFix) ? settledFix : null;
   const ready = picture.data?.state === "ready";
   const lookParts = bare(lookPicking.picked.parts);
   const looked = changes(settled)
@@ -174,8 +185,8 @@ export function PicturePage() {
   const recipeEdit = editStep ?? (looked?.parts?.length ? { version, edits: [] } : null);
   // A paste can be saved as it is: nothing chosen is still something to save.
   const recipe: Recipe | null =
-    ready && (sized || looked || editStep)
-      ? { edit: recipeEdit, size: sized, look: looked }
+    ready && (sized || looked || editStep || fixStep)
+      ? fixed({ edit: recipeEdit, size: sized, look: looked }, fixStep)
       : ready && picture.data?.pasted
         ? AS_IT_IS
         : null;
@@ -304,6 +315,7 @@ export function PicturePage() {
   const back = shown.dir ? (shown.dir.split("/").at(-1) ?? shown.dir) : (listed?.name ?? "Library");
   const looking = tool === "looks";
   const editingNow = tool === "edit";
+  const fixing = tool === "fix";
   const editProblem = editing.isError ? editing.error.message : picking.problem;
 
   return (
@@ -392,7 +404,7 @@ export function PicturePage() {
                 onChange={setZoom}
                 className="ml-auto [&_button:not(:first-child)]:font-mono"
               />
-              {!outside && (
+              {!outside && !fixing && (
                 <>
                   <Button
                     size="sm"
@@ -437,6 +449,7 @@ export function PicturePage() {
               <LooksOnStage
                 picture={picture.data}
                 edit={editStep}
+                fix={fixStep}
                 sized={sized}
                 plan={plan.data ?? null}
                 look={pointed ?? look}
@@ -482,10 +495,20 @@ export function PicturePage() {
                 edited={edits.length > 0}
               />
             )}
-            {picture.data && !looking && !editingNow && (
+            {picture.data && fixing && (
+              <FixOnStage
+                picture={picture.data}
+                edit={editStep}
+                fix={fixStep ?? NO_FIX}
+                plan={fixStep ? (plan.data ?? null) : null}
+                zoom={zoom}
+              />
+            )}
+            {picture.data && !looking && !editingNow && !fixing && (
               <OnStage
                 picture={picture.data}
                 edit={editStep}
+                fix={fixStep}
                 zoom={zoom}
                 sized={sized}
                 look={looked}
@@ -496,7 +519,7 @@ export function PicturePage() {
           </>
         )}
 
-        {picture.data && !outside && neighbours.data && !looking && !editingNow && (
+        {picture.data && !outside && neighbours.data && !looking && !editingNow && !fixing && (
           <NeighbourStrip
             label={`Pictures in ${back === "Library" ? "your library" : back}`}
             current={picture.data}
@@ -519,8 +542,9 @@ export function PicturePage() {
           onPoint={setPointed}
           recipe={recipe}
           plan={plan}
-          settling={settled !== look}
+          settling={settled !== look || settledFix !== fix}
           edited={editStep}
+          fixed={fixStep}
           part={
             <OnlyOnAPart
               parts={lookPicking.picked.parts}
@@ -530,6 +554,16 @@ export function PicturePage() {
               onSize={() => setTool("size")}
               onRemove={lookPicking.remove}
               onWhole={lookPicking.clear}
+            />
+          }
+          fix={
+            <FixTab
+              picture={picture.data}
+              fix={fix}
+              onFix={setFix}
+              recipe={recipe}
+              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+              settling={settled !== look || settledFix !== fix}
             />
           }
           edit={
@@ -570,7 +604,7 @@ export function PicturePage() {
               onCutQuality={setCutQuality}
               recipe={recipe}
               plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
-              settling={settled !== look}
+              settling={settled !== look || settledFix !== fix}
             />
           }
         />
@@ -629,6 +663,7 @@ function HoldButton(props: { held: boolean; onHeld: (held: boolean) => void; dis
 function LooksOnStage(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  fix: FixStep | null;
   sized: SizeStep | null;
   plan: Plan | null;
   look: LookStep;
@@ -679,6 +714,7 @@ function LooksOnStage(props: {
       <LooksStage
         picture={picture}
         edit={props.edit}
+        fix={props.fix}
         size={decided}
         plan={decided ? plan : null}
         look={changes(look) ? (props.parts.length ? { ...look, parts: props.parts } : look) : null}
@@ -768,11 +804,45 @@ function EditOnStage(props: {
   );
 }
 
+/** The picture on the Fix tab, before and after its fixes: or, for one that can't be shown, why,
+ * in its place. */
+function FixOnStage(props: {
+  picture: PictureDetails;
+  edit: EditStep | null;
+  fix: FixStep;
+  plan: Plan | null;
+  zoom: Zoom;
+}) {
+  const { picture } = props;
+  const explorer = useExplorer();
+  if (picture.state !== "ready") {
+    return (
+      <Unshown
+        picture={picture}
+        onShow={() => explorer.run(() => showInFolder(picture.path))}
+        problem={explorer.problem}
+      >
+        {null}
+      </Unshown>
+    );
+  }
+  return (
+    <FixStage
+      picture={picture}
+      edit={props.edit}
+      fix={props.fix}
+      plan={props.plan}
+      zoom={props.zoom}
+    />
+  );
+}
+
 /** The picture, and the line under it: or, for one that can't be shown, why, in its place. With
  * a size chosen, the picture as it'd be made. */
 function OnStage({
   picture,
   edit,
+  fix,
   zoom,
   sized,
   look,
@@ -781,6 +851,7 @@ function OnStage({
 }: {
   picture: PictureDetails;
   edit: EditStep | null;
+  fix: FixStep | null;
   zoom: Zoom;
   sized: SizeStep | null;
   look: LookStep | null;
@@ -835,6 +906,7 @@ function OnStage({
         <SizeStage
           picture={picture}
           edit={edit}
+          fix={fix}
           plan={plan}
           size={sized}
           look={look}

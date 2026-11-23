@@ -14,6 +14,7 @@ import { Slider } from "@/components/ui/slider";
 import { pickCube } from "@/lib/dialogs";
 import {
   type EditStep,
+  type FixStep,
   type Look,
   type LookStep,
   lookAddress,
@@ -33,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ModelCard, TooBig } from "./edit-tab";
 import { MODELS, useNeed } from "./editing";
+import { brightening } from "./fixes";
 import { SaveSection } from "./save-section";
 
 export const ORIGINAL = "original";
@@ -79,6 +81,8 @@ export function LooksTab(props: {
   settling: boolean;
   /** The edits made on the Edit tab, which the small copies show; null or missing for none. */
   edit?: EditStep | null;
+  /** The fixes chosen on the Fix tab: the small copies show a dark photo brightened. */
+  fix?: FixStep | null;
   /** "Only on a part", as the page holds the parts. */
   part?: ReactNode;
 }) {
@@ -115,6 +119,7 @@ export function LooksTab(props: {
           <LookGrid
             picture={picture}
             edit={props.edit ?? null}
+            fix={props.fix ?? null}
             looks={looks.data.looks}
             chosen={step.look}
             onPick={pick}
@@ -177,6 +182,8 @@ export function LooksTab(props: {
 export function LookGrid(props: {
   picture: { id: number; version: string };
   edit?: EditStep | null;
+  /** The fixes chosen: the small copies show a dark photo brightened. */
+  fix?: FixStep | null;
   looks: Look[];
   chosen: string;
   onPick: (look: Look) => void;
@@ -223,6 +230,7 @@ export function LookGrid(props: {
           key={look.id}
           picture={props.picture}
           edit={props.edit ?? null}
+          fix={props.fix ?? null}
           look={look}
           chosen={look.id === chosen}
           focusable={look.id === chosen || (at < 0 && index === 0)}
@@ -240,6 +248,7 @@ export function LookGrid(props: {
 function LookTile(props: {
   picture: { id: number; version: string };
   edit: EditStep | null;
+  fix: FixStep | null;
   look: Look;
   chosen: boolean;
   focusable: boolean;
@@ -248,9 +257,16 @@ function LookTile(props: {
   onPoint: () => void;
 }) {
   const { look, chosen } = props;
+  // Of the fixes, a small copy shows a dark photo's brightening: the rest are too small to see.
+  const lit = brightening(props.fix);
   const copy = usePictureImage(
     lookAddress(props.picture, look),
-    props.edit ? { edit: props.edit } : undefined,
+    props.edit || lit
+      ? {
+          edit: props.edit ?? { version: props.picture.version, edits: [] },
+          ...(lit ? { fix: lit } : {}),
+        }
+      : undefined,
   );
   return (
     // biome-ignore lint/a11y/useSemanticElements: a radio that is a small copy of the picture, which an input can't hold

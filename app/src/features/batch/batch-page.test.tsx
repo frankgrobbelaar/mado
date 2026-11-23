@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EngineProvider } from "@/lib/engine";
 import {
   batchPicture,
@@ -62,6 +62,23 @@ const ENGINE = {
 };
 
 describe("BatchPage", () => {
+  beforeEach(() => {
+    // jsdom has none: the slider measures its thumb, the stage its space (it says it once).
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private told: ResizeObserverCallback) {}
+        observe(target: Element) {
+          this.told(
+            [{ target, contentRect: { width: 1000, height: 600 } } as ResizeObserverEntry],
+            this as unknown as ResizeObserver,
+          );
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     shell.invoke.mockReset();
@@ -196,6 +213,134 @@ describe("BatchPage", () => {
     const saving = await screen.findByRole("dialog", { name: "How they're saved" });
     expect(within(saving).queryByRole("radio", { name: "JPEG" })).toBeNull();
     expect(within(saving).getByRole("radio", { name: "WebP" })).toBeInTheDocument();
+  });
+
+  it("fixes each picture as a step made before the size, as the Fix tab chooses", async () => {
+    const fetch = fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "Fix: noise, blur, JPEG blocks, dark" })).click();
+    const card = await screen.findByRole("dialog", { name: "Fix them" });
+    expect(within(card).getByRole("switch", { name: "Noise" })).toBeChecked();
+    fireEvent.click(within(card).getByRole("switch", { name: "Dark photo" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/batches/takes").at(-1)?.steps).toEqual([
+        {
+          step: "fix",
+          noise: { strength: 1 },
+          blur: null,
+          jpeg: null,
+          dark: { contrast: 0 },
+        },
+      ]),
+    );
+  });
+
+  it("takes each JPEG's blocks out as hard as it was squeezed, with no strength to set", async () => {
+    const fetch = fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "Fix: noise, blur, JPEG blocks, dark" })).click();
+    const card = await screen.findByRole("dialog", { name: "Fix them" });
+
+    fireEvent.click(within(card).getByRole("switch", { name: "JPEG blocks" }));
+
+    expect(
+      within(card).queryByRole("slider", { name: "How hard JPEG blocks come out" }),
+    ).toBeNull();
+    expect(within(card).getByText(/as hard as it was squeezed, read from the file/)).toBeVisible();
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/batches/takes").at(-1)?.steps).toEqual([
+        {
+          step: "fix",
+          noise: { strength: 1 },
+          blur: null,
+          jpeg: { quality: null, strength: null },
+          dark: null,
+        },
+      ]),
+    );
+  });
+
+  it("says on the Size card when the Fix step cleans first, so Fast doesn't again", async () => {
+    fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "Fix: noise, blur, JPEG blocks, dark" })).click();
+    fireEvent.click(
+      within(await screen.findByRole("dialog", { name: "Fix them" })).getByRole("button", {
+        name: "Done",
+      }),
+    );
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "Make it for a screen" })).click();
+    const card = await screen.findByRole("dialog", { name: "Make them for a screen" });
+
+    fireEvent.click(await within(card).findByRole("button", { name: /^Phone/ }));
+
+    expect(
+      within(card).getByText(
+        "The Fix step takes noise and blocks out first, so Fast doesn't clean them again.",
+      ),
+    ).toBeVisible();
+    expect(within(card).queryByRole("switch", { name: "Clean noise and blocks first" })).toBeNull();
+  });
+
+  it("says what each download it waits for is for, offering Fast only for the photo model", async () => {
+    fakeEngine({
+      ...ENGINE,
+      "/tools": [],
+      "POST /batches/takes": takes({
+        needs: [
+          { id: "scunet", name: "SCUNet", size: 72_932_271 },
+          { id: "birefnet-lite", name: "BiRefNet lite", size: 224_006_154 },
+        ],
+      }),
+    });
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED, recipe: 1 });
+
+    expect(await screen.findByText(/Noise comes out with SCUNet, an AI model/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Cutting out at Best is BiRefNet lite, an AI model/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Best for photos is/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Use Fast" })).toBeNull();
+  });
+
+  it("takes the fixes out once every fix in them is off", async () => {
+    const fetch = fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "Fix: noise, blur, JPEG blocks, dark" })).click();
+    const card = await screen.findByRole("dialog", { name: "Fix them" });
+
+    fireEvent.click(within(card).getByRole("switch", { name: "Noise" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+
+    expect(
+      await screen.findByText(/Pick what to do: cut out their subject, fix them/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fetch).toHaveBeenCalled();
   });
 
   it("asks once for the folder new pictures go into", async () => {

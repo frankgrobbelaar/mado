@@ -1,22 +1,27 @@
 import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import {
   type EditStep,
+  type FixStep,
   type LookStep,
   type PictureDetails,
   type Plan,
   pictureAddress,
+  type Recipe,
   type Region,
   type SizeStep,
   usePictureImage,
   usePreview,
+  useQueueNow,
 } from "@/lib/engine";
 import { about, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { brightening, fixed } from "./fixes";
 import type { Zoom } from "./stage";
 import { fitted, useBox } from "./stage-box";
 
-const LABEL = "absolute rounded-4 bg-black/70 px-2.5 py-1 text-12 text-white";
+export const LABEL = "absolute rounded-4 bg-black/70 px-2.5 py-1 text-12 text-white";
 const MOST_PREVIEW = 4_000_000; // pixels the engine makes of a part at once
+const SLOW = 600; // milliseconds after which a preview on the card says why it waits
 
 /**
  * The picture as the Size tab makes it, as Picture-Size draws it. Fitted: the part kept framed
@@ -29,6 +34,8 @@ export function SizeStage(props: {
   picture: PictureDetails;
   /** The edits made on the Edit tab, which before and after both show; null with none. */
   edit: EditStep | null;
+  /** The fixes chosen on the Fix tab, which after carries; null with none. */
+  fix?: FixStep | null;
   plan: Plan;
   size: SizeStep;
   /** The look chosen on the Looks tab, which after carries; null with none. */
@@ -51,6 +58,7 @@ export function SizeStage(props: {
         <Fitted
           picture={picture}
           edit={props.edit}
+          fix={props.fix ?? null}
           plan={plan}
           size={size}
           decided={decided}
@@ -60,6 +68,7 @@ export function SizeStage(props: {
         <Compared
           picture={picture}
           edit={props.edit}
+          fix={props.fix ?? null}
           plan={plan}
           size={decided}
           look={props.look}
@@ -92,26 +101,30 @@ export function SizeStage(props: {
 function Fitted(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  fix: FixStep | null;
   plan: Plan;
   size: SizeStep;
   decided: SizeStep;
   onFocus: (focus: [number, number]) => void;
 }) {
   const { picture, plan } = props;
-  const view = usePictureImage(props.edit ? null : pictureAddress(picture, "view"));
-  // With edits, the picture shown under its shape is the picture as they leave it.
+  // Of the fixes, all of it shows a dark photo's brightening: the rest show at 100%.
+  const lit = brightening(props.fix);
+  const changed = props.edit !== null || lit !== null;
+  const view = usePictureImage(changed ? null : pictureAddress(picture, "view"));
+  // With edits or brightening, the picture shown under its shape is the picture as they leave it.
   const edited = usePreview(
     picture.id,
-    props.edit
+    changed
       ? {
-          recipe: { edit: props.edit, size: null, look: null },
+          recipe: fixed({ edit: props.edit, size: null, look: null }, lit),
           side: "after",
           fit: { width: 2560, height: 2560 },
         }
       : null,
     { keep: true },
   );
-  const shown = props.edit ? edited.address : view.address;
+  const shown = changed ? edited.address : view.address;
   const area = useRef<HTMLDivElement>(null);
   const box = useBox(area);
   const extending = plan.shape === "extend" && plan.sides !== "none";
@@ -126,7 +139,7 @@ function Fitted(props: {
     picture.id,
     extending && !lama
       ? {
-          recipe: { edit: props.edit, size: props.decided, look: null },
+          recipe: fixed({ edit: props.edit, size: props.decided, look: null }, lit),
           side: "after",
           fit: { width: 1600, height: 1600 },
         }
@@ -250,27 +263,67 @@ function Fitted(props: {
       <span className={cn(LABEL, "bottom-3 left-3")}>
         {lama ? `The new edges show once ${lama.name} is downloaded` : caption(plan, drawn.busy)}
       </span>
-      {drawn.problem && (
+      {(drawn.problem ?? edited.problem) && (
         <p role="alert" className={cn(LABEL, "top-3 left-3 max-w-[80%] bg-black/80")}>
-          {drawn.problem}
+          {drawn.problem ?? edited.problem}
         </p>
       )}
     </div>
   );
 }
 
-/** Before and after at full detail, a part of the picture made, the line between them dragged
- * or moved with the arrow keys, the part moved by dragging or with the arrow keys. After carries
- * the look, as Save makes it; before is the picture only stretched. */
+/** Before and after at full detail on the Size tab: the picture made, after carrying the look,
+ * as Save makes it; before the picture only stretched. */
 function Compared(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  fix: FixStep | null;
   plan: Plan;
   size: SizeStep;
   look: LookStep | null;
   scale: number;
 }) {
-  const { picture, plan, size, look, scale } = props;
+  const { picture, plan, size, look } = props;
+  // A model still to download: extending needs LaMa on either side, the rest only after.
+  const lama = plan.needs.some((each) => each.id === "lama");
+  const waiting = plan.needs.map((each) => each.name).join(" and ");
+  return (
+    <PartsCompared
+      picture={picture}
+      width={plan.width}
+      height={plan.height}
+      start={startingPoint(plan)}
+      before={lama ? null : { edit: props.edit, size, look: null }}
+      after={waiting ? null : fixed({ edit: props.edit, size, look }, props.fix)}
+      label={`After · ${plan.label}`}
+      waiting={waiting ? `After shows once ${waiting} is downloaded` : null}
+      scale={props.scale}
+      card={plan.place === "card"}
+    />
+  );
+}
+
+/** Before and after at full detail, a part of the picture made (`width` by `height`), the line
+ * between them dragged or moved with the arrow keys, the part moved by dragging or with the arrow
+ * keys, starting at `start` (fractions of it). A side whose recipe is null waits, `waiting` saying
+ * why. Work on the graphics card that waits for the queue's picture says so. */
+export function PartsCompared(props: {
+  picture: PictureDetails;
+  width: number;
+  height: number;
+  start: [number, number];
+  before: Recipe | null;
+  after: Recipe | null;
+  label: string;
+  waiting: string | null;
+  scale: number;
+  /** The previews are made on the graphics card, where the queue's picture may have it. */
+  card: boolean;
+  /** There's an after to compare with: without one, before alone, no line. */
+  compare?: boolean;
+}) {
+  const { picture, scale } = props;
+  const plan = { width: props.width, height: props.height };
   const area = useRef<HTMLDivElement>(null);
   const box = useBox(area);
   const pixels = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
@@ -280,28 +333,26 @@ function Compared(props: {
   const within = Math.min(1, Math.sqrt(MOST_PREVIEW / (wanted.width * wanted.height)));
   const width = Math.max(16, Math.min(plan.width, Math.floor(wanted.width * within)));
   const height = Math.max(16, Math.min(plan.height, Math.floor(wanted.height * within)));
-  const start = startingPoint(plan);
-  const [centre, setCentre] = useState<[number, number]>(start);
-  useEffect(() => setCentre(startingPoint(plan)), [plan]);
+  const startKey = `${props.start[0]},${props.start[1]}`;
+  const [centre, setCentre] = useState<[number, number]>(props.start);
+  useEffect(() => {
+    const [x = 0.5, y = 0.5] = startKey.split(",").map(Number);
+    setCentre([x, y]);
+  }, [startKey]);
   const region = regionAt(centre, width, height, plan);
   const [moved, setMoved] = useState<{ x: number; y: number } | null>(null);
   const grabbed = useRef<{ x: number; y: number } | null>(null);
   const [split, setSplit] = useState(0.5);
-  // A model still to download: extending needs LaMa on either side, the rest only after.
-  const lama = plan.needs.some((each) => each.id === "lama");
-  const waiting = plan.needs.map((each) => each.name).join(" and ");
   const after = usePreview(
     picture.id,
-    box.measured && !waiting
-      ? { recipe: { edit: props.edit, size, look }, side: "after", region }
-      : null,
+    box.measured && props.after ? { recipe: props.after, side: "after", region } : null,
   );
   const before = usePreview(
     picture.id,
-    box.measured && !lama
-      ? { recipe: { edit: props.edit, size, look: null }, side: "before", region }
-      : null,
+    box.measured && props.before ? { recipe: props.before, side: "before", region } : null,
   );
+  const queue = useQueueNow().data;
+  const slow = useSlow(after.busy);
   const shown = {
     width: (region.width * scale) / (pixels * within),
     height: (region.height * scale) / (pixels * within),
@@ -369,20 +420,24 @@ function Compared(props: {
         address={after.address}
         shown={shown}
         offset={offset}
-        label={`After · ${plan.label}`}
+        label={props.label}
         clip={`inset(0 0 0 ${split * 100}%)`}
       />
-      <Slider split={split} onSplit={setSplit} />
+      {props.compare !== false && <Slider split={split} onSplit={setSplit} />}
       <span className={cn(LABEL, "top-3 left-3 font-semibold")}>Before</span>
-      <span className={cn(LABEL, "top-3 right-3 font-semibold")}>After · {plan.label}</span>
-      {waiting && (
+      {props.compare !== false && (
+        <span className={cn(LABEL, "top-3 right-3 font-semibold")}>{props.label}</span>
+      )}
+      {props.waiting && (
         <span role="status" className={cn(LABEL, "bottom-3 left-3")}>
-          After shows once {waiting} is downloaded
+          {props.waiting}
         </span>
       )}
-      {!waiting && (after.busy || before.busy) && (
+      {!props.waiting && (after.busy || before.busy) && (
         <span role="status" className={cn(LABEL, "bottom-3 left-3")}>
-          Making the preview…
+          {slow && props.card && queue?.working
+            ? `Waiting for the graphics card: ${queue.batch} lets it go after the tile it's on`
+            : "Making the preview…"}
         </span>
       )}
       {!after.busy && after.seconds !== null && (
@@ -399,7 +454,7 @@ function Compared(props: {
   );
 }
 
-function Side(props: {
+export function Side(props: {
   address: string | null;
   shown: { width: number; height: number };
   offset: string | undefined;
@@ -425,7 +480,7 @@ function Side(props: {
 }
 
 /** The line between before and after, dragged, or moved with the arrow keys. */
-function Slider(props: { split: number; onSplit: (split: number) => void }) {
+export function Slider(props: { split: number; onSplit: (split: number) => void }) {
   const line = useRef<HTMLDivElement>(null);
   function follow(event: PointerEvent<HTMLElement>) {
     const area = line.current?.parentElement?.getBoundingClientRect();
@@ -506,6 +561,20 @@ function caption(plan: Plan, drawing: boolean): ReactNode {
   return plan.focusFound ? "Cropped around the most detailed part" : "Cropped around your point";
 }
 
-function capitalised(text: string): string {
+export function capitalised(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Whether something under way has taken long enough to say why it waits. */
+export function useSlow(busy: boolean): boolean {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!busy) {
+      setSlow(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSlow(true), SLOW);
+    return () => window.clearTimeout(timer);
+  }, [busy]);
+  return slow;
 }

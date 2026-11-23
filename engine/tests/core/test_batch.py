@@ -102,14 +102,41 @@ def test_steps_are_made_in_mados_order_whatever_order_they_are_listed_in():
     assert steps_in_order([look, size]) == [size, look]
     assert recipe_of([look, size]) == {
         "edit": None,
+        "fix": None,
         "size": {"size": "tv-8k", "shape": "crop"},
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
     assert recipe_of([look]) == {
         "edit": None,
+        "fix": None,
         "size": None,
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
+
+
+def test_the_fixes_come_after_a_cut_out_and_before_the_size():
+    cut: Step = {"step": "cutout", "quality": "fast", "behind": "nothing", "colour": None}
+    fix: Step = {
+        "step": "fix",
+        "noise": {"strength": 0.8},
+        "blur": None,
+        "jpeg": None,
+        "dark": None,
+    }
+    size: Step = {"step": "size", "size": "tv-8k"}
+
+    assert steps_in_order([size, fix, cut]) == [cut, fix, size]
+    assert recipe_of([size, fix])["fix"] == {
+        "noise": {"strength": 0.8},
+        "blur": None,
+        "jpeg": None,
+        "dark": None,
+    }
+    with pytest.raises(StepError, match="one set of fixes"):
+        recipe_of([fix, fix])
+    nothing_on: Step = {"step": "fix", "noise": None, "blur": None, "jpeg": None, "dark": None}
+    with pytest.raises(StepError, match="no fix turned on"):
+        recipe_of([size, nothing_on])
 
 
 def test_cutting_out_the_subject_goes_first_as_the_recipes_edit():
@@ -122,6 +149,7 @@ def test_cutting_out_the_subject_goes_first_as_the_recipes_edit():
             "version": None,
             "edits": [{"kind": "subject", "quality": "fast", "behind": "nothing", "colour": None}],
         },
+        "fix": None,
         "size": {"size": "tv-8k"},
         "look": None,
     }

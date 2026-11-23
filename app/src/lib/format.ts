@@ -92,14 +92,17 @@ export function madeWith(made: {
   madeFor: string | null;
   look: string | null;
   edit?: string | null;
+  fix?: string | null;
 }): string {
   const parts = [
     made.madeFor ? `for ${made.madeFor}` : null,
     made.look ? `with ${made.look}` : null,
   ];
   const said = parts.filter(Boolean).join(", ");
-  // The edits, made first, come after in brackets: "for TV 8K (erased a part)".
-  return made.edit ? `${said} (${made.edit})`.trimStart() : said;
+  // The edits and fixes, made first, come after in brackets: "for TV 8K (erased a part; took out
+  // noise)".
+  const first = [made.edit, made.fix].filter(Boolean).join("; ");
+  return first ? `${said} (${first})`.trimStart() : said;
 }
 
 /** The same as a version of it is called: "TV 8K", "Warm film at 60%", "TV 8K, Warm film at 60%";
@@ -108,8 +111,25 @@ export function versionOf(made: {
   madeFor: string | null;
   look: string | null;
   edit?: string | null;
+  fix?: string | null;
 }): string {
-  return [made.madeFor, made.look].filter(Boolean).join(", ") || (made.edit ? "edited" : "");
+  return (
+    [made.madeFor, made.look].filter(Boolean).join(", ") ||
+    (made.edit ? "edited" : made.fix ? "fixed" : "")
+  );
+}
+
+/** What the fixes made a picture, as its new name says it ("Cleaned", "Sharpened", "Brightened",
+ * or "Fixed" for more than one kind), from History's words for them ("took out noise"), as
+ * `label` writes them in engine/src/mado/core/fixes.py. */
+export function fixedAs(fix: string | null | undefined): string | null {
+  if (!fix) return null;
+  const kinds = new Set<string>();
+  if (/took out/.test(fix)) kinds.add("Cleaned");
+  if (/mended the blur/.test(fix)) kinds.add("Sharpened");
+  if (/brightened/.test(fix)) kinds.add("Brightened");
+  const [only] = kinds;
+  return kinds.size === 1 && only ? only : "Fixed";
 }
 
 const EDITED: Record<string, string> = {

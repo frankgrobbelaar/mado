@@ -7,8 +7,8 @@
 **Your pictures, right for every screen.**
 
 Mado (窓, "window") makes your pictures right for any screen, from a phone to an 8K TV, or for a
-print. It gives them looks, edits them with a click, works on many at once, makes wallpapers to fit
-your monitors, and keeps a library of the folders they live in. Small AI models do the hard parts,
+print. It gives them looks, edits them with a click, fixes them, works on many at once, makes
+wallpapers to fit your monitors, and keeps a library of the folders they live in. Small AI models do the hard parts,
 on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
 
 </div>
@@ -19,7 +19,7 @@ on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
@@ -68,17 +68,29 @@ it, as a big camera lens does, or give just that part a look.
 
 ![Select, erase or cut out: a boat picked with one click](docs/readme/edit.png)
 
-### 4. Many at once
+### 4. Fix what's wrong
 
-Tick pictures in the library, choose a folder, or drop a pile on the window, then make them all for
-a screen, give them a look or cut out their subjects. Keep the steps as a recipe, such as "4K, then
+Bring back a photo that came out too dark, grainy, shaken or squeezed into blocks. Turn a fix on
+and drag the line to compare: the brightening over the whole picture, every fix at 100%. A dark
+photo is brightened from its brightest parts, so a night stays a night, and the noise that brings
+out is taken away. JPEG blocks, and the halos round a screenshot's letters, come out as hard as
+the picture was squeezed. Blur from a shaking camera or a moving subject is mended; a picture out
+of focus only comes a little crisper. Mado suggests what it can measure, and fixes a picture
+before it grows, so it's clean when it's made bigger.
+
+![The Fix tab: a dark photo brightened, the line between before and after](docs/readme/fix.png)
+
+### 5. Many at once
+
+Tick pictures in the library, choose a folder, or drop a pile on the window, then fix them, make
+them all for a screen, give them a look or cut out their subjects. Keep the steps as a recipe, such as "4K, then
 Warm film at 60%, then JPEG into Edited", and use it on any batch, or on every new picture put in a
 watch folder. Mado shows it first on a few, so you know it's right, and works out the time and
 space before it starts. Then the queue does the rest, one picture at a time, now or overnight.
 
 ![Many at once: a recipe's steps, three pictures seen first, and what it takes](docs/readme/batch.png)
 
-### 5. Wallpapers that fit
+### 6. Wallpapers that fit
 
 Mado draws your monitors as Windows arranges them, even one turned on its side, and makes a picture
 for each, or one laid across them all with a gap for the bezels. Each part is made at exactly its
@@ -88,7 +100,7 @@ every day from your favourites. Your own wallpaper is kept, and comes back when 
 
 ![The wallpaper studio: three monitors as Windows arranges them, one on its side, each with its own picture](docs/readme/wallpaper.png)
 
-### 6. Your library
+### 7. Your library
 
 Add the folders your pictures live in. Mado reads pictures from phones, cameras and scanners, in
 JPEG, HEIC, PNG, WebP, AVIF, camera RAW and more, and keeps the wide colours of newer phones'
@@ -100,7 +112,7 @@ Windows 11, under Show more options).
 
 ![The Library: your folders, and their pictures by the day they were taken](docs/readme/library.png)
 
-### 7. Light or dark
+### 8. Light or dark
 
 Mado's look is Graphite: the mid-grey that photo editors judge colour on, so the window never
 changes how a picture's colours look. Its light is Aluminium. Mado turns light or dark with
@@ -155,6 +167,9 @@ it, and each runs on your PC.
 | BiRefNet lite | Best: cuts out a picture's subject with the finest edges (downloaded the first time, 224 MB) | MIT |
 | SigLIP base | Reads what each picture shows, so a search finds it from a few words describing it, and finds pictures like one (downloaded the first time you search, 208 MB) | Apache-2.0 |
 | PP-OCRv6 small | Best: reads the words in pictures, so a search finds them by what they say (downloaded the first time you search, 31 MB); Fast is Windows' own reader | Apache-2.0 |
+| SCUNet | Takes noise out, and the noise brightening a dark photo brings out; JPEG blocks at Fast (downloaded the first time, 73 MB) | Apache-2.0, MIT |
+| FBCNN | Best: takes JPEG blocks and the halos round letters out, as hard as you choose (downloaded the first time, 288 MB) | Apache-2.0, MIT |
+| NAFNet | Mends blur from a shaking camera or a moving subject, held back where a picture is flat (downloaded the first time, 69 MB) | MIT, Apache-2.0 |
 
 They run on ONNX Runtime (MIT) with Microsoft's DirectML, which Mado carries under Microsoft's
 terms.

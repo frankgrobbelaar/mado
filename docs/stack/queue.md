@@ -21,9 +21,10 @@ it first, recipes and watch folders feed it. The boards are `docs/design/screens
   and was seen on Home) and a job each picture, with `batch_id` and its place in the queue
   (`position`). A job's order (JSON) holds its recipe, its saving, what it's made for and with,
   its reckoned seconds and bytes, and, when See it first made it, that picture.
-- **Steps** are a list, each `{"step": "size", ...}` or `{"step": "look", ...}`, the Size and
-  Looks tabs' choices, so later pieces add kinds of their own; they're made in Mado's order (the
-  size, then the look) whatever order they're listed in. A size step has no point to crop
+- **Steps** are a list, each `{"step": "size", ...}`, `{"step": "look", ...}`,
+  `{"step": "cutout", ...}` or `{"step": "fix", ...}`, the tabs' choices, so later pieces add
+  kinds of their own; they're made in Mado's order (the subject cut out, the fixes, the size, then
+  the look) whatever order they're listed in. A size step has no point to crop
   around: each picture's subject is found as it's made, and its model chosen by what it is
   unless Fast or Best is said.
 - **Saving**: new pictures beside their originals (`folder` null), into a folder by name beside

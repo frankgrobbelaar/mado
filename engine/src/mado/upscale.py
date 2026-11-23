@@ -27,7 +27,7 @@ from mado.core.tiles import Place, Tile, place, tiles, weights
 from mado.directml import Tensor, tensor
 
 type Pixels = npt.NDArray[np.uint8]  # (height, width, 3) RGB
-type Runner = Callable[[Tensor], Tensor]  # (1, 3, t, t) from 0 to 1, to (1, 3, 4t, 4t)
+type Runner = Callable[[Tensor], Tensor]  # (1, 3, t, t) from 0 to 1, to (1, 3, 4t, 4t) (a fix's: t)
 type Told = Callable[[int, int], None]  # tiles done, of how many
 
 
@@ -40,6 +40,7 @@ class Tiling:
     run: Runner
     size: int  # the square the model takes
     overlap: int
+    scale: int = SCALE  # how many times bigger its answer is each way: a fix's is 1
 
 
 def through_model(
@@ -59,7 +60,7 @@ def through_model(
     region = pixels[y0:y1, x0:x1]
     origin, span = (kept.x - x0, kept.y - y0), (kept.width, kept.height)
     cut = tiles(region.shape[1], region.shape[0], tiling.size, tiling.overlap)
-    places = [place(tile, origin, span, target, SCALE) for tile in cut]
+    places = [place(tile, origin, span, target, tiling.scale) for tile in cut]
     width, height = target
     made = np.empty((height, width, 3), np.uint8)
     band = _Band(width)
@@ -198,7 +199,7 @@ def _tile_result(region: Pixels, tile: Tile, tiling: Tiling) -> Pixels:
         part = np.pad(part, ((0, pad_y), (0, pad_x), (0, 0)), mode=mode)
     batch = tensor(part.transpose(2, 0, 1)[None] / 255.0)
     out = tiling.run(batch)[0]
-    out = out[:, : tile.height * SCALE, : tile.width * SCALE]
+    out = out[:, : tile.height * tiling.scale, : tile.width * tiling.scale]
     return np.clip(out.transpose(1, 2, 0) * 255.0 + 0.5, 0, 255).astype(np.uint8)
 
 

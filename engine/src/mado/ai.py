@@ -5,7 +5,7 @@ the card can't run them) and at which tile size, each through its kept session
 """
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +16,7 @@ import numpy.typing as npt
 from PIL import Image
 
 from mado import hardware
+from mado.core.fixes import FBCNN, NAFNET, SCUNET, FixModel, guarded
 from mado.core.hardware import Place, overlap_for, tile_for
 from mado.core.models import BEST_PHOTO, Model, Quality
 from mado.directml import LOCK, Array, ModelError, Session, Sessions, Tensor
@@ -42,7 +43,8 @@ _MIB = 1024 * 1024
 # What each keeps of the graphics card's own memory once it has run, as measured on the owner's
 # card: a session is never let go (mado/directml.py), so one is made there only when the card has
 # room for it, and on the processor otherwise. BiRefNet, which DirectML runs only with its graph
-# fusion off, takes far more than the card has unless the card is big.
+# fusion off, takes far more than the card has unless the card is big. The fixes' models at
+# their tile (docs/stack/fixes.md) likewise.
 HELD: dict[str, int] = {
     SAM: 1300 * _MIB,
     MIGAN: 600 * _MIB,
@@ -51,10 +53,17 @@ HELD: dict[str, int] = {
     # recogniser's three widths); as reading is background work, it goes on the card only with
     # room besides for the queue's heaviest model at its tile (docs/stack/search.md).
     "pp-ocrv6-small": 2560 * _MIB,
+    SCUNET.id: 1300 * _MIB,
+    FBCNN.id: 1340 * _MIB,
+    NAFNET.id: 380 * _MIB,
 }
 _SPARE = 512 * _MIB  # room left on the card besides
 _UNKNOWN_ROOM = 4096 * _MIB  # where DirectX can't say how much room there is: a small card's
 _BIREFNET_SETTINGS = {"ep.dml.disable_graph_fusion": "1"}
+# The fixes' models (docs/stack/fixes.md) take squares this big, overlapping by this much, on the
+# card or the processor alike: big enough for NAFNet, which needs 384 at least to see a shake.
+FIX_TILE = 384
+FIX_OVERLAP = 32
 _MEAN = np.array([0.485, 0.456, 0.406], np.float32)  # ImageNet's, as SAM, U²-Net and BiRefNet take
 _STD = np.array([0.229, 0.224, 0.225], np.float32)
 
@@ -69,6 +78,7 @@ class Timer:
     seconds: float = 0.0
     megapixels: float = 0.0
     waited: float = 0.0
+    place: Place | None = None  # where its model ran, once it has
 
     def add(self, seconds: float, megapixels: float) -> None:
         self.seconds += seconds
@@ -132,6 +142,11 @@ class Ai:
             found["photo"] = "fast"
         return found
 
+    def fix_starts_on(self) -> Quality:
+        """Which of Fast and Best JPEG blocks start on: Best once FBCNN is downloaded, else Fast,
+        whose model (SCUNet) also takes noise out, so a fix needs one download, not two."""
+        return "best" if self.fix_file(FBCNN) is not None else "fast"
+
     def file(self, model: Model) -> Path | None:
         """Where a model's file is: in Mado's assets, or its download's folder once fetched."""
         if model.download is None:
@@ -180,6 +195,60 @@ class Ai:
             return (out / 255.0).astype(np.float32)  # LaMa gives 0 to 255
 
         return fill
+
+    # The quick fixes.
+
+    def fix_file(self, model: FixModel) -> Path | None:
+        """A fix's model file, once it's downloaded."""
+        folder = self._tools.folder(model.id)
+        return folder / model.file if folder is not None else None
+
+    def fix_place(self, models: Sequence[FixModel]) -> Place:
+        """Where the fixes these models make run now: on the card when it has room for each
+        (or made it there already), as the editing models; on the processor when one hasn't."""
+        places = {self.edit_place(model.id, self.fix_file(model)) for model in models}
+        return "processor" if "processor" in places else self._where().place
+
+    def fixer(
+        self,
+        model: FixModel,
+        timer: Timer | None = None,
+        *,
+        strength: float = 1.0,
+        qf: float | None = None,
+        guard: bool = False,
+    ) -> Tiling:
+        """A fix's model a tile at a time, through its kept session, its answer the tile's own
+        size: FBCNN told how hard (`qf`: 0.7 takes it for a JPEG saved at 30), NAFNet's answer
+        held by the guard, and either kept as strongly as asked (`strength` of the change). On
+        the card where this PC runs the models and the card has room for it (on the processor
+        each is 12 to 21 times slower). Raises ModelError when it isn't downloaded, or as it runs
+        when it can't."""
+        found = self.fix_file(model)
+        if found is None:
+            raise ModelError(f"{model.name} isn't downloaded yet.")
+        place = self.edit_place(model.id, found)
+        clock = timer or Timer()
+        clock.place = place
+        extra: dict[str, Array] = {}
+        if model is FBCNN:
+            told = 0.5 if qf is None else min(max(qf, 0.05), 0.95)
+            extra["qf_override"] = np.array([[told]], np.float32)
+
+        def run(batch: Tensor) -> Tensor:
+            with _turn(place, clock):  # timed once it has the card, not while it waits its turn
+                session = self._sessions.get(found, FIX_TILE, place)
+                began = time.perf_counter()
+                out = session.run({"input": batch, **extra})[0]
+                clock.add(time.perf_counter() - began, FIX_TILE * FIX_TILE / 1e6)
+            answer: Tensor = np.asarray(out, np.float32)
+            if guard:
+                answer = guarded(batch, answer)
+            if strength < 1.0:
+                answer = (batch + np.float32(strength) * (answer - batch)).astype(np.float32)
+            return answer
+
+        return Tiling(run, FIX_TILE, FIX_OVERLAP, scale=1)
 
     # Editing by clicking.
 

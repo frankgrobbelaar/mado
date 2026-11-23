@@ -30,7 +30,7 @@ the [Mado Screens canvas](../design/screens.html).
 | Model | For | File | Licence | Ships |
 | --- | --- | --- | --- | --- |
 | Real-ESRGAN general (`realesr-general-x4v3`) | Fast, photos and drawings; cleans noise and JPEG blocks | 4.9 MB | BSD-3-Clause | inside Mado |
-| Its weak-denoise twin (`realesr-general-wdn-x4v3`) | Fast with "Clean noise and blocks first" off: keeps grain | 4.9 MB | BSD-3-Clause | inside Mado |
+| Its weak-denoise twin (`realesr-general-wdn-x4v3`) | Fast with "Clean noise and blocks first" off: keeps grain; and Fast on a picture the Fix tab cleaned first, so it isn't cleaned twice ([fixes.md](fixes.md)) | 4.9 MB | BSD-3-Clause | inside Mado |
 | RealESRGAN x4plus anime 6B (`realesrgan-x4plus-anime-6b`) | Best for drawings, comics and flat colour | 18 MB | BSD-3-Clause and Apache-2.0 | inside Mado |
 | RealESRGAN x4plus (`realesrgan-x4plus`) | Best for photos | 67 MB | BSD-3-Clause and Apache-2.0 | downloaded the first time Best is asked for on a photo |
 | LaMa (`lama_fp32_dml.onnx`) | Extending edges | 209 MB | Apache-2.0 | downloaded the first time Extend is asked for |

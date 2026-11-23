@@ -27,7 +27,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray; the paths Windows hands Mado, the files copied in File Explorer, and File Explorer's "Open in Mado" |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites, search: the library read for what each picture shows and the words in it), editing pictures by clicking, making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites, search: the library read for what each picture shows and the words in it), editing pictures by clicking, fixing them (noise, blur, JPEG blocks, dark photos), making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -216,6 +216,30 @@ flowchart LR
 | Models | `mado/ai.py`, `mado/directml.py`, `mado/hardware.py` | Each model's file and where it runs: on the card when it has room (DirectX's own budget, `hardware.room`), else the processor |
 | The API | `mado/api/editing.py`, `mado/api/edits.py`, `mado/api/making.py` | Picking, making edits; the recipe's edit step in plans, previews and Save |
 
+## Fixing a picture
+
+The Fix tab takes noise, blur from a shaking camera or a moving subject, JPEG blocks and darkness
+out of a picture, each fix turned on with its one setting and compared before and after, fitted
+or at full detail. The fixes are the recipe's step after the edits: Save makes them on the part
+of the picture its size keeps, before it grows, so noise and blocks come out first and the
+upscaler doesn't clean again. docs/stack/fixes.md has the models, the order, the guard, what's
+suggested and what was measured.
+
+```mermaid
+flowchart LR
+    tab["Fix tab"] -- "/pictures/{id}/fixes" --> found["a JPEG's quality, how dark it is"]
+    tab -- "/plan, /preview with the recipe's fix" --> fix["mado/fixing.py: blocks, brighten, noise, blur, contrast"]
+    fix -- "a tile at a time" --> models["FBCNN, SCUNet, NAFNet (ONNX Runtime, DirectML)"]
+    tab -- "Save" --> job["a job: edits, shape, fixes, size, look, saved"]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/fixes.py` | Pure: the fix step and its words, the models it needs and the order they're made in (SCUNet once at most), a JPEG's quality from its tables, how dark a picture is, the tone curve, debanding, local contrast (CLAHE) by the whole picture's tables, the blur model's guard, what's suggested; what the fixes make of a picture as it measures (a picture that isn't dark isn't brightened, a batch's JPEG blocks by each JPEG's own quality) and whether they leave it clean for the upscaler |
+| Fixing | `mado/fixing.py` | What the dark photo fix takes from the whole picture (measured once on a small copy), and the fixes made on any part of it, the models a tile at a time through `upscale.through_model` (their answers the tile's own size), brightening and contrast a band of rows at a time; all of a picture fitted, the brightening and contrast alone |
+| Models | `mado/ai.py` | Each fix model's file (a download) and its kept session, a 384 tile at a time, on the card while it has room for it: FBCNN told how hard, NAFNet's answer held by the guard, either kept as strongly as asked |
+| The API | `mado/api/fixes.py`, `mado/api/making.py` | The fix step's choices; what's suggested (`/pictures/{id}/fixes`); the recipe's fix step in plans (made for how dark the picture measures), previews (fitted, the brightening on the copy shown; a part, every fix on the picture round it, stopped when a newer one comes) and Save |
+
 ## Many at once
 
 Pictures ticked in the Library, a folder, what a search found, or files and folders dropped on
@@ -346,7 +370,8 @@ Change a contract on both sides in the same commit.
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
 | `POST /pictures/{id}/select` | Parts picked with clicks on the picture as its edits so far left it: a click starts a part, an Alt-click takes from the part it's in; each part's name ("Part 1"), its answer and the outline round them all; how long reading the picture took and how long it waited for the card (409 while SAM isn't downloaded, or the picture changed) |
 | `POST /pictures/{id}/edit` | Makes the edits (the last one new) so the previews show them: how long it took, where it ran, and whether an erase came out smooth where the picture has detail |
-| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its size step and its look step, any of them none, the look on the whole picture or parts): its shape and the words for it, what it is, the model, its look and edits, about how long here, the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
+| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its fixes, its size step and its look step, any of them none, the look on the whole picture or parts): its shape and the words for it, what it is, the model (not cleaning again what the fixes cleaned), its look, edits and fixes, about how long here (the fixes' share apart), the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
+| `GET /pictures/{id}/fixes` | What the Fix tab suggests: a JPEG's own quality from its tables, how many stops dark it is, and whether it's grey, has see-through parts or wide colours, kept as they are |
 | `POST /pictures/{id}/preview` | The picture made, all of it fitted (from its screen-sized view, as JPEG) or a part at full detail (as WebP), before (stretched) or after (made, with its look and touches), with its colour profile and how long it took |
 | `POST /pictures/{id}/saving` | The name a picture made would be saved as ("Harbour at dusk (TV 8K, Warm film).jpg"), whether that's taken, and about how big it comes out |
 | `POST /pictures/{id}/make` | Makes it to its recipe and saves it as chosen, as a job |
@@ -410,7 +435,7 @@ Change a contract on both sides in the same commit.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
   picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), the words read
-  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
+  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited and what the fixes did, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

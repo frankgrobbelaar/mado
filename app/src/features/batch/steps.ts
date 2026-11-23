@@ -2,6 +2,7 @@ import type {
   BatchSaving,
   BatchStep,
   CutoutStepItem,
+  FixStepItem,
   LookStepItem,
   Settings,
   SizeStepItem,
@@ -55,6 +56,18 @@ export function cutoutStep(before?: CutoutStepItem): CutoutStepItem {
   };
 }
 
+/** The fixes: noise taken out to start with, as the most common fix a batch of photos wants;
+ * the rest as the Fix tab turns them on. */
+export function fixStep(before?: FixStepItem): FixStepItem {
+  return {
+    step: "fix",
+    noise: before ? before.noise : { strength: 1 },
+    blur: before?.blur ?? null,
+    jpeg: before?.jpeg ?? null,
+    dark: before?.dark ?? null,
+  };
+}
+
 /** Saving that keeps a cut-out's nothing: only PNG and WebP keep see-through parts, so a batch
  * saving as anything else moves to PNG once it cuts out with nothing behind. */
 export function savingFor(steps: BatchStep[], saving: BatchSaving): BatchSaving {
@@ -71,19 +84,20 @@ export function keepsNothing(steps: BatchStep[]): boolean {
 /** The formats that keep see-through parts. */
 export const SEE_THROUGH: BatchSaving["format"][] = ["PNG", "WebP"];
 
-/** The steps with one put in its place (the subject cut out, the size, then the look), or taken
- * out. */
+/** The steps with one put in its place (the subject cut out, the fixes, the size, then the
+ * look), or taken out. */
 export function withStep(steps: BatchStep[], step: BatchStep | null, kind: BatchStep["step"]) {
   const rest = steps.filter((each) => each.step !== kind);
   const next = step ? [...rest, step] : rest;
   return next.sort((a, b) => ORDER.indexOf(a.step) - ORDER.indexOf(b.step));
 }
 
-const ORDER: BatchStep["step"][] = ["cutout", "size", "look"];
+const ORDER: BatchStep["step"][] = ["cutout", "fix", "size", "look"];
 
 /** What a step is called, before the engine's words for it come. */
 export const TITLES: Record<string, string> = {
   cutout: "Cut out the subject",
+  fix: "Fix",
   size: "Make it for a screen",
   look: "A look",
   save: "Save",
@@ -97,7 +111,13 @@ export function wordsFor(steps: BatchStep[], saving: BatchSaving): StepWords[] {
       title: TITLES[step.step] ?? step.step,
       detail: "…",
       chip:
-        step.step === "size" ? step.size : step.step === "look" ? step.look : "Cut out the subject",
+        step.step === "size"
+          ? step.size
+          : step.step === "look"
+            ? step.look
+            : step.step === "fix"
+              ? "Fix"
+              : "Cut out the subject",
       amount: null,
     })),
     {

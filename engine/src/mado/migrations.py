@@ -402,4 +402,8 @@ MIGRATIONS: Final[tuple[str, ...]] = (
         DELETE FROM words WHERE rowid = old.picture_id;
     END;
     """,
+    # 11. The quick fixes: what History says they did, apart from the edits.
+    """
+    ALTER TABLE history ADD COLUMN fix TEXT;  -- what the fixes did: "took out noise"
+    """,
 )

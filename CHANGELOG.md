@@ -8,6 +8,36 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- The Fix tab, beside Size, Looks and Edit, takes out what's wrong with a picture: noise, blur
+  from a shaking camera or a moving subject, JPEG blocks and darkness. Each fix is turned on with
+  its one setting and shown before and after, the line between them dragged: the brightening over
+  the whole picture, every fix on a part at 100% and 400%. Mado suggests a fix only where it can
+  measure the need, a JPEG's own quality and how dark a picture is, and says when it found
+  nothing it can measure. The fixes are made before a picture grows, so noise and blocks come out
+  first, and Save names the new picture after them ("Harbour at dusk (Brightened).jpg").
+- A dark photo is brightened from its brightest parts, so a night stays a night, through a tone
+  curve that keeps the highlights, then the noise that brings out is taken out; local contrast is
+  a slider after it. A smooth dark sky brightened a lot doesn't band, and a picture that isn't
+  dark is left as it is.
+- Fix is a step for many at once, recipes and watch folders, made before the size, and History
+  says what the fixes did. Each JPEG's blocks come out as hard as it was squeezed, and a picture
+  with nothing for the fixes to do is left as it is, its line saying why.
+- The fixes' models come the first time each is needed, with its size and progress, as the
+  installer's first page lists them: SCUNet (73 MB) for noise, and JPEG blocks at Fast; FBCNN
+  (288 MB) for JPEG blocks at Best; NAFNet (69 MB) for blur.
+
+### Changed
+- A picture the fixes cleaned isn't cleaned again as it's made bigger: the Size tab, and a batch's
+  Size card, say so where they offered "Clean noise and blocks first".
+
+### Fixed
+- The Queue said a picture whose subject was being cut out was at its save step: it says "Cut out
+  the subject 1/3".
+- Many at once called any model it waited for "Best for photos" (BiRefNet lite, which cuts out at
+  Best, say) and offered Fast for it: it says what each model is for, and offers Fast only for the
+  photo model.
+
 ## 0.9.0 - 2026-11-23
 
 ### Added

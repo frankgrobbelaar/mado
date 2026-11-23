@@ -27,6 +27,7 @@ from mado.upscale import StoppedError
 from tests.conftest import add, made
 from tests.dng_files import dng
 from tests.drawn import draw, scene
+from tests.fix_models import with_fix_models
 
 type Library = dict[str, Any]
 
@@ -833,6 +834,35 @@ def test_cutting_out_the_subject_is_a_step_said_first_and_reckoned_in_what_it_ta
     assert takes["words"][-1]["chip"] == "PNG into Cut-outs"
     assert takes["seconds"] > 0
     assert takes["needs"] == []  # Fast's model ships inside Mado
+
+
+def test_the_queue_says_which_step_a_picture_being_made_is_at(
+    client: TestClient, library: Library, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    app: Any = client.app
+    with_fix_models(monkeypatch, app.state.ai, tmp_path / "models")  # as if SCUNet is here
+    jobs: Jobs = app.state.jobs
+    jobs.stop()  # nothing is made: each picture's stage is set by hand below
+    picked = _picked(client, how="ticked", ids=[library["ids"]["Warm dunes.jpg"]])
+    fix = {"step": "fix", "noise": {"strength": 1}, "blur": None, "jpeg": None, "dark": None}
+    batch = _put_in(client, picked, steps=[*STEPS, fix, *CUT_OUT], saving=AS_PNG)
+    said: dict[str, str] = {}
+    for stage in ("reading", "editing", "fixing", "making", "saving"):
+        with closing(db.connect(app.state.paths.database)) as conn, conn:
+            conn.execute(
+                "UPDATE jobs SET state = 'running', stage = ? WHERE batch_id = ?",
+                (stage, batch["id"]),
+            )
+        rows = client.get("/queue").json()["rows"]
+        said[stage] = rows[0]["step"]
+
+    assert said == {
+        "reading": "Cut out the subject 1/4",
+        "editing": "Cut out the subject 1/4",
+        "fixing": "Fix 2/4",
+        "making": "Make it for a screen 3/4",
+        "saving": "Save 4/4",
+    }
 
 
 def test_a_batch_of_cut_outs_keeps_their_nothing_as_png_and_history_says_what_was_done(

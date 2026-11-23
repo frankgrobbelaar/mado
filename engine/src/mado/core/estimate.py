@@ -24,6 +24,14 @@ GUESS: dict[str, float] = {
     "realesr-general-wdn-x4v3@processor": 12.6,
     "realesrgan-x4plus@processor": 128.0,
     "realesrgan-x4plus-anime-6b@processor": 38.0,
+    # The fixes' models, in 384 tiles, as a 12-megapixel photo fixed measured them on the owner's
+    # PC (docs/stack/fixes.md).
+    "scunet@card": 1.42,
+    "fbcnn@card": 0.95,
+    "nafnet@card": 0.38,
+    "scunet@processor": 31.2,
+    "fbcnn@processor": 17.7,
+    "nafnet@processor": 5.5,
 }
 _START = 0.5  # seconds: reading the picture and setting out
 _PER_MEGAPIXEL = 0.06  # seconds for each megapixel made: resizing, fading in and saving

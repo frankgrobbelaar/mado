@@ -137,7 +137,7 @@ def test_a_see_through_pictures_new_edges_are_as_see_through_as_its_edge_beside_
         cast("Ai", _Standing()),
         report=lambda _stage, _within: None,
         stop=lambda: False,
-    )
+    ).image
 
     assert result.mode == "RGBA"
     alpha = np.asarray(result.getchannel("A"))
