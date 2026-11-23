@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.4.0 - 2026-11-23
+
 ### Added
 - Duplicates and bursts: Mado looks at every picture as it's read, and finds the ones saved more
   than once (the same file twice, or saved again at another size, quality or format) and bursts
