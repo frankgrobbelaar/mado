@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.10.0 - 2026-11-23
+
 ### Added
 - The Fix tab, beside Size, Looks and Edit, takes out what's wrong with a picture: noise, blur
   from a shaking camera or a moving subject, JPEG blocks and darkness. Each fix is turned on with
