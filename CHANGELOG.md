@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.5.0 - 2026-11-23
+
 ### Added
 - Edit by clicking: a picture's Edit tab picks a part with a click (Select), and every click after
   the first is instant. Click again to add a part, Alt-click to take some of one away, and step
