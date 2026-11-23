@@ -219,7 +219,7 @@ export function pictureDetails(
     dir: "",
     modifiedAt: item.takenAt,
     takenFrom: "camera",
-    camera: "Pixelworks PW-7 Pro",
+    camera: "Testcam T7 Pro",
     orientation: 1,
     located: true,
     damaged: false,

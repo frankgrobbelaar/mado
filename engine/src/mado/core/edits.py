@@ -105,7 +105,9 @@ def label(editing: Editing | None) -> str | None:
 
 
 def phrase(editing: Editing | None) -> str | None:
-    """The edits as History and Save say them: "erased 2 parts, cut out the subject"."""
+    """The edits as History and Save say them: "erased 2 parts, cut out the subject". Each
+    edit's words start with its verb ("erased", "cut out", "blurred what's behind"), which
+    Home's Made today reads back (`editedAs` in app/src/lib/format.ts): keep them so."""
     if editing is None or not editing.edits:
         return None
     said: list[str] = []

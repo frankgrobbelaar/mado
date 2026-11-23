@@ -7,9 +7,9 @@
 **Your pictures, right for every screen.**
 
 Mado (窓, "window") makes your pictures right for any screen, from a phone to an 8K TV, or for a
-print. It gives them looks, edits them with a click, does it all to many at once, and keeps a
-library of the folders they live in. Small AI models do the hard parts, on your own Windows PC.
-Nothing is uploaded, and nothing changes until you say.
+print. It gives them looks, edits them with a click, works on many at once, makes wallpapers to fit
+your monitors, and keeps a library of the folders they live in. Small AI models do the hard parts,
+on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
 
 </div>
 
@@ -19,14 +19,12 @@ Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library and finds its duplicates and bursts, makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, does it all to many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library and finds its duplicates and bursts, makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
 
 ![Mado's Home: drop pictures in, what needs you, and what was made today](docs/readme/home.png)
-
-<p align="center"><sub>Mado's screens as designed. The app is being built to them.</sub></p>
 
 ## Made for every screen
 
@@ -40,16 +38,16 @@ on your own PC, and shows you before anything is saved.
 
 ### 1. Right for every screen
 
-Choose where a picture is going: a phone, a tablet, a laptop, a monitor, an ultrawide, a 4K or 8K
-TV, or a print. Mado makes it exactly the pixels and shape it needs there, cropped around the
-subject or with its edges extended, in the format and quality that suit it. It remembers your own
-screens. It treats each picture as what it is: one AI model for photos, another for drawings, a
-gentler way for screenshots so letters stay letters, and none at all for pixel art, which stays
-crisp. It clears out noise first, or keeps a photo's grain if you'd rather. Drag the line to
-compare before and after, as close as you like. And Mado is honest about limits: two to four
-times bigger looks real, while 8K from a thumbnail looks painted.
+Choose where a picture is going: a phone, a tablet, a laptop, a 4K monitor, an ultrawide, an 8K TV
+or a print, or type any size. Mado makes it exactly the pixels and shape it needs there, cropped
+around the subject or with its edges extended, in the format and quality that suit it. It
+remembers your own screens. It treats each picture as what it is: one AI model for photos, another
+for drawings, a gentler way for screenshots so letters stay letters, and none at all for pixel
+art, which stays crisp. It clears out noise first, or keeps a photo's grain if you'd rather. Zoom
+to 100% or 400% and drag the line to compare before and after. And Mado is honest about limits:
+two to four times bigger looks real, while 8K from a thumbnail looks painted.
 
-![A picture made for an 8K TV: before and after, the screens to choose from, its shape and quality](docs/readme/size.png)
+![A picture made for an 8K TV: its new shape over it, the screens to choose from, and its quality](docs/readme/size.png)
 
 ### 2. Looks that make a picture
 
@@ -59,39 +57,49 @@ grain, a vignette, glow, fade, light leaks or dust. Click the sky, a person or t
 give just that part a look. Keep a mix you like as a look of your own, or bring in the .cube files
 you already use.
 
-![Looks: Warm film on just the sky, with finishing touches and your own looks](docs/readme/looks.png)
+![Looks: Warm film on just the sky, with grain and a vignette, and every look shown on the picture](docs/readme/looks.png)
 
 ### 3. Edit by clicking
 
 Click anything to select it, such as a boat, a person or the sky, and Mado finds its edges. Click
 again to add more. Then erase it, and Mado fills the space from what's around it. Or cut it out as
-a picture of its own, with nothing, a colour or the rest blurred behind it. Or give just that part
-a look.
+a picture of its own, with nothing, a colour or the rest blurred behind it. Or blur what's behind
+it, as a big camera lens does, or give just that part a look.
 
 ![Select, erase or cut out: a boat picked with one click](docs/readme/edit.png)
 
 ### 4. Many at once
 
-Tick pictures in the library, choose a folder, or drop a pile on the window, and put any tool to
-work on all of them. Keep the steps as a recipe, such as "4K, then Warm film at 60%, then JPEG into
-Edited", and use it on any batch, or on every new picture put in a watch folder. Mado shows it
-first on a few, so you know it's right, and works out the time and space before it starts. Then the
-queue does the rest, one picture at a time, now or overnight.
+Tick pictures in the library, choose a folder, or drop a pile on the window, then make them all for
+a screen, give them a look or cut out their subjects. Keep the steps as a recipe, such as "4K, then
+Warm film at 60%, then JPEG into Edited", and use it on any batch, or on every new picture put in a
+watch folder. Mado shows it first on a few, so you know it's right, and works out the time and
+space before it starts. Then the queue does the rest, one picture at a time, now or overnight.
 
 ![Many at once: a recipe's steps, three pictures seen first, and what it takes](docs/readme/batch.png)
 
-### 5. Your library
+### 5. Wallpapers that fit
+
+Mado draws your monitors as Windows arranges them, even one turned on its side, and makes a picture
+for each, or one laid across them all with a gap for the bezels. Each part is made at exactly its
+monitor's pixels, cropped around the subject or with its edges extended, then set as Windows' own
+wallpaper or saved as pictures. Give the pictures you love a heart, and the wallpaper can change
+every day from your favourites. Your own wallpaper is kept, and comes back when you ask.
+
+![The wallpaper studio: three monitors as Windows arranges them, one on its side, each with its own picture](docs/readme/wallpaper.png)
+
+### 6. Your library
 
 Add the folders your pictures live in. Mado reads pictures from phones, cameras and scanners, in
-JPEG, HEIC, RAW and more, and keeps the HDR and wide colours of newer phones' photos. It shows them
-by the day they were taken, watches the folders for new ones, and finds duplicates and bursts: you
-keep the sharpest, and the rest wait in quarantine. A picture doesn't have to be in the library:
-drop it on the window, paste it, or right-click it in File Explorer (on Windows 11, under Show
-more options).
+JPEG, HEIC, PNG, WebP, AVIF and more, and keeps the wide colours of newer phones' photos; camera RAW
+is listed, though Mado can't read it yet. It shows them by the day they were taken, watches the
+folders for new ones, and finds duplicates and bursts: you keep the sharpest, and the rest wait in
+quarantine. A picture doesn't have to be in the library: drop it on the window, paste it, or
+right-click it in File Explorer (on Windows 11, under Show more options).
 
 ![The Library: your folders, and their pictures by the day they were taken](docs/readme/library.png)
 
-### 6. Light or dark
+### 7. Light or dark
 
 Mado's look is Graphite: the mid-grey that photo editors judge colour on, so the window never
 changes how a picture's colours look. Its light is Aluminium. Mado turns light or dark with
@@ -126,8 +134,8 @@ Windows, or stays the way you choose in Settings. Your pictures look the same in
 
 ![Saving: as a new picture beside the original, or replacing it while the original waits 30 days](docs/readme/save.png)
 
-Mado contains no photos, artwork or other media. Every picture in these screens is drawn by code,
-and every name in them is made up.
+These are Mado's own screens, taken from its tests. Mado contains no photos, artwork or other
+media: every picture in these screens is drawn by code, and every name in them is made up.
 
 ## The AI inside
 

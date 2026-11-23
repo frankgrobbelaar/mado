@@ -509,8 +509,18 @@ describe("HomePage", () => {
       "/library": LIBRARY,
       "/scan": scanDone(),
       "/history/today": [
-        { id: 3, name: "Night market", madeFor: "TV 8K", look: null },
-        { id: 2, name: "Misty pines", madeFor: null, look: "Warm film at 60%" },
+        { id: 3, name: "Night market", madeFor: "TV 8K", look: null, edit: null },
+        { id: 2, name: "Misty pines", madeFor: null, look: "Warm film at 60%", edit: null },
+        { id: 4, name: "Garden rose", madeFor: null, look: null, edit: "cut out the subject" },
+        { id: 5, name: "Little sail", madeFor: null, look: null, edit: "erased 2 parts" },
+        {
+          id: 6,
+          name: "Old pier",
+          madeFor: null,
+          look: null,
+          edit: "erased a part, blurred what's behind a part",
+        },
+        { id: 7, name: "Red canyon", madeFor: "Phone", look: null, edit: "cut out a part" },
       ],
     });
     renderHome();
@@ -518,6 +528,11 @@ describe("HomePage", () => {
     const today = await screen.findByRole("region", { name: "Made today" });
     expect(today).toHaveTextContent("Night marketTV 8K");
     expect(today).toHaveTextContent("Misty pinesWarm film");
+    // An edit alone says what it did, in the words a new picture's name has for it.
+    expect(today).toHaveTextContent("Garden roseCut out");
+    expect(today).toHaveTextContent("Little sailErased");
+    expect(today).toHaveTextContent("Old pierEdited");
+    expect(today).toHaveTextContent("Red canyonPhone");
     expect(within(today).getByRole("link", { name: "History" })).toHaveAttribute(
       "href",
       "/history",

@@ -69,7 +69,8 @@ describe("QueuePage", () => {
     expect(progress).toHaveTextContent("Started 23:00 · nights only, till 07:00");
     expect(within(progress).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "37");
     const recipe = screen.getByRole("region", { name: "Recipe · Holiday prints" });
-    expect(recipe).toHaveTextContent("TV 8K→Warm film 60→JPEG 95 into Edited");
+    expect(recipe).toHaveTextContent("TV 8K then Warm film 60 then JPEG 95 into Edited");
+    expect(recipe).not.toHaveTextContent("→"); // drawn, as the fonts have no arrow
     expect(recipe).toHaveTextContent("Seen first on 3 pictures; you said they look right.");
     expect(screen.getByRole("region", { name: "Saving" })).toHaveTextContent(
       "Into Holiday › Edited. The originals stay as they are.",

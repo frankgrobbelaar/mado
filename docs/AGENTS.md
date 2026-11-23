@@ -20,6 +20,9 @@ Mado's docs are short pages, one subject each, written for the owner and for age
 - **Public pictures are made up.** The README's pictures (`readme/`) and the design boards
   (`design/`) show only pictures drawn by code or made up for them: never a real photo, artwork or
   person. Any new one keeps to that.
+- **`readme/`'s screens are taken, not drawn.** `node scripts/readme-pictures.mjs` takes them from
+  Mado's own screens (see [development.md](development.md#taking-the-readmes-pictures-again));
+  take them again when a screen they show changes. `download.svg` is the one drawn by hand.
 
 ## Where things go
 

@@ -49,6 +49,7 @@ CI runs exactly these; run them before every push.
 cd engine; uv run ruff format --check; uv run ruff check; uv run pyright; uv run pytest
 cd app; pnpm check; pnpm build
 cd app/src-tauri; cargo fmt --check; cargo clippy --all-targets -- -D warnings; cargo test
+node --test "scripts/*.test.mjs"
 cd app; pnpm build:engine; pnpm build:notices
 ```
 
@@ -73,6 +74,41 @@ and error states.
 
 **A new tool or library.** Use its latest stable version and add a page (or a section) in
 [stack/](stack/) saying how Mado uses it.
+
+## Taking the README's pictures again
+
+The README's pictures (`docs/readme/`) are Mado's own screens. Take them again whenever a screen
+one shows changes, from the repo's root:
+
+```powershell
+node scripts/readme-pictures.mjs              # every picture, into docs/readme/
+node scripts/readme-pictures.mjs home size    # just these
+```
+
+It builds the UI (for its CSS and fonts), then runs `app/src/test/readme-screens.test.tsx` with
+`MADO_SHOTS` set: the test draws each screen with Mado's own components and made-up data, and
+writes out its DOM (without `MADO_SHOTS` it's skipped, so `pnpm check` and CI never run it). Each
+screen is wrapped with the built CSS, its pictures drawn as the boards' made-up scenes
+(`scripts/readme-scenes.mjs`), shot at twice its size in headless Edge, and framed as the README
+shows it: 1280 × 883, the window with rounded corners and a soft shadow on a see-through
+background, Home cut diagonally between Graphite and Aluminium. A stage that fits a picture to its
+space is measured where Edge lays it out, and the screens are drawn again with what it measured, as
+jsdom lays nothing out. Edge runs on the processor alone, its words in plain greys, in a throwaway
+profile kept signed out, without sync or extensions, its own temporary files in the folder the
+script deletes.
+
+- A screen's data is in the test. Keep each picture true to itself and to the others: the folder
+  list's counts are the page's own, the status bar's batch is the queue's, the owner's screens are
+  the studio's monitors, and every name is made up.
+- A scene is drawn by code in `readme-scenes.mjs`, never a real photo; a new one goes there.
+- The script stops if any words on a screen come out in another font than Mado's (a character
+  IBM Plex as Mado bundles it hasn't got, such as a typed "→", which `components/arrow.tsx`
+  draws instead).
+- Look at every picture before committing it: the scenes, nothing cut off or overlapping. When
+  Home changes, look at where the cut falls (`split` in `PICTURES`).
+- `--no-build` reuses `app/dist` as it is; `--keep` keeps the pages it shot, and says where.
+- `--screens <test> --out <folder>` shoots any test's screens, each dark and light, never into
+  `docs/readme/`: see [app/AGENTS.md](../app/AGENTS.md), "Pictures of a screen".
 
 ## Updating dependencies
 

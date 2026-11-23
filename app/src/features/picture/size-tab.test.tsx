@@ -21,7 +21,7 @@ const details: PictureDetails = {
   dir: "",
   modifiedAt: DUSK.takenAt,
   takenFrom: "camera",
-  camera: "Pixelworks PW-7 Pro",
+  camera: "Testcam T7 Pro",
   orientation: 1,
   located: true,
   problem: null,

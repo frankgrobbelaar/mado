@@ -23,7 +23,7 @@ import {
   useSettings,
 } from "@/lib/engine";
 import { openFolder, useExplorer } from "@/lib/explorer";
-import { count, dayAndTime, size } from "@/lib/format";
+import { count, dayAndTime, editedAs, size } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SpaceCard } from "./space-card";
 import { WontOpen } from "./wont-open";
@@ -345,7 +345,7 @@ function Today() {
 
 function Made({ made }: { made: MadeToday }) {
   const image = usePictureImage(madeAddress(made.id));
-  const caption = made.madeFor ?? made.look?.replace(/ at \d+%$/, "") ?? "";
+  const caption = made.madeFor ?? made.look?.replace(/ at \d+%$/, "") ?? editedAs(made.edit) ?? "";
   return (
     <figure className="m-0 flex min-w-0 flex-col gap-1.5">
       <span className="relative block h-23 overflow-hidden rounded-4 bg-behind">

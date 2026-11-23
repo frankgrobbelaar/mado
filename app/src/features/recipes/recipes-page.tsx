@@ -1,6 +1,7 @@
 import { DropdownMenu } from "radix-ui";
 import { type ReactNode, useId, useState } from "react";
 import { Link } from "react-router";
+import { Arrow } from "@/components/arrow";
 import { EngineProblem } from "@/components/engine-problem";
 import { Loading, PanelSkeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
@@ -254,12 +255,12 @@ function WatchRow({ folder, onChange }: { folder: WatchFolder; onChange: () => v
       <span className="flex min-w-0 flex-[1_1_380px] flex-col gap-0.75">
         <span className="text-14 [overflow-wrap:anywhere]">
           <span className="font-mono">{folder.path}</span>{" "}
-          <span aria-hidden="true" className="text-fg-faint">
-            →
+          <span className="text-fg-faint">
+            <Arrow said="then" />
           </span>{" "}
           {folder.recipeName}{" "}
-          <span aria-hidden="true" className="text-fg-faint">
-            →
+          <span className="text-fg-faint">
+            <Arrow said="then" />
           </span>{" "}
           <span className="font-mono">{results}</span>
         </span>

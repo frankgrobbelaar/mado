@@ -38,6 +38,9 @@ and all of them run locally with the commands in [../development.md](../developm
 - Render with a fresh `QueryClient` (retries off) per test.
 - `utils.test.ts` reads `tokens.css` to check `cn()` knows every Graphite size and radius; Vitest is
   told to load that one CSS file (`test.css.include`).
+- `src/test/readme-screens.test.tsx` draws the README's screens and writes out their DOM for
+  `scripts/readme-pictures.mjs` to shoot, with `src/test/shots.ts`; it's skipped unless
+  `MADO_SHOTS` names a folder ([../development.md](../development.md#taking-the-readmes-pictures-again)).
 
 ## Shell (cargo test)
 

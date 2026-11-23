@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Arrow } from "@/components/arrow";
 import { Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogHeader } from "@/components/ui/dialog";
@@ -138,7 +139,12 @@ function Figure(props: { set: string; sample: Sample; onOpen: () => void }) {
         <span className="truncate">{name}</span>
         <span className="shrink-0 font-mono text-fg-muted">
           {size(sample.bytes)}
-          {sample.madeBytes !== null && <> → {size(sample.madeBytes)}</>}
+          {sample.madeBytes !== null && (
+            <>
+              {" "}
+              <Arrow said="to" /> {size(sample.madeBytes)}
+            </>
+          )}
         </span>
       </figcaption>
       {sample.problem && <p className="text-12 text-broken-fg leading-normal">{sample.problem}</p>}

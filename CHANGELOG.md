@@ -8,6 +8,12 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Fixed
+- Home's Made today says what an edit alone made of a picture (Cut out, Erased, Blurred or Edited)
+  beside its name, where it said nothing.
+- The arrows in See it first's sizes, a recipe's steps and a watch folder's line are drawn in
+  Mado's own look, where they came in another font.
+
 ## 0.7.0 - 2026-11-23
 
 ### Added

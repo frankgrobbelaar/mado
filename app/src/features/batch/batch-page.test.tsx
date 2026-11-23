@@ -107,7 +107,9 @@ describe("BatchPage", () => {
 
     const first = screen.getByRole("region", { name: "See it first" });
     expect(await within(first).findByText("1 min 50 s", {}, { timeout: 3000 })).toBeInTheDocument();
-    expect(within(first).getByText("2.7 MB → 9.8 MB")).toBeInTheDocument();
+    // The arrow is drawn, not typed (IBM Plex as Mado bundles it has none), and read as "to".
+    expect(first).toHaveTextContent("2.7 MB to 9.8 MB");
+    expect(first).not.toHaveTextContent("→");
     const [asked] = sent(fetch, "POST", "/batches/samples");
     expect(asked.round).toBe(0);
     expect(asked.steps.map((step: { step: string }) => step.step)).toEqual(["size", "look"]);

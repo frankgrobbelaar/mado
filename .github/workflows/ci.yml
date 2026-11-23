@@ -55,7 +55,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-      - run: node --test "scripts/*.test.mjs" # the release and downloads-page scripts
+      - run: node --test "scripts/*.test.mjs" # the release, downloads-page and README-pictures scripts
         working-directory: .
       - run: pnpm build # the shell embeds the built UI, so Rust needs it
 

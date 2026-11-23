@@ -7,12 +7,12 @@ Coding agents start at [AGENTS.md](../AGENTS.md); each area (`engine/`, `app/`, 
 | Page | What it covers |
 | --- | --- |
 | [architecture.md](architecture.md) | The three parts (shell, UI, engine), how they talk, where data lives |
-| [development.md](development.md) | Setting up this PC, running Mado, checks, updating dependencies |
+| [development.md](development.md) | Setting up this PC, running Mado, checks, the README's pictures, updating dependencies |
 | [conventions.md](conventions.md) | How we write code: Python, TypeScript, Rust, tests, commits |
 | [design.md](design.md) | UI and UX rules, Mado's look and its tokens, patterns |
 | [releasing.md](releasing.md) | Versions, the installer, updates, third-party notices, the signing key |
 | [design/](design/) | Every screen from the design canvases, as pages you can open |
-| [readme/](readme/) | The README's pictures: the designed screens, every picture in them drawn by code |
+| [readme/](readme/) | The README's pictures: Mado's own screens, taken from its tests with every picture in them drawn by code ([development.md](development.md#taking-the-readmes-pictures-again)) |
 
 ## The stack
 

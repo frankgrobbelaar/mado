@@ -111,8 +111,26 @@ its design canvas.
 - Merge classes with `cn()`. New font sizes or radii also go in `fontSizes` and `radii` in
   `src/lib/utils.ts` (a test checks).
 - Icons from `lucide-react`; decorative ones get `aria-hidden="true"`.
+- Words only in characters the bundled IBM Plex has (Latin and its punctuation, no arrows): an
+  arrow between words is `<Arrow said="to" />` (`components/arrow.tsx`), never a typed "→", which
+  comes in another font.
 - No real pictures, titles or people in the UI, its tests or its examples: made-up names, and
   pictures drawn by code.
+
+## Pictures of a screen
+
+To look at a screen as Mado draws it, light and dark, without running Mado (or to show it in the
+README), shoot it from a test, as `src/test/readme-screens.test.tsx` shoots the README's:
+
+- Draw it as the other tests do, in `AppShell` with made-up data, and call `dump("name")` from
+  `src/test/shots.ts` once it has settled. Pictures come as `scene("harbour")` answers (the scenes
+  in `scripts/readme-scenes.mjs`, drawn by code), after `drawScenes()`; call
+  `measuredBoxes("name")` before drawing, for a stage that fits a picture to its space.
+- Wrap it in `describe.runIf(SHOTS)`, so it runs only when asked: it can stay in the repo.
+- From the repo's root:
+  `node scripts/readme-pictures.mjs --screens app/src/features/<area>/<name>.test.tsx --out <folder>`
+  shoots each screen at 1440 × 960, dark and light, with Mado's fonts, into that folder, and warns
+  of any words that came out in another font.
 
 ## Commands
 

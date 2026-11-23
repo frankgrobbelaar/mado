@@ -5,6 +5,7 @@ import {
   count,
   dayAndTime,
   dayHeading,
+  editedAs,
   madeAt,
   madeWith,
   pictures,
@@ -36,6 +37,18 @@ describe("madeWith and versionOf", () => {
     expect(madeWith(sizedToo)).toBe("for TV 8K (cut out the subject)");
     expect(versionOf(erased)).toBe("edited");
     expect(versionOf(sizedToo)).toBe("TV 8K");
+  });
+});
+
+describe("editedAs", () => {
+  it("says what the edits made a picture, as its new name does", () => {
+    expect(editedAs("erased a part")).toBe("Erased");
+    expect(editedAs("erased 2 parts, erased a part")).toBe("Erased");
+    expect(editedAs("cut out the subject")).toBe("Cut out");
+    expect(editedAs("cut out a part over the rest, blurred")).toBe("Cut out");
+    expect(editedAs("blurred what's behind a part")).toBe("Blurred");
+    expect(editedAs("erased a part, cut out the subject onto a colour")).toBe("Edited");
+    expect(editedAs(null)).toBeNull();
   });
 });
 

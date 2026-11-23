@@ -46,7 +46,7 @@ function details(item: PictureItem, overrides: Partial<PictureDetails> = {}): Pi
     dir: "",
     modifiedAt: item.takenAt,
     takenFrom: "camera",
-    camera: "Pixelworks PW-7 Pro",
+    camera: "Testcam T7 Pro",
     orientation: 1,
     located: true,
     damaged: false,
@@ -141,7 +141,7 @@ describe("PicturePage", () => {
     );
     expect(within(tools).getByRole("tab", { name: "Looks" })).toBeEnabled();
     expect(within(tools).getByRole("tab", { name: "Edit" })).toBeEnabled();
-    expect(screen.getByText("Pixelworks PW-7 Pro")).toBeInTheDocument();
+    expect(screen.getByText("Testcam T7 Pro")).toBeInTheDocument();
     expect(screen.getByText("Carries where it was taken")).toBeInTheDocument();
     expect(asked(fetch, "/pictures/12/full")).toHaveLength(0); // only once it's zoomed
   });

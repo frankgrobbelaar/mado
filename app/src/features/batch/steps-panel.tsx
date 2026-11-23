@@ -2,6 +2,7 @@ import { Download, Monitor, Plus, Scissors } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { Arrow } from "@/components/arrow";
 import { Button } from "@/components/ui/button";
 import type { BatchStep, KeptRecipe, StepWords } from "@/lib/engine";
 import { cn } from "@/lib/utils";
@@ -176,8 +177,8 @@ export function RecipeLine({ words, strong }: { words: StepWords[]; strong?: boo
       {words.map((said, at) => (
         <span key={said.kind} className="contents">
           {at > 0 && (
-            <span aria-hidden="true" className="text-fg-faint">
-              →
+            <span className="text-fg-faint">
+              <Arrow said="then" />
             </span>
           )}
           <span className={cn("rounded-4 bg-raised px-2 py-1", strong && "font-semibold text-13")}>

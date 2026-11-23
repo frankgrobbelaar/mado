@@ -100,7 +100,8 @@ app/            the desktop app
 engine/         the engine (Python): src/mado/, tests/, tools/ (build tools), mado-engine.spec,
                 openapi.json
 docs/           how it all works; docs/design/ holds the screens
-scripts/        release.mjs (versions, notes, the downloads page), design-snapshot.mjs
+scripts/        release.mjs (versions, notes, the downloads page), design-snapshot.mjs,
+                readme-pictures.mjs (the README's pictures, from the app's own screens)
 .github/        CI and release workflows
 ```
 
@@ -200,10 +201,13 @@ Everything decided so far. Don't ask again; change only with the owner.
 - The README is a tour, as Kura's and Maku's are (the owner, 2026-11-22: "build the README really
   nice as we have for the others"): the mark, a volt "Download for Windows" button (IBM Plex Sans
   outlines, `docs/readme/download.svg`, "Coming soon" until the first release, then a line saying
-  what the latest version has), six steps with
-  pictures, Safe by design, The AI inside, what a PC needs, the siblings. Its pictures
-  (`docs/readme/`) are the Mado Screens boards, drawn by code, framed in headless Edge and said to
-  be the design; they're retaken from the app as its screens are built.
+  what the latest version has), seven steps with pictures (the wallpaper studio the fifth, since
+  0.7.0), Safe by design, The AI inside, what a PC needs, the siblings. Its pictures
+  (`docs/readme/`) are Mado's own screens, taken from its tests with made-up data and pictures
+  drawn by code (the boards' scenes), framed in headless Edge as the boards were
+  (`node scripts/readme-pictures.mjs`), and taken again when the screens they show change
+  (docs/development.md, "Taking the README's pictures again"). Where a step's words and the app
+  disagree, the words change to match the app.
 - Everything happens on the PC: nothing is uploaded, AI included. Mado works on pictures already
   on the PC and never searches for, downloads or shares pictures.
 - The AI models are small, on the allowed licences, measured on the owner's PC before one is

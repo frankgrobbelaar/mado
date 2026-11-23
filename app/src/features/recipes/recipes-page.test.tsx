@@ -63,7 +63,8 @@ describe("RecipesPage", () => {
     const recipes = await screen.findByRole("region", { name: "Recipes" });
     expect(recipes).toHaveTextContent("Holiday prints");
     expect(recipes).toHaveTextContent("Used 3 times · tonight");
-    expect(recipes).toHaveTextContent("TV 8K→Warm film 60→JPEG 95 into Edited");
+    expect(recipes).toHaveTextContent("TV 8K then Warm film 60 then JPEG 95 into Edited");
+    expect(recipes).not.toHaveTextContent("→"); // drawn, as the fonts have no arrow
   });
 
   it("says what each watch folder does and did, and turns one off", async () => {
@@ -71,7 +72,8 @@ describe("RecipesPage", () => {
     renderRecipes();
 
     const watch = await screen.findByRole("region", { name: "Watch folders" });
-    expect(watch).toHaveTextContent("D:\\Pictures\\To TV → Holiday prints → To TV\\Done");
+    expect(watch).toHaveTextContent("D:\\Pictures\\To TV then Holiday prints then To TV\\Done");
+    expect(watch).not.toHaveTextContent("→");
     expect(watch).toHaveTextContent("Ran today 14:02 on 6 pictures");
     expect(watch).toHaveTextContent("F: isn't connected; it waits for it");
     expect(watch).toHaveTextContent("Off");

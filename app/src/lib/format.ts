@@ -112,6 +112,24 @@ export function versionOf(made: {
   return [made.madeFor, made.look].filter(Boolean).join(", ") || (made.edit ? "edited" : "");
 }
 
+const EDITED: Record<string, string> = {
+  erased: "Erased",
+  "cut out": "Cut out",
+  "blurred what's behind": "Blurred",
+};
+
+/** What the edits made a picture, as its new name says it ("Erased", "Cut out", "Blurred", or
+ * "Edited" for more than one kind), from History's words for them ("erased a part"): each edit's
+ * words start with its verb, as `phrase` writes them in engine/src/mado/core/edits.py. */
+export function editedAs(edit: string | null): string | null {
+  if (!edit) return null;
+  const kinds = new Set(
+    [...edit.matchAll(/\b(erased|cut out|blurred what's behind)/g)].map((found) => found[1]),
+  );
+  const [only] = kinds;
+  return kinds.size === 1 && only ? (EDITED[only] ?? "Edited") : "Edited";
+}
+
 /** A file's name without its extension: "Harbour at dusk" from "Harbour at dusk.heic". */
 export function stem(name: string): string {
   const at = name.lastIndexOf(".");
