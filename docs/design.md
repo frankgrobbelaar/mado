@@ -178,6 +178,16 @@ on Radix) and are restyled to the tokens; see [stack/tailwind.md](stack/tailwind
   "Make the 11 that fit now", emptying its quarantine (asked again), or waiting. With nothing
   waiting, a batch whose pictures didn't all work stays, "is done" in its line, with Try again
   on each and Clear where Pause and Cancel all were.
+- **A heart** (favourites): a heart on a picture's page beside its name (filled in the accent's
+  text colour once given), and on a grid's tile in the top right corner, white on dark glass as
+  the tile's tags are, shown while the tile is pointed at or focused and always once given.
+- **Monitors drawn** (the wallpaper studio): the owner's monitors as Windows arranges them on a
+  stage the colour behind a picture, each its part of the picture where it's cut (or the wallpaper
+  Windows has on it, dimmed, till one's chosen), its number, name and size in the mono on dark
+  glass at its foot, "Main" beside them; the one picked outlined in the accent, every one when a
+  picture's laid across them all. A part is dragged, zoomed with the wheel, + and -, and moved
+  with the arrow keys; a part extended shows the picture's own edge dashed, a soft hint of what's
+  drawn beyond it.
 
 ## Words
 

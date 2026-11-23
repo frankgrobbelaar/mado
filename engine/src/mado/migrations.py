@@ -307,4 +307,74 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     CREATE INDEX pictures_by_folder ON pictures (folder_id, taken_at, id);
     CREATE INDEX pictures_outside ON pictures (opened_at) WHERE folder_id IS NULL;
     """,
+    # 9. The wallpaper studio: favourites (a picture given a heart, by its number, so it stays
+    # one as its file moves or is renamed); the studio as the owner left it (its layout, the gap
+    # for the bezels, each monitor's picture and where it's cut, and the daily change); the
+    # wallpapers Mado makes into its data folder and sets (the daily change's kept, as what it
+    # showed which day); and Mado's record of the owner's own wallpaper, from before Mado set one.
+    """
+    CREATE TABLE favourites (
+        picture_id INTEGER PRIMARY KEY REFERENCES pictures (id) ON DELETE CASCADE,
+        at         TEXT NOT NULL      -- when it was given its heart
+    ) STRICT;
+
+    CREATE TABLE studio (             -- the studio's choices: one row
+        id           INTEGER PRIMARY KEY CHECK (id = 1),
+        layout       TEXT NOT NULL DEFAULT 'each' CHECK (layout IN ('each', 'across')),
+        gap          INTEGER NOT NULL DEFAULT 0 CHECK (gap BETWEEN 0 AND 200),  -- pixels, bezels
+        daily        INTEGER NOT NULL DEFAULT 0 CHECK (daily IN (0, 1)),
+        daily_at     TEXT NOT NULL DEFAULT '07:00',
+        daily_since  TEXT,            -- turned on, or its time set, then: a change comes after it
+        daily_layout TEXT NOT NULL DEFAULT 'each' CHECK (daily_layout IN ('each', 'across')),
+        daily_from   TEXT NOT NULL DEFAULT 'favourites'
+                     CHECK (daily_from IN ('favourites', 'folder')),
+        daily_folder INTEGER REFERENCES folders (id) ON DELETE SET NULL,  -- NULL: taken out
+        changed_on   TEXT,            -- the day the daily change last made its change, or gave up
+        problem      TEXT             -- why it couldn't, that day
+    ) STRICT;
+    INSERT INTO studio (id) VALUES (1);
+
+    CREATE TABLE studio_pictures (    -- the picture the studio has for a monitor, or for all
+        monitor    TEXT PRIMARY KEY COLLATE NOCASE,  -- Windows' name for it; '*': one across all
+        picture_id INTEGER NOT NULL REFERENCES pictures (id) ON DELETE CASCADE,
+        shape      TEXT NOT NULL DEFAULT 'crop' CHECK (shape IN ('crop', 'extend')),
+        x          REAL,              -- the part's middle, as fractions; NULL: around its subject
+        y          REAL,
+        zoom       REAL NOT NULL DEFAULT 1,
+        quality    TEXT CHECK (quality IN ('fast', 'best')),  -- NULL: as this PC suits
+        at         TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE wallpapers (         -- a wallpaper Mado makes: its parts, in its data folder
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,  -- never given again: its folder's name
+        asked_at    TEXT NOT NULL,
+        purpose     TEXT NOT NULL CHECK (purpose IN ('set', 'save', 'daily')),
+        day         TEXT,             -- 'daily': the day it's for
+        arrangement TEXT NOT NULL,    -- the monitors it's made for: made again once they change
+        plan        TEXT NOT NULL,    -- JSON: the monitors, the layout and each picture's cut
+        state       TEXT NOT NULL CHECK (state IN ('waiting', 'making', 'ready', 'set', 'saved',
+                                                   'failed', 'cancelled')),
+        made_at     TEXT,
+        set_at      TEXT,             -- set on the desktop then
+        problem     TEXT              -- why it didn't work, in words
+    ) STRICT;
+    CREATE INDEX wallpapers_by_state ON wallpapers (state, id);
+
+    CREATE TABLE desktop_yours (      -- the owner's own wallpaper on each monitor
+        monitor TEXT PRIMARY KEY COLLATE NOCASE,
+        name    TEXT NOT NULL,        -- the monitor's name then
+        path    TEXT,                 -- the file Windows showed there; NULL: a colour, no picture
+        kept    TEXT,                 -- Mado's copy of it, in its data folder
+        at      TEXT NOT NULL
+    ) STRICT;
+
+    CREATE TABLE desktop_before (     -- how Windows showed the owner's own wallpaper: one row
+        id        INTEGER PRIMARY KEY CHECK (id = 1),
+        position  INTEGER,            -- Windows' fit: centre 0, tile 1, stretch 2, fit 3, fill 4,
+                                      -- span 5
+        slideshow TEXT,               -- JSON: its folder, interval and shuffle, when one was on
+        spotlight INTEGER NOT NULL DEFAULT 0 CHECK (spotlight IN (0, 1)),
+        at        TEXT NOT NULL
+    ) STRICT;
+    """,
 )

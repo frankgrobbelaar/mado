@@ -16,6 +16,7 @@ import uvicorn
 from mado import __version__, events
 from mado.api import create_app, openapi_schema
 from mado.config import DataPaths
+from mado.desktop import WindowsDesktop
 from mado.export import export_data
 from mado.pc_check import probe
 from mado.system import end_programs_with_engine
@@ -55,7 +56,9 @@ def serve(
     sock.listen()  # early requests wait in the queue until the server is up
     # While it runs, the engine looks after Mado in the background (tonight's backup) and keeps
     # the library current.
-    app = create_app(token, paths, work=True, watch=True, notify=events.notify)
+    app = create_app(
+        token, paths, work=True, watch=True, notify=events.notify, desktop=WindowsDesktop()
+    )
     # A stop waits this long for open answers to end, then ends them, so Mado's care stops
     # cleanly before the app's patience runs out.
     config = uvicorn.Config(app, log_config=None, access_log=False, timeout_graceful_shutdown=2)

@@ -20,6 +20,7 @@ class DataSizes(ApiModel):
     backups: int
     tools: int
     pasted: int  # pictures pasted from the clipboard, kept till they're saved
+    wallpapers: int  # the wallpapers Mado made and set, and its copy of the owner's own
 
 
 class ExportRequest(ApiModel):
@@ -43,6 +44,7 @@ def your_data(paths: Paths) -> DataSizes:
         backups=found.backups,
         tools=found.tools,
         pasted=found.pasted,
+        wallpapers=found.wallpapers,
     )
 
 

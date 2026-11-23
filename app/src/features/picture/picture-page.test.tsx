@@ -28,6 +28,7 @@ function renderPicture(at: string) {
           <Routes>
             <Route path="/library/pictures/:id" element={<PicturePage />} />
             <Route path="/library" element={<p>The library</p>} />
+            <Route path="/wallpaper" element={<p>The studio</p>} />
           </Routes>
           <Address />
         </MemoryRouter>
@@ -290,5 +291,34 @@ describe("PicturePage", () => {
       "href",
       "/library?folder=1",
     );
+  });
+
+  it("gives the picture a heart beside its name", async () => {
+    const hearts: unknown[] = [];
+    engine({
+      "PUT /pictures/12/favourite": (init: RequestInit | undefined) => {
+        hearts.push(JSON.parse(String(init?.body)));
+        return details(SAIL, { favourite: true });
+      },
+    });
+    renderPicture("/library/pictures/12?folder=1");
+
+    await screen.findByRole("heading", { name: "Little sail", level: 1 });
+    const heart = screen.getByRole("button", { name: "Favourite Little sail" });
+    expect(heart).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(heart);
+
+    await waitFor(() => expect(hearts).toEqual([{ favourite: true }]));
+  });
+
+  it("makes it a wallpaper in the studio", async () => {
+    engine();
+    renderPicture("/library/pictures/12?folder=1");
+
+    await screen.findByRole("heading", { name: "Little sail", level: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Make it a wallpaper" }));
+
+    expect(await screen.findByText("The studio")).toBeInTheDocument();
+    expect(screen.getByTestId("address")).toHaveTextContent("/wallpaper?picture=12");
   });
 });

@@ -13,6 +13,7 @@ import { QueuePage } from "@/features/queue/queue-page";
 import { RecipesPage } from "@/features/recipes/recipes-page";
 import { SettingsPage } from "@/features/settings/settings-page";
 import { SetupPage } from "@/features/setup/setup-page";
+import { WallpaperPage } from "@/features/wallpaper/wallpaper-page";
 import { EngineProvider } from "@/lib/engine";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ export function App() {
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/library/pictures/:id" element={<PicturePage />} />
               <Route path="/pictures/:id" element={<PicturePage />} />
+              <Route path="/wallpaper" element={<WallpaperPage />} />
               <Route path="/batch" element={<BatchPage />} />
               <Route path="/queue" element={<QueuePage />} />
               <Route path="/recipes" element={<RecipesPage />} />

@@ -14,11 +14,14 @@ const UNLIT = "text-fg-muted hover:bg-tint/6 hover:text-fg";
 const STEP = 16; // px each folder sits further in than the one holding it
 
 /**
- * The Library's folders: All pictures, then each library folder with the folders inside it as a
- * tree, and Add a folder. The folder showing stays lit, and the folders holding it open.
+ * The Library's folders: All pictures and Favourites, then each library folder with the folders
+ * inside it as a tree, and Add a folder. The folder showing stays lit, and the folders holding it
+ * open.
  */
 export function FolderTree(props: {
   folders: LibraryFolder[];
+  /** The favourites there now, from outside the library too. */
+  favourites: number;
   shown: Shown;
   onAdd: () => void;
   adding: boolean;
@@ -36,20 +39,30 @@ export function FolderTree(props: {
   const toggle = (folderId: number, dir: string) =>
     setToggled((before) => new Map(before).set(`${folderId}:${dir}`, !isOpen(folderId, dir)));
   const to = (folder: number | null, dir = "") => {
-    const query = shownQuery({ ...shown, folder, dir, q: "" });
+    const query = shownQuery({ ...shown, favourites: false, folder, dir, q: "" });
     return query ? `/library?${query}` : "/library";
   };
+  const loved = `/library?${shownQuery({ ...shown, favourites: true, folder: null, dir: "", q: "" })}`;
+  const all = shown.folder === null && !shown.favourites;
 
   return (
     <nav aria-label="Folders" className="flex flex-col gap-0.5">
       <h2 className="type-eyebrow mx-2 mb-2">Folders</h2>
       <Link
         to={to(null)}
-        aria-current={shown.folder === null ? "page" : undefined}
-        className={cn(ROW, "pl-2", shown.folder === null ? LIT : UNLIT)}
+        aria-current={all ? "page" : undefined}
+        className={cn(ROW, "pl-2", all ? LIT : UNLIT)}
       >
         All pictures
         <span className="ml-auto font-mono text-12">{count(total)}</span>
+      </Link>
+      <Link
+        to={loved}
+        aria-current={shown.favourites ? "page" : undefined}
+        className={cn(ROW, "pl-2", shown.favourites ? LIT : UNLIT)}
+      >
+        Favourites
+        <span className="ml-auto font-mono text-12">{count(props.favourites)}</span>
       </Link>
       {folders.map((folder) => (
         <Branch

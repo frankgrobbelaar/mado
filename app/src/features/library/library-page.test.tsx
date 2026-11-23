@@ -4,7 +4,16 @@ import { StrictMode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EngineProvider, type LibraryFolder, type PictureItem } from "@/lib/engine";
-import { FOLDERS, fakeEngine, PICTURES, page, picture, READY, scanDone } from "@/test/engine";
+import {
+  FOLDERS,
+  fakeEngine,
+  LIBRARY,
+  PICTURES,
+  page,
+  picture,
+  READY,
+  scanDone,
+} from "@/test/engine";
 import { LibraryPage } from "./library-page";
 
 const shell = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -447,5 +456,105 @@ describe("LibraryPage", () => {
     expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
       pick: { how: "folder", folder: 1, dir: "2026" },
     });
+  });
+});
+
+describe("Favourites in the Library", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:made-up");
+    URL.revokeObjectURL = vi.fn();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    shell.invoke.mockReset();
+  });
+
+  const loved = [
+    picture(11, "Harbour at dusk.jpg", "2026-11-14T18:42:07", { favourite: true }),
+    picture(31, "Pier at dawn.jpg", "2026-11-12T07:10:00", {
+      favourite: true,
+      outside: true,
+      path: "E:\\Elsewhere\\Pier at dawn.jpg",
+    }),
+  ];
+
+  it("are a view of their own, kept in the address, a picture opened from it keeping it", async () => {
+    const fetch = library({
+      "/library": { ...LIBRARY, favourites: 2 },
+      "/pictures": page(loved),
+      ...thumbnails(loved),
+    });
+    renderLibrary("/library?favourites=1");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Favourites" })).toBeVisible();
+    const row = await screen.findByRole("link", { name: /^Favourites/ });
+    const tree = screen.getByRole("navigation", { name: "Folders" });
+    expect(row).toHaveAttribute("aria-current", "page");
+    expect(row).toHaveTextContent("2");
+    expect(within(tree).getByRole("link", { name: /All pictures/ })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(asked(fetch, "/pictures")[0]?.searchParams.get("favourites")).toBe("1");
+    expect(screen.getByRole("link", { name: "Harbour at dusk" })).toHaveAttribute(
+      "href",
+      "/library/pictures/11?favourites=1",
+    );
+    // One from outside the library opens on a page of its own.
+    expect(screen.getByRole("link", { name: "Pier at dawn" })).toHaveAttribute(
+      "href",
+      "/pictures/31",
+    );
+    // A folder in the tree is the library again, not its favourites.
+    expect(within(tree).getByRole("link", { name: /Phone/ })).toHaveAttribute(
+      "href",
+      "/library?folder=1",
+    );
+  });
+
+  it("say so when there are none yet, with the way to give a picture a heart", async () => {
+    library({ "/library": { ...LIBRARY, favourites: 0 }, "/pictures": page([]) });
+    renderLibrary("/library?favourites=1");
+
+    expect(await screen.findByRole("heading", { name: "No favourites yet" })).toBeVisible();
+    expect(screen.getByText(/Give a picture a heart/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Show all your pictures" })).toHaveAttribute(
+      "href",
+      "/library",
+    );
+  });
+
+  it("start many at once from every favourite", async () => {
+    library({
+      "/library": { ...LIBRARY, favourites: 2 },
+      "/pictures": page(loved),
+      ...thumbnails(loved),
+    });
+    renderLibrary("/library?favourites=1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Many at once…" }));
+
+    expect(await screen.findByText("Many at once")).toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
+      pick: { how: "favourites", q: "" },
+    });
+  });
+
+  it("give a picture a heart from its tile", async () => {
+    const hearts: unknown[] = [];
+    library({
+      "/library": LIBRARY,
+      "PUT /pictures/12/favourite": (init: RequestInit | undefined) => {
+        hearts.push(JSON.parse(String(init?.body)));
+        return {};
+      },
+    });
+    renderLibrary("/library");
+
+    const heart = await screen.findByRole("button", { name: "Favourite Little sail" });
+    expect(heart).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(heart);
+
+    await waitFor(() => expect(hearts).toEqual([{ favourite: true }]));
+    expect(screen.getByTestId("address")).toHaveTextContent("/library");
   });
 });

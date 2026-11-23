@@ -26,7 +26,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray; the paths Windows hands Mado, the files copied in File Explorer, and File Explorer's "Open in Mado" |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts), editing pictures by clicking, making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites), editing pictures by clicking, making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -247,6 +247,35 @@ flowchart LR
 
 docs/stack/tauri.md ("Open in Mado", "Paste") has the registry's keys and what was measured.
 
+## The wallpaper studio
+
+The owner's monitors as Windows arranges them, a picture made for each (or one laid across them
+all) at exactly each monitor's pixels, set as Windows' own wallpaper or saved as pictures; the
+wallpaper changed every day from the favourites if wanted; the owner's own kept and put back.
+The engine reaches Windows itself (the monitors and IDesktopWallpaper, by ctypes), as it owns the
+daily change and runs in the tray with no window to ask. docs/stack/wallpaper.md has what Windows
+does to a wallpaper file and what was chosen from it.
+
+```mermaid
+flowchart LR
+    studio["the studio (UI)"] -- "/wallpaper: monitors, choices, parts" --> engine["mado/wallpaper.py"]
+    engine -- "monitors, set, put back" --> desktop["mado/desktop.py: IDesktopWallpaper, display APIs"]
+    studio -- "/wallpaper/set, /save" --> engine
+    engine -- "a wallpaper waiting" --> worker["the jobs' worker, before the queue"]
+    worker -- "each part, PNG at its monitor's pixels" --> made[("data folder: wallpapers")]
+    daily["the daily change (its own thread)"] --> engine
+    made --> desktop
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/wallpaper.py` | Pure: the arrangement and its word, the gap for the bezels, where a part is cut (crop, zoom, extend), laying one across, which pictures suit a monitor, the day's picks |
+| Windows | `mado/desktop.py` | The monitors (per-monitor DPI aware, their names from DisplayConfig) and each one's wallpaper; setting it, how wallpapers are laid, the slideshow and spotlight; `Desktop`, the seam the tests fill with a fake, `NoDesktop` where there's none |
+| The studio | `mado/wallpaper.py` | Its choices; each part planned and made (by the jobs' worker); set, saved as pictures, or kept for its day; the owner's own kept and put back; the daily change; Mado's own wallpapers tidied |
+| Favourites | `mado/favourites.py` | The heart; following a picture moved or renamed; forgetting one long gone |
+| The API | `mado/api/wallpaper.py`, `mado/api/pictures.py` | `/wallpaper` and its changes; `PUT /pictures/{id}/favourite` |
+| The UI | `features/wallpaper/`, `components/heart.tsx`, `components/shell/claim.tsx` | The studio (the monitors drawn, the column's tabs, picking, saving, every day), the heart, and a page taking what's dropped or pasted for itself |
+
 ## Contracts
 
 | Between | How | Kept honest by |
@@ -265,20 +294,21 @@ Change a contract on both sides in the same commit.
 | `GET /settings`, `PUT /settings` | The owner's choices: whether Setup is done, Saving, and whether a watch folder's big batch waits for the night |
 | `GET /tools`, `POST /tools/{id}/download` | What Mado downloads (ffmpeg), its state, and fetching it |
 | `GET /backups`, `POST /backups`, `POST /backups/import`, `POST /backups/{name}/restore` | The backups, one made by hand, importing an export, restoring one as the engine starts again |
-| `GET /data`, `POST /export` | What the data folder holds, by part (pictures pasted too), and the export zip |
+| `GET /data`, `POST /export` | What the data folder holds, by part (pictures pasted and Mado's wallpapers too), and the export zip |
 | `GET /folders`, `POST /folders`, `DELETE /folders/{id}` | The library's folders, each with its counts and the folders inside it as a tree; adding one (which a scan then reads, and the watcher watches); taking one out (its pictures stay where they are) |
-| `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW, what won't open (and how many of those are marked as damaged), each folder's share |
+| `GET /library` | The library in numbers, for Home: pictures, folders, size, what's still to read, camera RAW, what won't open (and how many of those are marked as damaged), each folder's share, the favourites |
 | `GET /library/wont-open`, `POST /pictures/{id}/damaged` | The pictures that won't open, each with why, those marked as damaged left out; marking one as damaged |
 | `GET /space` | The drives the library is on, the one with the most of it first: free, the pictures, quarantine, what the queue wants there |
 | `GET /duplicates` | The groups of duplicates and bursts, a page at a time (`kind`, `offset`, `limit`; `reach`, a group the page must hold), each with its pictures, the ones kept, and whether it can be set aside now; how far looking has got; what setting every group aside would set aside and free; the latest review, when it was put back whole |
 | `PUT /duplicates/{key}/keep`, `POST /duplicates/{key}/not-same`, `POST /duplicates/aside` | Which of a group to keep, of its pictures as shown; a group not the same; setting aside the rest of groups as the review showed them (each one's pictures and kept ones), or of every group of a kind as long as none changed since (`version`, else 409), and what was left as it was and why |
 | `GET /scan` | How the latest scan went, or is going: its stage, what it found and read, time left, folders not connected, what came and went |
-| `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`), with each day on it counted whole, and a group's kept picture tagged ("burst of 5", "2 copies") |
+| `GET /pictures` | A page of pictures by the day they were taken (`folder`, `dir`, `q`, `order`, `after`, `limit`; `favourites`, only the favourites, from outside the library too), with each day on it counted whole, a group's kept picture tagged ("burst of 5", "2 copies"), and each picture's heart |
 | `GET /pictures/{id}`, `GET /pictures/{id}/neighbours` | One picture in full (from outside the library too: where it lives, pasted, in a quarantine; looked at as its file is now, 404 with why once it went; asking counts as opening it); the pictures either side of it in the list it was opened from, none for one from outside |
 | `POST /open` | Paths dropped, picked, pasted or handed over by Windows: one picture as Mado knows it, with what else came and was left out; several, or a folder, as Many at once takes them; 404 or 422, with why, when none of it is a picture |
 | `POST /pasted` | A picture from the clipboard (PNG), kept in the data folder and said as a picture outside the library; the same picture again is the one kept; 413 past 2^26 pixels (about 67 megapixels) |
 | `GET /pictures/{id}/thumbnail`, `/view`, `/full` | Its copies (WebP, or the picture itself at full size where the window shows its format), kept by the window (their addresses carry the picture's version) |
 | `POST /pictures/{id}/read` | Reads one picture again now (one that wouldn't open may have been mended) |
+| `PUT /pictures/{id}/favourite` | Gives a picture a heart, or takes it back |
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
 | `POST /pictures/{id}/select` | Parts picked with clicks on the picture as its edits so far left it: a click starts a part, an Alt-click takes from the part it's in; each part's name ("Part 1"), its answer and the outline round them all; how long reading the picture took and how long it waited for the card (409 while SAM isn't downloaded, or the picture changed) |
 | `POST /pictures/{id}/edit` | Makes the edits (the last one new) so the previews show them: how long it took, where it ran, and whether an erase came out smooth where the picture has detail |
@@ -293,7 +323,7 @@ Change a contract on both sides in the same commit.
 | `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are; not while a recipe uses it, or pictures waiting in the queue are made with it) |
 | `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | Pictures' own Saves (a picture's, or those under way; the queue's are `/queue`'s): stage, progress, time left, what they saved, why they didn't work; Cancel |
 | `GET /jobs/held`, `POST /jobs/{id}/try-now`, `POST /jobs/{id}/skip` | The pictures waiting while they're open in another app, the queue's and Saves'; trying one again now; skipping one |
-| `POST /batches/pictures` | The pictures a batch would be made of: ticked (`ids`), a folder's (`folder`, `dir`), what a search found (`q`), or the pictures in files and folders dropped or picked (`paths`), with those left out and why |
+| `POST /batches/pictures` | The pictures a batch would be made of: ticked (`ids`), a folder's (`folder`, `dir`), what a search found (`q`), the favourites (with `q`, those it found among them), or the pictures in files and folders dropped or picked (`paths`), with those left out and why |
 | `POST /batches/takes` | What a batch would take: about how long, how much space and what's free where it's saved, by this PC's speeds and what See it first found; its steps in words, where its pictures go, a name they'd take, and the downloads it waits for |
 | `POST /batches/samples`, `GET /batches/samples/{id}`, `DELETE /batches/samples/{id}`, `GET /batches/samples/{id}/{index}/{side}` | See it first: three pictures made in full, not saved (`round` asks for three others); how they're coming on; letting them go; each one before and after (WebP) or as made |
 | `POST /batches`, `GET /batches/done`, `POST /batches/{id}/seen` | Putting a batch in the queue (now, after what's in it, or tonight), See it first's pictures kept; the batches done that Home tells of; Home's card for one seen |
@@ -306,13 +336,20 @@ Change a contract on both sides in the same commit.
 | `POST /history/reviews/{id}/undo` | Every picture a review of duplicates and bursts set aside put back, each where it was |
 | `GET /quarantine`, `POST /quarantine/empty` | What waits in quarantine on each drive; emptying one now |
 | `GET /pc`, `POST /pc/test` | This PC: its card, processor and memory, where the models run (and each editing model now), each kind at each quality with its time, what each starts on; testing it again |
+| `GET /wallpaper`, `PUT /wallpaper` | The studio: the monitors as Windows arranges them, the pictures chosen and where they're cut, each part as it'll be made, the latest set or saved, the owner's own and the daily change; one for each or one across all, and the gap |
+| `PUT /wallpaper/pictures`, `DELETE /wallpaper/pictures` | A monitor's picture (or the one across all), its shape, where it's cut, Fast or Best; letting it go |
+| `POST /wallpaper/set`, `POST /wallpaper/save`, `POST /wallpaper/cancel` | The parts made and set as Windows' wallpaper (the owner's own kept first), or saved as pictures into a folder picked; the one being made stopped |
+| `POST /wallpaper/put-back`, `PUT /wallpaper/daily` | The owner's own wallpaper back, every monitor or one; the daily change's choices |
+| `GET /wallpaper/monitors/{key}/wallpaper` | What Windows shows on a monitor now, small (WebP) |
 | `GET /records`, `POST /records/restore`, `POST /records/new` | Records damaged past use, and the two ways back |
 
 ## Data
 
 - **The data folder**, `%LOCALAPPDATA%\Mado`: `mado.db` (everything Mado knows), `logs/`
   (`engine.log`, kept 30 days), `tools/` (ffmpeg, and the AI models fetched when asked), `pasted/`
-  (pictures pasted from the clipboard, till a month after last opened), `cache/` (the pictures'
+  (pictures pasted from the clipboard, till a month after last opened), `wallpapers/` (the
+  wallpapers Mado made, those showing and the last 3 days', and its copy of the owner's own),
+  `cache/` (the pictures'
   thumbnails and views, the last few full-size copies, and each edit's mask in `cache/edits`, by
   picture and version, let go after a month unedited: anything in it can go, a mask made again from
   its clicks), and `backups/` (the last 7 nights, each checked as it's made, and apart from them the
@@ -336,7 +373,7 @@ Change a contract on both sides in the same commit.
   into one.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
-  picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), History (`history.csv`, with what each picture was made for and with, what was edited, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), and a manifest. It grows with the
+  picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), History (`history.csv`, with what each picture was made for and with, what was edited, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

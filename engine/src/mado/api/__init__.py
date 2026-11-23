@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from mado import __version__, db, hardware, watching
+from mado import __version__, db, favourites, hardware, watching
 from mado.ai import Ai
 from mado.api import (
     backups,
@@ -45,11 +45,13 @@ from mado.api import (
 )
 from mado.api import batches as batches_api
 from mado.api import recipes as recipes_api
+from mado.api import wallpaper as wallpaper_api
 from mado.backups import restore_asked
 from mado.batches import Picture
 from mado.care import Care
 from mado.config import DataPaths
 from mado.core.models import BEST_PHOTO
+from mado.desktop import Desktop, NoDesktop
 from mado.directml import Sessions
 from mado.duplicates import Finder
 from mado.editing import Editor
@@ -66,6 +68,7 @@ from mado.samples import Samples
 from mado.scan import Scanner
 from mado.system import own_command
 from mado.tools import Tools
+from mado.wallpaper import Studio
 from mado.watch import Watcher
 from mado.watching import Watch, WatchFolders
 
@@ -124,12 +127,15 @@ def create_app(
     quarantine: Quarantine | None = None,
     here: Callable[[], Here] | None = None,
     check: Check | None = None,
+    desktop: Desktop | None = None,
 ) -> FastAPI:
     """The API, with its parts. Tests pass their own tools, ffmpeg, quarantine (one of their own
-    rather than the drive's), where the AI models run (the processor) and PC check. `work` looks
-    after Mado in the background while the engine runs (mado/care.py) and checks this PC, and
-    `watch` keeps the library current (mado/watch.py): `mado serve` turns both on, and passes
-    `notify`, which tells the app what's worth a notification."""
+    rather than the drive's), where the AI models run (the processor), PC check and desktop (a
+    fake: only `mado serve` hands the studio Windows' own, so no test touches the owner's
+    wallpaper). `work` looks after Mado in the background while the engine runs (mado/care.py,
+    the daily wallpaper) and checks this PC, and `watch` keeps the library current
+    (mado/watch.py): `mado serve` turns both on, and passes `notify`, which tells the app what's
+    worth a notification."""
     expected = token.encode()
 
     def require_token(
@@ -174,8 +180,10 @@ def create_app(
         finder: Finder = running.state.finder
         finder.start()  # groups what was looked at before, then looks at what's new
         making_: Jobs = running.state.jobs
+        studio: Studio = running.state.wallpaper
         with closing(db.connect(paths.database)) as conn:
             running.state.samples.tidy(conn)  # what an earlier run left in the cache goes
+            studio.recover(conn)  # a wallpaper a stop cut short is made again
         running.state.editor.tidy()  # the masks of pictures not edited for a month go
         making_.start()  # a job Mado's closing cut short starts again, and batches carry on
         folders = WatchFolders(paths, take, now=_now) if watch else None
@@ -184,10 +192,12 @@ def create_app(
             folders.start()  # takes what arrived while Mado was closed, then looks every few s
         if work:
             care.start()  # tonight's backup, and the daily clear-out of the quarantine
+            studio.start()  # the daily wallpaper, and Mado's own wallpapers tidied
             running.state.pc.refresh()  # what this PC can do, checked when it needs to be
         yield
         if work:
             care.stop()
+            studio.stop()
         if folders is not None:
             folders.stop()
         making_.stop()  # after the tile it's on
@@ -214,7 +224,18 @@ def create_app(
         ffmpeg or (lambda: app.state.tools.path("ffmpeg")),
         now=_now,
     )
-    app.state.scanner = Scanner(paths, app.state.previews, ended=app.state.finder.wake)
+
+    def scan_ended() -> None:
+        """A scan ended: favourites follow pictures it found moved or renamed, and what it read
+        is looked at for duplicates."""
+        try:
+            with closing(db.connect(paths.database)) as conn:
+                favourites.follow(conn)
+        except sqlite3.Error:
+            log.exception("Mado couldn't look for favourites that moved")
+        app.state.finder.wake()
+
+    app.state.scanner = Scanner(paths, app.state.previews, ended=scan_ended)
     app.state.watcher = None  # set while it watches
     app.state.quarantine = quarantine or Quarantine()
     app.state.care = Care(
@@ -249,7 +270,22 @@ def create_app(
     app.state.samples = Samples(
         paths, app.state.ai, decoder, wake=app.state.jobs.wake, editor=app.state.editor
     )
-    app.state.jobs.before_the_queue(app.state.samples)
+    # The wallpaper studio: its wallpapers made by the jobs' worker after See it first's.
+    app.state.wallpaper = Studio(
+        paths.wallpapers,
+        desktop or NoDesktop(),
+        app.state.ai,
+        app.state.sight,
+        app.state.quarantine,
+        database=paths.database,
+        wake=app.state.jobs.wake,
+        now=_now,
+    )
+
+    def first(stop: Callable[[], bool]) -> bool:
+        return app.state.samples(stop) or app.state.wallpaper(stop)
+
+    app.state.jobs.before_the_queue(first)
     app.state.watch_folders = None  # set while it watches
 
     def take(conn: sqlite3.Connection, folder: Watch, found: list[Picture]) -> None:
@@ -291,6 +327,7 @@ def create_app(
         queue,
         recipes_api,
         duplicates,
+        wallpaper_api,
         history,
         pc,
         data,

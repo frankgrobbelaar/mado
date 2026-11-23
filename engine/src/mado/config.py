@@ -36,6 +36,11 @@ class DataPaths:
         return self.root / "pasted"
 
     @property
+    def wallpapers(self) -> Path:
+        """The wallpapers Mado made and set, and its copy of the owner's own (mado/wallpaper.py)."""
+        return self.root / "wallpapers"
+
+    @property
     def tools(self) -> Path:
         """What Mado downloads to work with, such as ffmpeg (see downloads.json)."""
         return self.root / "tools"

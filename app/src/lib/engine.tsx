@@ -300,6 +300,8 @@ export interface DataSizes {
   tools: number;
   /** Pictures pasted from the clipboard, kept till they're saved. */
   pasted: number;
+  /** The wallpapers Mado made and set, and its copy of the owner's own. */
+  wallpapers: number;
 }
 
 export const useDataSizes = () => useEngineQuery<DataSizes>("/data");
@@ -390,6 +392,8 @@ export interface Library {
   damaged: number;
   /** Each library folder's pictures, in the order they were added. */
   parts: { folderId: number; name: string; pictures: number }[];
+  /** Pictures given a heart and there now, from outside the library too. */
+  favourites: number;
 }
 
 export type ScanState = "idle" | "running" | "done" | "failed" | "stopped";
@@ -437,6 +441,10 @@ export interface PictureItem {
   version: string;
   /** In the grid, a group's kept picture: "burst of 5", "2 copies". */
   group: GroupTag | null;
+  /** The owner gave it a heart. */
+  favourite: boolean;
+  /** Opened from outside the library: dropped, picked, pasted, from File Explorer. */
+  outside: boolean;
 }
 
 /** A group of duplicates or a burst, on the tile of a picture kept from it. */
@@ -478,8 +486,6 @@ export interface PictureDetails extends PictureItem {
   problem: string | null;
   /** The owner marked it as damaged: not asked about again till its file changes. */
   damaged: boolean;
-  /** Opened from outside the library: dropped, picked, pasted, from File Explorer. */
-  outside: boolean;
   /** Pasted from the clipboard, kept in Mado's data folder till it's saved. */
   pasted: boolean;
   /** It waits in a quarantine: opened to look at only. */
@@ -503,17 +509,19 @@ export interface Neighbours {
 export type Order = "newest" | "oldest";
 
 /** Which pictures a list shows: a library folder (and a folder inside it), every word of a
- * search, and the order. */
+ * search, the order, and only the favourites (from outside the library too). */
 export interface Shown {
   folder: number | null;
   dir: string;
   q: string;
   order: Order;
+  favourites: boolean;
 }
 
 /** A list's address's query: "folder=3&dir=2026&order=oldest", leaving out what's as usual. */
 export function shownQuery(shown: Shown): string {
   const query = new URLSearchParams();
+  if (shown.favourites) query.set("favourites", "1");
   if (shown.folder !== null) query.set("folder", String(shown.folder));
   if (shown.folder !== null && shown.dir) query.set("dir", shown.dir);
   if (shown.q.trim()) query.set("q", shown.q.trim());
@@ -529,6 +537,7 @@ export function shownFrom(query: URLSearchParams): Shown {
     dir: query.get("dir") ?? "",
     q: query.get("q") ?? "",
     order: query.get("order") === "oldest" ? "oldest" : "newest",
+    favourites: query.get("favourites") === "1",
   };
 }
 
@@ -608,6 +617,11 @@ export function useNeighbours(id: number, shown: Shown) {
 
 /** Reads a picture again now: `read.mutate({ path: "/pictures/7/read" })`. */
 export const useReadAgain = () => useEngineAction<PictureDetails>(LIBRARY);
+
+/** Gives a picture a heart, or takes it back:
+ * `heart.mutate({ path: "/pictures/7/favourite", body: { favourite: true } })`. */
+export const useSetFavourite = () =>
+  useEngineAction<PictureDetails>([...LIBRARY, "/wallpaper"], "PUT");
 
 /** A picture's copy the window shows: its thumbnail, its view the size of a screen, or itself at
  * full size. The address carries its version, so a picture that changes is shown anew. */
@@ -1410,7 +1424,7 @@ export interface BatchSaving {
 
 /** Which pictures a batch is made of. */
 export interface Pick {
-  how: "ticked" | "folder" | "search" | "dropped" | "picked" | "pasted" | "opened";
+  how: "ticked" | "folder" | "search" | "favourites" | "dropped" | "picked" | "pasted" | "opened";
   ids?: number[];
   paths?: string[];
   folder?: number | null;
@@ -1973,3 +1987,230 @@ export const useHeldJobs = () =>
   useEngineQuery<Held[]>("/jobs/held", (held) => (held?.length ? 2000 : 5000));
 /** Tries one again now (`/jobs/3/try-now`) or skips it (`/jobs/3/skip`). */
 export const useHeldAction = () => useEngineAction<void>(["/jobs", "/queue", "/batches/done"]);
+
+// The wallpaper studio (features/wallpaper/): the owner's monitors as Windows arranges them, the
+// picture each has (or one across all), each part as it'll be made, and the daily change.
+
+export type Layout = "each" | "across";
+
+/** Where a monitor sits with the gap for its bezels, in pixels. */
+export interface MonitorPlace {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Monitor {
+  /** A short name for it that stays the same. */
+  key: string;
+  /** Its own name ("Studio 27"), or "Screen 2". */
+  name: string;
+  /** Windows' number for it. */
+  number: number;
+  /** In Windows' arrangement, in its pixels. */
+  x: number;
+  y: number;
+  /** Its pixels, as it's turned. */
+  width: number;
+  height: number;
+  /** Windows' scale for it: 1.25 for 125%. */
+  scale: number;
+  /** 0, 90, 180 or 270. */
+  rotation: number;
+  main: boolean;
+  /** Where it sits with the gap for the bezels: one across all lays a picture here. */
+  place: MonitorPlace;
+  /** The file Windows says it shows. */
+  wallpaper: string | null;
+  /** That's one of Mado's wallpapers. */
+  mine: boolean;
+  /** Its wallpaper can be shown: the file is there. */
+  shown: boolean;
+  /** The wallpaper file's, which its thumbnail's address carries. */
+  version: string | null;
+}
+
+export interface ChosenPicture {
+  id: number;
+  name: string;
+  path: string;
+  width: number | null;
+  height: number | null;
+  version: string;
+  /** From outside the library. */
+  outside: boolean;
+  /** Where Mado found its subject, as fractions; null till it's seen. */
+  focus: { x: number; y: number } | null;
+}
+
+export interface PictureChoice {
+  /** Its monitor's key; null for the one across all. */
+  monitor: string | null;
+  picture: ChosenPicture;
+  shape: Shape;
+  /** The part's middle as fractions; null around its subject. */
+  x: number | null;
+  y: number | null;
+  /** 1: the biggest part with the monitor's shape; up to 4. */
+  zoom: number;
+  /** Null as this PC suits. */
+  quality: Quality | null;
+  /** Its monitor is connected now (one across all: always). */
+  connected: boolean;
+  /** Why Mado can't make a wallpaper from it (it won't open), in words. */
+  problem: string | null;
+}
+
+/** A part of the picture, as fractions of it: past 0 and 1 where its edges are drawn. */
+export interface Area {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface PartPlan {
+  /** Its monitor's key. */
+  monitor: string;
+  picture: number;
+  /** Exactly its monitor's pixels. */
+  width: number;
+  height: number;
+  area: Area;
+  /** How many times bigger it's made from the picture. */
+  scale: number;
+  method: "ai" | "pixels" | "smooth" | "shrink" | "keep";
+  quality: Quality;
+  /** "Made with the photo model, guessed from the picture." */
+  how: string;
+  /** What it can't make look real. */
+  warning: string | null;
+  /** Downloads it waits for. */
+  needs: string[];
+}
+
+/** A wallpaper Mado makes, or made. */
+export interface Making {
+  id: number;
+  purpose: "set" | "save" | "daily";
+  state: "waiting" | "making" | "ready" | "set" | "saved" | "failed" | "cancelled";
+  /** 0 to 1. */
+  progress: number;
+  /** By the pace so far; null till it's far enough along to say. */
+  secondsLeft: number | null;
+  problem: string | null;
+  setAt: string | null;
+  /** The pictures a Save wrote. */
+  saved: string[];
+}
+
+export interface YourWallpaper {
+  /** Its monitor's key. */
+  monitor: string;
+  /** The monitor's name then. */
+  name: string;
+  /** Their own file; null for a colour, no picture. */
+  path: string | null;
+  /** Their file, or Mado's copy of it, is there to put back. */
+  there: boolean;
+}
+
+/** Mado's record of the owner's own wallpaper, from before it set one. */
+export interface Yours {
+  kept: YourWallpaper[];
+  /** Windows' slideshow was on: putting back starts it again. */
+  slideshow: boolean;
+  /** Windows spotlight was on: only Windows turns it on again. */
+  spotlight: boolean;
+  /** One of Mado's wallpapers is on a monitor now. */
+  showingMine: boolean;
+}
+
+export interface DailyState {
+  on: boolean;
+  /** "07:00" */
+  at: string;
+  layout: Layout;
+  /** A library folder's pictures; null for the favourites. */
+  folder: number | null;
+  /** When it next changes the wallpaper, local time. */
+  next: string | null;
+  /** That change's wallpaper is made already. */
+  ready: boolean;
+  /** Pictures it can show. */
+  candidates: number;
+  /** Not there now: gone, moved since, or on a drive that isn't connected. */
+  skipped: number;
+  /** The day it last made its change. */
+  changedOn: string | null;
+  /** Why it couldn't, that day. */
+  problem: string | null;
+}
+
+export interface StudioState {
+  /** Windows lets Mado set wallpapers here. */
+  desktop: boolean;
+  /** Why Windows didn't say what monitors there are. */
+  problem: string | null;
+  /** The main one first. */
+  monitors: Monitor[];
+  /** Changes once a monitor's pixels, place or turn do. */
+  arrangement: string;
+  layout: Layout;
+  /** Pixels left between monitors for their bezels, one across all. */
+  gap: number;
+  /** The monitors laid out (one across all: with the gap). */
+  width: number;
+  height: number;
+  choices: PictureChoice[];
+  parts: PartPlan[];
+  /** The latest wallpaper set or saved from the studio. */
+  making: Making | null;
+  /** Windows' slideshow is on now: Mado's wallpaper turns it off. */
+  slideshow: boolean;
+  /** Windows spotlight is on now: Mado's wallpaper turns it off. */
+  spotlight: boolean;
+  yours: Yours;
+  daily: DailyState;
+  /** Bytes Mado's own wallpapers take. */
+  kept: number;
+}
+
+export interface YoursBack {
+  studio: StudioState;
+  /** What couldn't be put back, and how the owner can. */
+  told: string[];
+}
+
+const WALLPAPER = ["/wallpaper"];
+const busyWallpaper = (state: StudioState | undefined) =>
+  state?.making?.state === "waiting" || state?.making?.state === "making";
+
+/** The studio, asked again every few seconds so a monitor plugged in or out, or changed, shows
+ * soon; every second while a wallpaper is being made. */
+export const useStudio = () =>
+  useEngineQuery<StudioState>(WALLPAPER[0] ?? "/wallpaper", (state) =>
+    busyWallpaper(state) ? 1000 : 4000,
+  );
+/** One for each or one across all, and the gap: `arrange.mutate({ path: "/wallpaper", body })`. */
+export const useArrange = () => useEngineAction<StudioState>(WALLPAPER, "PUT");
+/** A monitor's picture (`monitor` null: one across all), where it's cut, Fast or Best. */
+export const useChooseWallpaper = () => useEngineAction<StudioState>(WALLPAPER, "PUT");
+/** A monitor's picture let go: `/wallpaper/pictures?monitor=key` (none: the one across all). */
+export const useLetGoOfWallpaper = () => useEngineAction<StudioState>(WALLPAPER, "DELETE");
+/** Makes the parts and sets them: `/wallpaper/set`. */
+export const useSetWallpaper = () => useEngineAction<StudioState>(WALLPAPER);
+/** Stops the wallpaper being made to set or save: `/wallpaper/cancel`. */
+export const useCancelWallpaper = () => useEngineAction<StudioState>(WALLPAPER);
+/** Makes the parts and saves them as pictures: `/wallpaper/save`. */
+export const useSaveWallpaper = () =>
+  useEngineAction<StudioState>([...WALLPAPER, "/history", "/pictures"]);
+/** The owner's own wallpaper back: `/wallpaper/put-back`, every monitor or one. */
+export const usePutBack = () => useEngineAction<YoursBack>(WALLPAPER);
+/** The daily change's choices: `/wallpaper/daily`. */
+export const useDaily = () => useEngineAction<StudioState>(WALLPAPER, "PUT");
+
+/** What Windows shows on a monitor now, small; its address carries the file's version. */
+export const monitorWallpaperAddress = (monitor: Monitor) =>
+  `/wallpaper/monitors/${monitor.key}/wallpaper?v=${encodeURIComponent(monitor.version ?? "")}`;

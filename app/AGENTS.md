@@ -13,7 +13,12 @@ or handed over by Windows (`components/shell/opening.tsx`, `features/batch/open.
 at the window's foot)), Setup (Tools, which can be left while ffmpeg downloads, with This PC; then
 Your folders), Home (the library in numbers, Drop pictures here with Pick pictures and Pick a
 folder, Needs you with duplicates and bursts to review, the pictures that won't open in a card, and
-a batch done, Space on the drives, Made today, Add a folder), the review of duplicates and bursts
+a batch done, Space on the drives, Made today, Add a folder), the wallpaper studio
+(`features/wallpaper/`: the monitors drawn as Windows arranges them, a picture for each or one
+across all, cut by dragging and zooming, This wallpaper and Every day, picking, saving as pictures,
+putting back; it takes what's dropped or pasted through `components/shell/claim.tsx`), favourites
+(the heart, `components/heart.tsx`, on a picture's page and its tile; the Library's Favourites),
+the review of duplicates and bursts
 (`features/duplicates/`: the groups, keeping another or more than one, Not the same, setting the
 rest aside, a picture big beside the one kept), the Library (the folders as a tree, the pictures by
 the day they were taken, ticks, and Many at once from the ticks, a folder's menu or a search), Many

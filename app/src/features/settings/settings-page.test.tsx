@@ -27,6 +27,7 @@ const DATA: DataSizes = {
   backups: 0,
   tools: 180_000_000,
   pasted: 0,
+  wallpapers: 0,
 };
 
 /** A local time `daysAgo` days back, as the engine writes a backup's: "2026-11-22T03:00". */
@@ -195,6 +196,18 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("Pasted")).toBeInTheDocument();
     expect(screen.getByText("24 MB")).toBeInTheDocument();
     expect(screen.getByText("a month after last opened")).toBeInTheDocument();
+  });
+
+  it("shows Mado's wallpapers as a part of the data folder once there are some", async () => {
+    fakeEngine({
+      "/data": { ...DATA, wallpapers: 31_000_000 },
+      "/backups": { backups: [], restored: null },
+    });
+    renderSettings("data");
+
+    expect(await screen.findByText("Wallpapers")).toBeInTheDocument();
+    expect(screen.getByText("31 MB")).toBeInTheDocument();
+    expect(screen.getByText("showing now and the last 3 days'")).toBeInTheDocument();
   });
 
   it("opens the data folder in Explorer", async () => {

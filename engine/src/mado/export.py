@@ -21,8 +21,8 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
     settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
     each), History as CSV (each picture made, replaced, taken away or set aside, and what waits
     in quarantine), the owner's looks (listed in JSON, each a .cube file any app opens), their
-    recipes and watch folders as JSON, what they decided of duplicates and bursts as JSON, and a
-    manifest saying which Mado wrote it.
+    recipes and watch folders as JSON, what they decided of duplicates and bursts as JSON, their
+    favourites and the wallpaper studio as JSON, and a manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -49,6 +49,8 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             kept_recipes = _recipes(source)
             watch_folders = _watch_folders(source)
             duplicates = _duplicates(source)
+            favourite = _favourites(source)
+            studio = _studio(source)
             schema_version = db.schema_version(source)
 
         manifest = {
@@ -69,8 +71,61 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             archive.writestr("recipes.json", json.dumps(kept_recipes, indent=2))
             archive.writestr("watch-folders.json", json.dumps(watch_folders, indent=2))
             archive.writestr("duplicates.json", json.dumps(duplicates, indent=2))
+            archive.writestr("favourites.json", json.dumps(favourite, indent=2))
+            archive.writestr("wallpaper.json", json.dumps(studio, indent=2))
             archive.writestr("manifest.json", json.dumps(manifest, indent=2))
     return target
+
+
+def _favourites(conn: sqlite3.Connection) -> list[dict[str, object]]:
+    """The owner's favourites, by their pictures' paths, with when each was given its heart."""
+    return [
+        {"path": row["path"], "at": row["at"]}
+        for row in conn.execute(
+            """SELECT p.path, f.at FROM favourites AS f
+               JOIN pictures AS p ON p.id = f.picture_id ORDER BY f.at, p.path"""
+        )
+    ]
+
+
+def _studio(conn: sqlite3.Connection) -> dict[str, object]:
+    """The wallpaper studio: its layout and gap, the daily change, each monitor's picture by its
+    path and where it's cut, and Mado's record of the owner's own wallpaper."""
+    row = conn.execute(
+        """SELECT s.*, f.path AS folder FROM studio AS s
+           LEFT JOIN folders AS f ON f.id = s.daily_folder"""
+    ).fetchone()
+    chosen = [
+        {
+            "monitor": each["monitor"],
+            "path": each["path"],
+            "shape": each["shape"],
+            "x": each["x"],
+            "y": each["y"],
+            "zoom": each["zoom"],
+            "quality": each["quality"],
+        }
+        for each in conn.execute(
+            """SELECT c.*, p.path FROM studio_pictures AS c
+               JOIN pictures AS p ON p.id = c.picture_id ORDER BY c.monitor"""
+        )
+    ]
+    yours = [
+        {"monitor": each["monitor"], "name": each["name"], "path": each["path"], "at": each["at"]}
+        for each in conn.execute("SELECT * FROM desktop_yours ORDER BY monitor")
+    ]
+    return {
+        "layout": row["layout"] if row else "each",
+        "gap": row["gap"] if row else 0,
+        "daily": {
+            "on": bool(row["daily"]) if row else False,
+            "at": row["daily_at"] if row else "07:00",
+            "layout": row["daily_layout"] if row else "each",
+            "folder": row["folder"] if row else None,
+        },
+        "pictures": chosen,
+        "yourWallpaper": yours,
+    }
 
 
 def _duplicates(conn: sqlite3.Connection) -> dict[str, object]:

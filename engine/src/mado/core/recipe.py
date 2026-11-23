@@ -30,7 +30,7 @@ from mado.core.touches import NONE, Touches
 
 type Method = Literal["ai", "pixels", "smooth", "shrink", "keep"]
 
-_PAINTED = 6.0  # this many times bigger or more, from the part kept, looks painted
+PAINTED = 6.0  # this many times bigger or more, from the part kept, looks painted
 
 
 @dataclass(frozen=True)
@@ -148,17 +148,7 @@ def plan(
     focus = sizing.focus or found_focus
     made = frame(width, height, *target, sizing.shape, focus)
     scale = target[0] / made.canvas.width
-    method: Method
-    model: Model | None = None
-    if scale <= 1.0:
-        method = "shrink"
-    elif kind == "pixels":
-        method = "pixels"
-    elif kind == "screenshot":
-        method = "smooth"
-    else:
-        method = "ai"
-        model = model_for(kind, quality, sizing.clean)
+    method, model = way(scale, kind, quality, sizing.clean)
     named = ", ".join(each for each in (edited, sizing.size.label, looks_as) if each)
     return Plan(
         width=target[0],
@@ -173,8 +163,8 @@ def plan(
         method=method,
         model=model,
         scale=scale,
-        how=_how(method, kind, sizing.kind is None),
-        warning=_warning(method, scale, width, height),
+        how=how(method, kind, sizing.kind is None),
+        warning=warning(method, scale, width, height),
         made_for=sizing.size.label,
         styling=styling,
         look=look,
@@ -191,7 +181,22 @@ def _phrase(size: Size) -> str:
     return size_phrase(size.purpose, size.name)
 
 
-def _how(method: Method, kind: Kind, guessed: bool) -> str:
+def way(scale: float, kind: Kind, quality: Quality, clean: bool) -> tuple[Method, Model | None]:
+    """How a picture is made `scale` times bigger, and the model when it's the AI's: only made
+    smaller when it's big enough already; pixel art by repeating its pixels; a screenshot
+    smoothly; anything else through the model its kind and quality suit."""
+    if scale <= 1.0:
+        return "shrink", None
+    if kind == "pixels":
+        return "pixels", None
+    if kind == "screenshot":
+        return "smooth", None
+    return "ai", model_for(kind, quality, clean)
+
+
+def how(method: Method, kind: Kind, guessed: bool) -> str:
+    """What making it bigger does, in a sentence: "Made with the photo model, guessed from the
+    picture."."""
     said = ", guessed from the picture" if guessed else ""
     match method:
         case "shrink":
@@ -207,8 +212,10 @@ def _how(method: Method, kind: Kind, guessed: bool) -> str:
             return ""
 
 
-def _warning(method: Method, scale: float, width: int, height: int) -> str | None:
-    if method != "ai" or scale < _PAINTED:
+def warning(method: Method, scale: float, width: int, height: int) -> str | None:
+    """What a `width` by `height` picture made `scale` times bigger can't make look real: beyond
+    `PAINTED` times, the AI can't find the detail, so it looks painted."""
+    if method != "ai" or scale < PAINTED:
         return None
     times = round(scale)
     return (

@@ -6,9 +6,9 @@ opened from File Explorer, Open with or the command line), known by its path.
 - Any other is a picture outside the library: never listed in the Library, never counted, never
   looked at for duplicates. Its folder added to the library later, the scan makes it the
   library's, keeping its number, so its jobs stay its own (History goes by its path).
-- One not opened for a month is forgotten, with its copies in the cache, unless the queue or
-  History still needs it; a pasted one (mado/pasting.py) is deleted then too, as it's Mado's own
-  file, in its data folder.
+- One not opened for a month is forgotten, with its copies in the cache, unless it's a
+  favourite or the queue or History still needs it; a pasted one (mado/pasting.py) is deleted
+  then too, as it's Mado's own file, in its data folder.
 """
 
 import logging
@@ -186,8 +186,16 @@ def _read(conn: sqlite3.Connection, picture_id: int, path: Path, now: datetime) 
 
 
 def _needed(conn: sqlite3.Connection, picture_id: int, path: str, cutoff: datetime) -> bool:
-    """Whether the queue or History still needs a picture: a job waiting to make it, or a line
-    of History naming it that's recent, or with something of it still in quarantine."""
+    """Whether the owner, the queue or History still needs a picture: it's a favourite or the
+    wallpaper studio's choice, a job waits to make it, or a line of History naming it is recent
+    or has something of it still in quarantine."""
+    loved = conn.execute(
+        """SELECT 1 FROM favourites WHERE picture_id = ?
+           UNION ALL SELECT 1 FROM studio_pictures WHERE picture_id = ?""",
+        (picture_id, picture_id),
+    ).fetchone()
+    if loved is not None:
+        return True
     waiting = conn.execute(
         """SELECT 1 FROM jobs WHERE state IN ('queued', 'running')
              AND (picture_id = ? OR source = ? COLLATE NOCASE) LIMIT 1""",

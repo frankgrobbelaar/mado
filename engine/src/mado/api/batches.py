@@ -25,7 +25,9 @@ from mado.samples import SampleSet
 
 router = APIRouter()
 
-type How = Literal["ticked", "folder", "search", "dropped", "picked", "pasted", "opened"]
+type How = Literal[
+    "ticked", "folder", "search", "favourites", "dropped", "picked", "pasted", "opened"
+]
 _DONE_DAYS = 7  # how long Home tells of a batch done
 
 
@@ -69,8 +71,8 @@ class BatchSaving(ApiModel):
 
 class PickIn(ApiModel):
     """Which pictures: ticked (`ids`), a folder (`folder`, `dir`), what a search found (`search`,
-    with `q`), or files and folders dropped, picked, pasted, or opened from File Explorer
-    (`paths`)."""
+    with `q`), the favourites (with `q`, those a search found among them), or files and folders
+    dropped, picked, pasted, or opened from File Explorer (`paths`)."""
 
     how: How
     ids: Annotated[list[int], Field(default_factory=list[int], max_length=batches.MOST)]
@@ -222,6 +224,8 @@ def pictures(body: PickIn, conn: Database) -> Picked:
             found = batches.from_folder(conn, body.folder, body.dir)
         case "search":
             found = batches.from_search(conn, body.folder, body.dir, body.q)
+        case "favourites":
+            found = batches.from_favourites(conn, body.q)
         case "dropped" | "picked" | "pasted" | "opened":
             found = batches.from_paths(conn, body.paths, body.how)
     return picked_out(found)

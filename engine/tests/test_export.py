@@ -45,6 +45,7 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
     with zipfile.ZipFile(expected) as zipped:
         assert sorted(zipped.namelist()) == [
             "duplicates.json",
+            "favourites.json",
             "folders.json",
             "history.csv",
             "looks.json",
@@ -53,9 +54,13 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
             "pictures.csv",
             "recipes.json",
             "settings.json",
+            "wallpaper.json",
             "watch-folders.json",
         ]
         assert json.loads(zipped.read("looks.json")) == []
+        assert json.loads(zipped.read("favourites.json")) == []
+        studio = json.loads(zipped.read("wallpaper.json"))
+        assert (studio["layout"], studio["daily"]["on"], studio["pictures"]) == ("each", False, [])
         assert json.loads(zipped.read("recipes.json")) == []
         assert json.loads(zipped.read("settings.json")) == {"set_up": True}
         assert json.loads(zipped.read("manifest.json")) == {

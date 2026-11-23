@@ -11,7 +11,7 @@ import os
 import shutil
 import sqlite3
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 from typing import Literal, cast
@@ -51,7 +51,9 @@ from mado.previews import version
 
 log = logging.getLogger(__name__)
 
-type How = Literal["ticked", "folder", "search", "dropped", "picked", "pasted", "opened"]
+type How = Literal[
+    "ticked", "folder", "search", "favourites", "dropped", "picked", "pasted", "opened"
+]
 
 MOST = 10_000  # pictures a batch holds at most
 _WALKED = 50_000  # files looked at in folders dropped, at most
@@ -127,6 +129,37 @@ def from_search(conn: sqlite3.Connection, folder_id: int | None, inside: str, wo
     found = f"found by “{words.strip()}”" + (f" in {where}" if where else "")
     picked = _picked(rows, "search", where)
     return Picked(picked.pictures, picked.source, picked.shared, found, picked.left_out)
+
+
+def from_favourites(conn: sqlite3.Connection, words: str = "") -> Picked:
+    """The owner's favourites, in the library or from outside it, newest first; with `words`,
+    those with every word in the name."""
+    clause = "p.id IN (SELECT picture_id FROM favourites)"
+    values: list[object] = []
+    for word in words.split():
+        clause += " AND p.name LIKE ? ESCAPE '\\'"
+        escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        values.append(f"%{escaped}%")
+    rows = conn.execute(
+        f"""SELECT p.id, p.path, p.name, p.size, p.width, p.height, p.modified, p.raw,
+                   p.problem, p.read_at, p.dir, p.folder_id
+            FROM pictures AS p WHERE p.gone_at IS NULL AND {clause}
+            ORDER BY p.taken_at DESC, p.id DESC""",  # noqa: S608 - built of fixed pieces
+        values,
+    ).fetchall()
+    pictures: list[Picture] = []
+    left: list[tuple[str, str]] = []
+    for row in rows:
+        found = _from_row(row)
+        if found is None:
+            left.append((row["name"], _why(row)))
+        elif row["folder_id"] is None:  # from outside the library: known by its path alone
+            pictures.append(replace(found, id=None))
+        else:
+            pictures.append(found)
+    shared = _shared([picture.path for picture in pictures])
+    said = f"found by “{words.strip()}” in your favourites" if words.strip() else "your favourites"
+    return Picked(_most(pictures, left), "Favourites", str(shared) if shared else None, said, left)
 
 
 def from_paths(conn: sqlite3.Connection, paths: Sequence[str], how: How) -> Picked:

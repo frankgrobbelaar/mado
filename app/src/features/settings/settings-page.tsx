@@ -168,6 +168,13 @@ const PARTS: {
     color: "bg-fg-faint",
     some: true,
   },
+  {
+    key: "wallpapers",
+    label: "Wallpapers",
+    note: "showing now and the last 3 days'",
+    color: "bg-dash",
+    some: true,
+  },
 ];
 
 function YourData() {

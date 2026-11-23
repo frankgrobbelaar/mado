@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpeningNote } from "@/features/batch/open";
 import { EngineProvider } from "@/lib/engine";
 import { fakeEngine, outsidePicture, PICKED, PICTURES, pictureDetails, READY } from "@/test/engine";
+import { ClaimProvider, type Taken, useClaim } from "./claim";
 import { Opening, OpeningNotice, pathsIn } from "./opening";
 
 type Dropped = { payload: { type: string; paths?: string[] } };
@@ -42,21 +43,36 @@ function Where() {
   return <p data-testid="where">{`${location.pathname} ${JSON.stringify(location.state)}`}</p>;
 }
 
-function Shell() {
+/** A page that takes what's dropped or pasted for itself, as the wallpaper studio does. */
+function Taker({ taken }: { taken: (picture: Taken) => void }) {
+  useClaim({
+    take: taken,
+    title: "Drop it on Studio 27",
+    body: "One picture, made at exactly its pixels.",
+  });
+  return null;
+}
+
+function Shell({ taken }: { taken?: (picture: Taken) => void }) {
   const [note, setNote] = useState<OpeningNote | null>(null);
   return (
-    <>
+    <ClaimProvider>
+      {taken && <Taker taken={taken} />}
       <Opening onNote={setNote} />
       {note && <OpeningNotice note={note} onClose={() => setNote(null)} />}
       <input aria-label="Search the library" />
       <div role="dialog" aria-label="Save" data-testid="card">
         <input type="range" aria-label="Quality" />
       </div>
-    </>
+    </ClaimProvider>
   );
 }
 
-function renderOpening(answers: Record<string, unknown> = {}, at = "/history") {
+function renderOpening(
+  answers: Record<string, unknown> = {},
+  at = "/history",
+  taken?: (picture: Taken) => void,
+) {
   shell.invoke.mockImplementation(async (command: string) => {
     if (command === "engine_status") return READY;
     if (command in answers) {
@@ -73,7 +89,7 @@ function renderOpening(answers: Record<string, unknown> = {}, at = "/history") {
           <Routes>
             <Route path="*" element={<Where />} />
           </Routes>
-          <Shell />
+          <Shell taken={taken} />
         </MemoryRouter>
       </EngineProvider>
     </QueryClientProvider>,
@@ -373,5 +389,63 @@ describe("pathsIn", () => {
     expect(pathsIn("A shopping list")).toEqual([]);
     expect(pathsIn("D:\\Trip\\Pier.jpg\nand a note")).toEqual([]);
     expect(pathsIn("")).toEqual([]);
+  });
+
+  it("hands a picture dropped to the page that takes it, rather than opening its page", async () => {
+    const fetch = fakeEngine({ "POST /open": { picture: OUTSIDE, picked: null, leftOut: [] } });
+    const taken = vi.fn();
+    renderOpening({}, "/wallpaper", taken);
+
+    await drop({ type: "enter", paths: ["E:\\Elsewhere\\Pier at dawn.jpg"] });
+    expect(await screen.findByText("Drop it on Studio 27")).toBeInTheDocument();
+    await drop({
+      type: "drop",
+      paths: ["E:\\Elsewhere\\Pier at dawn.jpg", "E:\\Elsewhere\\Sail.png"],
+    });
+
+    await vi.waitFor(() => expect(taken).toHaveBeenCalledWith(OUTSIDE));
+    expect(screen.getByTestId("where")).toHaveTextContent("/wallpaper");
+    // The page takes one picture: the first of those dropped.
+    expect(JSON.parse(String(sent(fetch, "/open")[0]?.body))).toEqual({
+      paths: ["E:\\Elsewhere\\Pier at dawn.jpg"],
+      how: "dropped",
+    });
+    expect(await screen.findByText(/takes one picture at a time/)).toBeInTheDocument();
+  });
+
+  it("hands a picture pasted to the page that takes it", async () => {
+    const pasted = outsidePicture({ id: 7, name: "Pasted 2026-11-23 14.05.png", pasted: true });
+    fakeEngine({ "POST /pasted": pasted });
+    const taken = vi.fn();
+    renderOpening({}, "/wallpaper", taken);
+
+    const shot = new File([new Uint8Array([137, 80, 78, 71])], "image.png", { type: "image/png" });
+    await paste(document.body, { picture: shot });
+
+    await vi.waitFor(() => expect(taken).toHaveBeenCalledWith(pasted));
+    expect(screen.getByTestId("where")).toHaveTextContent("/wallpaper");
+  });
+
+  it("opens what Windows hands over on its own page, even while a page takes drops", async () => {
+    const fetch = fakeEngine({ "POST /open": { picture: OUTSIDE, picked: null, leftOut: [] } });
+    const taken = vi.fn();
+    const choices = [[["E:\\Elsewhere\\Pier at dawn.jpg"]]];
+    renderOpening({ take_opened: () => choices.shift() ?? [] }, "/wallpaper", taken);
+
+    await vi.waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/pictures/42"));
+    expect(taken).not.toHaveBeenCalled();
+    expect(JSON.parse(String(sent(fetch, "/open")[0]?.body)).how).toBe("opened");
+  });
+
+  it("says a folder dropped on a page that takes one picture isn't one", async () => {
+    fakeEngine({ "POST /open": { picture: null, picked: PICKED, leftOut: [] } });
+    const taken = vi.fn();
+    renderOpening({}, "/wallpaper", taken);
+
+    await drop({ type: "drop", paths: ["D:\\Pictures\\Holiday"] });
+
+    expect(await screen.findByText(/Drop one picture/)).toBeInTheDocument();
+    expect(taken).not.toHaveBeenCalled();
+    expect(screen.getByTestId("where")).toHaveTextContent("/wallpaper");
   });
 });

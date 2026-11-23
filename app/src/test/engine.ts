@@ -14,8 +14,11 @@ import type {
   Library,
   LibraryFolder,
   Looks,
+  Monitor,
+  PartPlan,
   Pc,
   Picked,
+  PictureChoice,
   PictureDetails,
   PictureItem,
   PicturePage,
@@ -27,6 +30,7 @@ import type {
   Settings,
   Sizes,
   StepWords,
+  StudioState,
   Takes,
   WatchFolder,
 } from "@/lib/engine";
@@ -56,6 +60,7 @@ export const DATA: DataSizes = {
   backups: 12 * 1024 ** 2,
   tools: 168 * 1024 ** 2,
   pasted: 0,
+  wallpapers: 0,
 };
 
 export const NO_BACKUPS: Backups = { backups: [], restored: null };
@@ -152,6 +157,7 @@ export const LIBRARY: Library = {
     { folderId: 2, name: "Camera", pictures: 1422 },
     { folderId: 3, name: "Scans", pictures: 286 },
   ],
+  favourites: 0,
 };
 
 /** A scan that finished today at 09:14, having found six new pictures. */
@@ -195,6 +201,8 @@ export function picture(
     takenAt,
     version: `v${id}`,
     group: null,
+    favourite: false,
+    outside: false,
     ...overrides,
   };
 }
@@ -908,6 +916,123 @@ export function duplicates(overrides: Partial<Duplicates> = {}): Duplicates {
     away: 0,
     putBack: null,
     version: "found-1",
+    ...overrides,
+  };
+}
+
+/** A made-up monitor, as Windows arranges it. */
+export function monitor(overrides: Partial<Monitor> = {}): Monitor {
+  const width = overrides.width ?? 2560;
+  const height = overrides.height ?? 1440;
+  const x = overrides.x ?? 0;
+  const y = overrides.y ?? 0;
+  return {
+    key: "studio27",
+    name: "Studio 27",
+    number: 1,
+    x,
+    y,
+    width,
+    height,
+    scale: 1.25,
+    rotation: 0,
+    main: true,
+    place: { x, y, width, height },
+    wallpaper: "C:\\Users\\owner\\Pictures\\Beach.jpg",
+    mine: false,
+    shown: true,
+    version: "w1",
+    ...overrides,
+  };
+}
+
+/** The second monitor, beside the first. */
+export const SIDE: Monitor = monitor({
+  key: "side24",
+  name: "Side 24",
+  number: 2,
+  x: 2560,
+  width: 1920,
+  height: 1080,
+  scale: 1,
+  main: false,
+  wallpaper: "C:\\Users\\owner\\Pictures\\Dunes.png",
+  version: "w2",
+});
+
+/** A picture chosen for a monitor in the studio. */
+export function choice(overrides: Partial<PictureChoice> = {}): PictureChoice {
+  return {
+    monitor: "studio27",
+    picture: {
+      id: 11,
+      name: "Harbour at dusk.jpg",
+      path: "D:\\Pictures\\Phone\\Harbour at dusk.jpg",
+      width: 4032,
+      height: 3024,
+      version: "v11",
+      outside: false,
+      focus: { x: 0.5, y: 0.45 },
+    },
+    shape: "crop",
+    x: null,
+    y: null,
+    zoom: 1,
+    quality: null,
+    connected: true,
+    problem: null,
+    ...overrides,
+  };
+}
+
+/** A part as the engine will make it. */
+export function part(overrides: Partial<PartPlan> = {}): PartPlan {
+  return {
+    monitor: "studio27",
+    picture: 11,
+    width: 2560,
+    height: 1440,
+    area: { x: 0, y: 0.1, width: 1, height: 0.75 },
+    scale: 0.635,
+    method: "shrink",
+    quality: "fast",
+    how: "It's already big enough, so Mado only makes it smaller, sharply.",
+    warning: null,
+    needs: [],
+    ...overrides,
+  };
+}
+
+/** The studio with two monitors side by side, nothing chosen yet. */
+export function studio(overrides: Partial<StudioState> = {}): StudioState {
+  return {
+    desktop: true,
+    problem: null,
+    monitors: [monitor(), SIDE],
+    arrangement: "a1",
+    layout: "each",
+    gap: 0,
+    width: 4480,
+    height: 1440,
+    choices: [],
+    parts: [],
+    making: null,
+    slideshow: false,
+    spotlight: false,
+    yours: { kept: [], slideshow: false, spotlight: false, showingMine: false },
+    daily: {
+      on: false,
+      at: "07:00",
+      layout: "each",
+      folder: null,
+      next: null,
+      ready: false,
+      candidates: 0,
+      skipped: 0,
+      changedOn: null,
+      problem: null,
+    },
+    kept: 0,
     ...overrides,
   };
 }

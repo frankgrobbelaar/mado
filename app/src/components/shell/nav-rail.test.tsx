@@ -53,12 +53,13 @@ describe("NavRail", () => {
     shell.invoke.mockReset();
   });
 
-  it("lists Mado's places in order, the Queue between the Library and History", () => {
+  it("lists Mado's places in order, the wallpaper studio after the Library", () => {
     renderRail();
 
     expect(screen.getAllByRole("link").map((tile) => tile.textContent)).toEqual([
       "Home",
       "Library",
+      "Wallpaper",
       "Queue",
       "History",
       "Settings",
@@ -70,6 +71,7 @@ describe("NavRail", () => {
     ["/library", "Library"],
     ["/library/pictures/7", "Library"],
     ["/batch", "Library"],
+    ["/wallpaper", "Wallpaper"],
     ["/queue", "Queue"],
     ["/recipes", "Queue"],
     ["/history", "History"],

@@ -1,5 +1,6 @@
 import { type ChangeEvent, useEffect, useId, useRef } from "react";
 import { Link } from "react-router";
+import { HeartButton } from "@/components/heart";
 import { Button } from "@/components/ui/button";
 import {
   type GroupTag,
@@ -51,7 +52,11 @@ export function PictureGrid(props: {
   onMore: () => void;
 }) {
   const query = shownQuery(props.shown);
-  const opened = (id: number) => `/library/pictures/${id}${query ? `?${query}` : ""}`;
+  // A favourite from outside the library opens on a page of its own, as it does from anywhere.
+  const opened = (picture: PictureItem) =>
+    picture.outside
+      ? `/pictures/${picture.id}`
+      : `/library/pictures/${picture.id}${query ? `?${query}` : ""}`;
   return (
     <div className="flex flex-col gap-6">
       {props.days.map((day) => (
@@ -72,7 +77,7 @@ export function PictureGrid(props: {
 
 function DaySection(props: {
   day: Day;
-  opened: (id: number) => string;
+  opened: (picture: PictureItem) => string;
   ticked: ReadonlySet<number>;
   onTick: (id: number, run: boolean) => void;
 }) {
@@ -95,7 +100,7 @@ function DaySection(props: {
           <Tile
             key={picture.id}
             picture={picture}
-            to={props.opened(picture.id)}
+            to={props.opened(picture)}
             ticked={props.ticked.has(picture.id)}
             onTick={props.onTick}
           />
@@ -122,7 +127,7 @@ function Tile(props: {
     <figure className="m-0 flex min-w-0 flex-col gap-1.25">
       <div
         className={cn(
-          "relative h-26 overflow-hidden rounded-4",
+          "group relative h-26 overflow-hidden rounded-4",
           props.ticked && "outline-2 outline-accent outline-offset-1",
         )}
       >
@@ -136,6 +141,7 @@ function Tile(props: {
           onChange={tick}
           className="absolute top-1.5 left-1.5 size-4.5 cursor-pointer accent-accent"
         />
+        <HeartButton picture={picture} on="tile" />
         {(tag || picture.group) && (
           <span className="pointer-events-none absolute right-1.5 bottom-1.5 flex gap-1">
             {tag && (

@@ -1,7 +1,7 @@
 import { FolderOpen, MoreVertical, Search } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
 import { Loading, Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   shownQuery,
   useEngineQuery,
   useFolders,
+  useLibrary,
   usePictures,
   useRemoveFolder,
 } from "@/lib/engine";
@@ -43,6 +44,7 @@ export function LibraryPage() {
   const [query, setQuery] = useSearchParams();
   const shown = useMemo(() => shownFrom(query), [query]);
   const folders = useFolders();
+  const favourites = useLibrary().data?.favourites ?? 0;
   const adding = useAddFolderPicker();
 
   // A folder no longer in the library (taken out, then Back): all the pictures instead.
@@ -59,6 +61,7 @@ export function LibraryPage() {
         {folders.data && folders.data.length > 0 ? (
           <FolderTree
             folders={folders.data}
+            favourites={favourites}
             shown={shown}
             onAdd={adding.pick}
             adding={adding.busy}
@@ -88,7 +91,7 @@ export function LibraryPage() {
           </>
         ) : (
           <Pictures
-            key={`${shown.folder}:${shown.dir}`}
+            key={`${shown.favourites}:${shown.folder}:${shown.dir}`}
             shown={shown}
             folders={folders.data}
             foldersQuery={folders}
@@ -252,8 +255,10 @@ function Header(props: {
 }) {
   const { shown, place, onShow } = props;
   const navigate = useNavigate();
-  const title = place?.name ?? "Library";
+  const loved = shown.favourites;
+  const title = loved ? "Favourites" : (place?.name ?? "Library");
   const newest = shown.order === "newest";
+  const searching = loved ? "your favourites" : place ? place.name : "your library";
   return (
     <header className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
       <h1 className="type-title">{title}</h1>
@@ -265,6 +270,12 @@ function Header(props: {
           <>
             <span className="font-mono text-fg">{count(props.total)}</span>{" "}
             {props.total === 1 ? "picture" : "pictures"} with “{shown.q.trim()}” in the name
+          </>
+        ) : loved ? (
+          <>
+            <span className="font-mono text-fg">{count(props.total)}</span>{" "}
+            {props.total === 1 ? "picture" : "pictures"} you gave a heart, by the day they were
+            taken
           </>
         ) : (
           <>
@@ -282,13 +293,15 @@ function Header(props: {
       {props.chosen && (
         <FolderMenu folder={props.chosen} dir={shown.dir} path={place?.path ?? props.chosen.path} />
       )}
-      {shown.q.trim() && (props.total ?? 0) > 0 && (
+      {(shown.q.trim() || loved) && (props.total ?? 0) > 0 && (
         <Button
           size="sm"
           className="font-medium"
           onClick={() => {
             const start: BatchStart = {
-              pick: { how: "search", folder: shown.folder, dir: shown.dir, q: shown.q.trim() },
+              pick: loved
+                ? { how: "favourites", q: shown.q.trim() }
+                : { how: "search", folder: shown.folder, dir: shown.dir, q: shown.q.trim() },
             };
             void navigate("/batch", { state: start });
           }}
@@ -299,12 +312,12 @@ function Header(props: {
       <div className="ml-auto flex flex-wrap gap-2">
         <label className="flex h-9 items-center gap-2 rounded-6 border border-field-edge bg-field px-2.5 text-13 text-fg-faint focus-within:border-accent">
           <Search size={15} aria-hidden="true" />
-          <span className="sr-only">{`Search ${place ? place.name : "your library"}`}</span>
+          <span className="sr-only">{`Search ${searching}`}</span>
           <input
             type="search"
             value={props.words}
             onChange={(event) => props.onWords(event.target.value)}
-            placeholder={`Search ${place ? place.name : "your library"}`}
+            placeholder={`Search ${searching}`}
             className="w-37.5 border-0 bg-transparent text-13 text-fg outline-none placeholder:text-fg-faint"
           />
         </label>
@@ -468,7 +481,21 @@ function Nothing(props: {
   scan: Scan | undefined;
   onClear: () => void;
 }) {
-  const where = props.name ?? "your library";
+  const where = props.shown.favourites ? "your favourites" : (props.name ?? "your library");
+  if (props.shown.favourites && !props.shown.q.trim()) {
+    return (
+      <section className="flex flex-col items-start gap-2 rounded-8 border border-dash border-dashed bg-surface px-5 py-6">
+        <h2 className="font-semibold text-16">No favourites yet</h2>
+        <p className="text-13 text-fg-muted leading-normal">
+          Give a picture a heart on its page, or on its tile here in the Library, and it's kept
+          here, wherever its file goes. The wallpaper can change to one of them every day.
+        </p>
+        <Button asChild size="sm" className="mt-1">
+          <Link to="/library">Show all your pictures</Link>
+        </Button>
+      </section>
+    );
+  }
   if (props.shown.q.trim()) {
     return (
       <section className="flex flex-col items-start gap-3 rounded-8 border border-edge bg-glass px-5 py-4.5">

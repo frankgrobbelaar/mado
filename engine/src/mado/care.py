@@ -1,7 +1,8 @@
 """Looking after Mado while it's open, on a background thread: tonight's backup of its records,
 from 03:00 or the first chance after (mado/backups.py), and once a day the clear-out of the
-quarantine, deleting what's waited there longer than its 30 days (mado/quarantine.py), and
-forgetting the pictures from outside the library not opened for a month (mado/outside.py). The
+quarantine, deleting what's waited there longer than its 30 days (mado/quarantine.py),
+forgetting the pictures from outside the library not opened for a month (mado/outside.py) and
+the favourites whose pictures have been gone for a month (mado/favourites.py). The
 engine's log keeps its last 30 days by itself (mado/cli.py).
 """
 
@@ -11,7 +12,7 @@ from collections.abc import Callable
 from contextlib import closing
 from datetime import date, datetime, timedelta
 
-from mado import backups, db, outside
+from mado import backups, db, favourites, outside
 from mado.backups import BackupError
 from mado.config import DataPaths
 from mado.quarantine import Quarantine, clear_out
@@ -68,6 +69,7 @@ class Care:
             with closing(db.connect(self._paths.database)) as conn:
                 clear_out(conn, self._quarantine, now=now)
                 outside.forget(conn, now=now, pasted=self._paths.pasted, copies=self._forget)
+                favourites.forget_gone(conn, now=now)
             self._cleared_on = now.date()
 
     def _loop(self) -> None:

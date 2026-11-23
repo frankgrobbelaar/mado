@@ -105,6 +105,7 @@ def test_home_gets_the_library_in_numbers(client: TestClient, tmp_path: Path):
             {"folderId": phone["id"], "name": "Phone", "pictures": 3},
             {"folderId": camera["id"], "name": "Camera", "pictures": 2},
         ],
+        "favourites": 0,
     }
 
 

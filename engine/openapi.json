@@ -376,7 +376,7 @@
     "/pictures": {
       "get": {
         "summary": "Pictures",
-        "description": "A page of the pictures, by the day they were taken: newest first, or oldest. `after` is\nwhere the page before ended. A picture kept from a group of duplicates or a burst says\nwhich.",
+        "description": "A page of the pictures, by the day they were taken: newest first, or oldest. `after` is\nwhere the page before ended. A picture kept from a group of duplicates or a burst says\nwhich, and a favourite says so.",
         "operationId": "pictures_pictures_get",
         "security": [
           {
@@ -461,6 +461,16 @@
               "default": "newest",
               "title": "Order"
             }
+          },
+          {
+            "name": "favourites",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Favourites"
+            }
           }
         ],
         "responses": {
@@ -535,7 +545,7 @@
     "/pictures/{picture_id}/neighbours": {
       "get": {
         "summary": "Neighbours",
-        "description": "The pictures either side of one, in the list it was opened from: none for one outside\nthe library, which isn't in a list.",
+        "description": "The pictures either side of one, in the list it was opened from: none for one outside\nthe library, which isn't in a list, unless it was opened from the favourites.",
         "operationId": "neighbours_pictures__picture_id__neighbours_get",
         "security": [
           {
@@ -612,6 +622,16 @@
               "type": "string",
               "default": "newest",
               "title": "Order"
+            }
+          },
+          {
+            "name": "favourites",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Favourites"
             }
           }
         ],
@@ -749,6 +769,61 @@
               "image/jpeg": {},
               "image/png": {},
               "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/favourite": {
+      "put": {
+        "summary": "Favourite",
+        "description": "Gives a picture a heart, or takes it back: a favourite, in the library or from outside it,\nwhich the daily wallpaper can change to. The picture itself stays exactly as it is.",
+        "operationId": "favourite_pictures__picture_id__favourite_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Favourite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PictureDetails"
+                }
+              }
             }
           },
           "422": {
@@ -3237,6 +3312,387 @@
         ]
       }
     },
+    "/wallpaper": {
+      "get": {
+        "summary": "Studio",
+        "description": "The studio as it is: the monitors now, the pictures chosen and where they're cut, each\npart as it'll be made, the latest wallpaper set or saved, the owner's own and the daily\nchange.",
+        "operationId": "studio_wallpaper_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Arrange",
+        "description": "One for each monitor, or one across all, and the gap for the bezels.",
+        "operationId": "arrange_wallpaper_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Arranged"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/wallpaper/pictures": {
+      "put": {
+        "summary": "Choose",
+        "description": "The picture for a monitor (or for all of them), where it's cut, and Fast or Best.",
+        "operationId": "choose_wallpaper_pictures_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChoiceIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Let Go",
+        "description": "A monitor's picture let go (or the one across all).",
+        "operationId": "let_go_wallpaper_pictures_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "monitor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Monitor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallpaper/set": {
+      "post": {
+        "summary": "Set It",
+        "description": "Makes each part at exactly its monitor's pixels, then sets them as Windows' wallpaper:\nthe owner's own kept first. The making is a small job before the queue's pictures.",
+        "operationId": "set_it_wallpaper_set_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/wallpaper/save": {
+      "post": {
+        "summary": "Save",
+        "description": "Makes the parts, then saves them (or one picture of the whole arrangement) as new\npictures into the folder the owner picked, each in History, as any Save.",
+        "operationId": "save_wallpaper_save_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/wallpaper/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "description": "The wallpaper being made to set or save, stopped: nothing is set, and what it made goes.",
+        "operationId": "cancel_wallpaper_cancel_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/wallpaper/put-back": {
+      "post": {
+        "summary": "Put Back",
+        "description": "The owner's own wallpaper back, on every monitor or one: their own file, or Mado's copy\nof it when it's gone; Windows' slideshow started again, as Windows allows. Every monitor put\nback stops the daily change too.",
+        "operationId": "put_back_wallpaper_put_back_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutBackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YoursBack"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/wallpaper/daily": {
+      "put": {
+        "summary": "Daily",
+        "description": "The daily change: on or off, its time (07:00 at first), one for each monitor or one\nacross all, and from the favourites or a library folder.",
+        "operationId": "daily_wallpaper_daily_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/wallpaper/monitors/{key}/wallpaper": {
+      "get": {
+        "summary": "Monitor Wallpaper",
+        "description": "What Windows shows on a monitor now, small (WebP), when it names a file that's there.\nThe file is only read.",
+        "operationId": "monitor_wallpaper_wallpaper_monitors__key__wallpaper_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/history": {
       "get": {
         "summary": "What Mado Did",
@@ -4064,6 +4520,54 @@
           "download"
         ],
         "title": "AbilityOut"
+      },
+      "Area": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "width": {
+            "type": "number",
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "Area",
+        "description": "A part of the picture, as fractions of it: past 0 and 1 where its edges are drawn."
+      },
+      "Arranged": {
+        "properties": {
+          "layout": {
+            "$ref": "#/components/schemas/Layout"
+          },
+          "gap": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Gap",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "layout"
+        ],
+        "title": "Arranged"
       },
       "AsideAsk": {
         "properties": {
@@ -4895,6 +5399,145 @@
         ],
         "title": "CardOut"
       },
+      "ChoiceIn": {
+        "properties": {
+          "monitor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monitor"
+          },
+          "pictureId": {
+            "type": "integer",
+            "title": "Pictureid"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/Shape",
+            "default": "crop"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "zoom": {
+            "type": "number",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Zoom",
+            "default": 1.0
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pictureId"
+        ],
+        "title": "ChoiceIn"
+      },
+      "ChosenPicture": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "outside": {
+            "type": "boolean",
+            "title": "Outside"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Point"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "width",
+          "height",
+          "version",
+          "outside",
+          "focus"
+        ],
+        "title": "ChosenPicture"
+      },
       "ClearHistory": {
         "properties": {
           "keep": {
@@ -5041,6 +5684,125 @@
         "title": "CutoutStep",
         "description": "Cut out the subject, found without a click: Fast, Best, or as this PC suits; with nothing,\na colour or the rest of the picture blurred behind it."
       },
+      "DailyIn": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{1,2}:\\d{2}$",
+            "title": "At",
+            "default": "07:00"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/Layout",
+            "default": "each"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on"
+        ],
+        "title": "DailyIn"
+      },
+      "DailyState": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/Layout"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "candidates": {
+            "type": "integer",
+            "title": "Candidates"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "changedOn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changedon"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on",
+          "at",
+          "layout",
+          "folder",
+          "next",
+          "ready",
+          "candidates",
+          "skipped",
+          "changedOn",
+          "problem"
+        ],
+        "title": "DailyState"
+      },
       "Damage": {
         "properties": {
           "problem": {
@@ -5113,6 +5875,10 @@
           "pasted": {
             "type": "integer",
             "title": "Pasted"
+          },
+          "wallpapers": {
+            "type": "integer",
+            "title": "Wallpapers"
           }
         },
         "type": "object",
@@ -5123,7 +5889,8 @@
           "logs",
           "backups",
           "tools",
-          "pasted"
+          "pasted",
+          "wallpapers"
         ],
         "title": "DataSizes"
       },
@@ -5799,6 +6566,19 @@
         ],
         "title": "Exported"
       },
+      "Favourite": {
+        "properties": {
+          "favourite": {
+            "type": "boolean",
+            "title": "Favourite"
+          }
+        },
+        "type": "object",
+        "required": [
+          "favourite"
+        ],
+        "title": "Favourite"
+      },
       "Fit": {
         "properties": {
           "width": {
@@ -6254,6 +7034,7 @@
           "ticked",
           "folder",
           "search",
+          "favourites",
           "dropped",
           "picked",
           "pasted",
@@ -6615,6 +7396,13 @@
           "screenshot"
         ]
       },
+      "Layout": {
+        "type": "string",
+        "enum": [
+          "each",
+          "across"
+        ]
+      },
       "LeftOut": {
         "properties": {
           "name": {
@@ -6669,6 +7457,11 @@
             },
             "type": "array",
             "title": "Parts"
+          },
+          "favourites": {
+            "type": "integer",
+            "title": "Favourites",
+            "default": 0
           }
         },
         "type": "object",
@@ -6995,6 +7788,93 @@
         ],
         "title": "MakeIn"
       },
+      "Making": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "set",
+              "save",
+              "daily"
+            ],
+            "title": "Purpose"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "making",
+              "ready",
+              "set",
+              "saved",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "secondsLeft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondsleft"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "setAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setat"
+          },
+          "saved": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Saved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "purpose",
+          "state",
+          "progress",
+          "secondsLeft",
+          "problem",
+          "setAt",
+          "saved"
+        ],
+        "title": "Making",
+        "description": "A wallpaper Mado makes, or made."
+      },
       "MeasuredOut": {
         "properties": {
           "at": {
@@ -7017,6 +7897,102 @@
           "pictures"
         ],
         "title": "MeasuredOut"
+      },
+      "MonitorItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "scale": {
+            "type": "number",
+            "title": "Scale"
+          },
+          "rotation": {
+            "type": "integer",
+            "title": "Rotation"
+          },
+          "main": {
+            "type": "boolean",
+            "title": "Main"
+          },
+          "place": {
+            "$ref": "#/components/schemas/Place"
+          },
+          "wallpaper": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wallpaper"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine"
+          },
+          "shown": {
+            "type": "boolean",
+            "title": "Shown"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "number",
+          "x",
+          "y",
+          "width",
+          "height",
+          "scale",
+          "rotation",
+          "main",
+          "place",
+          "wallpaper",
+          "mine",
+          "shown",
+          "version"
+        ],
+        "title": "MonitorItem"
       },
       "Moved": {
         "properties": {
@@ -7250,6 +8226,84 @@
         ],
         "title": "PartOut"
       },
+      "PartPlan": {
+        "properties": {
+          "monitor": {
+            "type": "string",
+            "title": "Monitor"
+          },
+          "picture": {
+            "type": "integer",
+            "title": "Picture"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "area": {
+            "$ref": "#/components/schemas/Area"
+          },
+          "scale": {
+            "type": "number",
+            "title": "Scale"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "pixels",
+              "smooth",
+              "shrink",
+              "keep"
+            ],
+            "title": "Method"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "how": {
+            "type": "string",
+            "title": "How"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          },
+          "needs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Needs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monitor",
+          "picture",
+          "width",
+          "height",
+          "area",
+          "scale",
+          "method",
+          "quality",
+          "how",
+          "warning",
+          "needs"
+        ],
+        "title": "PartPlan"
+      },
       "Pc": {
         "properties": {
           "card": {
@@ -7435,7 +8489,7 @@
           "how"
         ],
         "title": "PickIn",
-        "description": "Which pictures: ticked (`ids`), a folder (`folder`, `dir`), what a search found (`search`,\nwith `q`), or files and folders dropped, picked, pasted, or opened from File Explorer\n(`paths`)."
+        "description": "Which pictures: ticked (`ids`), a folder (`folder`, `dir`), what a search found (`search`,\nwith `q`), the favourites (with `q`, those a search found among them), or files and folders\ndropped, picked, pasted, or opened from File Explorer (`paths`)."
       },
       "Picked": {
         "properties": {
@@ -7487,6 +8541,91 @@
           "leftOut"
         ],
         "title": "Picked"
+      },
+      "PictureChoice": {
+        "properties": {
+          "monitor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monitor"
+          },
+          "picture": {
+            "$ref": "#/components/schemas/ChosenPicture"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/Shape"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "zoom": {
+            "type": "number",
+            "title": "Zoom"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monitor",
+          "picture",
+          "shape",
+          "x",
+          "y",
+          "zoom",
+          "quality",
+          "connected",
+          "problem"
+        ],
+        "title": "PictureChoice"
       },
       "PictureDetails": {
         "properties": {
@@ -7560,6 +8699,16 @@
               }
             ]
           },
+          "favourite": {
+            "type": "boolean",
+            "title": "Favourite",
+            "default": false
+          },
+          "outside": {
+            "type": "boolean",
+            "title": "Outside",
+            "default": false
+          },
           "folderId": {
             "anyOf": [
               {
@@ -7632,10 +8781,6 @@
             "type": "boolean",
             "title": "Damaged"
           },
-          "outside": {
-            "type": "boolean",
-            "title": "Outside"
-          },
           "pasted": {
             "type": "boolean",
             "title": "Pasted"
@@ -7678,7 +8823,6 @@
           "located",
           "problem",
           "damaged",
-          "outside",
           "pasted",
           "aside",
           "savesTo"
@@ -7756,6 +8900,16 @@
                 "type": "null"
               }
             ]
+          },
+          "favourite": {
+            "type": "boolean",
+            "title": "Favourite",
+            "default": false
+          },
+          "outside": {
+            "type": "boolean",
+            "title": "Outside",
+            "default": false
           }
         },
         "type": "object",
@@ -7840,6 +8994,35 @@
           "raw",
           "broken"
         ]
+      },
+      "Place": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "width": {
+            "type": "number",
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "Place",
+        "description": "Where a monitor sits with the gap for its bezels, in pixels."
       },
       "PlanOut": {
         "properties": {
@@ -8055,6 +9238,24 @@
         ],
         "title": "PlanOut"
       },
+      "Point": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "Point"
+      },
       "PreviewIn": {
         "properties": {
           "recipe": {
@@ -8114,6 +9315,23 @@
         ],
         "title": "PutBack",
         "description": "The latest review, every picture of it put back."
+      },
+      "PutBackIn": {
+        "properties": {
+          "monitor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monitor"
+          }
+        },
+        "type": "object",
+        "title": "PutBackIn"
       },
       "Quality": {
         "type": "string",
@@ -8837,6 +10055,27 @@
           "seconds"
         ],
         "title": "SamplesOut"
+      },
+      "SaveIn": {
+        "properties": {
+          "what": {
+            "$ref": "#/components/schemas/What"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "format": {
+            "$ref": "#/components/schemas/Format",
+            "default": "PNG"
+          }
+        },
+        "type": "object",
+        "required": [
+          "what",
+          "folder"
+        ],
+        "title": "SaveIn"
       },
       "SavingAsk": {
         "properties": {
@@ -9687,6 +10926,113 @@
         "title": "StrokeIn",
         "description": "A stroke of the brush: its points as fractions of the picture, its width as a fraction of\nthe picture's shorter side, and whether it takes away (Alt)."
       },
+      "StudioState": {
+        "properties": {
+          "desktop": {
+            "type": "boolean",
+            "title": "Desktop"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "monitors": {
+            "items": {
+              "$ref": "#/components/schemas/MonitorItem"
+            },
+            "type": "array",
+            "title": "Monitors"
+          },
+          "arrangement": {
+            "type": "string",
+            "title": "Arrangement"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/Layout"
+          },
+          "gap": {
+            "type": "integer",
+            "title": "Gap"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/PictureChoice"
+            },
+            "type": "array",
+            "title": "Choices"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartPlan"
+            },
+            "type": "array",
+            "title": "Parts"
+          },
+          "making": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Making"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slideshow": {
+            "type": "boolean",
+            "title": "Slideshow"
+          },
+          "spotlight": {
+            "type": "boolean",
+            "title": "Spotlight"
+          },
+          "yours": {
+            "$ref": "#/components/schemas/Yours"
+          },
+          "daily": {
+            "$ref": "#/components/schemas/DailyState"
+          },
+          "kept": {
+            "type": "integer",
+            "title": "Kept"
+          }
+        },
+        "type": "object",
+        "required": [
+          "desktop",
+          "problem",
+          "monitors",
+          "arrangement",
+          "layout",
+          "gap",
+          "width",
+          "height",
+          "choices",
+          "parts",
+          "making",
+          "slideshow",
+          "spotlight",
+          "yours",
+          "daily",
+          "kept"
+        ],
+        "title": "StudioState"
+      },
       "SubjectIn": {
         "properties": {
           "kind": {
@@ -10227,6 +11573,13 @@
         ],
         "title": "WatchOut"
       },
+      "What": {
+        "type": "string",
+        "enum": [
+          "parts",
+          "whole"
+        ]
+      },
       "WontOpen": {
         "properties": {
           "pictures": {
@@ -10334,6 +11687,93 @@
           "addedAt"
         ],
         "title": "YourLook"
+      },
+      "YourWallpaper": {
+        "properties": {
+          "monitor": {
+            "type": "string",
+            "title": "Monitor"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "there": {
+            "type": "boolean",
+            "title": "There"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monitor",
+          "name",
+          "path",
+          "there"
+        ],
+        "title": "YourWallpaper"
+      },
+      "Yours": {
+        "properties": {
+          "kept": {
+            "items": {
+              "$ref": "#/components/schemas/YourWallpaper"
+            },
+            "type": "array",
+            "title": "Kept"
+          },
+          "slideshow": {
+            "type": "boolean",
+            "title": "Slideshow"
+          },
+          "spotlight": {
+            "type": "boolean",
+            "title": "Spotlight"
+          },
+          "showingMine": {
+            "type": "boolean",
+            "title": "Showingmine"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kept",
+          "slideshow",
+          "spotlight",
+          "showingMine"
+        ],
+        "title": "Yours",
+        "description": "Mado's record of the owner's own wallpaper, from before it set one."
+      },
+      "YoursBack": {
+        "properties": {
+          "studio": {
+            "$ref": "#/components/schemas/StudioState"
+          },
+          "told": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Told"
+          }
+        },
+        "type": "object",
+        "required": [
+          "studio",
+          "told"
+        ],
+        "title": "YoursBack"
       },
       "mado__api__duplicates__Kind": {
         "type": "string",

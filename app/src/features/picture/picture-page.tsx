@@ -1,7 +1,8 @@
-import { ChevronLeft, ChevronRight, Undo2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Monitor, Undo2 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { EngineProblem } from "@/components/engine-problem";
+import { HeartButton } from "@/components/heart";
 import { useStatusNote } from "@/components/shell/status-note";
 import { Loading, Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
@@ -332,6 +333,22 @@ export function PicturePage() {
               <p className="font-mono text-12 text-fg-muted">{factsOf(picture.data)}</p>
             )}
           </div>
+          {picture.data && !picture.data.aside && (
+            // Its heart, and the wallpaper studio with it chosen: the picture's own, on any tab.
+            <span className="flex shrink-0 gap-2">
+              <HeartButton picture={picture.data} on="page" />
+              <Button
+                size="sm"
+                aria-label="Make it a wallpaper"
+                title="Make it a wallpaper"
+                className="w-9 bg-transparent px-0"
+                disabled={!ready}
+                onClick={() => void navigate(`/wallpaper?picture=${id}`)}
+              >
+                <Monitor size={16} aria-hidden="true" />
+              </Button>
+            </span>
+          )}
           {editingNow ? (
             <span className="ml-auto flex gap-2">
               <Button

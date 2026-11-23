@@ -213,6 +213,7 @@ function Batch({ start }: { start: BatchStart }) {
       return;
     }
     const query = shownQuery({
+      favourites: false,
       folder: pick.folder ?? null,
       dir: pick.dir ?? "",
       q: pick.how === "search" ? (pick.q ?? "") : "",

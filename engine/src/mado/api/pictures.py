@@ -12,7 +12,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
-from mado import outside
+from mado import favourites, outside
 from mado.api.common import ApiModel, Copies, Database, Finding, Paths, SetAside
 from mado.core.files import kind_of
 from mado.duplicates import Found, choices, kept
@@ -59,6 +59,10 @@ class PictureItem(ApiModel):
     taken_at: str  # local time: "2026-11-12T18:42:07"
     version: str  # changes when its file does: its copies' addresses carry it
     group: GroupTag | None = None  # in the grid, a group's kept picture
+    favourite: bool = False  # the owner gave it a heart
+    outside: bool = (
+        False  # opened from outside the library: dropped, picked, pasted, from File Explorer
+    )
 
 
 class DayCount(ApiModel):
@@ -84,10 +88,13 @@ class PictureDetails(PictureItem):
     located: bool  # it carries where it was taken
     problem: str | None  # why it won't open
     damaged: bool  # the owner marked it as damaged: not asked about again till its file changes
-    outside: bool  # opened from outside the library: dropped, picked, pasted, from File Explorer
     pasted: bool  # pasted from the clipboard, kept in Mado's data folder till it's saved
     aside: bool  # it waits in a quarantine: opened to look at only
     saves_to: str | None  # where Save puts a new picture first, when not beside it (a pasted one)
+
+
+class Favourite(ApiModel):
+    favourite: bool  # give it a heart, or take it back
 
 
 class Neighbours(ApiModel):
@@ -103,6 +110,7 @@ class Shown:
     inside: str  # a folder inside it: "2026/Trip"; "" for all of it
     words: str  # every word must be in a picture's name
     order: Order
+    favourites: bool = False  # only the owner's favourites, from outside the library too
 
 
 def _shown(
@@ -110,8 +118,9 @@ def _shown(
     inside: Annotated[str, Query(alias="dir")] = "",
     q: str = "",
     order: Order = "newest",
+    favourites: bool = False,
 ) -> Shown:
-    return Shown(folder, inside.strip("/"), q, order)
+    return Shown(folder, inside.strip("/"), q, order, favourites)
 
 
 Showing = Annotated[Shown, Depends(_shown)]
@@ -127,7 +136,7 @@ def pictures(
 ) -> PicturePage:
     """A page of the pictures, by the day they were taken: newest first, or oldest. `after` is
     where the page before ended. A picture kept from a group of duplicates or a burst says
-    which."""
+    which, and a favourite says so."""
     where, values = _where(shown)
     total: int = conn.execute(
         f"SELECT COUNT(*) FROM pictures WHERE {where}",  # noqa: S608 - built of fixed pieces
@@ -161,8 +170,9 @@ def pictures(
         }
     last = page[-1] if len(rows) > limit else None
     tags = group_tags(finder.found(), choices(conn))
+    hearts = favourites.among(conn, (row["id"] for row in page))
     return PicturePage(
-        pictures=[_item(row, tags.get(row["id"])) for row in page],
+        pictures=[_item(row, tags.get(row["id"]), row["id"] in hearts) for row in page],
         days=[DayCount(day=day, pictures=counts.get(day, 0)) for day in days],
         total=total,
         next=f"{last['taken_at']}|{last['id']}" if last is not None else None,
@@ -201,9 +211,9 @@ def neighbours(
     count: Annotated[int, Query(ge=1, le=50)] = 8,
 ) -> Neighbours:
     """The pictures either side of one, in the list it was opened from: none for one outside
-    the library, which isn't in a list."""
+    the library, which isn't in a list, unless it was opened from the favourites."""
     row = _row(conn, picture_id)
-    if row["folder_id"] is None:
+    if row["folder_id"] is None and not shown.favourites:
         return Neighbours(before=[], after=[])
     where, values = _where(shown)
     key = [row["taken_at"], row["id"]]
@@ -221,8 +231,10 @@ def neighbours(
         before, after = list(reversed(newer)), older
     else:
         before, after = list(reversed(older)), newer
+    hearts = favourites.among(conn, (each["id"] for each in (*before, *after)))
     return Neighbours(
-        before=[_item(each) for each in before], after=[_item(each) for each in after]
+        before=[_item(each, None, each["id"] in hearts) for each in before],
+        after=[_item(each, None, each["id"] in hearts) for each in after],
     )
 
 
@@ -255,6 +267,15 @@ def full(picture_id: int, conn: Database, copies: Copies) -> FileResponse:
     source = Source.of(_row(conn, picture_id))
     path, media = _made(lambda: copies.full(source))
     return FileResponse(path, media_type=media, headers=_KEEP)
+
+
+@router.put("/pictures/{picture_id}/favourite")
+def favourite(picture_id: int, body: Favourite, conn: Database, aside: SetAside) -> PictureDetails:
+    """Gives a picture a heart, or takes it back: a favourite, in the library or from outside it,
+    which the daily wallpaper can change to. The picture itself stays exactly as it is."""
+    _row(conn, picture_id)
+    favourites.set_favourite(conn, picture_id, body.favourite, datetime.now().astimezone())
+    return details(conn, _row(conn, picture_id), aside)
 
 
 @router.post("/pictures/{picture_id}/damaged")
@@ -322,8 +343,13 @@ def group_tags(found: Found, chosen: Mapping[int, bool]) -> dict[int, GroupTag]:
 
 def _where(shown: Shown) -> tuple[str, list[object]]:
     """The pictures a list shows, as SQL: those in the grid (the library's, never one opened
-    from outside it), in a folder, with every word."""
-    clauses = ["gone_at IS NULL", "read_at IS NOT NULL", "folder_id IS NOT NULL"]
+    from outside it, unless it's a favourite and the list is the favourites), in a folder, with
+    every word."""
+    clauses = ["gone_at IS NULL", "read_at IS NOT NULL"]
+    if shown.favourites:
+        clauses.append("id IN (SELECT picture_id FROM favourites)")
+    else:
+        clauses.append("folder_id IS NOT NULL")
     values: list[object] = []
     if shown.folder is not None:
         clauses.append("folder_id = ?")
@@ -353,7 +379,7 @@ def _state(row: sqlite3.Row) -> PictureState:
     return "broken" if row["problem"] else "ready"
 
 
-def _item(row: sqlite3.Row, group: GroupTag | None = None) -> PictureItem:
+def _item(row: sqlite3.Row, group: GroupTag | None = None, favourite: bool = False) -> PictureItem:
     return PictureItem(
         id=row["id"],
         name=row["name"],
@@ -366,6 +392,8 @@ def _item(row: sqlite3.Row, group: GroupTag | None = None) -> PictureItem:
         taken_at=row["taken_at"],
         version=version(row["modified"], row["size"]),
         group=group,
+        favourite=favourite,
+        outside=row["folder_id"] is None,
     )
 
 
@@ -383,7 +411,9 @@ def details(conn: sqlite3.Connection, row: sqlite3.Row, aside: Quarantine) -> Pi
         ).fetchone()
         folder = found["path"] if found else ""
     return PictureDetails(
-        **_item(row).model_dump(by_alias=False, exclude={"group"}),
+        **_item(row, None, favourites.is_favourite(conn, row["id"])).model_dump(
+            by_alias=False, exclude={"group"}
+        ),
         folder_id=row["folder_id"],
         folder=folder,
         dir=row["dir"],
@@ -394,7 +424,6 @@ def details(conn: sqlite3.Connection, row: sqlite3.Row, aside: Quarantine) -> Pi
         located=bool(row["located"]),
         problem=row["problem"],
         damaged=bool(row["damaged"]),
-        outside=outside_,
         pasted=pasted,
         aside=outside_ and aside.holds(path),
         saves_to=str(pictures_folder()) if pasted else None,

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import type { Claim } from "@/components/shell/claim";
 import { pickFolder, pickPictures } from "@/lib/dialogs";
 import {
   type OpenHow,
@@ -33,8 +34,11 @@ export interface OpeningNote {
  * by Windows (File Explorer, Open with, the command line). One picture opens its page, in the
  * library or not; several, or a folder, open Many at once with them chosen; what isn't a picture
  * Mado reads is said, rather than opened. With a recipe, they always open Many at once with it.
+ * While a page takes what's dropped or pasted for itself (`claims`: the wallpaper studio), the
+ * first picture goes to it instead; what Windows hands over or the PC's picker gives opens as
+ * ever.
  */
-export function useOpenPictures(recipe?: number) {
+export function useOpenPictures(recipe?: number, claims?: { current: Claim | null }) {
   const navigate = useNavigate();
   const here = useLocation().pathname;
   const opening = useOpenPaths();
@@ -58,6 +62,29 @@ export function useOpenPictures(recipe?: number) {
         setProblem(error.message);
         setNote({ title: "Nothing opened", body: error.message });
       };
+      const claim = how === "dropped" || how === "pasted" ? (claims?.current ?? null) : null;
+      if (claim) {
+        // The page takes one picture: the first of what came.
+        opening.mutate(
+          { path: "/open", body: { paths: paths.slice(0, 1), how } },
+          {
+            onSuccess: (opened) => {
+              if (!opened.picture) {
+                failed(new Error(ONE_PICTURE));
+                return;
+              }
+              claim.take(opened.picture);
+              if (paths.length > 1)
+                setNote({
+                  title: `Took ${opened.picture.name}`,
+                  body: "The studio takes one picture at a time: the first of those that came.",
+                });
+            },
+            onError: failed,
+          },
+        );
+        return;
+      }
       if (recipe !== undefined) {
         const pick: Pick = { how, paths };
         find.mutate(
@@ -90,7 +117,7 @@ export function useOpenPictures(recipe?: number) {
         },
       );
     },
-    [opening, find, many, navigate, here, recipe],
+    [opening, find, many, navigate, here, recipe, claims],
   );
 
   /** Asks for pictures with Windows' picker, then opens them. */
@@ -115,6 +142,9 @@ export function useOpenPictures(recipe?: number) {
     clearNote: useCallback(() => setNote(null), []),
   };
 }
+
+const ONE_PICTURE =
+  "Drop one picture, not a folder: the studio takes one picture at a time, for a monitor or for all of them.";
 
 /** What's said beside a picture opened, of what came with it and was left out. */
 export function leftOutNote(left: { name: string; why: string }[]): OpeningNote {

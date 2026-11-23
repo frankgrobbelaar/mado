@@ -51,6 +51,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | This PC | | What the graphics card can do, tested and timed | [hardware.md](stack/hardware.md) |
 | The queue | Mado's own code | Many at once: batches made one at a time, nights, room on a drive, See it first, recipes and watch folders | [queue.md](stack/queue.md) |
 | Duplicates and bursts | Mado's own code, on NumPy and Pillow | Fingerprints from the thumbnails, groups, which to keep, setting the rest aside | [duplicates.md](stack/duplicates.md) |
+| Windows' desktop | IDesktopWallpaper, the display APIs and DisplayConfig, by ctypes | The wallpaper studio: the monitors, Windows' own wallpaper set, the owner's own put back, every day's change | [wallpaper.md](stack/wallpaper.md) |
 | PyInstaller | 6.22 | Bundles the engine with its own Python | [pyinstaller.md](stack/pyinstaller.md) |
 | Vitest, Testing Library, pytest | 5.1, 16.3, 9.2 | Tests | [testing.md](stack/testing.md) |
 | GitHub Actions | | CI and releases | [github-actions.md](stack/github-actions.md) |

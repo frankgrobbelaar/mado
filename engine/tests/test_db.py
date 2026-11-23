@@ -263,3 +263,39 @@ def test_a_migration_that_breaks_a_reference_changes_nothing(
         assert db.schema_version(conn) == len(MIGRATIONS)
         assert conn.execute("SELECT COUNT(*) FROM folders").fetchone()[0] == 1
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+
+def test_records_from_mado_0_6_keep_every_picture_and_learn_favourites_and_the_wallpaper_studio(
+    tmp_path: Path,
+):
+    with closing(db.connect(tmp_path / "mado.db")) as conn:
+        for number, sql in enumerate(MIGRATIONS[:8], start=1):
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        conn.execute("INSERT INTO folders (path, added_at) VALUES (?, 'x')", (r"D:\Pictures",))
+        conn.execute(
+            """INSERT INTO pictures (folder_id, path, dir, name, size, modified, found_at,
+                                     seen_at, taken_at, taken_from)
+               VALUES (1, ?, '', 'Pier.jpg', 10, 1, 'x', 'x', 'x', 'file')""",
+            (r"D:\Pictures\Pier.jpg",),
+        )
+        conn.commit()
+
+        assert db.migrate(conn) == len(MIGRATIONS)
+
+        assert conn.execute("SELECT name FROM pictures").fetchone()[0] == "Pier.jpg"
+        studio = conn.execute("SELECT * FROM studio").fetchall()
+        assert [(row["layout"], row["gap"], row["daily"], row["daily_at"]) for row in studio] == [
+            ("each", 0, 0, "07:00")
+        ]
+        conn.execute("INSERT INTO favourites (picture_id, at) VALUES (1, 'x')")
+        conn.execute(
+            "INSERT INTO studio_pictures (monitor, picture_id, at) VALUES (?, 1, 'x')",
+            (r"\?\DISPLAY#MADE0001#1",),
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO favourites (picture_id, at) VALUES (9, 'x')")
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO studio (id) VALUES (2)")  # one row, always
+        conn.execute("DELETE FROM folders")  # a picture forgotten takes its heart with it
+        assert conn.execute("SELECT COUNT(*) FROM favourites").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM studio_pictures").fetchone()[0] == 0

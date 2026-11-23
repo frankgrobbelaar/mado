@@ -40,8 +40,12 @@ cut them out, blur what's behind them or give them a look; Erase's brush; Cut ou
 subject; looks on just a part; "Cut out the subject" in batches and recipes; each model
 downloaded the first time); and pictures from anywhere, the seventh (a picture from outside the
 library on a page of its own; paste; File Explorer's "Open in Mado" and Open with; the command
-line; and the Library's tags on a group's kept picture). Next: the rest of Mado 1.0, by
-[What's next](#whats-next).
+line; and the Library's tags on a group's kept picture); and the wallpaper studio, the eighth
+(a place in the rail: the owner's monitors as Windows arranges them, a picture made for each, or
+one laid across them all, at exactly each monitor's pixels and set as Windows' own wallpaper or
+saved as pictures; favourites, with a heart on a picture's page and its tile and a view of their
+own in the Library; the wallpaper changed every day from them if wanted; the owner's own kept and
+put back). Next: the rest of Mado 1.0, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -490,6 +494,82 @@ Everything decided so far. Don't ask again; change only with the owner.
   (the group's pictures counted), bottom right in mono on dark glass beside a HEIC or RAW tag, a
   click opening the review at that group (`/duplicates?group=`, the page long enough to hold it,
   marked and scrolled to).
+- The wallpaper studio, as built (2026-11-23, Claude's calls while the owner is away;
+  docs/stack/wallpaper.md): a place in the rail, "Wallpaper" with a monitor, after the Library,
+  rather than a page reached from Home and a picture's page, as it keeps what's about no one picture
+  (the monitors, the daily change, putting back) a click away; "Make it a wallpaper" on a picture's
+  page (from outside the library and pasted too) opens it with the picture chosen
+  (`/wallpaper?picture=`), and while it's open a picture dropped on the window or pasted goes to it,
+  through the window's own Opening (`useClaim`), the first of several, a folder said not to be one
+  picture. No board covered it, so it's drawn in the picture page's pattern: the monitors on a
+  stage, a column with This wallpaper and Every day as tabs, Set as wallpaper the one primary at its
+  foot with Save as pictures beside it. The monitors and IDesktopWallpaper are the engine's, by
+  ctypes (`mado/desktop.py`, no package), not the shell's: the engine owns the daily change and runs
+  in the tray with no window to ask, and a `Desktop` seam lets every test use a fake
+  (`tests/fake_desktop.py`); only `mado serve` hands it the real one. Read per-monitor DPI aware:
+  each monitor's place and own pixels, scale, turn, main, its own name from DisplayConfig (the
+  owner's PC: one, "24G4", 1920 × 1080 at 100%) and its device path, IDesktopWallpaper's name for
+  it; asked again every 4 s while the studio's open, so one plugged in or out, resized or turned
+  redraws. One for each cuts a part with each monitor's own shape; one across all lays the picture
+  over Windows' own arrangement, its desktop pixels (as Windows' display settings and its own span
+  place them), a gap of 0 to 200 pixels left at each line where monitors meet. A part is cropped
+  around the subject (the biggest part with the shape, up to 4 times nearer, moved by dragging it,
+  the arrow keys, + and -, the wheel or the slider, held inside the picture; "Around its subject
+  again") or extended (one canvas drawn by LaMa for all of them, so the parts meet), made as the
+  Size tab makes a picture (shrunk, pixel art repeated, screenshots smoothed, else the AI with Fast
+  or Best), the painted warning past 6 times; the window draws each part from the picture's view as
+  the engine cuts it (`geometry.ts`, the engine's `framed`), the engine's plan the truth. Windows
+  makes a JPEG wallpaper again at its own quality (`TranscodedWallpaper`, quality 85, read on the
+  owner's PC; raising `JPEGImportQuality` would change a setting), at the picture's own size, so
+  each part is PNG, 8-bit sRGB, exactly its monitor's pixels, see-through parts on black, made by
+  the jobs' worker before the queue's pictures (as See it first's) into `wallpapers\made\<number>`;
+  spanned wallpapers are laid to fill first (a span shows one picture), nothing else changed. Save
+  as pictures is a Save: each part, or one picture of the whole arrangement (one across all made in
+  one piece, what the bezels hide included; one for each on black), PNG, JPEG, WebP or AVIF, into a
+  folder the owner picks, "Harbour at dusk (Studio 27 wallpaper).png", each with History's line
+  ("for a wallpaper on Studio 27"). A wallpaper being made says how long it has left and Stop stops
+  it; one the owner asked to set or save that Mado's closing cut short isn't finished at the next
+  start but says so, a Save's half-written picture and its line in History cleared away. Before Mado
+  sets one over a wallpaper that isn't its own, it copies each monitor's file into
+  `wallpapers\yours` (Windows' `TranscodedWallpaper` when the file's gone and one picture shows on
+  every monitor; with one each, Windows' copies come in an order it doesn't say, so Mado doesn't
+  guess) and notes how Windows showed it the first time (spanned, a slideshow with its folder,
+  interval and shuffle, spotlight); "Put back your own wallpaper" stops the daily change, then puts
+  each monitor showing Mado's back to its own file (else the copy; one the owner gave their own
+  since is left, and one Windows refuses doesn't stop the rest), starts the slideshow again
+  (`SetSlideshow`) unless a monitor shows one the owner chose since, spans again (unless the owner
+  chose another fit since) and says where spotlight is turned on (no API does); one monitor alone
+  can be put back too. The slideshow and spotlight are said before the first set. Mado's wallpapers
+  a monitor shows now and those set in the last 3 days are kept, and those made ahead till their day
+  has passed; only Mado's older PNGs go, from its own folder (Settings › Your data shows
+  "Wallpapers"). Favourites (migration 9 with the studio's tables: `favourites`, `studio`,
+  `studio_pictures`, `wallpapers`, `desktop_yours`, `desktop_before`) are kept by the picture's
+  number: a Save in its place keeps it; a move or rename is one picture gone and one found by the
+  same scan, and the heart goes to the one found then with the same size and file time, the same
+  name first, then the same folder (two files written in the same instant can share both, so one
+  there before never counts); one gone 30 days is forgotten; a folder taken out takes its pictures'
+  hearts. A picture from outside the library can be a favourite (the heart means the same on every
+  page, and the studio works on them), and one is never let go while it is, nor while the studio has
+  it. The heart is on a picture's page by its name and on the grid's tiles (on hover, always when
+  given); Favourites is the Library's (`?favourites=1`), searched and ordered as the rest, a
+  favourite from outside opening on its own page, Many at once taking all of them (`favourites`
+  pick); the export has `favourites.json` and `wallpaper.json`. The daily change is off till turned
+  on: at 07:00 or the owner's time, as Mado next starts once it's past (Mado open or in the tray,
+  Start with Windows beside it), a day's change only at a time after it was turned on or its time
+  set (a time set once it's passed first changes the next day; the window sends a time once it
+  settles), from the favourites or one library folder (taken out of the library, the change turns
+  off and says why), one for each or one across all; each monitor gets a picture its way round (a
+  square either way) made less than 6 times bigger, the one not shown for longest first (never shown
+  first; ties by the day), none on two monitors while another suits; made 12 hours ahead (19:00 for
+  07:00) by the worker, else then, and once more then when making it ahead failed (failing again,
+  the day's given up, saying why); a day's never set goes once the day has passed; made again when
+  the monitors changed; a favourite gone, moved or on a drive away skipped and counted (the pick
+  looks at each file; the studio's counts go by the records); nothing to show said in words (no
+  favourites yet, or none that suit), the wallpaper left as it was. A fresh agent reviewed the
+  piece; its findings are fixed, test first. The lock screen is left out: Windows lets only packaged
+  apps set it. An app that draws its own desktop hides the wallpaper, which the studio's help
+  sentence says without naming any. Never set for real while it was built: the first set is the
+  owner's (docs/stack/wallpaper.md lists what's untested).
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -612,7 +692,8 @@ Everything decided so far. Don't ask again; change only with the owner.
    and pictures from anywhere (a picture from outside the library on a page of its own, paste,
    File Explorer's "Open in Mado" and Open with, the command line).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
-   monitors, pixel-exact, changed daily from favourites if wanted), and painting styles.
+   monitors, pixel-exact, changed daily from favourites if wanted), and painting styles. Built:
+   the wallpaper studio, with favourites.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG
    blocks, dark photos), portrait blur and 3D photos.
 5. Later: people (faces grouped, on the PC only), renaming by date taken, shrinking the library

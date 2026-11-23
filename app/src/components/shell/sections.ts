@@ -1,4 +1,12 @@
-import { Clock, House, ImageIcon, type LucideIcon, Settings, TextAlignStart } from "lucide-react";
+import {
+  Clock,
+  House,
+  ImageIcon,
+  type LucideIcon,
+  Monitor,
+  Settings,
+  TextAlignStart,
+} from "lucide-react";
 
 export interface Section {
   path: string;
@@ -12,6 +20,7 @@ export interface Section {
 export const sections: Section[] = [
   { path: "/", label: "Home", icon: House },
   { path: "/library", label: "Library", icon: ImageIcon },
+  { path: "/wallpaper", label: "Wallpaper", icon: Monitor },
   { path: "/queue", label: "Queue", icon: TextAlignStart },
   { path: "/history", label: "History", icon: Clock },
   { path: "/settings", label: "Settings", icon: Settings, foot: true },

@@ -4,6 +4,7 @@ import { ScreenError } from "@/components/screen-error";
 import type { OpeningNote } from "@/features/batch/open";
 import { DamagedRecords } from "@/features/records/damaged-records";
 import { useRecords } from "@/lib/engine";
+import { ClaimProvider } from "./claim";
 import { InUse } from "./in-use";
 import { NavRail } from "./nav-rail";
 import { Notices } from "./notices";
@@ -18,7 +19,8 @@ import { UpdateCard } from "./update-card";
  * The window, as Graphite draws it: the rail down the left side, and beside it the title bar,
  * the current page and the status bar. Only the page scrolls: the rail, the title bar and the
  * status bar stay where they are. Pictures dropped anywhere on it, pasted, or handed over by
- * Windows open (Opening). While Mado's records are damaged, the way back stands in for every page.
+ * Windows open (Opening), or go to a page that takes them for itself (the wallpaper studio, through
+ * claim.tsx). While Mado's records are damaged, the way back stands in for every page.
  */
 export function AppShell() {
   const location = useLocation();
@@ -28,33 +30,35 @@ export function AppShell() {
 
   return (
     <StatusNoteProvider>
-      <div className="flex h-screen overflow-hidden">
-        <NavRail />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TitleBar />
-          {/* A fresh start on every screen: it opens at its top, and one that failed to draw
+      <ClaimProvider>
+        <div className="flex h-screen overflow-hidden">
+          <NavRail />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <TitleBar />
+            {/* A fresh start on every screen: it opens at its top, and one that failed to draw
           doesn't follow you around. Every part of a page keeps its full height, so a long
           page scrolls instead of squashing a panel that clips its corners. */}
-          <main
-            key={location.pathname}
-            id="main"
-            className="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-7 pb-12 *:shrink-0"
-          >
-            <ScreenError>{damage ? <DamagedRecords damage={damage} /> : <Outlet />}</ScreenError>
-          </main>
-          <StatusBar />
-        </div>
-        <UpdateCard />
-        {!damage && <Opening onNote={setNote} />}
-        {/* Notes at the foot of the window, over the page: being offline, a picture open in
+            <main
+              key={location.pathname}
+              id="main"
+              className="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-7 pb-12 *:shrink-0"
+            >
+              <ScreenError>{damage ? <DamagedRecords damage={damage} /> : <Outlet />}</ScreenError>
+            </main>
+            <StatusBar />
+          </div>
+          <UpdateCard />
+          {!damage && <Opening onNote={setNote} />}
+          {/* Notes at the foot of the window, over the page: being offline, a picture open in
         another app, what was opened or left out, and what the engine tells of. */}
-        <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(34rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">
-          <Offline />
-          {!damage && <InUse />}
-          {!damage && note && <OpeningNotice note={note} onClose={clear} />}
-          <Notices />
+          <div className="pointer-events-none fixed bottom-12 left-1/2 z-10 flex w-[min(34rem,calc(100vw-3rem))] -translate-x-1/2 flex-col gap-3 *:pointer-events-auto">
+            <Offline />
+            {!damage && <InUse />}
+            {!damage && note && <OpeningNotice note={note} onClose={clear} />}
+            <Notices />
+          </div>
         </div>
-      </div>
+      </ClaimProvider>
     </StatusNoteProvider>
   );
 }

@@ -9,13 +9,15 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 
 | What | Where |
 | --- | --- |
-| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep, the edits and their parts, mask maths, what paths open as | `src/mado/core/`, pure functions only |
+| Rules about pictures: what a file is, EXIF's values in Mado's words, a HEIF's layout, the sizes a picture is made for, its shape, what it is, the model it suits, the recipe of steps and its plan, the tiles, the format, the time, what this PC can do, looks as tables of colours, `.cube` files, the touches' shapes, a batch's steps, nights and room on a drive, fingerprints and sharpness, groups of duplicates and bursts and which to keep, the edits and their parts, mask maths, what paths open as, the monitors' arrangement, a wallpaper's parts and the day's picks | `src/mado/core/`, pure functions only |
 | The library: its folders, the scan, the watcher, reading pictures and the copies the window shows | `src/mado/library.py`, `scan.py`, `watch.py`, `pictures.py`, `previews.py` (see [docs/architecture.md](../docs/architecture.md#the-library)) |
 | Pictures from anywhere: one opened from outside the library, known by its path and forgotten after a month unopened; a picture pasted from the clipboard, kept in the data folder till it's saved | `src/mado/outside.py`, `pasting.py`, `api/opening.py` (see [docs/architecture.md](../docs/architecture.md#pictures-from-anywhere)) |
 | Making a picture right for a screen: sessions on the card, the models' files, a tile at a time, extending edges, making and saving | `src/mado/directml.py`, `ai.py`, `upscale.py`, `extend.py`, `making.py`, `encode.py` (see [docs/stack/upscaling.md](../docs/stack/upscaling.md)) |
 | Giving a picture a look: the look's table and the touches laid on it, the owner's looks in the database | `src/mado/looks.py`, `own_looks.py` (see [docs/stack/looks.md](../docs/stack/looks.md)) |
 | Editing by clicking: picking parts (SAM 2.1), erasing (MI-GAN, LaMa), cutting out (U²-Net small, BiRefNet lite) and blurring behind, the edits made in order and their masks kept | `src/mado/selecting.py`, `erasing.py`, `cutting.py`, `editing.py` (see [docs/stack/editing.md](../docs/stack/editing.md)) |
 | The jobs, History and the quarantine | `src/mado/jobs.py`, `history.py`, `quarantine.py` |
+| Favourites: the heart, following a picture moved or renamed | `src/mado/favourites.py` |
+| The wallpaper studio: the monitors and Windows' wallpaper behind a seam, the parts made and set or saved, the owner's own kept and put back, the daily change | `src/mado/desktop.py`, `wallpaper.py` (see [docs/stack/wallpaper.md](../docs/stack/wallpaper.md)) |
 | Many at once: the queue (in the jobs' worker), batches and what they take, See it first, recipes, watch folders | `src/mado/jobs.py`, `batches.py`, `samples.py`, `recipes.py`, `watching.py` (see [docs/stack/queue.md](../docs/stack/queue.md)) |
 | This PC: what it has, its check (in a process of its own), its speeds | `src/mado/hardware.py`, `pc_check.py` (see [docs/stack/hardware.md](../docs/stack/hardware.md)) |
 | Looking after the library: duplicates and bursts found in the background, the owner's choices, setting the rest aside | `src/mado/duplicates.py` (see [docs/stack/duplicates.md](../docs/stack/duplicates.md)); won't open and space in `api/library.py` |
@@ -28,7 +30,7 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
 | Background care (tonight's backup, the daily clear-out of the quarantine) | `src/mado/care.py` |
 | Commands | `src/mado/cli.py` |
 | Build tools that run on the engine's Python (the third-party notices) | `tools/`, tested in `tests/` |
-| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` (a quarantine of the test's own, the AI models on the processor, a stand-in PC check); made-up pictures from `tests/drawn.py` (`scene`: a landscape different for every seed, for duplicates and bursts) and `tests/heif_files.py`, ffmpeg from `tests/fake_ffmpeg.py`; the shipped Fast model runs on the processor on tiny pictures; a picture held open with Python's `open()` is open in another app, as Windows sees it |
+| Tests | `tests/test_<module>.py`, and `tests/core/test_<module>.py` for the core; fixtures in `tests/conftest.py` (a quarantine of the test's own, the AI models on the processor, a stand-in PC check); made-up pictures from `tests/drawn.py` (`scene`: a landscape different for every seed, for duplicates and bursts) and `tests/heif_files.py`, ffmpeg from `tests/fake_ffmpeg.py`, Windows' desktop from `tests/fake_desktop.py`; the shipped Fast model runs on the processor on tiny pictures; a picture held open with Python's `open()` is open in another app, as Windows sees it |
 
 ## Building a feature
 
@@ -66,6 +68,12 @@ pictures, running the AI models and saving what they make. Python 3.14, run with
   process of its own.
 - A test never writes to a drive's real quarantine: the `quarantine` fixture keeps it in the test's
   own folder.
+- Windows' desktop only through `mado/desktop.py`'s `Desktop`. Only `mado serve` hands the studio
+  `WindowsDesktop`; `create_app` otherwise has `NoDesktop`, and the studio's tests hand it
+  `tests/fake_desktop.py`. No test sets the owner's wallpaper: a test may read the real desktop,
+  never change it. A wallpaper the owner asked to set or save isn't picked up after a restart (set
+  days later, it would surprise them): it says it was cut short, and a Save's half-written picture
+  is cleared away as the queue's are; the daily change's is made again.
 - The `pictures` table holds pictures opened from outside the library too (`folder_id` NULL):
   anything that lists, counts, exports or compares the library's pictures says
   `folder_id IS NOT NULL`. A picture pasted is Mado's own file, in the data folder's `pasted`:

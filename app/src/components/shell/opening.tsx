@@ -5,6 +5,7 @@ import { type OpeningNote, useOpenPictures } from "@/features/batch/open";
 import { useDroppedFiles } from "@/lib/drop";
 import { type OpenHow, pageOf, useEngine, usePastePicture } from "@/lib/engine";
 import { clipboardFiles, onOpened, takeOpened } from "@/lib/opened";
+import { useClaims } from "./claim";
 
 // Past 2^26 pixels (256 MiB of them) the window's own clipboard gives a page an empty picture: so
 // that's as big as a paste can be (measured, docs/stack/tauri.md, "Paste").
@@ -25,11 +26,13 @@ const NOTHING: OpeningNote = {
  * files copied in File Explorer as if dropped, a picture on the clipboard kept in Mado's data
  * folder and opened, a path copied as words opened), and handed over by Windows (File Explorer's
  * "Open in Mado", Open with, the command line), taken once the engine is ready. One picture opens
- * its page; several, or a folder, Many at once. `onNote` shows what was left out, or why nothing
- * opened, at the window's foot.
+ * its page; several, or a folder, Many at once; while a page takes what comes for itself (the
+ * wallpaper studio, `useClaim`), the picture goes to it. `onNote` shows what was left out, or why
+ * nothing opened, at the window's foot.
  */
 export function Opening({ onNote }: { onNote: (note: OpeningNote | null) => void }) {
-  const opening = useOpenPictures();
+  const claims = useClaims();
+  const opening = useOpenPictures(undefined, claims);
   const { open, note } = opening;
   const { over } = useDroppedFiles((paths) => open(paths, "dropped"));
   const pasting = usePastePicture();
@@ -76,6 +79,8 @@ export function Opening({ onNote }: { onNote: (note: OpeningNote | null) => void
         return paste(picture, {
           onSuccess: (made) => {
             told.current(null);
+            const claim = claims.current;
+            if (claim) return claim.take(made);
             const page = pageOf(made);
             void navigate(page, { replace: page === here });
           },
@@ -88,7 +93,7 @@ export function Opening({ onNote }: { onNote: (note: OpeningNote | null) => void
     }
     document.addEventListener("paste", pasted);
     return () => document.removeEventListener("paste", pasted);
-  }, []);
+  }, [claims]);
 
   // What Windows handed over: taken once the engine is ready, and again whenever more is ready.
   useEffect(() => {
@@ -120,6 +125,7 @@ export function Opening({ onNote }: { onNote: (note: OpeningNote | null) => void
     };
   }, [ready]);
 
+  const claim = claims.current;
   return over ? (
     <div
       role="status"
@@ -128,9 +134,11 @@ export function Opening({ onNote }: { onNote: (note: OpeningNote | null) => void
       <span className="flex size-14 items-center justify-center rounded-10 bg-raised">
         <Upload size={22} strokeWidth={1.7} aria-hidden="true" />
       </span>
-      <span className="font-semibold text-20">Drop them here</span>
+      <span className="font-semibold text-20">{claim ? claim.title : "Drop them here"}</span>
       <span className="text-14 text-fg-muted">
-        One picture opens its page; several, or a folder, open Many at once.
+        {claim
+          ? claim.body
+          : "One picture opens its page; several, or a folder, open Many at once."}
       </span>
     </div>
   ) : null;

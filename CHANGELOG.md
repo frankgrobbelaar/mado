@@ -8,6 +8,30 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- The wallpaper studio, a new place in the rail: your monitors drawn as Windows arranges them,
+  each with its name, its size and the wallpaper on it now. Pick a picture for each (from your
+  favourites or the library, dropped on the window, pasted, or sent from a picture's page with
+  "Make it a wallpaper"), or one laid across them all with a gap for the bezels. Each monitor's
+  part is made at exactly its pixels, as the Size tab makes a picture: cropped around the subject
+  (drag it to move where it's cut, zoom with the wheel, the keys or the slider) or its edges
+  extended, made bigger with Fast or Best where it needs it, and honest when it's too small to
+  look real. Set it as Windows' own wallpaper, or save the parts, or one picture of them all, as
+  new pictures in a folder you pick. While it's made, the studio says how long it has left, and
+  Stop stops it.
+- Favourites: a heart on a picture's page, and on its tile in the grid (shown as you point at it,
+  and always once given). The Library has Favourites of its own, searched and ordered like the
+  rest, with Many at once from them. A favourite stays one when its file is moved or renamed, and
+  a picture from outside your library can be one too.
+- The wallpaper can change every day, once you turn it on: at 07:00 or a time you pick, a favourite
+  (or a picture from one library folder) that suits each monitor, its way round and big enough,
+  none again till every one has been. It's made the evening before, so the change is instant;
+  closed at the time, Mado changes it as it next starts.
+- Before it first sets one, Mado keeps a copy of your own wallpaper, and "Put back your own
+  wallpaper" brings it back on each monitor, Windows' slideshow included. Mado's wallpapers stay
+  in its own folder (those showing and the last 3 days' kept), and Settings › Your data shows
+  them.
+
 ## 0.6.0 - 2026-11-23
 
 ### Added

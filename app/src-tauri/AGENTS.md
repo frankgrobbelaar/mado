@@ -19,7 +19,7 @@ Anything else belongs in the engine. Start with [../../AGENTS.md](../../AGENTS.m
 | Pages opened in the browser (the downloads page) | `src/links.rs` |
 | Windows' dialogs (the folder picker, pictures to make, an export to import) | `src/dialogs.rs` |
 | Showing a folder or file in Explorer | `src/explorer.rs` |
-| This PC's screens, for the Size tab (the engine remembers them) | `src/screens.rs` |
+| This PC's screens, for the Size tab (the engine remembers them; the wallpaper studio's monitors and Windows' wallpaper are the engine's own, `mado/desktop.py`) | `src/screens.rs` |
 | Running console programs without a window | `src/process.rs` |
 | Paths Mado is started with (command line, "Open in Mado", Open with), a second start's too, gathered into one choice for the window | `src/opened.rs` |
 | The files copied in File Explorer, for pasting | `src/clipboard.rs` |

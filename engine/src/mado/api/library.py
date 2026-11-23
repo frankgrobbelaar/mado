@@ -9,6 +9,7 @@ from pathlib import Path, PureWindowsPath
 
 from fastapi import APIRouter, HTTPException, Response, status
 
+from mado import favourites
 from mado.api.common import ApiModel, Copies, Database, Finding, Scans, Watching
 from mado.jobs import drive_of, needed_on
 from mado.library import FolderError, add_folder, folders, remove_folder
@@ -65,6 +66,7 @@ class Library(ApiModel):
     broken: int  # won't open
     damaged: int  # of those, marked as damaged by the owner: not asked about again
     parts: list[LibraryPart]  # each library folder's pictures, in the order they were added
+    favourites: int = 0  # pictures given a heart and there now, from outside the library too
 
 
 class Unopened(ApiModel):
@@ -193,6 +195,7 @@ def library(conn: Database) -> Library:
         raw=totals["raw"],
         broken=totals["broken"],
         damaged=totals["damaged"],
+        favourites=favourites.count(conn),
         parts=[
             LibraryPart(
                 folder_id=folder.id,

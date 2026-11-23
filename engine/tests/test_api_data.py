@@ -12,7 +12,14 @@ from mado.config import DataPaths
 def test_each_part_of_the_data_folder_is_measured(
     client: TestClient, paths: DataPaths, conn: sqlite3.Connection
 ):
-    parts = (("cache", 500), ("logs", 200), ("backups", 100), ("tools", 50), ("pasted", 30))
+    parts = (
+        ("cache", 500),
+        ("logs", 200),
+        ("backups", 100),
+        ("tools", 50),
+        ("pasted", 30),
+        ("wallpapers", 70),
+    )
     for folder, size in parts:
         (paths.root / folder).mkdir(parents=True, exist_ok=True)
         (paths.root / folder / "a file").write_bytes(bytes(size))
@@ -29,6 +36,7 @@ def test_each_part_of_the_data_folder_is_measured(
         "backups": 100,
         "tools": 75,
         "pasted": 30,
+        "wallpapers": 70,
     }
     assert found["database"] > 0
 
@@ -38,6 +46,7 @@ def test_parts_not_made_yet_measure_nothing(client: TestClient):
 
     assert (found["cache"], found["logs"], found["backups"], found["tools"]) == (0, 0, 0, 0)
     assert found["pasted"] == 0
+    assert found["wallpapers"] == 0
 
 
 def test_the_export_is_written_where_the_owner_asks(
