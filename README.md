@@ -19,7 +19,7 @@ on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, paints them after a painter or in any picture's style, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, restores old photos' scratches and colour, blurs a picture as a lens would by its depth or makes it a moving 3D photo, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library, camera RAW and HDR photos and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, paints them after a painter or in any picture's style, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, restores old photos' scratches and colour, blurs a picture as a lens would by its depth or makes it a moving 3D photo, saves any picture as it is in another format, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
@@ -87,7 +87,8 @@ it can measure, and fixes a picture before it grows, so it's clean when it's mad
 ### 5. Many at once
 
 Tick pictures in the library, choose a folder, or drop a pile on the window, then fix them, make
-them all for a screen, give them a look or cut out their subjects. Keep the steps as a recipe, such as "4K, then
+them all for a screen, give them a look or cut out their subjects, or just save them all as JPEG
+or another format. Keep the steps as a recipe, such as "4K, then
 Warm film at 60%, then JPEG into Edited", and use it on any batch, or on every new picture put in a
 watch folder. Mado shows it first on a few, so you know it's right, and works out the time and
 space before it starts. Then the queue does the rest, one picture at a time, now or overnight.
@@ -109,7 +110,9 @@ every day from your favourites. Your own wallpaper is kept, and comes back when 
 Add the folders your pictures live in. Mado reads pictures from phones, cameras and scanners, in
 JPEG, HEIC, PNG, WebP, AVIF, camera RAW and more, and keeps the wide colours of newer phones'
 photos and of a camera's RAW, which it develops with the camera's own white balance and never
-writes over. It shows them by the day they were taken, watches the folders for new ones, and finds
+writes over. A phone's HDR photo stays HDR: Mado shows it in HDR on a screen where Windows has HDR
+on, keeps its HDR through every tool, and saves it in JPEG or AVIF. Any picture can be saved just
+as it is, too: a RAW as a full-size JPEG, a HEIC as a JPEG, always as a new picture. It shows them by the day they were taken, watches the folders for new ones, and finds
 duplicates and bursts: you keep the sharpest, and the rest wait in quarantine. A picture doesn't
 have to be in the library: drop it on the window, paste it, or right-click it in File Explorer (on
 Windows 11, under Show more options).

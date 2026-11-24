@@ -16,6 +16,7 @@ import {
   type EditStep,
   EngineError,
   type FixStep,
+  type GainMap,
   type Job,
   type LookStep,
   type PaintStep,
@@ -86,7 +87,7 @@ const CONTROLS =
   "input, textarea, select, [role='group'], [role='radiogroup'], [role='dialog'], [role='slider'], [role='tablist']";
 const NOT_HERE = "That picture isn't in your library any more.";
 const OWN = "/pictures/"; // the address of a picture's page from outside the library
-const AS_IT_IS: Recipe = { edit: null, size: null, look: null }; // a paste saved unchanged
+const AS_IT_IS: Recipe = { edit: null, size: null, look: null }; // saved as it is: nothing made
 const HOLD_KEY = "\\"; // held down, it shows the original, as "Hold to see the original" does
 
 const ZOOMS = [
@@ -272,7 +273,8 @@ export function PicturePage() {
   // finds it changed saves nothing.
   const onParts = Boolean(looked?.parts?.length || paintStep?.parts?.length);
   const recipeEdit = editStep ?? (onParts ? { version, edits: [] } : null);
-  // A paste can be saved as it is: nothing chosen is still something to save.
+  // Nothing chosen is still something to save: the picture as it is, in the format picked (one
+  // waiting in a quarantine is only looked at).
   const recipe: Recipe | null =
     ready && (sized || looked || editStep || fixStep || paintStep || depthStep || restoreStep)
       ? restored(
@@ -282,7 +284,7 @@ export function PicturePage() {
           ),
           restoreStep,
         )
-      : ready && picture.data?.pasted
+      : ready && picture.data && !picture.data.aside
         ? AS_IT_IS
         : null;
   const depthing = tool === "depth";
@@ -327,6 +329,9 @@ export function PicturePage() {
   const big = picture.data ? tooBig(picture.data) : null;
   const places = usePc().data?.editing;
   const plan = usePlan(id, recipe);
+  // What the steps chosen make: never the plan for the picture as it is, still there for a moment
+  // as a newly chosen step's plan comes.
+  const madePlan = plan.data && !plan.data.asIs ? plan.data : null;
   const parts = picking.picked.parts.length;
   useStatusNote(
     tool === "edit" && parts > 0
@@ -492,7 +497,19 @@ export function PicturePage() {
                   : "…"}
             </h1>
             {picture.data && (
-              <p className="font-mono text-12 text-fg-muted">{factsOf(picture.data)}</p>
+              <p
+                className="font-mono text-12 text-fg-muted"
+                title={hdrSaid(picture.data.gainMap) ?? undefined}
+              >
+                {factsOf(picture.data)}
+              </p>
+            )}
+            {picture.data?.gainMap && !picture.data.gainMap.readable && (
+              // Kept narrow, so it wraps under the name rather than push the zoom to a row of its
+              // own.
+              <p role="note" className="max-w-96 text-12 text-fg-faint leading-normal">
+                {picture.data.gainMap.why} Mado shows and saves it as an ordinary picture.
+              </p>
             )}
           </div>
           {picture.data && !picture.data.aside && (
@@ -681,7 +698,7 @@ export function PicturePage() {
                 edit={editStep}
                 fix={fixStep ?? NO_FIX}
                 restore={shownRestore}
-                plan={fixStep || restoreStep ? (plan.data ?? null) : null}
+                plan={fixStep || restoreStep ? madePlan : null}
                 zoom={zoom}
               />
             )}
@@ -694,7 +711,7 @@ export function PicturePage() {
                 depth={depth}
                 onDepth={setDepth}
                 read={depthRead.data ?? null}
-                plan={depthStep ? (plan.data ?? null) : null}
+                plan={depthStep ? madePlan : null}
                 zoom={zoom}
                 held={held}
                 waiting={depthWaiting}
@@ -713,7 +730,7 @@ export function PicturePage() {
                 sized={sized}
                 look={looked}
                 paint={paintStep}
-                plan={sized ? (plan.data ?? null) : null}
+                plan={sized ? madePlan : null}
                 onFocus={(focus) => sized && setSized({ ...sized, focus })}
               />
             )}
@@ -862,15 +879,25 @@ export function PicturePage() {
   );
 }
 
-/** "HEIC · 4032 × 3024 · 3.1 MB · 12 Nov 2026, 18:42" */
+/** "HEIC · 4032 × 3024 · 3.1 MB · 12 Nov 2026, 18:42"; an HDR photo's "JPEG · HDR · …". */
 function factsOf(picture: PictureDetails): string {
   const parts = [
     picture.format ?? "",
+    picture.gainMap?.readable ? "HDR" : "",
     picture.width && picture.height ? `${picture.width} × ${picture.height}` : "",
     size(picture.size),
     takenOn(picture.takenAt),
   ];
   return parts.filter(Boolean).join(" · ");
+}
+
+/** What an HDR photo's gain map says, in a sentence: how much brighter it goes on an HDR
+ * screen, and that Mado keeps it. */
+function hdrSaid(gainMap: GainMap | null): string | null {
+  if (!gainMap?.readable || gainMap.stops === null) return null;
+  const stops = Number(gainMap.stops.toFixed(1));
+  const times = Math.round(2 ** gainMap.stops * 10) / 10;
+  return `An HDR photo: on an HDR screen it goes up to ${stops} ${stops === 1 ? "stop" : "stops"} (${times} times) brighter. Mado keeps its gain map through every tool, in JPEG and AVIF.`;
 }
 
 /** "Hold to see the original", as the Looks board draws it: the picture without its look while

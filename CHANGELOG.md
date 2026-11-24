@@ -8,6 +8,24 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- HDR photos: a recent phone's HDR photo (an Ultra HDR JPEG, a HEIC with its gain map, or an AVIF
+  with one) wears an "HDR" tag in the Library and on its page, and shows in HDR on a screen where
+  Windows has HDR on. Mado keeps its HDR through every tool (sizes, edits, restoring, fixes, depth,
+  painting styles and looks), in many at once, recipes and watch folders, and saves it again in JPEG
+  and AVIF. "Keep from the original" has "Its HDR (the gain map)", on unless you turn it off, and a
+  format that can't keep it (PNG, WebP) says so before you save. A gain map Mado can't read yet is
+  said under the picture's name, and the picture is shown and saved as an ordinary one.
+- Saving a picture as it is: Save, with nothing chosen, saves the picture at its own size in the
+  format and quality you pick, keeping what you tick to keep: a camera RAW developed at full size,
+  a HEIC as a JPEG, an HDR photo with its HDR. It's always a new picture beside the original, never
+  in its place. A batch, a recipe or a watch folder can be just Save too, to change many pictures'
+  format at once, and History says "Saved Harbour as JPEG".
+
+### Changed
+- The wallpaper studio and 3D photos say that an HDR photo's extra brightness isn't kept in them:
+  Windows shows a wallpaper as an ordinary picture, and a 3D photo is an ordinary video.
+
 ## 0.13.0 - 2026-11-24
 
 ### Added

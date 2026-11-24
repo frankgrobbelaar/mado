@@ -27,6 +27,7 @@ const DUSK = PICTURES[0] as (typeof PICTURES)[number];
 /** A made-up scan of an old print, opened from Phone. */
 const details: PictureDetails = {
   ...DUSK,
+  gainMap: null,
   folderId: 1,
   folder: "D:\\Pictures\\Phone",
   dir: "",
@@ -305,6 +306,19 @@ describe("Restoring an old photo", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Save Harbour at dusk" });
     expect(within(dialog).getByText("Coloured it")).toBeVisible();
+  });
+
+  it("leaves the Size tab no longer saying Save keeps it as it is once restoring is on", async () => {
+    engine();
+    renderPicture();
+    const restoring = await openFix();
+    fireEvent.click(within(restoring).getByRole("switch", { name: "Colour" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Size" }));
+
+    expect(
+      await screen.findByText("Pick a screen or a print to see the picture made for it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Save keeps it as it is/)).toBeNull();
   });
 
   it("starts a colour photo on its faded colours, and says a colour photo coloured gets new ones", async () => {

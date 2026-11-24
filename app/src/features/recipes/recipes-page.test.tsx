@@ -141,4 +141,24 @@ describe("RecipesPage", () => {
     ]);
     expect(body.saving.folder).toBe("Edited");
   });
+
+  it("says a recipe that's just Save makes new pictures, whatever it kept as its way", async () => {
+    const asIs = { ...RECIPE, steps: [], saving: { ...RECIPE.saving, how: "replace" as const } };
+    const fetch = fakeEngine({ ...ENGINE, "/recipes": [asIs], "PUT /recipes/1": asIs });
+    renderRecipes();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    const card = await screen.findByRole("dialog", { name: "Edit Holiday prints" });
+    fireEvent.click(within(card).getByRole("button", { name: "Change save" }));
+    const saving = await screen.findByRole("dialog", { name: "How they're saved" });
+    expect(
+      within(saving).getByText(/Replacing the originals isn't offered: with no steps/),
+    ).toBeInTheDocument();
+    expect(within(saving).queryByText(/takes its original's place/)).toBeNull();
+    fireEvent.click(within(saving).getByRole("button", { name: "Done" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(sent(fetch, "PUT", "/recipes/1")).toHaveLength(1));
+    expect(sent(fetch, "PUT", "/recipes/1")[0].saving.how).toBe("new");
+  });
 });

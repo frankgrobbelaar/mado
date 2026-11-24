@@ -312,6 +312,33 @@ describe("HomePage", () => {
     });
   });
 
+  it("tells of a batch that was just Save as the format they were saved in", async () => {
+    fakeEngine({
+      "/settings": SETTINGS,
+      "/library": LIBRARY,
+      "/scan": scanDone(),
+      "/batches/done": [
+        batch({
+          done: 240,
+          failed: 0,
+          waiting: 0,
+          finishedAt: localTime(2026, 11, 23, 15, 10),
+          startedAt: localTime(2026, 11, 23, 15),
+          madeFor: null,
+          look: null,
+          purpose: null,
+          savedAs: "JPEG",
+          into: "beside the originals",
+        }),
+      ],
+    });
+    renderHome();
+
+    const needs = await screen.findByRole("region", { name: "Needs you" });
+    expect(await within(needs).findByText("Holiday is ready")).toBeInTheDocument();
+    expect(needs).toHaveTextContent("Saved as JPEG, as new pictures beside the originals.");
+  });
+
   it("asks for a review of duplicates and bursts, and says how far looking has got", async () => {
     fakeEngine({
       "/settings": SETTINGS,

@@ -13,11 +13,18 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
-from mado import favourites, outside
+from mado import favourites, hdr, outside
 from mado.api.common import ApiModel, Copies, Database, Finding, Paths, Searching, SetAside
 from mado.core.files import kind_of
 from mado.duplicates import Found, choices, kept
-from mado.library import file_time, save_facts, save_problem, save_waiting
+from mado.library import (
+    HDR_STATES,
+    file_time,
+    save_facts,
+    save_hdr,
+    save_problem,
+    save_waiting,
+)
 from mado.pictures import (
     InUseError,
     NeedsFfmpegError,
@@ -59,6 +66,7 @@ class PictureItem(ApiModel):
     # "waiting": a camera RAW listed while Mado's RAW reader comes; "broken": won't open
     state: PictureState
     raw: bool  # a camera RAW: read by Mado's RAW reader, and never written over
+    hdr: bool = False  # an HDR photo whose gain map Mado reads: it wears an "HDR" tag
     width: int | None  # as it's shown
     height: int | None
     size: int  # bytes
@@ -83,7 +91,20 @@ class PicturePage(ApiModel):
     next: str | None  # where the next page starts; None on the last
 
 
+class GainMapOut(ApiModel):
+    """An HDR photo's gain map, as its page says it."""
+
+    readable: bool  # Mado reads it, and keeps it through its tools
+    stops: float | None  # how many stops past ordinary white its HDR rendition goes
+    base_is_hdr: bool  # its picture is the HDR rendition, and the gain map makes the ordinary one
+    colour: bool  # a gain map in colour, not grey
+    width: int | None  # the gain map as stored
+    height: int | None
+    why: str | None  # why Mado can't keep it: "Its gain map is version 2.0, which Mado…"
+
+
 class PictureDetails(PictureItem):
+    gain_map: GainMapOut | None = None  # an HDR photo's, read from its file as it is now
     folder_id: int | None  # its library folder's number; None outside the library
     folder: str  # its library folder; outside the library, the folder it's in
     dir: str  # the folders between that and it: "2026/Trip"
@@ -300,16 +321,17 @@ def thumbnail(picture_id: int, conn: Database, copies: Copies) -> FileResponse:
     )
 
 
-@router.get("/pictures/{picture_id}/view", response_class=FileResponse, responses=_PICTURE)
+_VIEW: dict[int | str, dict[str, Any]] = {200: {"content": {"image/webp": {}, "image/jpeg": {}}}}
+
+
+@router.get("/pictures/{picture_id}/view", response_class=FileResponse, responses=_VIEW)
 def view(picture_id: int, conn: Database, copies: Copies) -> FileResponse:
     """It the size of a screen, at most 2560 pixels on its longer side (WebP): a camera RAW
-    developed, as Save makes it."""
+    developed, as Save makes it; an HDR photo as an Ultra HDR JPEG, its gain map with it."""
     source = Source.of(_row(conn, picture_id))
-    return FileResponse(
-        _made(lambda: copies.view(source), conn, picture_id),
-        media_type="image/webp",
-        headers=_KEEP,
-    )
+    path = _made(lambda: copies.view(source), conn, picture_id)
+    media = "image/jpeg" if path.suffix == ".jpg" else "image/webp"
+    return FileResponse(path, media_type=media, headers=_KEEP)
 
 
 @router.get("/pictures/{picture_id}/full", response_class=FileResponse, responses=_ANY_PICTURE)
@@ -447,6 +469,7 @@ def item_of(
         format=row["format"],
         state=_state(row),
         raw=bool(row["raw"]),
+        hdr=row["hdr"] == 1 and not row["problem"],
         width=row["width"],
         height=row["height"],
         size=row["size"],
@@ -458,12 +481,41 @@ def item_of(
     )
 
 
+def gain_map_of(conn: sqlite3.Connection, row: sqlite3.Row) -> GainMapOut | None:
+    """An HDR photo's gain map, read from its file's headers as it is now (kept for the grid's
+    tag when it differs from what the scan read); None for a picture without one."""
+    path = Path(row["path"])
+    if row["problem"] or row["raw"] or row["width"] is None or not path.is_file():
+        return None  # its drive away: what the scan read stands
+    found = hdr.facts(path)
+    state = HDR_STATES[found.state]
+    if state != row["hdr"]:
+        save_hdr(conn, row["id"], found.state)
+    if found.state == "none":
+        return None
+    info = found.info
+    width, height = found.size or (None, None)
+    return GainMapOut(
+        readable=found.state == "hdr",
+        stops=round(info.stops, 2) if info is not None else None,
+        base_is_hdr=info.base_is_hdr if info is not None else False,
+        colour=info.colour if info is not None else False,
+        width=width,
+        height=height,
+        why=f"Its gain map {found.why}." if found.why else None,
+    )
+
+
 def details(conn: sqlite3.Connection, row: sqlite3.Row, aside: Quarantine) -> PictureDetails:
     """A picture in full: what Mado read of it, where it lives (its library folder, or the
-    folder it's in, outside the library), and whether it's pasted or waits in a quarantine."""
+    folder it's in, outside the library), whether it's pasted or waits in a quarantine, and an
+    HDR photo's gain map."""
     outside_ = row["folder_id"] is None
     pasted = bool(row["pasted"])
     path = Path(row["path"])
+    gain_map = gain_map_of(conn, row)
+    # As its headers say now, gain map or none: the tag follows them.
+    row = conn.execute("SELECT * FROM pictures WHERE id = ?", (row["id"],)).fetchone() or row
     if outside_:
         folder = str(path.parent)
     else:
@@ -475,6 +527,7 @@ def details(conn: sqlite3.Connection, row: sqlite3.Row, aside: Quarantine) -> Pi
         **item_of(row, None, favourites.is_favourite(conn, row["id"])).model_dump(
             by_alias=False, exclude={"group"}
         ),
+        gain_map=gain_map,
         folder_id=row["folder_id"],
         folder=folder,
         dir=row["dir"],

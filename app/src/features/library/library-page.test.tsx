@@ -196,6 +196,18 @@ describe("LibraryPage", () => {
     await waitFor(() => expect(asked(fetch, "/pictures/31/thumbnail").length).toBeGreaterThan(0));
   });
 
+  it("tags an HDR photo's tile HDR, a HEIC's first", async () => {
+    const hdr = PICTURES.map((each) =>
+      each.id === 11 || each.id === 12 ? { ...each, hdr: true } : each,
+    );
+    library({ "/pictures": page(hdr) });
+    renderLibrary("/library?folder=1");
+
+    const day = await screen.findByRole("region", { name: "Saturday 14 November 3 pictures" });
+    expect(within(day).getAllByText("HDR")).toHaveLength(2); // Harbour at dusk.heic, Little sail
+    expect(within(day).getAllByText("HEIC")).toHaveLength(1); // Spring meadow, an ordinary HEIC
+  });
+
   it("shows a camera RAW waiting for Mado's RAW reader as the reader comes", async () => {
     const waiting = PICTURES.map((each) =>
       each.raw ? { ...each, state: "waiting" as const, width: null, height: null } : each,

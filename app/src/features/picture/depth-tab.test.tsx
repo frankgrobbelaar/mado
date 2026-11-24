@@ -36,6 +36,7 @@ const details: PictureDetails = {
   pasted: false,
   aside: false,
   savesTo: null,
+  gainMap: null,
 };
 
 /** Read: a subject found, not flat, on the card in a fifth of a second. */
@@ -203,7 +204,8 @@ describe("The Depth tab", () => {
       await screen.findByText(/Mado read how far away each part of it is in/),
     ).toBeInTheDocument();
     expect(screen.getByText("0.2 s")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save…" })).toBeDisabled();
+    // Nothing on: Save saves the picture as it is, quietly.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save…" })).toBeEnabled());
     expect(sent(fetch, "POST", "/pictures/11/depth")[0]).toEqual({
       version: details.version,
       edits: [],
@@ -413,6 +415,20 @@ describe("The Depth tab", () => {
     ).toBeVisible();
   });
 
+  it("says how long a big picture's depth takes only by its own plan, not the picture's as it is", async () => {
+    // The picture's plan as it is (no depth in it) is there a moment as the tools settle.
+    engine({
+      "POST /pictures/11/depth": { ...READ, megapixels: 96 },
+      "POST /pictures/11/plan": plan({ asIs: true, depthSeconds: 0, label: "" }),
+    });
+    renderPicture();
+    const tools = await openDepth();
+    fireEvent.click(within(tools).getByRole("switch", { name: "Tilt-shift" }));
+
+    await screen.findByRole("switch", { name: "Tilt-shift", checked: true });
+    expect(screen.queryByText(/A big picture: 96 megapixels/)).toBeNull();
+  });
+
   it("says when the graphics card is busy with the queue", async () => {
     engine({
       "/queue/now": {
@@ -482,6 +498,30 @@ describe("A 3D photo", () => {
     encoderName: "Windows' own video encoder",
     problem: null,
   };
+
+  it("says an HDR photo's 3D photo is an ordinary video", async () => {
+    engine({
+      "/pictures/11": {
+        ...details,
+        hdr: true,
+        gainMap: {
+          readable: true,
+          stops: 3,
+          baseIsHdr: false,
+          colour: false,
+          width: 1008,
+          height: 756,
+          why: null,
+        },
+      },
+    });
+    renderPicture();
+    const panel = await openMotion();
+
+    expect(
+      await within(panel).findByText(/A 3D photo is an ordinary video, in sRGB/),
+    ).toBeInTheDocument();
+  });
 
   it("is made as chosen, plays on the stage and is saved beside the picture", async () => {
     const fetch = engine({

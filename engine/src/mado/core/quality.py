@@ -19,6 +19,9 @@ type Format = Literal["JPEG", "PNG", "WebP", "AVIF"]
 
 FORMATS: tuple[Format, ...] = ("JPEG", "PNG", "WebP", "AVIF")
 WRITES = frozenset(FORMATS)  # what Mado saves in: an original in another keeps its name only
+# What keeps an HDR photo's gain map: JPEG as Ultra HDR, AVIF with ISO 21496-1's tmap item.
+# PNG and WebP have no room for one.
+HDR_FORMATS: frozenset[Format] = frozenset(("JPEG", "AVIF"))
 
 # Bytes a pixel takes, about: photos at JPEG's qualities (between them, in proportion), and
 # PNG for each kind of picture.

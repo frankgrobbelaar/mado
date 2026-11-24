@@ -348,7 +348,10 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
   const [chosenSaving, setSaving] = useState<BatchSaving>(
     recipe?.saving ?? { ...savingFrom(settings.data), how: "new", folder: "Edited" },
   );
-  const saving = savingFor(steps, chosenSaving);
+  const chosen = savingFor(steps, chosenSaving);
+  // Just Save: each picture saved as it is, always as a new picture, whatever way was kept.
+  const saving: BatchSaving =
+    steps.length === 0 && chosen.how === "replace" ? { ...chosen, how: "new" } : chosen;
   const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
   const fixing = steps.find((step): step is FixStepItem => step.step === "fix") ?? null;
   const restoring = steps.find((step): step is RestoreStepItem => step.step === "restore") ?? null;
@@ -425,11 +428,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             <Button variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              disabled={!name.trim() || steps.length === 0 || doing.isPending}
-              onClick={save}
-            >
+            <Button variant="primary" disabled={!name.trim() || doing.isPending} onClick={save}>
               {recipe ? "Save" : "Keep it"}
             </Button>
           </span>
@@ -544,6 +543,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             saving={saving}
             onSaving={setSaving}
             clear={keepsNothing(steps)}
+            asIs={steps.length === 0}
             onClose={() => setEditing(null)}
           />
         )}

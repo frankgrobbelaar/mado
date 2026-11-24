@@ -19,8 +19,11 @@ from pathlib import Path
 
 from PIL import Image
 
+from mado import hdr
 from mado.config import DataPaths
 from mado.core.files import Kind, kind_of
+from mado.core.gains import shown_with
+from mado.encode import with_gain_map
 from mado.libraw import Reader
 from mado.pictures import Command, PictureGoneError, UnreadableError, decode
 
@@ -49,10 +52,13 @@ class Source:
     format: str | None
     version: str  # changes when its file does
     problem: str | None = None  # why it won't open
+    hdr: bool = False  # an HDR photo whose gain map Mado reads: its view keeps it
+    size: tuple[int, int] | None = None  # as it's shown
 
     @classmethod
     def of(cls, row: sqlite3.Row) -> Source:
         """From a row of the pictures table."""
+        width, height = row["width"], row["height"]
         return cls(
             id=row["id"],
             path=Path(row["path"]),
@@ -60,6 +66,8 @@ class Source:
             format=row["format"],
             version=version(row["modified"], row["size"]),
             problem=row["problem"],
+            hdr=row["hdr"] == 1,
+            size=(width, height) if width and height else None,
         )
 
 
@@ -77,14 +85,23 @@ class Previews:
     ) -> None:
         self._root = paths.cache / "pictures"
         self._full = paths.cache / "full"
+        self._scratch = paths.cache / "hdr"  # a HEIC's gain map on its way to ffmpeg
         self._ffmpeg = ffmpeg
         self.reader = reader  # camera RAW's, once it's there
+        # Pictures (by number and version) whose gain map didn't read: shown as they are from
+        # then on, not tried again on every copy asked for.
+        self._unread: set[tuple[int, str]] = set()
         # A copy asked for twice at once (a look's small copies, all at once) is made once: each
         # copy's own lock among a few, so copies of other pictures don't wait for it.
         self._making = [threading.Lock() for _ in range(_LOCKS)]
 
     def _lock_for(self, target: Path) -> threading.Lock:
         return self._making[hash(str(target).casefold()) % _LOCKS]
+
+    def tidy(self) -> None:
+        """As the engine starts: a HEIC's gain map a stop left on its way to ffmpeg goes."""
+        for left in self._scratch.glob("gain-map-*.heic") if self._scratch.is_dir() else ():
+            left.unlink(missing_ok=True)
 
     def thumbnail(self, picture: Source) -> Path:
         """Its thumbnail, made now if it hasn't been."""
@@ -96,18 +113,29 @@ class Previews:
         return target if target.is_file() else None
 
     def view(self, picture: Source) -> Path:
-        """Its view the size of a screen, made now if it hasn't been."""
+        """Its view the size of a screen, made now if it hasn't been: an HDR photo's as an Ultra
+        HDR JPEG, its gain map with it, so an HDR screen shows it in HDR (an ordinary screen
+        shows its picture, as it shows any other's)."""
+        if picture.hdr:
+            made = self._hdr_copy(picture, "view", VIEW, quality=88)
+            if made is not None:
+                return made
         return self._copy(picture, "view", VIEW, quality=88)
 
     def full(self, picture: Source) -> tuple[Path, str]:
         """The picture at full size, and what kind of file that is: the picture itself when the
-        window can show its format, else a copy it can (PNG), made now if it hasn't been."""
+        window can show its format, else a copy it can (PNG; an HDR HEIC's an Ultra HDR JPEG),
+        made now if it hasn't been."""
         self._readable(picture)
         shown = SHOWN_AS_IS.get(picture.format or "")
         if picture.kind == "picture" and shown is not None:
             if not picture.path.is_file():
                 raise PictureGoneError(picture.path)
             return picture.path, shown
+        if picture.hdr and picture.kind == "heif":
+            made = self._hdr_copy(picture, "full", None, quality=95)
+            if made is not None:
+                return made, "image/jpeg"
         target = self._full / f"{picture.id}-{picture.version}.png"
         if target.is_file():
             return target, "image/png"
@@ -123,6 +151,51 @@ class Previews:
                 save_copy(image, target, "PNG", compress_level=1)
                 self._prune()
         return target, "image/png"
+
+    def _hdr_copy(
+        self, picture: Source, purpose: str, longest: int | None, *, quality: int
+    ) -> Path | None:
+        """An HDR photo's copy as an Ultra HDR JPEG: its picture, and its gain map made the same
+        share of it; None when its gain map won't read now (an ordinary copy then)."""
+        self._readable(picture)
+        folder = self._full if longest is None else self._root / _shelf(picture.id)
+        name = f"{picture.id}-{picture.version}{'' if longest is None else f'-{purpose}'}.jpg"
+        target = folder / name
+        if target.is_file():
+            return target
+        if (picture.id, picture.version) in self._unread:
+            return None
+        with self._lock_for(target):
+            if target.is_file():
+                return target
+            gain = hdr.read(picture.path, ffmpeg=self._ffmpeg(), scratch=self._scratch)
+            if gain is None or picture.size is None:
+                self._unread.add((picture.id, picture.version))
+                return None
+            image = decode(
+                picture.path, picture.kind, longest=longest, ffmpeg=self._ffmpeg(), reader=None
+            )
+            shown_gain = shown_with(gain, picture.size, image.size)
+            options: dict[str, object] = {"quality": quality, "subsampling": 0}
+            profile = image.info.get("icc_profile")
+            if isinstance(profile, bytes):
+                options["icc_profile"] = profile
+            rgb = image if image.mode in ("RGB", "L") else image.convert("RGB")
+            data = with_gain_map(rgb, "JPEG", options, shown_gain)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            writing = target.with_name(f"{target.name}.{secrets.token_hex(4)}.part")
+            try:
+                writing.write_bytes(data)
+                try:
+                    writing.replace(target)
+                except PermissionError:
+                    if not target.is_file():
+                        raise
+            finally:
+                writing.unlink(missing_ok=True)
+            if longest is None:
+                self._prune()
+        return target
 
     def forget(self, ids: Iterable[int]) -> None:
         """Takes away the copies of these pictures (forgotten, or changed since): each of their
@@ -162,7 +235,9 @@ class Previews:
 
     def _prune(self) -> None:
         """Keeps the newest few full-size copies."""
-        copies = sorted(self._full.glob("*.png"), key=_made, reverse=True)
+        copies = sorted(
+            [*self._full.glob("*.png"), *self._full.glob("*.jpg")], key=_made, reverse=True
+        )
         for old in copies[FULL_KEPT:]:
             _remove(old)
 

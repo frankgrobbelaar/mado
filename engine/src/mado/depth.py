@@ -62,6 +62,8 @@ from mado.core.depth import (
     with_subject,
 )
 from mado.core.edits import Edit
+from mado.core.gainmap import GainMap, alternate, stops_between
+from mado.core.gains import resized
 from mado.core.hardware import Place
 from mado.core.masks import guided, guided_coefficients, running
 from mado.editing import Editor, edits_key
@@ -310,6 +312,132 @@ def work_out(
 ) -> Worked:
     """The depth tools worked out on a copy of `whole`, the whole picture made (at any size: a
     preview's, or its own), as `depthed` takes them; `mask` the subject at `whole`'s size."""
+    setting = _setting(whole, depthing, near, canvas, picture, mask=mask, found_focus=found_focus)
+    lin = setting.lin
+    if depthing.fog is not None and setting.haze is not None:
+        lin = fogged(lin, setting.near, depthing.fog.density, setting.haze)
+    lens = None
+    if depthing.portrait is not None:
+        blurred = lens_blur(lin, setting.near, setting.focus, setting.most)
+        behind_seen = linear_to_stored(blurred.behind)
+        front_seen = linear_to_stored(blurred.front)
+        lens = (behind_seen, front_seen, blurred.nearer)
+        sharp = in_focus((np.abs(setting.near - setting.focus) * setting.most).astype(np.float32))
+        lin = _linear_of(
+            joined(linear_to_stored(lin), sharp, behind_seen, front_seen, blurred.nearer)
+        )
+    tilted = None
+    if depthing.tilt is not None:
+        small = setting.small
+        radius = tilt_radius(small[1], small[0], depthing.tilt, setting.short, setting.span)
+        tilted = linear_to_stored(stack_blur(lin, radius))
+    return Worked(
+        depthing,
+        setting.small,
+        setting.short,
+        setting.agree,
+        setting.behind,
+        setting.at_subject,
+        setting.focus_point,
+        setting.focus,
+        setting.haze,
+        lens,
+        setting.most,
+        tilted,
+        setting.span,
+    )
+
+
+@dataclass(frozen=True)
+class _Setting:
+    """What the depth tools are worked out from on a copy of the picture made: its size, the
+    copy in linear light, how near each point is (the subject's own nearness inside its mask,
+    what's behind it round it), what's in focus, the fog's light and the lens's circle."""
+
+    small: tuple[int, int]
+    short: int
+    lin: Floats
+    near: Floats
+    agree: Floats | None
+    behind: Floats
+    at_subject: float | None
+    focus_point: tuple[float, float] | None
+    focus: float
+    haze: Floats | None
+    most: float
+    span: tuple[float, float]
+
+
+def gains_depthed(
+    gain: GainMap,
+    sized: Image.Image,
+    depthing: Depthing,
+    near: Floats,
+    canvas: tuple[float, float, float, float],
+    picture: tuple[int, int],
+    *,
+    mask: Mask | None = None,
+    found_focus: tuple[float, float] = (0.5, 0.5),
+) -> GainMap:
+    """An HDR photo's gain map once its picture is given its depth tools, made again from both
+    renditions given the same tools: the picture made (`sized`, before its depth tools) and its
+    HDR rendition, each fogged, blurred as a lens or tilt-shifted as `depthed` does them, at the
+    gain map's size (at most the copy the tools are worked out on), and the gain between them
+    taken again. So fog thins the gain with distance as it thins the light, and a light blurred
+    into a disc glows as a disc. `near`, `canvas`, `picture`, `mask` (the subject at `sized`'s
+    size) and `found_focus` as `depthed` takes them."""
+    width, height = gain.size
+    scale = min(WORK / max(width, height), 1.0)
+    size = (max(1, round(width * scale)), max(1, round(height * scale)))
+    gains = resized(gain, size).gains
+    small = sized.convert("RGB").resize(size, Image.Resampling.BOX)
+    small_mask = (
+        np.asarray(Image.fromarray(mask, "L").resize(size, Image.Resampling.BILINEAR))
+        if mask is not None
+        else None
+    )
+    setting = _setting(
+        small, depthing, near, canvas, picture, mask=small_mask, found_focus=found_focus
+    )
+    base = setting.lin
+    other = alternate(base, gains, gain.info)
+    made_base = _tools_in_light(base, depthing, setting)
+    made_other = _tools_in_light(np.maximum(other, 0.0), depthing, setting)
+    return GainMap(
+        stops_between(made_base, made_other, gain.info, colour=gains.ndim == 3), gain.info
+    )
+
+
+def _tools_in_light(lin: Floats, depthing: Depthing, setting: _Setting) -> Floats:
+    """The depth tools on a copy in linear light (an HDR rendition's above 1 too), joined in
+    light, so both renditions are given exactly the same."""
+    if depthing.fog is not None and setting.haze is not None:
+        lin = fogged(lin, setting.near, depthing.fog.density, setting.haze)
+    if depthing.portrait is not None:
+        blurred = lens_blur(lin, setting.near, setting.focus, setting.most)
+        sharp = in_focus((np.abs(setting.near - setting.focus) * setting.most).astype(np.float32))
+        keep = (sharp * (1.0 - blurred.nearer))[..., None]
+        seen = sharp[..., None] * blurred.front + (1.0 - sharp)[..., None] * blurred.behind
+        lin = (keep * lin + (1.0 - keep) * seen).astype(np.float32)
+    if depthing.tilt is not None:
+        small = setting.small
+        radius = tilt_radius(small[1], small[0], depthing.tilt, setting.short, setting.span)
+        blurred_rows = stack_blur(lin, radius)
+        sharp_rows = in_focus(radius[:, :1])[..., None]
+        lin = (sharp_rows * lin + (1.0 - sharp_rows) * blurred_rows).astype(np.float32)
+    return lin
+
+
+def _setting(
+    whole: Image.Image,
+    depthing: Depthing,
+    near: Floats,
+    canvas: tuple[float, float, float, float],
+    picture: tuple[int, int],
+    *,
+    mask: Mask | None,
+    found_focus: tuple[float, float],
+) -> _Setting:
     rgb = flat(whole) if "A" not in whole.getbands() else whole.convert("RGB")
     width, height = rgb.size
     scale = min(WORK / max(width, height), 1.0)
@@ -357,7 +485,7 @@ def work_out(
             focus_point = on_canvas(found_focus, canvas, picture)
             focus = at_point(near_ref, focus_point)
 
-    # Fog, the lens, then tilt-shift, each from the one before.
+    # The fog's light (the picture's own haze, or the colour chosen) and the lens's circle.
     haze = None
     if depthing.fog is not None:
         haze = (
@@ -365,36 +493,19 @@ def work_out(
             if depthing.fog.colour is not None
             else own_haze(lin, near_ref)
         )
-        lin = fogged(lin, near_ref, depthing.fog.density, haze)
-    lens = None
-    most = 0.0
-    if portrait is not None:
-        most = f_radius(portrait.aperture, short)
-        blurred = lens_blur(lin, near_ref, focus, most)
-        behind_seen = linear_to_stored(blurred.behind)
-        front_seen = linear_to_stored(blurred.front)
-        lens = (behind_seen, front_seen, blurred.nearer)
-        sharp = in_focus((np.abs(near_ref - focus) * most).astype(np.float32))
-        lin = _linear_of(
-            joined(linear_to_stored(lin), sharp, behind_seen, front_seen, blurred.nearer)
-        )
-    tilted = None
-    if depthing.tilt is not None:
-        radius = tilt_radius(small[1], small[0], depthing.tilt, short, span_of(canvas, picture))
-        tilted = linear_to_stored(stack_blur(lin, radius))
-    return Worked(
-        depthing,
+    most = f_radius(portrait.aperture, short) if portrait is not None else 0.0
+    return _Setting(
         small,
         short,
+        lin,
+        near_ref,
         agree,
         behind,
         at_subject,
         focus_point,
         focus,
         haze,
-        lens,
         most,
-        tilted,
         span_of(canvas, picture),
     )
 

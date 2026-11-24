@@ -289,6 +289,42 @@ def plan(
     )
 
 
+def asks_nothing(recipe: Recipe) -> bool:
+    """A recipe with no step at all: Save then saves the picture as it is, in the format chosen
+    (a picture whose steps change nothing in it isn't one: those are said as changing nothing)."""
+    return (
+        recipe.sizing is None
+        and recipe.styling is None
+        and (recipe.editing is None or not recipe.editing.edits)
+        and (recipe.restoring is None or not recipe.restoring.on)
+        and (recipe.fixing is None or not recipe.fixing.on)
+        and (recipe.depthing is None or not recipe.depthing.on)
+        and recipe.painting is None
+    )
+
+
+def hdr_lost(made: Plan) -> str | None:
+    """Why a plan leaves an HDR photo no HDR to keep; None when it keeps it (in a format that
+    holds a gain map). The tools' rules are mado/core/gains.py's."""
+    if made.see_through:
+        return (
+            "A cut-out with nothing behind it saves as PNG or WebP, which have no room for a "
+            "gain map, so it's an ordinary picture."
+        )
+    painting = made.painting
+    if (
+        painting is not None
+        and painting.style.id in ("pencil", "coloured-pencil")
+        and painting.strength >= 1.0
+        and not painting.parts
+    ):
+        return (
+            "A pencil sketch is paper and lines, with no light in it to brighten, so it's an "
+            "ordinary picture."
+        )
+    return None
+
+
 def said_with(painting: Painting | None, styling: Styling | None) -> str | None:
     """A painting and a look as Save and History say them, after "with": "After Hokusai at 80%
     and Warm film at 60%" (", and" when the painting's words have a comma of their own), each

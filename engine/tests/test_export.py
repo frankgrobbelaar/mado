@@ -100,6 +100,7 @@ def test_the_library_is_in_the_export_readable_without_mado(paths: DataPaths, tm
         (str(phone / "_MG_0042.CR3"), "CR3", rows[1]["takenAt"], "no"),
     ]
     assert rows[1]["state"] == "camera RAW, waiting for Mado's RAW reader"
+    assert [row["hdr"] for row in rows] == ["no", ""]  # a RAW waiting isn't looked at yet
 
 
 def test_the_exported_database_opens_on_its_own(paths: DataPaths, tmp_path: Path):

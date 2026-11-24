@@ -21,13 +21,13 @@ from typing import Literal, cast
 
 from PIL import Image
 
-from mado import db
+from mado import db, hdr
 from mado.ai import BIREFNET, COLOURER, DETECTOR, Ai, Timer
 from mado.batches import Picture, kept_key
 from mado.config import DataPaths
 from mado.core.fixes import models_for as fix_models
 from mado.core.naming import EXTENSIONS
-from mado.core.quality import about_bytes
+from mado.core.quality import HDR_FORMATS, about_bytes
 from mado.core.recipe import Recipe
 from mado.depth import Depths
 from mado.editing import Editor, picture_key
@@ -336,6 +336,12 @@ class Samples:
                 current = next(s for s in asked.shown.samples if s.index == sample.index)
                 self._update(asked, replace(current, progress=min(max(within, 0.0), 1.0) * 0.9))
 
+        saving = asked.saving
+        gain = (
+            hdr.read(picture.path, ffmpeg=self._ffmpeg(), scratch=self._paths.cache / "hdr")
+            if saving.keep_hdr and saving.format in HDR_FORMATS and seen.hdr == "hdr"
+            else None
+        )
         making = make(
             image,
             made,
@@ -350,6 +356,7 @@ class Samples:
             replan=lambda stops: planned(asked.recipe, seen, starts_on, fix_starts_on, stops),
             depths=self._depths,
             found_focus=seen.focus,
+            gain=gain,
         )
         result, made = making.image, making.plan
         if made.empty:  # measured, its fixes change nothing in it
@@ -368,6 +375,7 @@ class Samples:
             full,
             dpi=dpi_of(asked.recipe),
             reader=self._reader,
+            gain=making.gain,
         )
         seconds = time.monotonic() - began
         before = image

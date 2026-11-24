@@ -89,9 +89,11 @@ function ReaderComing({ small }: { small: boolean }) {
   );
 }
 
-/** The tag a picture's tile wears: what kind it is, where that's worth saying. */
+/** The tag a picture's tile wears: what kind it is, where that's worth saying (an HDR photo's
+ * HDR first, as what shows it differently on an HDR screen). */
 export function tagOf(picture: PictureItem): string | null {
   if (picture.raw) return "RAW";
+  if (picture.hdr) return "HDR";
   if (picture.format === "HEIC" || picture.format === "HEIF") return picture.format;
   return null;
 }

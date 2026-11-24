@@ -15,7 +15,10 @@ from typing import Any
 
 from PIL import ExifTags, Image, ImageCms
 
-from mado.core.quality import Format
+from mado.core.gainmap import GainMap, encoded_of
+from mado.core.heif_writer import avif_with_gain_map
+from mado.core.jpegs import ultra_hdr
+from mado.core.quality import HDR_FORMATS, Format
 
 _ORIENTATION, _EXIF_IFD, _GPS_IFD = 0x0112, 0x8769, 0x8825
 _X_RESOLUTION, _Y_RESOLUTION, _RESOLUTION_UNIT = 0x011A, 0x011B, 0x0128
@@ -100,9 +103,11 @@ def save(
     exif: Image.Exif | None,
     profile: bytes | None,
     dpi: int | None,
+    gain_map: GainMap | None = None,
 ) -> None:
     """Writes the picture to `path` in `format_`, at `quality` (JPEG, WebP and AVIF), with its
-    EXIF and colour profile."""
+    EXIF and colour profile, and an HDR photo's gain map when given one (JPEG as Ultra HDR,
+    AVIF with ISO 21496-1's tmap item; PNG and WebP hold none)."""
     options: dict[str, object] = {}
     if exif is not None:
         options["exif"] = exif
@@ -123,13 +128,37 @@ def save(
         case "AVIF":
             options.update(quality=quality or 80, speed=6)
     try:
-        picture.save(path, format=_PILLOW[format_], **options)
+        if gain_map is not None and format_ in HDR_FORMATS:
+            path.write_bytes(with_gain_map(picture, format_, options, gain_map))
+        else:
+            picture.save(path, format=_PILLOW[format_], **options)
     except OSError as error:
         raise SaveError(
             f"Mado couldn't write {path.name}: {error.strerror or error}.", full=full(error)
         ) from error
     except (ValueError, KeyError) as error:
         raise SaveError(f"Mado couldn't save it as {format_}: {error}.") from error
+
+
+def with_gain_map(
+    picture: Image.Image, format_: Format, options: dict[str, object], gain_map: GainMap
+) -> bytes:
+    """The picture as `format_` (with `options`, as Pillow takes them) with its gain map: its
+    gains as values afresh (mado/core/gainmap.py), a grey or colour picture of their own at
+    quality 90, joined to it as Ultra HDR (JPEG) or ISO 21496-1's tmap item (AVIF)."""
+    first = io.BytesIO()
+    picture.save(first, format=_PILLOW[format_], **options)
+    values, info = encoded_of(gain_map.gains, gain_map.info)
+    gains = Image.fromarray(values, "L" if values.ndim == 2 else "RGB")
+    second = io.BytesIO()
+    if format_ == "JPEG":
+        gains.save(second, format="JPEG", quality=_GAIN_QUALITY, subsampling=0, optimize=True)
+        return ultra_hdr(first.getvalue(), second.getvalue(), info)
+    gains.save(second, format="AVIF", quality=_GAIN_QUALITY, speed=6)
+    return avif_with_gain_map(first.getvalue(), second.getvalue(), info)
+
+
+_GAIN_QUALITY = 90  # a gain map is smooth: it takes a few kilobytes even so
 
 
 def _flattened(image: Image.Image) -> Image.Image:

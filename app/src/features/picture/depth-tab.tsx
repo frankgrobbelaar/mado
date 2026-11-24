@@ -396,7 +396,8 @@ function DepthNotes(props: {
   if (read?.seeThrough) said.push("Its see-through parts stay as they are.");
   if (read?.grey) said.push("It stays black and white unless the fog is coloured.");
   const megapixels = read?.megapixels ?? 0;
-  const huge = hasDepth(depth) && megapixels >= HUGE && plan !== null;
+  // By the depth tools' own plan: the picture's as it is is there a moment as they settle.
+  const huge = hasDepth(depth) && megapixels >= HUGE && plan !== null && !plan.asIs;
   return (
     <div className="flex flex-col gap-1.5">
       {read?.flat && (
@@ -546,7 +547,12 @@ function MotionPanel(props: {
             {shown.width} × {shown.height} · {choices.seconds} s · about {sizeOf(bytes ?? 0)}
           </p>
         )}
-        <MotionNotes facts={facts} read={read} format={format} />
+        <MotionNotes
+          facts={facts}
+          read={read}
+          format={format}
+          hdr={picture.gainMap?.readable === true}
+        />
       </section>
       {props.waiting && (
         <ModelCard
@@ -659,14 +665,20 @@ function MotionProgress(props: { progress: number; onStop: () => void }) {
 }
 
 /** The small things for a 3D photo: no H.264 encoder here, a picture with no depth to move
- * through, see-through parts on black, 4K needing the pixels. */
+ * through, see-through parts on black, 4K needing the pixels, an HDR photo made an ordinary
+ * video. */
 function MotionNotes(props: {
   facts: MotionFacts | null;
   read: DepthRead | null;
   format: "mp4" | "webp";
+  hdr: boolean;
 }) {
   const { facts, read } = props;
   const said: string[] = [];
+  if (props.hdr)
+    said.push(
+      "A 3D photo is an ordinary video, in sRGB, so an HDR photo's extra brightness isn't kept in it.",
+    );
   if (read?.seeThrough) said.push("A video has no see-through parts: they show on black.");
   if (facts && props.format === "mp4" && facts.sizes.length === 1)
     said.push("4K needs a picture 3840 pixels across or more: this one would only be stretched.");

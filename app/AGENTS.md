@@ -44,7 +44,10 @@ the first time; restoring an old photo at its top, `restore-section.tsx`, `scrat
 filled, colour or faded colours with a strength); the Depth tab (`depth-tab.tsx`, `depth-stage.tsx`, `depth.ts`, `motion.ts`:
 portrait blur in focus where the picture is clicked, fog, tilt-shift's band dragged on the picture,
 and the 3D photo, made, played on the stage and saved); one Save for all five (a 3D photo has its
-own), and the job making it), History (a week at a time, a batch or a review as one line with
+own), which with nothing chosen saves the picture as it is, always as a new picture (the plan's
+`asIs`: a tab's own plan state ignores it), the save dialog keeping an HDR photo's gain map ("Its
+HDR (the gain map)", greyed with why where the format or the recipe can't keep it), and the job
+making it; an HDR photo's "HDR" tag on its tile and in its page's facts, as "RAW" is), History (a week at a time, a batch or a review as one line with
 Take them away or Put them back, take away and put back, replace again), Settings (General with
 Saving and Search, Your data with Set aside, Updates, About with This PC and the downloads), the
 update card, the notes at the window's foot (a picture open in another app among them,

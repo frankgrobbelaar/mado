@@ -65,7 +65,7 @@ from mado.core.models import Quality
 from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
 from mado.core.painting import Painting, Style, enlarged, working_size
 from mado.core.quality import Format, about_bytes, colour_words, suited
-from mado.core.recipe import Plan, Recipe, Sizing, Styling
+from mado.core.recipe import Plan, Recipe, Sizing, Styling, asks_nothing, hdr_lost
 from mado.core.restore import (
     MOST_MASK,
     RestoreError,
@@ -90,6 +90,7 @@ from mado.editing import EditingError, Editor, cut_quality, picture_key
 from mado.fixing import MARGIN, Measure, fixed
 from mado.looks import Placement, seed_of, styled
 from mado.making import (
+    AS_IS_NEW,
     GREY_MODES,
     NO_RAW_REPLACE,
     Picture,
@@ -262,6 +263,11 @@ class PlanOut(ApiModel):
     bytes: int  # about how big it comes out
     see_through: bool  # it has see-through parts, which JPEG makes white
     nothing_behind: bool  # a cut-out with nothing behind it: only PNG and WebP keep it
+    # An HDR photo's gain map: "kept" through the recipe (in JPEG or AVIF), "lost" (`hdr_why`
+    # says why), "none" for a picture without one Mado reads
+    hdr: Literal["none", "kept", "lost"] = "none"
+    hdr_why: str | None = None
+    as_is: bool = False  # the recipe asks for nothing: Save saves the picture as it is
     needs: list[Need]  # downloads it waits for
 
 
@@ -312,6 +318,7 @@ class SavingIn(ApiModel):
     keep_camera: bool = True
     keep_colours: bool = True
     keep_location: bool = False
+    keep_hdr: bool = True  # an HDR photo's gain map, in a format that holds one
     always: bool = False  # Save starts on this way from now on
 
 
@@ -349,14 +356,20 @@ def plan_for(
     body: RecipeIn,
     conn: Database,
     sight: Seeing,
+    copies: Copies,
     ai: Models,
     toolbox: Toolbox,
     editor: Editors,
 ) -> PlanOut:
     """How a picture would be made to a recipe: its shape, the model, its look, about how long it
-    takes here and how it would be saved."""
-    picture, seen, source = _seen(conn, sight, picture_id)
+    takes here and how it would be saved. A recipe with no step at all (the picture as it is,
+    which its page asks about as it opens) is planned at a glance, without decoding it whole."""
+    if not body.model_dump(exclude_none=True):
+        picture, seen, source = _glanced(conn, sight, copies, picture_id)
+    else:
+        picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body, conn, source.version, picture.path.name)
+    as_is = asks_nothing(recipe)  # as asked: scratches found nowhere aren't saving it as it is
     here = ai.where()
     made = _planned(recipe, picture, source, seen, sight, ai, editor)
     recipe, made, covers = _emptied(recipe, made, picture, source, seen, sight, ai, editor)
@@ -370,6 +383,8 @@ def plan_for(
     # A cut-out with nothing behind it keeps its nothing: PNG, or WebP when it was WebP.
     kept_as = picture.format if not made.see_through or picture.format == "WebP" else None
     suits = suited(purpose, made.kind, kept_as, alpha=clear)
+    if as_is and suits.format == "JPEG" and seen.jpeg is not None:
+        suits = replace(suits, quality=min(max(seen.jpeg, 50), 100))  # as it was saved
     frame = made.frame
     names = {item.id: item for item, _ in toolbox.status()}
     measured = made.model is not None and key(made.model.id, here.place) in here.speeds
@@ -382,6 +397,7 @@ def plan_for(
     in_use = [place for place in (find_on, colour_on) if place is not None]
     restore_place = ("processor" if "processor" in in_use else here.place) if in_use else None
     missing = waiting_for(made, ai)
+    lost = hdr_lost(made) if seen.hdr == "hdr" else None
     return PlanOut(
         width=made.width,
         height=made.height,
@@ -436,6 +452,9 @@ def plan_for(
         bytes=about_bytes(suits.format, suits.quality, made.kind, made.width * made.height),
         see_through=clear,
         nothing_behind=made.see_through,
+        hdr="none" if seen.hdr != "hdr" else "lost" if lost else "kept",
+        hdr_why=lost,
+        as_is=as_is,
         needs=[
             Need(id=each, name=names[each].name, size=names[each].size or 0)
             for each in missing
@@ -681,7 +700,7 @@ def saving_name(
         body = body.model_copy(update={"folder": str(pictures_folder())})
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = _planned(recipe, picture, source, seen, sight, ai, editor)
-    if made.empty and not pasted:  # a paste saved as it is is something to save
+    if made.empty and not (pasted or asks_nothing(recipe)):  # saved as it is: something to save
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _nothing(recipe))
     extension = EXTENSIONS[body.format]
     original = picture.path
@@ -725,12 +744,17 @@ def make(
     picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = _planned(recipe, picture, source, seen, sight, ai, editor)
+    # Saved as it is: nothing asked for (or a paste whose steps change nothing), in the format
+    # chosen, always as a new picture.
+    asked_nothing = asks_nothing(recipe)
     recipe, made, share = _emptied(recipe, made, picture, source, seen, sight, ai, editor)
     if share is not None and share > MOST_MASK:  # filling it would invent most of it
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, too_much(share))
-    as_is = made.empty and _pasted(conn, picture_id)  # a paste saved as it is
+    as_is = made.empty and (asked_nothing or _pasted(conn, picture_id))
     if made.empty and not as_is:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _nothing(recipe))
+    if as_is and body.saving.how == "replace":
+        raise HTTPException(status.HTTP_409_CONFLICT, AS_IS_NEW)
     if made.see_through and body.saving.format not in ("PNG", "WebP"):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -748,7 +772,9 @@ def make(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             f"{saving.folder} isn't there: its drive may be unplugged. Choose another folder.",
         )
-    if saving.always:
+    # A picture saved as it is, or a camera RAW, can only be a new picture: no choice of the
+    # owner's to keep as the way Save starts.
+    if saving.always and not as_is and picture.kind != "raw":
         with conn:
             conn.execute(
                 "INSERT INTO settings (key, value) VALUES ('save_first', ?)"
@@ -1469,6 +1495,26 @@ def _seen(conn: sqlite3.Connection, sight: Seeing, picture_id: int) -> tuple[Pic
     except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
         raise _refused(error) from None
     return picture, seen, Source.of(row)
+
+
+def _glanced(
+    conn: sqlite3.Connection, sight: Seeing, copies: Previews, picture_id: int
+) -> tuple[Picture, Seen, Source]:
+    """As `_seen`, from the picture's thumbnail and its size as the library read it, so nothing
+    is decoded whole (`Sight.glance`); a picture not read yet is seen whole."""
+    row = conn.execute(
+        "SELECT * FROM pictures WHERE id = ? AND gone_at IS NULL", (picture_id,)
+    ).fetchone()
+    if row is None or not row["width"] or not row["height"]:
+        return _seen(conn, sight, picture_id)
+    picture = picture_of(conn, picture_id, Path(row["path"]))
+    source = Source.of(row)
+    size = (int(row["width"]), int(row["height"]))
+    try:
+        seen = sight.glance(picture, source.version, size, lambda: copies.thumbnail(source))
+    except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
+        raise _refused(error) from None
+    return picture, seen, source
 
 
 def _pasted(conn: sqlite3.Connection, picture_id: int) -> bool:

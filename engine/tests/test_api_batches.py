@@ -304,11 +304,27 @@ def test_steps_mado_cant_make_are_refused_with_a_sentence(client: TestClient, li
 
     response = client.post(
         "/batches/takes",
-        json={"pictures": picked["pictures"], "steps": [], "saving": SAVING},
+        json={
+            "pictures": picked["pictures"],
+            "steps": [{"step": "fix", "noise": None}],
+            "saving": SAVING,
+        },
     )
 
     assert response.status_code == 422
-    assert "Pick what to do first" in response.json()["detail"]
+    assert "no fix turned on" in response.json()["detail"]
+
+
+def test_just_save_is_a_batch_of_pictures_saved_as_they_are(client: TestClient, library: Library):
+    picked = _picked(client, how="folder", folder=library["id"])
+
+    takes = client.post(
+        "/batches/takes",
+        json={"pictures": picked["pictures"], "steps": [], "saving": SAVING},
+    )
+
+    assert takes.status_code == 200, takes.text
+    assert [each["kind"] for each in takes.json()["words"]] == ["save"]
 
 
 def test_see_it_first_makes_three_in_full_unsaved_and_the_batch_keeps_them(
@@ -793,6 +809,29 @@ def test_see_it_first_counts_for_its_batch_wherever_the_new_pictures_go(
     ).json()
 
     assert reckoned["reckoned"]  # where they go doesn't change the pictures made
+
+
+def test_see_it_first_is_its_batchs_no_longer_once_an_hdr_photos_hdr_is_left_out(
+    client: TestClient, library: Library
+):
+    picked = _picked(client, how="folder", folder=library["id"])
+    asked = client.post(
+        "/batches/samples",
+        json={"pictures": picked["pictures"], "steps": STEPS, "saving": SAVING},
+    ).json()
+    _wait(client)
+
+    reckoned = client.post(
+        "/batches/takes",
+        json={
+            "pictures": picked["pictures"],
+            "steps": STEPS,
+            "saving": {**SAVING, "keepHdr": False},
+            "sample": asked["id"],
+        },
+    ).json()
+
+    assert not reckoned["reckoned"]  # its three were written with their gain maps
 
 
 def test_what_a_batch_takes_counts_the_pictures_see_it_first_made_as_done(

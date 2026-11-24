@@ -39,6 +39,7 @@ const details: PictureDetails = {
   pasted: false,
   aside: false,
   savesTo: null,
+  gainMap: null,
 };
 
 /** Nothing Mado can measure to fix: a JPEG saved at 92, well exposed. */
@@ -203,7 +204,8 @@ describe("The Fix tab", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/A picture out of focus only comes a little crisper/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Save…" })).toBeDisabled();
+    // Nothing on: Save saves the picture as it is, quietly.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save…" })).toBeEnabled());
     expect(screen.getByText("Turn a fix on to compare before and after")).toBeInTheDocument();
   });
 
@@ -531,7 +533,12 @@ describe("The Fix tab", () => {
       await screen.findByRole("heading", { name: "Little sail", level: 1 }),
     ).toBeInTheDocument();
     await new Promise((settle) => setTimeout(settle, 450));
-    expect(sent(fetch, "POST", "/pictures/12/plan")).toEqual([]);
+    // It's planned as it is, never with the last picture's fixes.
+    expect(
+      sent(fetch, "POST", "/pictures/12/plan").filter(
+        (body) => (body as { fix?: unknown }).fix !== undefined,
+      ),
+    ).toEqual([]);
   });
 
   it("tells the Size tab the fixes clean first, so the model doesn't clean again", async () => {
@@ -550,5 +557,20 @@ describe("The Fix tab", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("switch", { name: "Clean noise and blocks first" })).toBeNull();
+  });
+
+  it("leaves the Size tab saying Save keeps it as it is only while nothing's chosen", async () => {
+    engine({ "POST /pictures/11/plan": plan({ fix: "took out noise" }) });
+    renderPicture();
+    expect(await screen.findByText(/Save keeps it as it is/)).toBeInTheDocument();
+
+    const fixes = await openFix();
+    fireEvent.click(within(fixes).getByRole("switch", { name: "Noise" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Size" }));
+
+    expect(
+      await screen.findByText("Pick a screen or a print to see the picture made for it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Save keeps it as it is/)).toBeNull();
   });
 });

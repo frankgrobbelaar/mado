@@ -156,7 +156,7 @@ export function EditTab(props: {
   const saveCaption = props.plan?.needs.length
     ? `Save waits for ${props.plan.needs.map((need) => need.name).join(" and ")}, still to download.`
     : props.edits.length === 0
-      ? "Erase or cut out first; nothing changes until you save."
+      ? "Erase or cut out a part, or save the picture as it is: nothing changes until you save."
       : undefined;
 
   return (

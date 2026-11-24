@@ -188,7 +188,9 @@ results are kept apart for scratches off and for scratches on with nothing paint
 different pictures. A new picture is named
 "Coloured" when that's all it was, else "Restored" ("Harbour at dusk (Restored, TV 8K).jpg"), and
 History's `restore` column (migration 14) says "filled its scratches and dust and coloured it",
-in the brackets with the edits and fixes.
+in the brackets with the edits and fixes. An HDR photo's gain map follows (docs/stack/hdr.md):
+filled where its scratches were, from the same mask, and one channel when its colour is brought
+in or back.
 
 ## Many at once
 

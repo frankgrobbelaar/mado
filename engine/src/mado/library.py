@@ -7,7 +7,7 @@ never change here: this only looks.
 
 import os
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
@@ -239,7 +239,7 @@ def save_facts(conn: sqlite3.Connection, picture_id: int, found: Facts, *, now: 
                SET read_at = ?, problem = NULL, damaged = 0, format = ?, width = ?, height = ?,
                    taken_at = COALESCE(?, taken_at),
                    taken_from = CASE WHEN ? IS NULL THEN taken_from ELSE 'camera' END,
-                   camera = ?, orientation = ?, located = ?
+                   camera = ?, orientation = ?, located = ?, hdr = ?
                WHERE id = ?""",
             (
                 now.isoformat(),
@@ -251,8 +251,47 @@ def save_facts(conn: sqlite3.Connection, picture_id: int, found: Facts, *, now: 
                 found.camera,
                 found.orientation,
                 int(found.located),
+                HDR_STATES[found.hdr],
                 picture_id,
             ),
+        )
+
+
+HDR_STATES = {"none": 0, "hdr": 1, "unreadable": 2}  # an HDR photo's gain map, as kept
+_HDR_FORMATS = ("JPEG", "HEIC", "HEIF", "AVIF")  # what carries a gain map
+
+
+def hdr_unlooked(conn: sqlite3.Connection) -> list[Unread]:
+    """The library's pictures read before Mado looked for gain maps, in formats that carry one:
+    the rest are marked as none at once. A picture from outside the library is looked at as its
+    page opens, not here."""
+    with conn:
+        conn.execute(
+            f"""UPDATE pictures SET hdr = 0
+                WHERE hdr IS NULL AND read_at IS NOT NULL AND folder_id IS NOT NULL
+                  AND (raw = 1 OR problem IS NOT NULL OR format IS NULL
+                       OR format NOT IN {_HDR_FORMATS})"""  # noqa: S608 - fixed fragments
+        )
+    rows = conn.execute(
+        """SELECT id, path, name FROM pictures
+           WHERE hdr IS NULL AND read_at IS NOT NULL AND gone_at IS NULL
+             AND folder_id IS NOT NULL
+           ORDER BY modified DESC, id"""
+    ).fetchall()
+    return [Unread(row["id"], Path(row["path"]), kind_of(row["name"]) or "picture") for row in rows]
+
+
+def save_hdr(conn: sqlite3.Connection, picture_id: int, state: str) -> None:
+    """Keeps whether a picture carries a gain map, looked at on its own."""
+    save_hdrs(conn, [(picture_id, state)])
+
+
+def save_hdrs(conn: sqlite3.Connection, found: Sequence[tuple[int, str]]) -> None:
+    """Keeps whether each picture carries a gain map, in one go."""
+    with conn:
+        conn.executemany(
+            "UPDATE pictures SET hdr = ? WHERE id = ?",
+            [(HDR_STATES.get(state, 0), picture_id) for picture_id, state in found],
         )
 
 

@@ -35,7 +35,7 @@ from mado.core.batch import Starts, sampled, steps_in_order
 from mado.core.files import kind_of
 from mado.core.models import Quality
 from mado.core.quality import Format
-from mado.making import NO_RAW_REPLACE, saving_from
+from mado.making import AS_IS_ALL_NEW, NO_RAW_REPLACE, saving_from
 from mado.previews import version
 from mado.samples import SampleSet
 
@@ -118,6 +118,7 @@ class BatchSaving(ApiModel):
     keep_camera: bool = True
     keep_colours: bool = True
     keep_location: bool = False
+    keep_hdr: bool = True  # an HDR photo's gain map, in a format that holds one
 
 
 class PickIn(ApiModel):
@@ -260,6 +261,7 @@ class BatchOut(ApiModel):
     made_for: str | None
     look: str | None
     purpose: str | None
+    saved_as: str | None  # just Save: the format each was saved in as it is ("JPEG")
     words: list[Words]  # its steps, then its save
     before: int  # bytes of its pictures made, as they were
     after: int  # and as made
@@ -432,6 +434,8 @@ def put_in(
     saves_see_through(steps, saving)
     if body.saving.how == "replace" and any(kind_of(each.name) == "raw" for each in body.pictures):
         raise HTTPException(status.HTTP_409_CONFLICT, NO_RAW_REPLACE)
+    if body.saving.how == "replace" and not steps:
+        raise HTTPException(status.HTTP_409_CONFLICT, AS_IS_ALL_NEW)
     folder = Path(body.saving.folder) if body.saving.folder else None
     if body.saving.how == "new" and folder and folder.is_absolute() and not folder.is_dir():
         raise HTTPException(
@@ -560,6 +564,7 @@ def batch_of(conn: sqlite3.Connection, jobs: Working, batch_id: int) -> BatchOut
         made_for=made_for if isinstance(made_for, str) else None,
         look=look if isinstance(look, str) else None,
         purpose=batches.purpose_of(conn, steps),
+        saved_as=str(saving.get("format", "JPEG")) if not steps else None,
         words=words_of(conn, steps, saving),
         before=counts["before"],
         after=counts["after"],
@@ -606,7 +611,7 @@ def saves_see_through(steps: list[dict[str, object]], saving: dict[str, object])
         )
 
 
-_MAKES = ("format", "quality", "keepCamera", "keepColours", "keepLocation")
+_MAKES = ("format", "quality", "keepCamera", "keepColours", "keepLocation", "keepHdr")
 
 
 def _key(steps: list[dict[str, object]], saving: dict[str, object]) -> str:

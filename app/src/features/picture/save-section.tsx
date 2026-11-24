@@ -9,10 +9,10 @@ import { SaveDialog } from "./save-dialog";
 export const SaveHeld = createContext<string | null>(null);
 
 /**
- * The foot of a tool's column, on the Size and Looks tabs alike: the job making the picture, and
- * Save…, which saves the whole recipe (what both tabs set, made by one Save). Save waits while
- * the tab has nothing to save, its plan is on its way, a model is still to download, or a job
- * is making this picture already.
+ * The foot of a tool's column, on every tab alike: the job making the picture, and Save…, which
+ * saves the whole recipe (what the tabs set, made by one Save), or the picture as it is when
+ * nothing's chosen. Save waits while its plan is on its way, a model is still to download, or a
+ * job is making this picture already.
  */
 export function SaveSection(props: {
   picture: PictureDetails;
@@ -31,8 +31,8 @@ export function SaveSection(props: {
   const [saving, setSaving] = useState(false);
   const job = jobs.data?.[0];
   const working = job?.state === "queued" || job?.state === "running";
-  // A paste can be saved as it is, with nothing chosen on the tab.
-  const ready = props.ready || picture.pasted;
+  // Any picture can be saved as it is, with nothing chosen on the tab.
+  const ready = props.ready || plan?.asIs === true;
   const can =
     ready && recipe !== null && plan !== null && !plan.needs.length && !working && held === null;
   const caption = held ?? props.caption;
@@ -43,7 +43,7 @@ export function SaveSection(props: {
       <div className="sticky -bottom-4 -mx-4.5 mt-auto -mb-4 flex flex-col gap-2 bg-surface px-4.5 pt-2 pb-4 before:pointer-events-none before:absolute before:inset-x-0 before:-top-4 before:h-4 before:bg-linear-to-t before:from-surface before:to-transparent">
         {job && <JobCard job={job} />}
         <Button
-          variant={props.quiet ? "secondary" : "primary"}
+          variant={props.quiet || (plan?.asIs && !picture.pasted) ? "secondary" : "primary"}
           disabled={!can}
           onClick={() => setSaving(true)}
         >

@@ -494,6 +494,7 @@ def _orders(
             "restore": words[5],
             "seconds": round(seconds, 2),
             "bytes": bytes_,
+            "as_is": not steps,  # just Save: each picture saved as it is, a new picture
         }
         kept = made.get(kept_key(picture.path))
         if kept is not None:

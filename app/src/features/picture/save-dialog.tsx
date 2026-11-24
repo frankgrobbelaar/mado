@@ -28,15 +28,19 @@ import { cn } from "@/lib/utils";
 const WRITES: SaveFormat[] = ["JPEG", "PNG", "WebP", "AVIF"];
 const CLEAR: SaveFormat[] = ["PNG", "WebP"]; // what keeps a cut-out's see-through parts
 const LOSSY = new Set<SaveFormat>(["JPEG", "WebP", "AVIF"]);
+// What keeps an HDR photo's gain map: JPEG as Ultra HDR, AVIF with ISO 21496-1's tmap item.
+const HDR = new Set<SaveFormat>(["JPEG", "AVIF"]);
 
 /**
  * Save, as the Save board draws it: as a new picture (beside the original, named after it with
  * what it was made for and with, or into a folder chosen), or in the original's place (the
  * original into quarantine for 30 days); the format and quality; what's kept of the original; and
- * "Always save this way". It saves the whole recipe, the size and the look together. Saving
- * starts the job; its progress shows in the tab Save was opened from. A pasted picture, which
- * lives in Mado till it's saved, is saved only as a new picture into a folder of the owner's:
- * their folder for new pictures, when they chose one in Settings, else Pictures.
+ * "Always save this way". It saves the whole recipe, the size and the look together, or, with
+ * nothing chosen, the picture as it is (always as a new picture: a copy in the format picked).
+ * Saving starts the job; its progress shows in the tab Save was opened from. A pasted picture,
+ * which lives in Mado till it's saved, is saved only as a new picture into a folder of the
+ * owner's: their folder for new pictures, when they chose one in Settings, else Pictures. An HDR
+ * photo keeps its gain map in JPEG and AVIF; another format says so before Save.
  */
 export function SaveDialog(props: {
   picture: PictureDetails;
@@ -84,10 +88,11 @@ function SaveForm(props: {
   onClose: () => void;
 }) {
   const { picture, plan, recipe, settings } = props;
-  const asIs = WRITES.find((each) => each === picture.format) ?? null;
+  const asWas = WRITES.find((each) => each === picture.format) ?? null;
   const pasted = picture.pasted;
-  // A pasted picture has no original to replace, and Mado can't write camera RAW.
-  const newOnly = pasted || picture.raw;
+  // A pasted picture has no original to replace, Mado can't write camera RAW, and a picture
+  // saved as it is is a copy in the format picked.
+  const newOnly = pasted || picture.raw || plan.asIs;
   const [how, setHow] = useState<"new" | "replace">(newOnly ? "new" : settings.saveFirst);
   const [format, setFormat] = useState<SaveFormat>(plan.format);
   const [quality, setQuality] = useState(plan.formatQuality ?? 92);
@@ -98,6 +103,7 @@ function SaveForm(props: {
   const [keepCamera, setKeepCamera] = useState(true);
   const [keepColours, setKeepColours] = useState(true);
   const [keepLocation, setKeepLocation] = useState(settings.keepLocation);
+  const [keepHdr, setKeepHdr] = useState(true);
   const [always, setAlways] = useState(false);
   const make = useMake();
   const explorer = useExplorer();
@@ -115,8 +121,12 @@ function SaveForm(props: {
     camera: useId(),
     colours: useId(),
     place: useId(),
+    hdr: useId(),
     always: useId(),
   };
+  const gainMap = picture.gainMap;
+  // An HDR photo's gain map, kept: read, kept through the recipe, in a format that holds it.
+  const hdrKept = plan.hdr === "kept" && HDR.has(format);
   const where = folder ?? split(picture.path)[1];
   const folderName = split(where)[0] || where;
 
@@ -129,6 +139,7 @@ function SaveForm(props: {
       keepCamera,
       keepColours,
       keepLocation,
+      keepHdr: keepHdr && hdrKept,
       always,
     };
     make.mutate(
@@ -178,7 +189,13 @@ function SaveForm(props: {
               </>
             }
           />
-          {picture.raw ? (
+          {plan.asIs && !pasted ? (
+            <p className="px-1 text-13 text-fg-muted leading-normal">
+              Replacing the original isn't offered: saved as it is, it's a copy in the format you
+              pick, and the original stays exactly as it is.
+              {picture.raw && " A camera RAW comes out developed, at full size."}
+            </p>
+          ) : picture.raw ? (
             <p className="px-1 text-13 text-fg-muted leading-normal">
               Replacing the original isn't offered: Mado can't write camera RAW, so it saves a new
               picture and the RAW stays exactly as it is.
@@ -226,7 +243,7 @@ function SaveForm(props: {
               value={format}
               options={(plan.nothingBehind ? CLEAR : WRITES).map((each) => ({
                 value: each,
-                label: each === asIs ? `${each}, as it was` : each,
+                label: each === asWas ? `${each}, as it was` : each,
               }))}
               onChange={setFormat}
               className="flex-wrap"
@@ -267,6 +284,12 @@ function SaveForm(props: {
               JPEG has no see-through parts, so they'll be white.
             </p>
           )}
+          {plan.asIs && format === asWas && (
+            <p className="text-13 text-fg-muted">
+              It's {format === "AVIF" ? "an" : "a"} {format} already: this saves a fresh copy beside
+              it{lossy ? ", at the quality you pick" : ""}.
+            </p>
+          )}
           <fieldset className="flex flex-col gap-1.5 text-13">
             <legend className="pb-1 text-fg-muted">Keep from the original</legend>
             <Check id={ids.camera} checked={keepCamera} onChange={setKeepCamera}>
@@ -284,6 +307,23 @@ function SaveForm(props: {
             >
               Where it was taken (the location)
             </Check>
+            {gainMap && (
+              <>
+                <Check
+                  id={ids.hdr}
+                  checked={keepHdr && hdrKept}
+                  onChange={setKeepHdr}
+                  disabled={!hdrKept}
+                >
+                  Its HDR (the gain map)
+                </Check>
+                {!hdrKept && (
+                  <p className="pl-6 text-12 text-fg-faint leading-normal">
+                    {hdrLost(plan, gainMap.why, format)}
+                  </p>
+                )}
+              </>
+            )}
           </fieldset>
         </div>
         {(make.isError || explorer.problem) && (
@@ -293,7 +333,9 @@ function SaveForm(props: {
         )}
       </DialogBody>
       <DialogFooter>
-        {pasted ? (
+        {newOnly ? (
+          // A paste, a camera RAW or a picture saved as it is can only be a new picture: no way
+          // of the owner's for Save to keep.
           <span />
         ) : (
           <Check id={ids.always} checked={always} onChange={setAlways}>
@@ -311,6 +353,16 @@ function SaveForm(props: {
       </DialogFooter>
     </>
   );
+}
+
+/** Why an HDR photo saved this way is an ordinary picture: its gain map unread, the recipe
+ * leaving no HDR, or a format with no room for one. */
+function hdrLost(plan: Plan, unread: string | null, format: SaveFormat): string {
+  if (plan.hdr === "none") {
+    return `${unread ?? "Mado can't read its gain map."} It's saved as an ordinary picture.`;
+  }
+  if (plan.hdr === "lost") return plan.hdrWhy ?? "This leaves it no HDR to keep.";
+  return `${format} has no room for a gain map, so saved as ${format} it's an ordinary picture. JPEG and AVIF keep it.`;
 }
 
 /** What the picture is made for and with, as the Save board's header says it: "Made for TV 8K,

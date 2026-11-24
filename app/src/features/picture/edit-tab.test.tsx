@@ -47,6 +47,7 @@ const details: PictureDetails = {
   pasted: false,
   aside: false,
   savesTo: null,
+  gainMap: null,
 };
 
 const blob = () => new Response(new Blob(["made-up picture"], { type: "image/webp" }));
@@ -294,6 +295,19 @@ describe("The Edit tab", () => {
     );
   });
 
+  it("says Save keeps the picture as it is while nothing's erased or cut out", async () => {
+    engine();
+    renderPage();
+    await openEdit();
+
+    expect(
+      await screen.findByText(
+        "Erase or cut out a part, or save the picture as it is: nothing changes until you save.",
+      ),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Save…" })).toBeEnabled();
+  });
+
   it("picks a part with a click, names it plainly and says how long the picture took to read", async () => {
     const fetch = engine();
     renderPage();
@@ -352,7 +366,8 @@ describe("The Edit tab", () => {
     await openEdit();
     clickAt(await thePicture(), 0.5, 0.5);
     await screen.findByText("Part 1 · picked with one click");
-    expect(screen.getByRole("button", { name: "Save…" })).toBeDisabled();
+    // A part picked isn't an edit: till one is made, Save saves the picture as it is.
+    expect(screen.getByRole("button", { name: "Save…" })).toBeEnabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Erase" }));
 
@@ -378,7 +393,14 @@ describe("The Edit tab", () => {
     expect(await screen.findByRole("button", { name: "Save…" })).toBeEnabled();
     expect(screen.queryByText("Part 1")).toBeNull(); // what was picked went into the erase
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save…" })).toBeDisabled());
+    // The erase taken back: it's planned as it is again.
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toEqual({
+        edit: null,
+        size: null,
+        look: null,
+      }),
+    );
   });
 
   it("offers Best when an erase came out smooth where the picture round it has detail", async () => {

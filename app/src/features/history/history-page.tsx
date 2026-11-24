@@ -503,11 +503,15 @@ function batchWords(line: BatchLine): [string, string] {
       `${line.name}; the originals are in quarantine ${waits}${taken}${failed}`,
     ];
   }
-  const title = line.watch
-    ? `The watch folder ${line.watch} made ${pictures(line.made)}`
-    : line.purpose
-      ? `Made ${pictures(line.made)}${forWhat}${night}`
-      : `Made ${pictures(line.made)} ${madeWith(line)}${night}`;
+  const title = line.savedAs
+    ? line.watch
+      ? `The watch folder ${line.watch} saved ${pictures(line.made)} as ${line.savedAs}`
+      : `Saved ${pictures(line.made)} as ${line.savedAs}${night}`
+    : line.watch
+      ? `The watch folder ${line.watch} made ${pictures(line.made)}`
+      : line.purpose
+        ? `Made ${pictures(line.made)}${forWhat}${night}`
+        : `Made ${pictures(line.made)} ${madeWith(line)}${night}`;
   const where = line.into === "beside the originals" ? "beside the originals" : `in ${line.into}`;
   return [title, `${line.name}, as new pictures ${where}${taken}${failed}`];
 }
@@ -583,10 +587,21 @@ function words(entry: HistoryEntry): [string, string] {
             : `It waits in quarantine on ${drive} until ${until ?? "its days are up"}.`,
         ];
       return [
-        `Made ${stem(entry.name)} ${madeWith(entry)}`,
+        madeWith(entry)
+          ? `Made ${stem(entry.name)} ${madeWith(entry)}`
+          : `Saved ${stem(entry.name)} as ${formatOf(entry.resultName)}`, // saved as it is
         `${entry.depth?.startsWith(MOTION_WORDS) ? "As a video" : "As a new picture"}: ${entry.resultName ?? ""}${entry.result ? ` in ${split(split(entry.result)[1])[0]}` : ""}`,
       ];
   }
+}
+
+/** The format a picture saved as it is was saved in, by its name: "JPEG", "AVIF". */
+function formatOf(name: string | null): string {
+  const extension = name?.split(".").pop()?.toLowerCase() ?? "";
+  return (
+    { jpg: "JPEG", jpeg: "JPEG", png: "PNG", webp: "WebP", avif: "AVIF" }[extension] ??
+    "a new picture"
+  );
 }
 
 function ClearHistory(props: { onClose: () => void; onCleared: (gone: number) => void }) {

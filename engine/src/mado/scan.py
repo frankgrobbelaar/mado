@@ -25,7 +25,7 @@ from datetime import datetime
 from pathlib import Path, PureWindowsPath
 from typing import Literal
 
-from mado import db
+from mado import db, hdr
 from mado.config import DataPaths
 from mado.core.files import Kind
 from mado.core.library import time_left
@@ -34,7 +34,9 @@ from mado.library import (
     any_waiting,
     find_pictures,
     folders,
+    hdr_unlooked,
     save_facts,
+    save_hdrs,
     save_problem,
     save_waiting,
     unread,
@@ -53,6 +55,8 @@ from mado.pictures import (
 from mado.previews import Previews, Source
 
 log = logging.getLogger(__name__)
+
+_HDR_BATCH = 200  # pictures looked at for a gain map, kept in one go
 
 type State = Literal["idle", "running", "done", "failed", "stopped"]
 type Stage = Literal["finding", "reading", "done"]
@@ -291,7 +295,19 @@ class Scanner:
                     conn.execute("UPDATE pictures SET gone_at = ? WHERE id = ?", (started, each.id))
             # else its folder went too (a drive dropping out, say): the next scan looks again
             self._read_live += 1
-        return True
+        # Pictures read before Mado looked for gain maps: their headers alone, looked at once
+        # (about a millisecond each), kept a few hundred at a time.
+        looked: list[tuple[int, str]] = []
+        for each in hdr_unlooked(conn):
+            if self._stopping.is_set():
+                break
+            if each.path.is_file():
+                looked.append((each.id, hdr.facts(each.path).state))
+            if len(looked) >= _HDR_BATCH:
+                save_hdrs(conn, looked)
+                looked = []
+        save_hdrs(conn, looked)
+        return not self._stopping.is_set()
 
     def _read_one(self, conn: sqlite3.Connection, each: Unread) -> None:
         """Reads one picture's facts and makes its thumbnail, which shows it decodes: a picture

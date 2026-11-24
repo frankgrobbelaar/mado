@@ -1,11 +1,15 @@
-"""Reading a HEIF file's layout (a phone's HEIC): how big its picture is, which way up it goes,
-where its Exif is and the colour profile its picture is in. HEIF is ISO base media: boxes inside
-boxes, each a length and a four-letter kind. Only the boxes these need are read; ffmpeg decodes
-the picture itself (mado/pictures.py)."""
+"""Reading a HEIF file's layout (a phone's HEIC, and an AVIF, which is HEIF with AV1 inside):
+how big its picture is, which way up it goes, where its Exif is and the colour profile its
+picture is in; and, for an HDR photo, its items: which is its gain map (ISO 21496-1's `tmap`
+item, or Apple's auxiliary image), where its numbers are, and how it's turned. HEIF is ISO base
+media: boxes inside boxes, each a length and a four-letter kind. Only the boxes these need are
+read; ffmpeg decodes a HEIC's pictures, Pillow an AVIF's (mado/pictures.py, mado/hdr.py)."""
 
 import struct
-from collections.abc import Iterator
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
+
+from mado.core.gainmap import APPLE_AUX
 
 # A turn or a mirror as a matrix on a picture's (x, y), x to the right and y down: (a, b, c, d)
 # is [[a, b], [c, d]]. Each EXIF orientation is one of the eight.
@@ -256,3 +260,229 @@ def _then(first: Matrix, then: Matrix) -> Matrix:
     a1, b1, c1, d1 = first
     a2, b2, c2, d2 = then
     return (a2 * a1 + b2 * c1, a2 * b1 + b2 * d1, c2 * a1 + d2 * c1, c2 * b1 + d2 * d1)
+
+
+# An HDR photo's items: what each is, its properties, what refers to what, and its gain map.
+
+type Reader = Callable[[int, int], bytes]  # `length` bytes of the file at `offset`
+
+
+@dataclass(frozen=True)
+class Property:
+    kind: bytes  # "ispe", "hvcC", "av1C", "colr", "irot"…
+    data: bytes  # its payload, past its box header, as it is
+    essential: bool
+
+
+@dataclass(frozen=True)
+class Item:
+    id: int
+    kind: bytes  # "hvc1", "av01", "grid", "tmap", "Exif", "mime"…
+    hidden: bool  # not to be shown on its own
+    content_type: str  # a "mime" item's ("application/rdf+xml" for XMP); "" for the rest
+    method: int  # where its bytes are: 0 in the file, 1 in the meta box's idat
+    extents: tuple[tuple[int, int], ...]  # each piece's offset (in the file, or idat) and length
+    properties: tuple[Property, ...]  # in the order they apply
+
+    def property(self, kind: bytes) -> Property | None:
+        return next((each for each in self.properties if each.kind == kind), None)
+
+
+@dataclass(frozen=True)
+class Items:
+    primary: int
+    items: dict[int, Item]
+    refs: dict[bytes, dict[int, tuple[int, ...]]]  # refs[b"dimg"][3]: the items 3 is made from
+    idat: bytes
+    groups: tuple[tuple[bytes, tuple[int, ...]], ...] = field(default=())  # each group's kind
+
+
+@dataclass(frozen=True)
+class GainMapPlace:
+    """Where an HDR photo's gain map is: its item, the item holding ISO 21496-1's numbers (its
+    `tmap` item), or the XMP items describing Apple's; and how it's turned to be shown."""
+
+    kind: str  # "iso" or "apple"
+    item: int
+    numbers: int | None  # the tmap item: its bytes are a version, then ISO 21496-1's numbers
+    xmp: tuple[int, ...]  # XMP items describing the gain map (Apple's headroom)
+    orientation: int  # EXIF's 1 to 8: the gain map's own turn, else the tmap's, else the picture's
+
+
+def items_of(meta: bytes) -> Items:
+    """Every item a HEIF's top-level meta box (its payload, version and flags first) holds."""
+    children = {kind: (start, end) for kind, start, end in _boxes(meta, 4, len(meta))}
+    if b"pitm" not in children:
+        raise HeifError("it doesn't say which of its pictures is the picture")
+    primary = _primary(meta, *children[b"pitm"])
+    entries = _entries(meta, *children[b"iinf"]) if b"iinf" in children else {}
+    places = _locations(meta, *children[b"iloc"]) if b"iloc" in children else {}
+    properties, associated = (
+        _properties_marked(meta, *children[b"iprp"]) if b"iprp" in children else ([], {})
+    )
+    refs = _refs(meta, *children[b"iref"]) if b"iref" in children else {}
+    idat = meta[children[b"idat"][0] : children[b"idat"][1]] if b"idat" in children else b""
+    groups = _groups(meta, *children[b"grpl"]) if b"grpl" in children else ()
+    items: dict[int, Item] = {}
+    for item, (kind, hidden, content_type) in entries.items():
+        method, extents = places.get(item, (0, []))
+        props = tuple(
+            Property(properties[index - 1][0], properties[index - 1][1], essential)
+            for index, essential in associated.get(item, [])
+            if 1 <= index <= len(properties)
+        )
+        items[item] = Item(item, kind, hidden, content_type, method, tuple(extents), props)
+    return Items(primary, items, refs, idat, groups)
+
+
+def gain_map_place(found: Items) -> GainMapPlace | None:
+    """Where the photo's gain map is, when it has one: ISO 21496-1's (a `tmap` item made from the
+    picture and the gain map) first, else Apple's (an auxiliary image of the picture's, named as
+    its HDR gain map). None for a photo with neither."""
+    picture = found.items.get(found.primary)
+    picture_turn = orientation_of(picture) if picture is not None else 1
+    for item in found.items.values():
+        made_from = found.refs.get(b"dimg", {}).get(item.id, ())
+        if item.kind != b"tmap" or len(made_from) != 2 or made_from[0] != found.primary:
+            continue
+        gain = found.items.get(made_from[1])
+        if gain is None:
+            continue
+        if _turns(gain):
+            turn = orientation_of(gain)
+        elif _turns(item):
+            turn = orientation_of(item)
+        else:
+            turn = picture_turn
+        return GainMapPlace("iso", gain.id, item.id, (), turn)
+    for item in found.items.values():
+        aux = item.property(b"auxC")
+        if aux is None or _aux_type(aux.data) != APPLE_AUX:
+            continue
+        if found.primary not in found.refs.get(b"auxl", {}).get(item.id, ()):
+            continue
+        described = tuple(
+            each.id
+            for each in found.items.values()
+            if each.kind == b"mime"
+            and "xml" in each.content_type
+            and item.id in found.refs.get(b"cdsc", {}).get(each.id, ())
+        )
+        turn = orientation_of(item) if _turns(item) else picture_turn
+        return GainMapPlace("apple", item.id, None, described, turn)
+    return None
+
+
+def orientation_of(item: Item) -> int:
+    """How an item is turned and mirrored to be shown (its irot and imir, in order), as EXIF
+    numbers it."""
+    turn: Matrix = (1, 0, 0, 1)
+    for each in item.properties:
+        if each.kind == b"irot" and each.data:
+            for _ in range(each.data[0] & 0b11):
+                turn = _then(turn, _ANTICLOCKWISE)
+        elif each.kind == b"imir" and each.data:
+            turn = _then(turn, _MIRRORS[each.data[0] & 1])
+    return _ORIENTATIONS[turn]
+
+
+def size_of(item: Item) -> tuple[int, int] | None:
+    """An item's size as stored (its ispe), before it's turned."""
+    found = item.property(b"ispe")
+    if found is None or len(found.data) < 12:
+        return None
+    width, height = struct.unpack_from(">II", found.data, 4)
+    return (width, height) if width and height else None
+
+
+def bytes_of(found: Items, item: Item, read: Reader) -> bytes:
+    """An item's bytes: its pieces, from the file (`read`) or from the meta box's idat."""
+    if item.method == 1:
+        return b"".join(found.idat[at : at + length] for at, length in item.extents)
+    return b"".join(read(at, length) for at, length in item.extents)
+
+
+def _turns(item: Item) -> bool:
+    return any(each.kind in (b"irot", b"imir") for each in item.properties)
+
+
+def _aux_type(data: bytes) -> bytes:
+    """An auxC property's type: past its version and flags, up to its nought."""
+    return data[4:].split(b"\x00", 1)[0]
+
+
+def _entries(data: bytes, start: int, end: int) -> dict[int, tuple[bytes, bool, str]]:
+    """Each item's kind, whether it's hidden, and a mime item's content type, by its number."""
+    read = _Reader(data, start, end)
+    version, _ = read.version()
+    read.number(2 if version == 0 else 4)  # how many: the boxes after say for themselves
+    found: dict[int, tuple[bytes, bool, str]] = {}
+    for kind, entry, entry_end in _boxes(data, read.at, end):
+        if kind != b"infe":
+            continue
+        info = _Reader(data, entry, entry_end)
+        entry_version, flags = info.version()
+        if entry_version < 2:
+            continue  # the oldest form names no kind
+        item = info.number(2 if entry_version == 2 else 4)
+        info.number(2)  # protection
+        item_kind = info.kind()
+        rest = data[info.at : entry_end]
+        content_type = ""
+        name_end = rest.find(b"\x00")
+        if item_kind == b"mime" and name_end >= 0:
+            content_type = rest[name_end + 1 :].split(b"\x00", 1)[0].decode("latin-1")
+        found[item] = (item_kind, bool(flags & 1), content_type)
+    return found
+
+
+def _properties_marked(
+    data: bytes, start: int, end: int
+) -> tuple[list[tuple[bytes, bytes]], dict[int, list[tuple[int, bool]]]]:
+    """The properties (each box in ipco, numbered from 1, with its payload), and which each item
+    has, in order, each marked essential or not."""
+    children = {kind: (at, to) for kind, at, to in _boxes(data, start, end)}
+    properties = (
+        [(kind, data[at:to]) for kind, at, to in _boxes(data, *children[b"ipco"])]
+        if b"ipco" in children
+        else []
+    )
+    associated: dict[int, list[tuple[int, bool]]] = {}
+    if b"ipma" in children:
+        read = _Reader(data, *children[b"ipma"])
+        version, flags = read.version()
+        wide = flags & 1
+        top = 0x8000 if wide else 0x80
+        for _ in range(read.number(4)):
+            item = read.number(2 if version < 1 else 4)
+            listed: list[tuple[int, bool]] = []
+            for _ in range(read.number(1)):
+                value = read.number(2 if wide else 1)
+                listed.append((value & (top - 1), bool(value & top)))
+            associated[item] = listed
+    return properties, associated
+
+
+def _refs(data: bytes, start: int, end: int) -> dict[bytes, dict[int, tuple[int, ...]]]:
+    """Each kind of reference (dimg, auxl, cdsc, thmb…): the items each item refers to."""
+    read = _Reader(data, start, end)
+    version, _ = read.version()
+    size = 2 if version == 0 else 4
+    found: dict[bytes, dict[int, tuple[int, ...]]] = {}
+    for kind, at, to in _boxes(data, read.at, end):
+        refs = _Reader(data, at, to)
+        item = refs.number(size)
+        found.setdefault(kind, {})[item] = tuple(refs.number(size) for _ in range(refs.number(2)))
+    return found
+
+
+def _groups(data: bytes, start: int, end: int) -> tuple[tuple[bytes, tuple[int, ...]], ...]:
+    """Each entity group in a grpl box (altr: alternatives, the preferred first): its kind and
+    its items."""
+    found: list[tuple[bytes, tuple[int, ...]]] = []
+    for kind, at, to in _boxes(data, start, end):
+        read = _Reader(data, at, to)
+        read.version()
+        read.number(4)  # the group's own number
+        found.append((kind, tuple(read.number(4) for _ in range(read.number(4)))))
+    return tuple(found)

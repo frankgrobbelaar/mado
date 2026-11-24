@@ -444,6 +444,8 @@ export interface PictureItem {
   state: PictureState;
   /** A camera RAW: read by Mado's RAW reader, and never written over. */
   raw: boolean;
+  /** An HDR photo whose gain map Mado reads: it wears an "HDR" tag. */
+  hdr: boolean;
   /** As it's shown. */
   width: number | null;
   height: number | null;
@@ -479,7 +481,26 @@ export interface PicturePage {
   next: string | null;
 }
 
+/** An HDR photo's gain map, as its page says it. */
+export interface GainMap {
+  /** Mado reads it, and keeps it through its tools. */
+  readable: boolean;
+  /** How many stops past ordinary white its HDR rendition goes. */
+  stops: number | null;
+  /** Its picture is the HDR rendition, and the gain map makes the ordinary one. */
+  baseIsHdr: boolean;
+  /** A gain map in colour, not grey. */
+  colour: boolean;
+  /** The gain map as stored. */
+  width: number | null;
+  height: number | null;
+  /** Why Mado can't keep it: "Its gain map is version 2.0, which Mado doesn't know yet." */
+  why: string | null;
+}
+
 export interface PictureDetails extends PictureItem {
+  /** An HDR photo's gain map, read from its file as it is now; null for a picture without one. */
+  gainMap: GainMap | null;
   /** Its library folder's number; null outside the library. */
   folderId: number | null;
   /** Its library folder; outside the library, the folder it's in. */
@@ -1189,6 +1210,12 @@ export interface Plan {
   seeThrough: boolean;
   /** A cut-out with nothing behind it: only PNG and WebP keep it. */
   nothingBehind: boolean;
+  /** An HDR photo's gain map: kept through the recipe (in JPEG or AVIF), lost (`hdrWhy` says
+   * why), or none for a picture without one Mado reads. */
+  hdr: "none" | "kept" | "lost";
+  hdrWhy: string | null;
+  /** The recipe asks for nothing: Save saves the picture as it is, as a new picture. */
+  asIs: boolean;
   needs: Need[];
 }
 
@@ -1720,6 +1747,8 @@ export interface Saving {
   keepCamera: boolean;
   keepColours: boolean;
   keepLocation: boolean;
+  /** An HDR photo's gain map, in a format that holds one (JPEG, AVIF). */
+  keepHdr: boolean;
   /** Save starts on this way from now on. */
   always: boolean;
 }
@@ -2041,6 +2070,8 @@ export interface BatchSaving {
   keepCamera: boolean;
   keepColours: boolean;
   keepLocation: boolean;
+  /** An HDR photo's gain map, in a format that holds one (JPEG, AVIF). */
+  keepHdr: boolean;
 }
 
 /** Which pictures a batch is made of. */
@@ -2178,6 +2209,8 @@ export interface Batch {
   look: string | null;
   /** What its size made them for: "tv". */
   purpose: string | null;
+  /** Just Save: the format each was saved in as it is ("JPEG"); null when it made something. */
+  savedAs: string | null;
   words: StepWords[];
   /** Bytes of its pictures made, as they were and as made. */
   before: number;
@@ -2294,6 +2327,8 @@ export interface BatchLine {
   /** "portrait blur at f/2.8" */
   depth: string | null;
   purpose: string | null;
+  /** Just Save: the format each was saved in as it is ("JPEG"); null for a batch with steps. */
+  savedAs: string | null;
   into: string;
   made: number;
   undone: number;
@@ -2371,7 +2406,7 @@ export const useTakes = (
     shared: string | null;
     sample: string | null;
   } | null,
-) => useEnginePost<Takes>("/batches/takes", ask, ask !== null && ask.steps.length > 0);
+) => useEnginePost<Takes>("/batches/takes", ask, ask !== null); // no steps: just Save
 
 /** Asks for See it first's three: `see.mutate({ path: "/batches/samples", body })`. */
 export const useSeeFirst = () => useEngineAction<Samples>([]);
@@ -2682,6 +2717,8 @@ export interface ChosenPicture {
   version: string;
   /** From outside the library. */
   outside: boolean;
+  /** An HDR photo: Windows shows a wallpaper as an ordinary picture. */
+  hdr: boolean;
   /** Where Mado found its subject, as fractions; null till it's seen. */
   focus: { x: number; y: number } | null;
 }

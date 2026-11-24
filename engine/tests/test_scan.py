@@ -14,11 +14,13 @@ from mado.config import DataPaths
 from mado.core.files import Kind
 from mado.library import add_folder, find_pictures
 from mado.libraw import SESSION, Reader
+from mado.outside import open_picture
 from mado.pictures import Facts, InUseError, read_facts
 from mado.previews import Previews
 from mado.scan import RAW_NOTES, STOPPED_ON, Scanner, stopped_on
 from tests.dng_files import dng
 from tests.drawn import draw, exif, scene
+from tests.hdr_files import ultra_hdr_jpeg
 from tests.heif_files import exif_item, heif
 
 NOW = datetime(2026, 11, 22, 9, 14, tzinfo=UTC)
@@ -394,3 +396,61 @@ def test_a_scan_that_left_a_picture_open_in_another_app_looks_again_by_itself(
         threading.Event().wait(0.05)
     assert pictures(conn)["Pier.jpg"]["read_at"] is not None
     scanner.stop()
+
+
+def test_an_hdr_photo_is_read_with_its_gain_map_and_an_ordinary_one_without(
+    scanner: Scanner, conn: sqlite3.Connection, tmp_path: Path
+):
+    phone = tmp_path / "Phone"
+    phone.mkdir()
+    (phone / "PXL_1203.jpg").write_bytes(ultra_hdr_jpeg())
+    (phone / "PXL_1204.jpg").write_bytes(ultra_hdr_jpeg(version="2.0", pieces=("xmp",)))
+    draw(phone / "Still lake.jpg")
+    add_folder(conn, phone, now=NOW)
+
+    scanned(scanner)
+
+    found = pictures(conn)
+    assert found["PXL_1203.jpg"]["hdr"] == 1
+    assert found["PXL_1204.jpg"]["hdr"] == 2  # a gain map of a version Mado doesn't know
+    assert found["Still lake.jpg"]["hdr"] == 0
+
+
+def test_pictures_read_before_mado_looked_for_gain_maps_are_looked_at_once(
+    scanner: Scanner, conn: sqlite3.Connection, tmp_path: Path
+):
+    phone = tmp_path / "Phone"
+    phone.mkdir()
+    (phone / "PXL_1203.jpg").write_bytes(ultra_hdr_jpeg())
+    draw(phone / "beach.png")
+    add_folder(conn, phone, now=NOW)
+    scanned(scanner)
+    with conn:  # as Mado 0.12 left them: read, not looked at for a gain map
+        conn.execute("UPDATE pictures SET hdr = NULL")
+
+    scanned(scanner)
+
+    found = pictures(conn)
+    assert found["PXL_1203.jpg"]["hdr"] == 1
+    assert found["beach.png"]["hdr"] == 0
+
+
+def test_the_scan_looks_for_gain_maps_in_the_librarys_pictures_alone(
+    scanner: Scanner, conn: sqlite3.Connection, tmp_path: Path
+):
+    # A picture opened from outside the library is looked at as its page opens, not by a scan.
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+    (downloads / "PXL_1300.jpg").write_bytes(ultra_hdr_jpeg())
+    phone = tmp_path / "Phone"
+    phone.mkdir()
+    draw(phone / "beach.png")
+    add_folder(conn, phone, now=NOW)
+    open_picture(conn, downloads / "PXL_1300.jpg", now=NOW)
+    with conn:  # as Mado 0.12 left them: read, not looked at for a gain map
+        conn.execute("UPDATE pictures SET hdr = NULL")
+
+    scanned(scanner)
+
+    rows = {row["name"]: row["hdr"] for row in conn.execute("SELECT name, hdr FROM pictures")}
+    assert rows == {"beach.png": 0, "PXL_1300.jpg": None}

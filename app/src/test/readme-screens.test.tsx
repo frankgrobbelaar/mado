@@ -649,6 +649,7 @@ describe.runIf(SHOTS)("The README's screens", () => {
         keepCamera: true,
         keepColours: true,
         keepLocation: false,
+        keepHdr: true,
       },
       words,
       used: 4,
@@ -750,6 +751,7 @@ describe.runIf(SHOTS)("The README's screens", () => {
           height: 3024,
           version: item(id).version,
           outside: false,
+          hdr: false,
           focus,
         },
       });

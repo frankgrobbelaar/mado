@@ -9,7 +9,8 @@ from mado.core.kind import Kind
 from mado.core.looks import Look, mado_look
 from mado.core.models import BEST_DRAWING, BEST_PHOTO, FAST, FAST_GRAIN, model_for
 from mado.core.painting import Painting, mado_style
-from mado.core.recipe import Plan, Recipe, Sizing, Styling, plan
+from mado.core.recipe import Plan, Recipe, Sizing, Styling, asks_nothing, plan
+from mado.core.restore import Restoring
 from mado.core.sizes import resolve
 from mado.core.touches import Touches
 
@@ -321,3 +322,12 @@ def test_fixes_go_before_the_size_and_a_painting_after_it_in_the_name():
     )
 
     assert made.named == "Cleaned, TV 8K, After Monet"
+
+
+def test_a_recipe_asks_for_nothing_only_with_no_step_at_all():
+    # Saving as it is: Save with nothing chosen. Any step asked for, restoring among them, is
+    # something to make, even when it turns out to change nothing.
+    assert asks_nothing(Recipe())
+    assert not asks_nothing(Recipe(restoring=Restoring(faded=0.6)))
+    assert not asks_nothing(Recipe(fixing=Fixing(noise=0.8)))
+    assert asks_nothing(Recipe(fixing=Fixing(), restoring=Restoring()))  # nothing on in either

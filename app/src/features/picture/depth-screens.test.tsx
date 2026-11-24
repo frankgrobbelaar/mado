@@ -5,8 +5,9 @@
  *
  * Portrait blur in focus at its subject; fog; tilt-shift's band; the depth model to download
  * first; the card busy with the queue; a flat picture and a huge one; a 3D photo's choices, being
- * made, made and playing, as an animated WebP where the PC has no H.264 encoder, and with ffmpeg to
- * download first; the Depth step for many at once; History naming them. Skipped unless MADO_SHOTS
+ * made, made and playing, as an animated WebP where the PC has no H.264 encoder, with ffmpeg to
+ * download first, and for an HDR photo (an ordinary video); the Depth step for many at once;
+ * History naming them. Skipped unless MADO_SHOTS
  * names a folder. Every picture is a scene the shoot draws by code, every name made up.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -489,6 +490,35 @@ describe.runIf(SHOTS)("The Depth tab's screens", () => {
     await screen.findByText(/1920 × 1440 · 5 s · about/);
     await settle(1500);
     await dump("motion-choices");
+  });
+
+  it("motion-hdr", async () => {
+    engine(
+      opened(
+        11,
+        {},
+        {
+          "/pictures/11": pictureDetails(item(11), {
+            camera: null,
+            hdr: true,
+            gainMap: {
+              readable: true,
+              stops: 3,
+              baseIsHdr: false,
+              colour: false,
+              width: 1008,
+              height: 756,
+              why: null,
+            },
+          }),
+        },
+      ),
+    );
+    await measuredBoxes("motion-hdr");
+    await motionTab(11);
+    await screen.findByText(/A 3D photo is an ordinary video, in sRGB/);
+    await settle(1500);
+    await dump("motion-hdr");
   });
 
   it("motion-making", async () => {

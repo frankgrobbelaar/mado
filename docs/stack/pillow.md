@@ -13,6 +13,7 @@ repeats, so THIRD-PARTY-NOTICES.txt carries them with it.
 | JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF | Pillow | `kind_of` in `mado/core/files.py` decides by extension |
 | HEIC, HEIF (a phone's) | Mado's own reader and ffmpeg | Pillow has no HEIF decoder; see below |
 | Camera RAW (CR3, NEF, ARW, DNG…) | LibRaw, downloaded the first time a RAW is read | Its facts without developing it, a small copy from the camera's own preview, anything bigger developed into Display P3 (see [libraw.md](libraw.md)); Pillow then makes the copies as for any picture |
+| An HDR photo's gain map: JPEG (Ultra HDR, ISO 21496-1), AVIF, HEIC (Apple's, ISO 21496-1's) | Mado's own reader (`mado/hdr.py`); the gain map's pixels by Pillow, or ffmpeg for HEVC | Found from the headers alone as a picture is read; the picture itself is read as its format always is (Pillow sees an Ultra HDR JPEG as a JPEG, its first picture); see [hdr.md](hdr.md) |
 
 ## Files
 
@@ -21,9 +22,11 @@ repeats, so THIRD-PARTY-NOTICES.txt carries them with it.
 | `mado/pictures.py` | `read_facts` (header and EXIF, no decoding) and `decode` (pixels, turned upright); a camera RAW's through `mado/libraw.py` |
 | `mado/core/facts.py` | EXIF's values in Mado's words: when it was taken, the camera, which way up, a location |
 | `mado/core/heif.py` | A HEIF's layout: its size, its turn (`irot`, `imir`) and where its Exif is |
+| `mado/hdr.py`, `mado/core/gainmap.py`, `mado/core/jpegs.py`, `mado/core/heif_writer.py` | An HDR photo's gain map: found from the headers, decoded as gains, written again as Ultra HDR JPEG or an AVIF's `tmap` item (see [hdr.md](hdr.md)) |
 | `mado/previews.py` | The copies the window shows, kept in the data folder's cache |
 | `mado/looks.py` | Looks through `ImageFilter.Color3DLUT`, and the soft touches through `ImageChops` (see [looks.md](looks.md)) |
 | `tests/drawn.py` | Made-up pictures for the tests, with EXIF written the way a camera writes it |
+| `tests/hdr_files.py` | Made-up HDR photos: Ultra HDR JPEGs, AVIFs with a `tmap` item, HEICs built box by box |
 
 ## The facts
 
@@ -41,8 +44,8 @@ repeats, so THIRD-PARTY-NOTICES.txt carries them with it.
 | Copy | Size | Format | Made |
 | --- | --- | --- | --- |
 | Thumbnail | 512 px on its longer side | WebP, quality 80 | as the scan reads each picture, or when first asked for |
-| View | 2560 px | WebP, quality 88 | when a picture's page first opens |
-| Full size | as it is | the picture itself (JPEG, PNG, WebP, AVIF, GIF, BMP), else PNG | when it's zoomed to 100% |
+| View | 2560 px | WebP, quality 88; an HDR photo's an Ultra HDR JPEG at 88, its gain map with it | when a picture's page first opens |
+| Full size | as it is | the picture itself (JPEG, PNG, WebP, AVIF, GIF, BMP), else PNG; an HDR HEIC's an Ultra HDR JPEG at 95 | when it's zoomed to 100% |
 
 - A JPEG decodes at a smaller scale first (`draft`), so a thumbnail of a 12-megapixel photo takes
   a few milliseconds.

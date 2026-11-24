@@ -426,4 +426,10 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     """
     ALTER TABLE history ADD COLUMN restore TEXT;  -- "filled its scratches and dust"
     """,
+    # 15. HDR photos: whether a picture carries a gain map (a recent phone's HDR photo), read
+    # from its headers as it's read: 0 none, 1 one Mado reads, 2 one it can't (a version it
+    # doesn't know); NULL for a picture read before Mado looked, which the next scan looks at.
+    """
+    ALTER TABLE pictures ADD COLUMN hdr INTEGER CHECK (hdr IN (0, 1, 2));
+    """,
 )

@@ -80,6 +80,7 @@ class ChosenPicture(ApiModel):
     height: int | None
     version: str
     outside: bool  # from outside the library
+    hdr: bool = False  # an HDR photo: Windows shows a wallpaper as an ordinary picture
     focus: Point | None  # where Mado found its subject, as fractions; None till it's seen
 
 
@@ -469,6 +470,7 @@ def _choice_item(
             height=row["height"],
             version=version(row["modified"], row["size"]),
             outside=row["folder_id"] is None,
+            hdr=row["hdr"] == 1,
             focus=Point(x=focus[0], y=focus[1]) if focus else None,
         ),
         shape=choice.shape,

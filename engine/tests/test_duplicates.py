@@ -23,6 +23,7 @@ from mado.scan import Scanner
 from tests.conftest import FFMPEG, add
 from tests.dng_files import dng
 from tests.drawn import exif, scene
+from tests.hdr_files import hdr_jpeg_of
 from tests.heif_files import heif
 
 STAMP = datetime(2026, 11, 14, 10, 0).timestamp()
@@ -705,3 +706,21 @@ def test_a_picture_put_back_on_its_own_is_kept(client: TestClient, tmp_path: Pat
         "Harbour.png": True,
     }
     assert found["pictures"] == 0  # set aside all again, it stays
+
+
+def test_an_hdr_photo_is_grouped_by_its_picture_and_kept_over_its_ordinary_copy(
+    client: TestClient, tmp_path: Path
+):
+    folder = tmp_path / "Pictures"
+    big = scene(4)
+    hdr_photo = folder / "PXL_1203.jpg"
+    folder.mkdir(parents=True)
+    hdr_photo.write_bytes(hdr_jpeg_of(big))
+    os.utime(hdr_photo, (STAMP, STAMP))
+    save(big, folder / "PXL_1203 copy.jpg", quality=92, at=STAMP + 60)  # its picture alone
+    add(client, folder)
+
+    [group] = looked(client)["groups"]
+
+    assert set(names(group)) == {"PXL_1203.jpg", "PXL_1203 copy.jpg"}
+    assert kept_names(group) == ["PXL_1203.jpg"]  # the same pixels, and its gain map besides

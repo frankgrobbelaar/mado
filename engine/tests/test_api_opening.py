@@ -266,16 +266,27 @@ def test_a_pasted_picture_can_be_saved_as_it_is(client: TestClient, tmp_path: Pa
     assert Image.open(into / page["name"]).size == (96, 72)
 
 
-def test_a_library_picture_still_needs_something_to_make(client: TestClient, tmp_path: Path):
+def test_any_picture_saved_with_nothing_made_is_saved_as_it_is_never_in_its_place(
+    client: TestClient, tmp_path: Path
+):
     pier = draw(tmp_path / "Elsewhere" / "Pier.jpg", size=(96, 72))
     page = opened(client, pier)["picture"]
+    nothing = {"edit": None, "size": None, "look": None}
 
     refused = client.post(
         f"/pictures/{page['id']}/make",
-        json={"recipe": {"edit": None, "size": None, "look": None}, "saving": {"format": "PNG"}},
+        json={"recipe": nothing, "saving": {"format": "PNG", "how": "replace"}},
+    )
+    job = client.post(
+        f"/pictures/{page['id']}/make", json={"recipe": nothing, "saving": {"format": "PNG"}}
     )
 
-    assert refused.status_code == 422
+    assert refused.status_code == 409  # saved as it is, it's a copy: the original stays
+    assert job.status_code == 202, job.text
+    done = made(client, job.json())
+    assert done["state"] == "done", done["problem"]
+    assert Path(done["result"]) == tmp_path / "Elsewhere" / "Pier.png"
+    assert pier.is_file()
 
 
 def test_paths_are_taken_as_given_with_spaces_quotes_and_other_alphabets(

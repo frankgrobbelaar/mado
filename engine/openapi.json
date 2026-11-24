@@ -735,7 +735,7 @@
     "/pictures/{picture_id}/view": {
       "get": {
         "summary": "View",
-        "description": "It the size of a screen, at most 2560 pixels on its longer side (WebP): a camera RAW\ndeveloped, as Save makes it.",
+        "description": "It the size of a screen, at most 2560 pixels on its longer side (WebP): a camera RAW\ndeveloped, as Save makes it; an HDR photo as an Ultra HDR JPEG, its gain map with it.",
         "operationId": "view_pictures__picture_id__view_get",
         "security": [
           {
@@ -757,7 +757,8 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "image/webp": {}
+              "image/webp": {},
+              "image/jpeg": {}
             }
           },
           "422": {
@@ -1115,7 +1116,7 @@
     "/pictures/{picture_id}/plan": {
       "post": {
         "summary": "Plan For",
-        "description": "How a picture would be made to a recipe: its shape, the model, its look, about how long it\ntakes here and how it would be saved.",
+        "description": "How a picture would be made to a recipe: its shape, the model, its look, about how long it\ntakes here and how it would be saved. A recipe with no step at all (the picture as it is,\nwhich its page asks about as it opens) is planned at a glance, without decoding it whole.",
         "operationId": "plan_for_pictures__picture_id__plan_post",
         "security": [
           {
@@ -5965,6 +5966,17 @@
             ],
             "title": "Purpose"
           },
+          "savedAs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savedas"
+          },
           "into": {
             "type": "string",
             "title": "Into"
@@ -6047,6 +6059,7 @@
           "fix",
           "depth",
           "purpose",
+          "savedAs",
           "into",
           "made",
           "undone",
@@ -6233,6 +6246,17 @@
             ],
             "title": "Purpose"
           },
+          "savedAs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savedas"
+          },
           "words": {
             "items": {
               "$ref": "#/components/schemas/Words"
@@ -6275,6 +6299,7 @@
           "madeFor",
           "look",
           "purpose",
+          "savedAs",
           "words",
           "before",
           "after"
@@ -6389,6 +6414,11 @@
             "type": "boolean",
             "title": "Keeplocation",
             "default": false
+          },
+          "keepHdr": {
+            "type": "boolean",
+            "title": "Keephdr",
+            "default": true
           }
         },
         "type": "object",
@@ -6624,6 +6654,11 @@
           "outside": {
             "type": "boolean",
             "title": "Outside"
+          },
+          "hdr": {
+            "type": "boolean",
+            "title": "Hdr",
+            "default": false
           },
           "focus": {
             "anyOf": [
@@ -8276,6 +8311,78 @@
         ],
         "title": "Fraction",
         "description": "A part of the picture, as fractions of its width and height (extending, a canvas starts\nbefore the picture and ends after it)."
+      },
+      "GainMapOut": {
+        "properties": {
+          "readable": {
+            "type": "boolean",
+            "title": "Readable"
+          },
+          "stops": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stops"
+          },
+          "baseIsHdr": {
+            "type": "boolean",
+            "title": "Baseishdr"
+          },
+          "colour": {
+            "type": "boolean",
+            "title": "Colour"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "readable",
+          "stops",
+          "baseIsHdr",
+          "colour",
+          "width",
+          "height",
+          "why"
+        ],
+        "title": "GainMapOut",
+        "description": "An HDR photo's gain map, as its page says it."
       },
       "GroupOut": {
         "properties": {
@@ -10755,6 +10862,11 @@
             "type": "boolean",
             "title": "Raw"
           },
+          "hdr": {
+            "type": "boolean",
+            "title": "Hdr",
+            "default": false
+          },
           "width": {
             "anyOf": [
               {
@@ -10808,6 +10920,16 @@
             "type": "boolean",
             "title": "Outside",
             "default": false
+          },
+          "gainMap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GainMapOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "folderId": {
             "anyOf": [
@@ -10961,6 +11083,11 @@
           "raw": {
             "type": "boolean",
             "title": "Raw"
+          },
+          "hdr": {
+            "type": "boolean",
+            "title": "Hdr",
+            "default": false
           },
           "width": {
             "anyOf": [
@@ -11455,6 +11582,32 @@
           "nothingBehind": {
             "type": "boolean",
             "title": "Nothingbehind"
+          },
+          "hdr": {
+            "type": "string",
+            "enum": [
+              "none",
+              "kept",
+              "lost"
+            ],
+            "title": "Hdr",
+            "default": "none"
+          },
+          "hdrWhy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hdrwhy"
+          },
+          "asIs": {
+            "type": "boolean",
+            "title": "Asis",
+            "default": false
           },
           "needs": {
             "items": {
@@ -12662,6 +12815,11 @@
             "title": "Keeplocation",
             "default": false
           },
+          "keepHdr": {
+            "type": "boolean",
+            "title": "Keephdr",
+            "default": true
+          },
           "always": {
             "type": "boolean",
             "title": "Always",
@@ -12966,6 +13124,11 @@
           "raw": {
             "type": "boolean",
             "title": "Raw"
+          },
+          "hdr": {
+            "type": "boolean",
+            "title": "Hdr",
+            "default": false
           },
           "width": {
             "anyOf": [

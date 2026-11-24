@@ -23,6 +23,7 @@ export function savingFrom(settings: Settings | undefined): BatchSaving {
     keepCamera: true,
     keepColours: true,
     keepLocation: settings?.keepLocation ?? false,
+    keepHdr: true,
   };
 }
 

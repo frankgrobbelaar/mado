@@ -270,8 +270,11 @@ def _folders(conn: sqlite3.Connection) -> list[dict[str, str]]:
 
 _PICTURE_COLUMNS = (
     "path", "format", "width", "height", "size", "takenAt", "takenFrom", "camera", "located",
-    "state",
+    "hdr", "state",
 )  # fmt: skip
+# An HDR photo's gain map: read, one Mado can't read (a version it doesn't know), none; or not
+# looked for yet (a picture read before Mado looked).
+_HDR_WORDS = {1: "yes", 2: "can't read its gain map", 0: "no", None: ""}
 
 
 def _pictures(conn: sqlite3.Connection) -> str:
@@ -294,6 +297,7 @@ def _pictures(conn: sqlite3.Connection) -> str:
                     row["taken_from"],
                     row["camera"] or "",
                     "yes" if row["located"] else "no",
+                    _HDR_WORDS.get(row["hdr"], ""),
                     _state(row),
                 )
             )

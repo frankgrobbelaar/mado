@@ -214,6 +214,7 @@ def create_app(
         running.state.editor.tidy()  # the masks of pictures not edited for a month go
         running.state.depths.tidy()  # and the depth of pictures not used for a month
         running.state.motions.tidy()  # 3D photos an earlier run made and nobody saved
+        running.state.previews.tidy()  # a HEIC's gain map a stop left on its way to ffmpeg
         making_.start()  # a job Mado's closing cut short starts again, and batches carry on
         folders = WatchFolders(paths, take, now=_now, reader=reader_) if watch else None
         running.state.watch_folders = folders
@@ -353,6 +354,7 @@ def create_app(
             editor=app.state.editor,
             reader=app.state.reader,
             depths=app.state.depths,
+            scratch=paths.cache / "hdr",
         ),
         app.state.quarantine,
         now=_now,

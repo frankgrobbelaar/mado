@@ -297,7 +297,8 @@ export function readyWords(batch: Batch): string {
   return batch.look ? `${batch.source} has ${batch.look}` : `${batch.source} is ready`;
 }
 
-/** "Made for TV 8K overnight, as new pictures in Holiday › Edited." */
+/** "Made for TV 8K overnight, as new pictures in Holiday › Edited."; a batch that was just Save,
+ * "Saved as JPEG, as new pictures beside the originals." */
 function madeWords(batch: Batch): string {
   const what = [
     batch.madeFor ? `for ${batch.madeFor}` : null,
@@ -314,7 +315,8 @@ function madeWords(batch: Batch): string {
         ? "as new pictures beside the originals"
         : `as new pictures in ${batch.into}`;
   const failed = batch.failed ? ` ${count(batch.failed)} didn't work: the queue says why.` : "";
-  return `Made ${what}${overnight}, ${where}.${failed}`;
+  const made = batch.savedAs ? `Saved as ${batch.savedAs}` : `Made${what ? ` ${what}` : ""}`;
+  return `${made}${overnight}, ${where}.${failed}`;
 }
 
 /** What was made today, newest first, each with what it was made for. */

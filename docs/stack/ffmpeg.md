@@ -10,6 +10,7 @@ shows (see [releasing.md](../releasing.md)).
 | For | Command | Where |
 | --- | --- | --- |
 | A HEIC's pixels, for its thumbnail, its view and its full-size copy | `ffmpeg -v error -nostdin -noautorotate -i <picture> -frames:v 1 [-vf scale=…] -f image2pipe -c:v png -pix_fmt rgb24 -` | `_decode_heif` in [mado/pictures.py](../../engine/src/mado/pictures.py) |
+| An HDR HEIC's gain map: its item written alone into a HEIF of its own in `cache/hdr`, decoded the same way, the file deleted straight after (see [hdr.md](hdr.md)) | `ffmpeg -v error -nostdin -noautorotate -i <cache/hdr/gain-map-….heic> -frames:v 1 -f image2pipe -c:v png -pix_fmt rgb24 -` | `_decoded_by_ffmpeg` in [mado/hdr.py](../../engine/src/mado/hdr.py) |
 | Which H.264 encoder works here, once: a fifth of a second of grey with each in turn | `ffmpeg -nostdin -v error -f lavfi -i color=c=gray:s=320x240:r=30:d=0.2 -pix_fmt yuv420p -c:v <encoder> … -f null -` | `Encoders` in [mado/motion.py](../../engine/src/mado/motion.py) |
 | A 3D photo's video, its frames handed over as they're made | `ffmpeg -v error -f rawvideo -pix_fmt rgb24 -s WxH -r 30 -i - -pix_fmt yuv420p -c:v <encoder> -b:v <rate> -g 60 -movflags +faststart -an -y <out.mp4>` | `_encoded` in [mado/motion.py](../../engine/src/mado/motion.py) |
 

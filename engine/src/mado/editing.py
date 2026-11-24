@@ -124,10 +124,13 @@ class Editor:
         stop: Callable[[], bool] = lambda: False,
         report: Callable[[int], None] = lambda _done: None,
         keep: bool = True,
+        masks: dict[int, Mask] | None = None,
     ) -> Image.Image:
         """The picture (`image`, decoded at full size; `key` names it and its version) as the
         edits leave it, made one edit at a time from the last one kept; `report` hears how many
-        are made; then restored, when `restoring` asks (mado/restoring.py). Without `keep` (a
+        are made, and `masks` each edit's mask made now, by its place in `edits` (an HDR photo's
+        gain map follows them); then restored, when `restoring` asks (mado/restoring.py: a
+        preview's, as a job restores after its edits, Editor.restored). Without `keep` (a
         batch's picture, made once) nothing is kept of it: no mask in the cache and nothing in
         memory. Raises EditingError, RestoringError, ModelError when a model can't run,
         StoppedError when stopped between edits."""
@@ -149,12 +152,18 @@ class Editor:
                 found = self._states.get(digest)
             if found is not None:
                 return found
-            before = self.state(image, key, edits[:-1], stop=stop, report=report, keep=keep)
+            before = self.state(
+                image, key, edits[:-1], stop=stop, report=report, keep=keep, masks=masks
+            )
             if stop():
                 raise StoppedError
             timer = Timer()
             began = time.perf_counter()
-            made, smeared, place = self._edited(before, key, edits[:-1], edits[-1], timer, keep)
+            made, smeared, place, mask = self._edited(
+                before, key, edits[:-1], edits[-1], timer, keep
+            )
+            if masks is not None:
+                masks[len(edits) - 1] = mask
             took = time.perf_counter() - began
             report(len(edits))
             if keep:
@@ -241,6 +250,20 @@ class Editor:
         _too_big(image, "restores")
         edited = self.state(image, key, edits)
         return self.restorer.mask(edited, key, _digest(key, edits), restoring)
+
+    def filled_mask(
+        self,
+        edited: Image.Image,
+        key: str,
+        edits: tuple[Edit, ...],
+        restoring: Restoring,
+        *,
+        keep: bool = True,
+    ) -> Mask:
+        """What restoring filled in a picture its edits left as `edited` (a job's, made already):
+        for an HDR photo's gain map to be filled there too, from what the detector found as it
+        restored it."""
+        return self.restorer.mask(edited, key, _digest(key, edits), restoring, keep=keep)
 
     def small(
         self,
@@ -403,6 +426,16 @@ class Editor:
 
     # What each edit does.
 
+    def masks_of(
+        self, size: tuple[int, int], key: str, edits: tuple[Edit, ...]
+    ) -> list[Mask | None]:
+        """Each edit's mask as it was kept (in memory, or the cache), at the picture's `size`;
+        None for one not kept (a batch's)."""
+        return [
+            self._mask(_named(_digest(key, edits[:at]), edit_json(edit)), key, size)
+            for at, edit in enumerate(edits)
+        ]
+
     def _edited(
         self,
         before: Image.Image,
@@ -411,7 +444,7 @@ class Editor:
         edit: Edit,
         timer: Timer,
         keep: bool,
-    ) -> tuple[Image.Image, bool, Place | None]:
+    ) -> tuple[Image.Image, bool, Place | None, Mask]:
         at = _digest(key, prior)
         name = _named(at, edit_json(edit))
         match edit:
@@ -420,13 +453,14 @@ class Editor:
                 if hole is None:
                     hole = self._hole(before, at, parts, strokes)
                     self._store(name, key, hole, keep)
-                return self._erase(before, hole, quality, timer)
+                made, smeared, place = self._erase(before, hole, quality, timer)
+                return made, smeared, place, hole
             case CutOut(parts=parts, behind=behind, colour=colour):
                 mask = self._refined(name, key, before, at, parts, keep)
-                return cut(before, mask, behind, colour), False, self._read_place(at)
+                return cut(before, mask, behind, colour), False, self._read_place(at), mask
             case Blur(parts=parts):
                 mask = self._refined(name, key, before, at, parts, keep)
-                return lens_blurred(before, mask), False, self._read_place(at)
+                return lens_blurred(before, mask), False, self._read_place(at), mask
             case Subject(quality=quality, behind=behind, colour=colour):
                 place: Place | None = None
                 mask = self._mask(name, key, before.size)
@@ -434,7 +468,7 @@ class Editor:
                     matte, place = self._ai.matte(quality or cut_quality(self._ai), timer)
                     mask = refined(before, matte(flat(before)))
                     self._store(name, key, mask, keep)
-                return cut(before, mask, behind, colour), False, place
+                return cut(before, mask, behind, colour), False, place, mask
 
     def _erase(
         self, before: Image.Image, hole: Mask, quality: Quality, timer: Timer

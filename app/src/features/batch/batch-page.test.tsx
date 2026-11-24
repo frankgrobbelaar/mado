@@ -608,12 +608,69 @@ describe("BatchPage", () => {
   });
 
   it("says only that the originals stay, till it knows where new pictures go", async () => {
-    fakeEngine(ENGINE);
+    // What it takes still on its way: it doesn't know yet where they go.
+    fakeEngine({ ...ENGINE, "POST /batches/takes": () => new Promise<Response>(() => {}) });
     renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
 
     const saving = await screen.findByRole("region", { name: "Saving" });
     expect(within(saving).getByText("The originals stay as they are.")).toBeInTheDocument();
     expect(saving).not.toHaveTextContent("Into .");
+  });
+
+  it("can be just Save: each picture saved as it is, a new picture, never in its place", async () => {
+    const fetch = fakeEngine({ ...ENGINE, "/settings": { ...SETTINGS, saveFirst: "replace" } });
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+
+    const steps = await screen.findByRole("region", { name: "Steps, in order" });
+    expect(within(steps).getByText(/With none, each is saved as it is/)).toBeInTheDocument();
+    const saving = screen.getByRole("region", { name: "Saving" });
+    expect(within(saving).queryByText("Replace the originals")).toBeNull();
+    expect(
+      within(saving).getByText(/Replacing the originals isn't offered: with no steps/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/there's nothing to see first/)).toBeInTheDocument();
+    const queue = screen.getByRole("button", { name: "Put 3 in the queue" });
+    await waitFor(() => expect(queue).toBeEnabled());
+    fireEvent.click(queue);
+
+    await waitFor(() => expect(sent(fetch, "POST", "/batches")).toHaveLength(1));
+    expect(sent(fetch, "POST", "/batches")[0]).toMatchObject({
+      steps: [],
+      saving: { how: "new", keepHdr: true },
+    });
+    expect(sent(fetch, "POST", "/batches/samples")).toHaveLength(0); // nothing to see first
+  });
+
+  it("keeps an HDR photo's gain map in JPEG and AVIF, saying another format can't", async () => {
+    fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change save" }));
+    const card = await screen.findByRole("dialog", { name: "How they're saved" });
+    const hdr = within(card).getByRole("checkbox", { name: "An HDR photo's HDR (its gain map)" });
+    expect(hdr).toBeChecked();
+    fireEvent.click(within(card).getByRole("radio", { name: "WebP" }));
+    expect(hdr).toBeDisabled();
+    expect(within(card).getByText(/WebP has no room for a gain map/)).toBeInTheDocument();
+  });
+
+  it("sees three first again once an HDR photo's HDR is left out, as it changes them", async () => {
+    const fetch = fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED, recipe: 1 });
+    await waitFor(() => expect(sent(fetch, "POST", "/batches/samples")).toHaveLength(1), {
+      timeout: 3000,
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change save" }));
+    const card = await screen.findByRole("dialog", { name: "How they're saved" });
+    fireEvent.click(
+      within(card).getByRole("checkbox", { name: "An HDR photo's HDR (its gain map)" }),
+    );
+
+    await waitFor(() => expect(sent(fetch, "POST", "/batches/samples")).toHaveLength(2), {
+      timeout: 3000,
+    });
+    expect(sent(fetch, "POST", "/batches/samples")[1].saving).toMatchObject({ keepHdr: false });
   });
 
   it("asks for the pictures first when it has none", async () => {

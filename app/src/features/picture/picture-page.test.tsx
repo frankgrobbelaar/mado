@@ -41,6 +41,7 @@ function renderPicture(at: string) {
 function details(item: PictureItem, overrides: Partial<PictureDetails> = {}): PictureDetails {
   return {
     ...item,
+    gainMap: null,
     folderId: 1,
     folder: "D:\\Pictures\\Phone",
     dir: "",
@@ -283,7 +284,7 @@ describe("PicturePage", () => {
     );
     expect(
       screen.getByText(
-        "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look, edited, fixed or given depth.",
+        "This camera RAW waits for Mado's RAW reader: once it's here, it can be saved as it is, made for a screen, given a look, edited, fixed or given depth.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(within(note).getByRole("button", { name: "Try again" }));

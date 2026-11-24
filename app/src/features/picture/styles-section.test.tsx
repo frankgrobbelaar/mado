@@ -46,6 +46,7 @@ const details: PictureDetails = {
   pasted: false,
   aside: false,
   savesTo: null,
+  gainMap: null,
 };
 
 /** A colour photo, nothing to fix. */
@@ -331,7 +332,12 @@ describe("Painting styles", () => {
       }),
     );
     await onStage("After Seurat · 100%");
-    expect(sent(fetch, "POST", "/pictures/11/plan")).toHaveLength(0);
+    // Planned only as it is: never with the style pointed at.
+    expect(
+      sent(fetch, "POST", "/pictures/11/plan").filter(
+        (body) => (body as { paint?: unknown }).paint !== undefined,
+      ),
+    ).toHaveLength(0);
     fireEvent.pointerLeave(grid);
     await onStage("Original");
   });

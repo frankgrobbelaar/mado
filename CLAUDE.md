@@ -74,7 +74,12 @@ Fix tab: scratches and dust found by Microsoft's old-photo detector and shown as
 the brush before LaMa fills them; a black-and-white or sepia print coloured by DDColor tiny, or a
 colour photo's faded colours brought back, each with a strength; faces left as they are; a step for
 batches and recipes that colours each picture as it needs and leaves scratches to its page; each
-model downloaded the first time). Next: the rest of 1.2, by [What's next](#whats-next).
+model downloaded the first time); and HDR photos with saving as it is, the fifteenth, part of 1.0's
+promise to keep phones' HDR (gain maps read from Ultra HDR and ISO 21496-1 JPEGs, Apple's and ISO's
+HEICs and AVIFs, from their headers as the scan reads them; an "HDR" tag on the tile and the page;
+the page in HDR where Windows has HDR on; the gain map kept through every tool and written again in
+JPEG and AVIF; and Save with nothing made, always a new picture, a batch or a recipe just Save too).
+Next: the rest of 1.2, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -1037,6 +1042,103 @@ Everything decided so far. Don't ask again; change only with the owner.
   working while the mask was still being checked, a part at 100% laying colour on the whole
   picture, the small copies taking strokes painted before a change, no limit on strokes in the
   window, and DDColor fetched for a colour at 0%; all mended, each with its test.
+- HDR photos and saving as it is, as built (2026-11-24, Claude's calls while the owner is away;
+  docs/stack/hdr.md): the gain maps phones write now are read: Ultra HDR JPEGs (Android's: Adobe's
+  `hdrgm` XMP and, from Android 15, ISO 21496-1's numbers too), JPEGs with ISO's alone, HEICs with
+  Apple's auxiliary gain map (its headroom in its XMP or the MakerNote) or ISO's `tmap` item, and
+  AVIFs with a `tmap` item. Whether a picture carries one is read from its headers as the scan reads
+  it (a JPEG's first 64 KB and its gain map's first segments, a HEIF's `meta` box) and kept as
+  `pictures.hdr` (migration 15: none, one Mado reads, one it can't; pictures read before it are
+  looked at once by the next scan, by their headers alone). "HDR" shows on the tile and in the
+  page's facts as "RAW" does, the facts' tooltip saying how far it goes. A gain map of a version
+  Mado doesn't know (hdrgm's other than 1.0, ISO's other than 0) or with numbers that make no sense
+  leaves the picture as it is, without its HDR, said under its name. The gain map is decoded only
+  when the picture is made or its view is: as gains in stops, turned as the picture's EXIF (or a
+  HEIC's `irot` and `imir`) turns it, kept at its share of the picture (a quarter stays a quarter, a
+  full-size one full), 4096 pixels on its longer side at most (a huge photo's is smooth); a HEIF's
+  item written out alone as a HEIF of its own, an AVIF's decoded by Pillow in memory, a HEIC's
+  (HEVC) by ffmpeg from a file in `cache/hdr`, deleted straight after. A base that's the HDR
+  rendition makes its ordinary rendition by dividing by its gains, as ISO and libavif have it. The
+  page is in HDR where Windows has HDR on, simply: an HDR photo's view (and a HEIC's full size) is
+  an Ultra HDR JPEG, which WebView2's Chromium draws in HDR on an HDR screen and as its ordinary
+  picture elsewhere; at 100% a JPEG or an AVIF is itself; thumbnails and what the tabs show while a
+  tool is chosen stay ordinary, and Mado never touches Windows' HDR. Through every tool
+  (`core/gains.py`, each tested on made-up HDR photos), the AI models working on the picture alone:
+  the size crops it, extends it (the edge's gain carried on) and resizes it plainly, as it's smooth;
+  an erase fills it from round the part (the wall's gain, not the lamp's), a cut-out on a colour has
+  none behind it (a flat colour is the same on any screen), a blurred backdrop or Blur what's behind
+  it blurs it the same way, and a cut-out on nothing saves as PNG or WebP, which can't hold one; a
+  look grades the ordinary picture and keeps the gain map, so the HDR rendition is the graded
+  picture brightened where it was, a colour gain map made one channel first so its colours don't
+  bring back what the look took out (a black and white look stays black and white); a painter's or a
+  picture's style, oil paint and cartoon keep it (a lamp painted still glows), while a pencil
+  sketch, paper and lines, fades it with its strength, none left at 100% on the whole picture; the
+  fixes keep it as it is (brightening's curve keeps the highlights below white, and the gain map
+  opens them up again); restoring fills it where scratches and dust were filled, as an erase does (a
+  white scratch on a photographed print would glow on again), and keeps it, one channel, as a look
+  does, when a picture's colour is brought in or back; portrait blur, fog and tilt-shift make it
+  again from both renditions given the same tool in linear light at the gain map's size, so fog
+  thins the gain with distance and a lamp blurred into a disc glows as a disc; a 3D photo is an
+  ordinary video (sRGB, HD colour tags) and the Depth tab says an HDR photo's extra brightness isn't
+  kept in it, as the wallpaper studio says of Windows' wallpaper, which is an ordinary picture, the
+  studio otherwise as it was; a batch, a recipe and a watch folder keep it the same, their Saving
+  with "An HDR photo's HDR (its gain map)"; duplicates and bursts compare the ordinary picture, as
+  before. A gain map left flat isn't written. Saved, it's written in JPEG as Android writes Ultra
+  HDR, so phones, browsers and Windows read it whichever way they look (the picture with hdrgm's XMP
+  and directory, ISO's version and an MPF; then the gain map at quality 90 with its own XMP and ISO
+  numbers), and in AVIF by Mado's own boxes round the AV1 items of two AVIFs Pillow encodes (a
+  hidden gain map item, a `tmap` item with ISO's numbers, `altr`, the `tmap` brand), as Pillow can't
+  write one; its least and most gains made afresh, gamma 1, the headroom and offsets as the photo
+  had them. PNG and WebP can't hold one, and the save dialog says so before Save under "Its HDR (the
+  gain map)", a new line of "Keep from the original", on by default. Checked with second readers:
+  Pillow's MPO reader sees two pictures, the MPF's offsets right; libavif reads the AVIF and refuses
+  a `tmap` cut short, so the tests read every AVIF they write; and Chromium, in the shooting
+  script's Edge, drew XMP and ISO, XMP alone, ISO alone and the AVIF alike, an HDR base's half at
+  192 where 191.6 was worked out (which found that an HDR base divides). Saving as it is: Save is
+  there with nothing chosen, quiet till a tool asks for something, and the Size tab says "Save keeps
+  it as it is, in the format you pick", rather than an "As it is" size: one more choice among sizes
+  that all make something would muddle the Size tab, and Save is already where saving happens. A
+  recipe with no step at all is saved as it is (steps that change nothing are still said as changing
+  nothing): at its own size, in the format and quality chosen (a JPEG starting at the quality it was
+  saved at), keeping what's ticked; a RAW developed at full size, an HDR photo with its gain map, a
+  HEIC as a JPEG (no HEVC encoder Mado may ship). It's always a new picture: the dialog doesn't
+  offer Replace and says why, the API refuses it (409), and a batch that's just Save turns Replace
+  to a new picture and says so. In the format it's already in, it's a fresh copy ("(2)"), said in
+  the dialog, rather than refused: a copy without its location, or at another quality, is a reason
+  to save one. A RAW waiting for Mado's RAW reader says it can be saved as it is once the reader is
+  here, and a batch leaves it out till then. A batch, a recipe or a watch folder can be just Save,
+  changing many pictures' format at once (See it first says there's nothing to see first: each copy
+  is the picture itself); History says "Saved Harbour as JPEG", a batch "Saved 240 pictures as
+  JPEG". Measured on the owner's PC: a picture's facts read in 0.7 ms with a gain map and 0.4
+  without, so a scan of 1,000 made-up JPEGs took the same either way (55.3 and 52.1 s without, 57.7
+  and 52.0 with), its time the thumbnails'; the gain map decoded in 7 ms at 12 MP and 23 at 48; its
+  extra time through the tools at 12 MP (48 MP) 9 to 23 ms for a size (18 to 33), 21 to 81 ms for an
+  edit (81 to 322), 3 ms for a look or a pencil sketch (9), none for the fixes, and for the depth
+  tools, each worked out twice, 0.53 s for fog, 2.0 s for portrait blur and 3.0 s for tilt-shift
+  (0.71, 2.3 and 3.2); writing it 12 ms more as JPEG (44) and 63 as AVIF. Saved as it is: a 12 MP
+  JPEG in 0.37 to 0.44 s, an HDR one with its gain map in 0.45 to 0.48, a 24 MP RAW developed in 3.8
+  to 3.9 s, and a batch of 1,000 PNGs (1600 × 1200) as JPEG in 145 s. Every gain map was tested only
+  through files made by code (Ultra HDR JPEGs of each kind, AVIFs with `tmap`, HEICs built box by
+  box round AV1 items with Apple's or ISO's gain map; a HEVC gain map only through ffmpeg's
+  stand-in, as no HEVC encoder may make one). Found on the way: Chromium's drawing showed that an
+  HDR base's ordinary rendition divides by its gains (Mado had multiplied); the Fix tab took the
+  picture's as-it-is plan for its own and the Size tab could show it for a moment; the Edit and Size
+  tabs said to erase or pick a size first beside a Save that saves the picture as it is (the
+  README's Edit picture taken again); and Pillow opens an Ultra HDR JPEG as a plain JPEG (it sees
+  hdrgm's XMP), so the tests call its MPO reader by hand. A fresh agent's review found a gain map's
+  decoder raising what wasn't caught (Pillow's AVIF reader a RuntimeError, a frame header claiming
+  billions of pixels), so a damaged one stopped the view and Save; every picture's page decoding it
+  whole for its as-is plan, now made at a glance from its thumbnail and the size the library read;
+  See it first's three kept after the HDR choice changed; a HEIC's HEVC gain map taken whatever
+  shape ffmpeg gave; "Always save this way" keeping "new" from a save that could be nothing else (as
+  it is, or a camera RAW); Home's card for a batch that was just Save reading "Made , as new
+  pictures"; a just-Save recipe's card speaking of replacing; the page's tag lagging a picture that
+  lost its gain map; the view trying a broken gain map on every request; the scan's catch-up reading
+  pictures from outside the library, a commit each; the Depth tab's big-picture note reading the
+  as-is plan; a gain map with no numbers said as not there, and the XMP directory not tried where
+  the MPF was wrong; the AVIF claiming AV1's baseline profile; `cache/hdr` not emptied at start; and
+  dead code: all mended, each with its test. Left as it is: the facts' tooltip shows on hover only,
+  as Mado's other titles (paths, folders) do.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -1087,7 +1189,8 @@ Everything decided so far. Don't ask again; change only with the owner.
   see docs/stack/libraw.md; and the AI models fetched when asked; each with its licence files),
   `cache\` (each picture's thumbnail and screen-sized view, made again when gone; the depth Mado
   read of a picture, kept by its version as the edits' masks are; 3D photos made and not saved,
-  cleared as the engine starts), and `pasted\`
+  cleared as the engine starts; a HEIC's gain map on its way to ffmpeg, for a moment, in
+  `cache\hdr`), and `pasted\`
   (pictures pasted from the clipboard, till a month after they were last opened).
 - Next to the pictures: `Mado quarantine` at the top of each drive, a folder a day, holding
   replaced originals and pictures taken away for 30 days; Mado deletes only what's in a day's
@@ -1162,9 +1265,11 @@ Everything decided so far. Don't ask again; change only with the owner.
    the pictures that won't open, space, a picture open in another app, the grid's tags), editing
    by clicking (select, erase and cut out, looks on a part, cutting out in batches and recipes),
    pictures from anywhere (a picture from outside the library on a page of its own, paste,
-   File Explorer's "Open in Mado" and Open with, the command line), and camera RAW (read by
+   File Explorer's "Open in Mado" and Open with, the command line), camera RAW (read by
    LibRaw, downloaded the first time a RAW is read; every tool on it; RAWs among duplicates and
-   bursts).
+   bursts), and HDR photos with saving as it is (gain maps read, shown in HDR, kept through every
+   tool and written again in JPEG and AVIF; Save with nothing made, a batch or a recipe just
+   Save).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles. Built:
    the wallpaper studio, with favourites, search (by describing a picture, by the words in it,

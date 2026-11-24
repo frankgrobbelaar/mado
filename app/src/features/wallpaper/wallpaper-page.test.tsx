@@ -286,6 +286,18 @@ describe("WallpaperPage", () => {
     expect(asked.map((each) => each.body)).toEqual([{ layout: "each", gap: 1 }]);
   });
 
+  it("says Windows shows an HDR photo's wallpaper as an ordinary picture", async () => {
+    const hdr = choice();
+    engine(
+      studio({ choices: [{ ...hdr, picture: { ...hdr.picture, hdr: true } }], parts: [part()] }),
+    );
+    await renderStudio();
+
+    expect(
+      await screen.findByText(/Windows shows a wallpaper as an ordinary picture/),
+    ).toBeInTheDocument();
+  });
+
   it("moves where a part is cut by dragging it, and zooms with the keyboard", async () => {
     const { asked } = engine(studio({ choices: [choice({ zoom: 2 })], parts: [part()] }));
     await renderStudio();

@@ -112,8 +112,9 @@ def steps_in_order(steps: Sequence[Step]) -> list[Step]:
 
 def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
     """Steps as a job keeps its recipe: its edits (the subject cut out), its restoring, its
-    fixes, its size step, its depth step and its look step, any of them None. Raises StepError
-    for none, two of a kind, a kind this Mado doesn't know, or scratches asked of a batch."""
+    fixes, its size step, its depth step and its look step, any of them None; none at all saves
+    each picture as it is. Raises StepError for two of a kind, a kind this Mado doesn't know,
+    or scratches asked of a batch."""
     found: dict[str, dict[str, object]] = {}
     for step in steps:
         kind = str(step.get("step"))
@@ -125,11 +126,6 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
         if kind in found:
             raise StepError(f"A batch makes one {_SAID.get(kind, kind)} at a time: take one out.")
         found[kind] = {key: value for key, value in step.items() if key != "step"}
-    if not found:
-        raise StepError(
-            "Pick what to do first: cut out the subject, restore them, fix them, make them for a "
-            "screen, give them depth, paint them in a style, or give them a look."
-        )
     restore = found.get("restore")
     if restore is not None and restore.get("scratches") is not None:
         raise StepError(

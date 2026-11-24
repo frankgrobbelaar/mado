@@ -111,9 +111,12 @@ function Batch({ start }: { start: BatchStart }) {
   const [chosenSaving, setSaving] = useState<BatchSaving | null>(null);
   // Mado can't write camera RAW: a batch with RAWs in it saves new pictures.
   const raw = (found?.pictures ?? []).some((each) => each.raw);
+  // With no steps, each picture is saved as it is: always a new picture.
+  const asIs = steps.length === 0;
   // A cut-out with nothing behind it keeps its nothing as PNG (or WebP), whatever was chosen.
   const chosen = savingFor(steps, chosenSaving ?? savingFrom(settings.data));
-  const saving: BatchSaving = raw && chosen.how === "replace" ? { ...chosen, how: "new" } : chosen;
+  const saving: BatchSaving =
+    (raw || asIs) && chosen.how === "replace" ? { ...chosen, how: "new" } : chosen;
   // Camera RAWs left out while Mado's RAW reader comes join once it's here: asked again then,
   // and every few seconds after while the scan reads them.
   const reader = useRawReader();
@@ -163,6 +166,7 @@ function Batch({ start }: { start: BatchStart }) {
         camera: saving.keepCamera,
         colours: saving.keepColours,
         place: saving.keepLocation,
+        hdr: saving.keepHdr,
       }),
     [steps, saving],
   );
@@ -203,9 +207,7 @@ function Batch({ start }: { start: BatchStart }) {
   );
 
   const takes = useTakes(
-    found && steps.length
-      ? { pictures, steps, saving, shared: found.shared, sample: sample?.id ?? null }
-      : null,
+    found ? { pictures, steps, saving, shared: found.shared, sample: sample?.id ?? null } : null,
   );
   const madeSoFar = samples.data?.samples.filter((each) => each.state === "done").length ?? 0;
   const { refetch } = takes;
@@ -223,8 +225,8 @@ function Batch({ start }: { start: BatchStart }) {
   const look = steps.find((each): each is LookStepItem => each.step === "look") ?? null;
   const paint = steps.find((each): each is PaintStepItem => each.step === "paint") ?? null;
   const library = pictures.find((each) => each.id !== null);
-  const ready =
-    steps.length > 0 && takes.data !== undefined && !takes.data.needs.length && !put.isPending;
+  // Just Save is a batch too: changing many pictures' format at once.
+  const ready = takes.data !== undefined && !takes.data.needs.length && !put.isPending;
 
   function queue() {
     if (!found) return;
@@ -330,7 +332,7 @@ function Batch({ start }: { start: BatchStart }) {
                   <>
                     From the recipe <span className="text-fg">{fromRecipe.name}</span>
                   </>
-                ) : steps.length > 0 ? (
+                ) : (
                   <button
                     type="button"
                     onClick={() => setKeeping(true)}
@@ -338,10 +340,10 @@ function Batch({ start }: { start: BatchStart }) {
                   >
                     Keep as a recipe…
                   </button>
-                ) : null
+                )
               }
             />
-            {takes.isError && steps.length > 0 && (
+            {takes.isError && (
               <p role="alert" className="text-13 text-broken-fg">
                 {takes.error.message}
               </p>
@@ -352,6 +354,7 @@ function Batch({ start }: { start: BatchStart }) {
               asking={seen.isPending}
               problem={seen.error?.message ?? null}
               onOthers={() => ask((sample?.round ?? 0) + 1)}
+              asIs={asIs}
             />
           </div>
 
@@ -363,6 +366,7 @@ function Batch({ start }: { start: BatchStart }) {
             <SavingPanel
               saving={saving}
               raw={raw}
+              asIs={asIs}
               into={takes.data?.into ?? null}
               example={takes.data?.example ?? null}
               onSaving={setSaving}
@@ -417,9 +421,7 @@ function Batch({ start }: { start: BatchStart }) {
                   )}
                 </>
               ) : (
-                <p className="text-13 text-fg-muted">
-                  {steps.length ? "Working it out…" : "Pick a step to see what it takes."}
-                </p>
+                <p className="text-13 text-fg-muted">Working it out…</p>
               )}
               {put.isError && (
                 <p role="alert" className="text-13 text-broken-fg">
@@ -518,6 +520,7 @@ function Batch({ start }: { start: BatchStart }) {
           onSaving={setSaving}
           clear={keepsNothing(steps)}
           raw={raw}
+          asIs={asIs}
           onClose={() => setEditing(null)}
         />
       )}
@@ -575,6 +578,8 @@ function WhenPanel(props: { when: Starts; onWhen: (when: Starts) => void }) {
 function SavingPanel(props: {
   saving: BatchSaving;
   raw: boolean;
+  /** No steps: each picture saved as it is, always a new picture. */
+  asIs: boolean;
   into: string | null;
   example: string | null;
   onSaving: (saving: BatchSaving) => void;
@@ -588,7 +593,12 @@ function SavingPanel(props: {
       <h2 id="saving" className="type-eyebrow">
         Saving
       </h2>
-      {props.raw ? (
+      {props.asIs ? (
+        <p className="text-12 text-fg-muted leading-normal">
+          Replacing the originals isn't offered: with no steps, each is saved as it is, as a copy in
+          the format chosen, so the originals stay exactly as they are.
+        </p>
+      ) : props.raw ? (
         <p className="text-12 text-fg-muted leading-normal">
           Replacing the originals isn't offered: some are camera RAW, which Mado can't write, so it
           saves new pictures.

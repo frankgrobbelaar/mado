@@ -48,6 +48,8 @@ const MODELS = [
 
 const WRITES: SaveFormat[] = ["JPEG", "PNG", "WebP", "AVIF"];
 const LOSSY = new Set<SaveFormat>(["JPEG", "WebP", "AVIF"]);
+// What keeps an HDR photo's gain map: JPEG as Ultra HDR, AVIF with ISO 21496-1's tmap item.
+const HDR = new Set<SaveFormat>(["JPEG", "AVIF"]);
 
 /** A step's card: its choices, "Take this step out" and Done. */
 function StepCard(props: {
@@ -564,6 +566,8 @@ export function SavingDialog(props: {
   clear?: boolean;
   /** Camera RAW among them: Mado can't write it, so they're saved as new pictures. */
   raw?: boolean;
+  /** No steps: each picture saved as it is, always a new picture. */
+  asIs?: boolean;
 }) {
   const { saving, onSaving } = props;
   const change = (part: Partial<BatchSaving>) => onSaving({ ...saving, ...part });
@@ -571,7 +575,13 @@ export function SavingDialog(props: {
     saving.folder && !absolute(saving.folder) ? saving.folder : "Edited",
   );
   const where = !saving.folder ? "beside" : absolute(saving.folder) ? "folder" : "named";
-  const ids = { quality: useId(), camera: useId(), colours: useId(), place: useId() };
+  const ids = {
+    quality: useId(),
+    camera: useId(),
+    colours: useId(),
+    place: useId(),
+    hdr: useId(),
+  };
   const lossy = LOSSY.has(saving.format);
 
   async function chooseFolder() {
@@ -585,7 +595,12 @@ export function SavingDialog(props: {
       description="Each picture made is checked before it's kept. Replaced originals wait in quarantine for 30 days, and History puts them back."
       onClose={props.onClose}
     >
-      {props.raw ? (
+      {props.asIs ? (
+        <p className="text-13 text-fg-muted leading-normal">
+          Replacing the originals isn't offered: with no steps, each is saved as it is, as a copy in
+          the format chosen, so the originals stay exactly as they are.
+        </p>
+      ) : props.raw ? (
         <p className="text-13 text-fg-muted leading-normal">
           Replacing the originals isn't offered: some are camera RAW, which Mado can't write, so it
           saves new pictures.
@@ -714,6 +729,20 @@ export function SavingDialog(props: {
           >
             Where it was taken (the location)
           </Check>
+          <Check
+            id={ids.hdr}
+            checked={saving.keepHdr && HDR.has(saving.format)}
+            disabled={!HDR.has(saving.format)}
+            onChange={(on) => change({ keepHdr: on })}
+          >
+            An HDR photo's HDR (its gain map)
+          </Check>
+          {!HDR.has(saving.format) && (
+            <p className="pl-6 text-12 text-fg-faint leading-normal">
+              {saving.format} has no room for a gain map, so HDR photos among them are saved as
+              ordinary pictures. JPEG and AVIF keep it.
+            </p>
+          )}
         </fieldset>
       </div>
     </StepCard>

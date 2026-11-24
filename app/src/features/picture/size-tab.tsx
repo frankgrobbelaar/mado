@@ -76,7 +76,8 @@ export function SizeTab(props: {
   const sizes = useSizes();
   const remember = useRememberScreens();
   const asked = useRef(false);
-  const shown = plan.data && chosen ? plan.data : null;
+  // The plan for the size chosen: never the picture's as it is, there a moment as it comes.
+  const shown = plan.data && chosen && !plan.data.asIs ? plan.data : null;
 
   // This PC's screens, from the shell, remembered once each time the tab opens.
   useEffect(() => {
@@ -203,9 +204,9 @@ export function SizeTab(props: {
           !chosen
             ? props.recipe?.look
               ? "Pick a screen or a print, or save the look alone on the Looks tab."
-              : picture.pasted
-                ? "Save keeps it as it is; pick a screen or a print to make it for one."
-                : "Pick a screen or a print to see the picture made for it."
+              : madeElsewhere(props.recipe)
+                ? "Pick a screen or a print to see the picture made for it."
+                : "Save keeps it as it is, in the format you pick; pick a screen or a print to make it for one."
             : picture.pasted
               ? "As a new picture in a folder of yours: till then it's only in Mado."
               : `As a new picture beside the original${shown?.look ? `, with ${shown.look}` : ""}, ${
@@ -215,6 +216,14 @@ export function SizeTab(props: {
         }
       />
     </div>
+  );
+}
+
+/** Whether another tab has made something the Size tab's Save would save with it (edits,
+ * restoring, fixes, depth or a painting style): then Save isn't saving the picture as it is. */
+function madeElsewhere(recipe: Recipe | null): boolean {
+  return Boolean(
+    recipe && (recipe.edit || recipe.restore || recipe.fix || recipe.depth || recipe.paint),
   );
 }
 

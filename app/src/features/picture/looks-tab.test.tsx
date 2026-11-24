@@ -40,6 +40,7 @@ const details: PictureDetails = {
   pasted: false,
   aside: false,
   savesTo: null,
+  gainMap: null,
 };
 
 const blob = () => new Response(new Blob(["made-up picture"], { type: "image/webp" }));
@@ -204,7 +205,8 @@ describe("The Looks tab", () => {
     expect(
       screen.getByText("Every look and style is shown on this picture as you go through them"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save…" })).toBeDisabled();
+    // No look picked: Save saves the picture as it is, quietly.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save…" })).toBeEnabled());
   });
 
   it("shows skeletons while the looks are on their way, and says so", async () => {

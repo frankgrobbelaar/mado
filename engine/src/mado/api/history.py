@@ -82,6 +82,7 @@ class BatchLine(ApiModel):
     fix: str | None  # "took out noise"
     depth: str | None  # "portrait blur at f/2.8"
     purpose: str | None  # what its size made them for: "tv"
+    saved_as: str | None  # just Save: the format each was saved in as it is ("JPEG")
     into: str  # where they went: "Holiday › Edited"
     made: int  # its pictures made, not taken away or put back
     undone: int  # those taken away, or put back
@@ -459,6 +460,7 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
         fix=fix if isinstance(fix, str) else None,
         depth=depth if isinstance(depth, str) else None,
         purpose=batches.purpose_of(conn, steps),
+        saved_as=str(saving.get("format", "JPEG")) if not steps else None,
         into=batches.into_words(saving, row["shared"]),
         made=counts["made"],
         undone=counts["undone"],

@@ -30,6 +30,7 @@ const details: PictureDetails = {
   pasted: false,
   aside: false,
   savesTo: null,
+  gainMap: null,
 };
 
 const blob = () => new Response(new Blob(["made-up picture"], { type: "image/webp" }));
@@ -133,7 +134,8 @@ describe("The Size tab", () => {
     ).toBeInTheDocument();
     expect(within(tools).getByRole("button", { name: "A4" })).toBeInTheDocument();
     expect(within(tools).getByRole("button", { name: "Other size" })).toBeInTheDocument();
-    expect(within(tools).getByRole("button", { name: "Save…" })).toBeDisabled();
+    // Nothing picked: Save saves the picture as it is, quietly.
+    await waitFor(() => expect(within(tools).getByRole("button", { name: "Save…" })).toBeEnabled());
     await waitFor(() =>
       expect(sent(fetch, "POST", "/screens")).toEqual([
         { seen: [{ width: 3440, height: 1440, main: true }] },
@@ -160,7 +162,7 @@ describe("The Size tab", () => {
     expect(
       screen.getByRole("button", { name: "The point the crop is around: drag it to move it" }),
     ).toBeInTheDocument();
-    expect(sent(fetch, "POST", "/pictures/11/plan")[0]).toEqual({
+    expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toEqual({
       edit: null,
       size: { size: "tv-8k", shape: "crop", focus: null, kind: null, quality: null, clean: true },
       paint: null,
@@ -288,6 +290,7 @@ describe("The Size tab", () => {
       await within(dialog).findByText(/Replacing the original isn't offered/),
     ).toHaveTextContent("Mado can't write camera RAW");
     expect(within(dialog).queryByRole("radio", { name: /Replace the original/ })).toBeNull();
+    expect(within(dialog).queryByRole("checkbox", { name: "Always save this way" })).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(sent(fetch, "POST", "/pictures/11/make")).toHaveLength(1));
     const [made] = sent(fetch, "POST", "/pictures/11/make") as [{ saving: { how: string } }];

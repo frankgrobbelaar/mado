@@ -11,10 +11,10 @@ says which). Nothing here changes a picture: files are only opened to read.
 import io
 import subprocess
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Literal
 
 from PIL import Image, ImageCms, ImageOps, UnidentifiedImageError
 
@@ -103,26 +103,38 @@ class Facts:
     taken: datetime | None  # by the camera's clock; None when the picture doesn't say
     camera: str | None
     located: bool  # it carries where it was taken
+    # an HDR photo's gain map: "hdr" one Mado reads, "unreadable" one it can't, "none"
+    hdr: Literal["none", "hdr", "unreadable"] = "none"
 
 
 def read_facts(path: Path, kind: Kind, reader: Reader | None = None) -> Facts:
     """What a picture is, read from its header and EXIF, without decoding it (a camera RAW's by
-    `reader`, without developing it)."""
+    `reader`, without developing it), and whether it carries a gain map (mado/hdr.py)."""
     if not path.is_file():
         raise PictureGoneError(path)
-    if kind == "heif":
-        return _heif_facts(path)
     if kind == "raw":
-        found = _raw(path, reader, lambda library: library.facts(path))
-        return Facts(
-            format=path.suffix[1:].upper(),
-            width=found.width,
-            height=found.height,
-            orientation=raw.orientation(found.flip),
-            taken=found.taken,
-            camera=facts.camera(found.make, found.model),
-            located=found.latitude is not None,
-        )
+        return _raw_facts(path, reader)
+    found = _heif_facts(path) if kind == "heif" else _picture_facts(path)
+    from mado import hdr  # here, not above: mado/hdr.py reads HEIF layouts with this module
+
+    return replace(found, hdr=hdr.facts(path).state)
+
+
+def _raw_facts(path: Path, reader: Reader | None) -> Facts:
+    found = _raw(path, reader, lambda library: library.facts(path))
+    return Facts(
+        format=path.suffix[1:].upper(),
+        width=found.width,
+        height=found.height,
+        orientation=raw.orientation(found.flip),
+        taken=found.taken,
+        camera=facts.camera(found.make, found.model),
+        located=found.latitude is not None,
+    )
+
+
+def _picture_facts(path: Path) -> Facts:
+    """A picture Pillow reads, from its header and EXIF."""
     try:
         with Image.open(path) as image:
             width, height = image.size
@@ -251,7 +263,7 @@ def _heif_layout(path: Path) -> tuple[heif.Layout, Image.Exif]:
     """A HEIF's layout, and its Exif (empty when it has none, or it's damaged)."""
     try:
         with path.open("rb") as file:
-            layout = heif.meta_layout(_meta_box(file))
+            layout = heif.meta_layout(meta_box(file))
             item = layout.exif_inline or _read_extents(file, layout.exif)
     except heif.HeifError as error:
         raise UnreadableError(f"{_DAMAGED}: {error}.") from None
@@ -412,7 +424,7 @@ def _dms(degrees: float) -> tuple[float, float, float]:
     return float(int(whole)), float(int(minutes)), round((minutes - int(minutes)) * 60, 4)
 
 
-def _meta_box(file: BinaryIO) -> bytes:
+def meta_box(file: BinaryIO) -> bytes:
     """The payload of a HEIF's top-level meta box, found by walking the boxes before it."""
     file.seek(0, io.SEEK_END)
     end = file.tell()

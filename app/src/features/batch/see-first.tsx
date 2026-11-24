@@ -25,6 +25,8 @@ export function SeeFirst(props: {
   asking: boolean;
   problem: string | null;
   onOthers: () => void;
+  /** No steps: they're saved as they are, so there's nothing to see first. */
+  asIs?: boolean;
 }) {
   const { samples } = props;
   const [open, setOpen] = useState<Sample | null>(null);
@@ -39,7 +41,9 @@ export function SeeFirst(props: {
           See it first
         </h2>
         <span className="text-13 text-fg-muted">
-          {made.length === 0 ? (
+          {props.asIs ? (
+            "Saved as they are, there's nothing to see first: each one's copy is the picture itself, in the format chosen."
+          ) : made.length === 0 ? (
             "Three of them are made in full, not saved, once there's something to make."
           ) : samples?.seconds != null ? (
             <>
@@ -68,17 +72,19 @@ export function SeeFirst(props: {
           ))}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          className="bg-transparent font-medium"
-          disabled={props.asking || made.length === 0 || props.total <= made.length}
-          onClick={props.onOthers}
-        >
-          Try three others
-        </Button>
-        <span className="text-13 text-fg-muted">Open one to look closely, at 100% or 400%.</span>
-      </div>
+      {!props.asIs && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            className="bg-transparent font-medium"
+            disabled={props.asking || made.length === 0 || props.total <= made.length}
+            onClick={props.onOthers}
+          >
+            Try three others
+          </Button>
+          <span className="text-13 text-fg-muted">Open one to look closely, at 100% or 400%.</span>
+        </div>
+      )}
       {open && samples && <Closer set={samples.id} sample={open} onClose={() => setOpen(null)} />}
     </section>
   );

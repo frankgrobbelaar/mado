@@ -72,7 +72,7 @@ export function StepsPanel(props: {
         <p className="border-edge border-t px-4.5 py-3.5 text-13 text-fg-muted leading-normal">
           Pick what to do: cut out their subject, restore old photos' colours, fix them, make them
           right for a screen or a print, give them depth, paint them in a style, give them a look,
-          or start from a recipe.
+          or start from a recipe. With none, each is saved as it is, in the format Save says.
         </p>
       )}
       <ol>

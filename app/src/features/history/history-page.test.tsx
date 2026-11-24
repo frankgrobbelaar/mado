@@ -189,6 +189,43 @@ describe("History", () => {
     expect(within(before).queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("says what a picture saved as it is was saved as, and a batch of just Save", async () => {
+    fakeEngine({
+      "/history": {
+        entries: [
+          entry({
+            name: "IMG_2041.HEIC",
+            madeFor: null,
+            result: "D:\\Pictures\\Phone\\IMG_2041.jpg",
+            resultName: "IMG_2041.jpg",
+            batch: 9,
+          }),
+          entry({
+            id: 5,
+            madeFor: null,
+            result: "D:\\Pictures\\Phone\\Harbour at dusk (2).avif",
+            resultName: "Harbour at dusk (2).avif",
+          }),
+        ],
+        older: null,
+        batches: [
+          batchLine({
+            id: 9,
+            madeFor: null,
+            purpose: null,
+            savedAs: "JPEG",
+            overnight: false,
+            made: 48,
+          }),
+        ],
+      },
+    });
+    renderHistory();
+
+    expect(await screen.findByText("Saved Harbour at dusk as AVIF")).toBeInTheDocument();
+    expect(screen.getByText("Saved 48 pictures as JPEG")).toBeInTheDocument();
+  });
+
   it("says what a picture was made with: its look, alone or with a size", async () => {
     fakeEngine({
       "/history": {
@@ -464,6 +501,7 @@ function batchLine(overrides: Partial<BatchLine>): BatchLine {
     fix: null,
     depth: null,
     purpose: "tv",
+    savedAs: null,
     into: "Holiday › Edited",
     made: 47,
     undone: 0,

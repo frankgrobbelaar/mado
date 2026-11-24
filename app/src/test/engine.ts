@@ -92,17 +92,19 @@ export const NO_BACKUPS: Backups = { backups: [], restored: null };
 
 type Answer = unknown | ((init: RequestInit | undefined, url: URL) => unknown);
 
-/**
- * Stands in for the engine's HTTP API: `answers` maps "GET /tools" (or just "/tools" for GET) to
- * the JSON to send back, or to a function of the request (its init and address, query and all),
- * which may answer later (a promise). Anything else gets a 404.
- */
 /** A moment by this PC's clock, as the engine writes one: a test reads the same hours in any
  * time zone (CI's is UTC). */
 export function localTime(year: number, month: number, day: number, hours: number, minutes = 0) {
   return new Date(year, month - 1, day, hours, minutes).toISOString();
 }
 
+/**
+ * Stands in for the engine's HTTP API: `answers` maps "GET /tools" (or just "/tools" for GET) to
+ * the JSON to send back, or to a function of the request (its init and address, query and all),
+ * which may answer later (a promise). Anything else gets a 404. A plan asked for a recipe with no
+ * step is said as the engine says it, whatever the answer: the picture as it is (`asIs`), nothing
+ * made of it.
+ */
 export function fakeEngine(answers: Record<string, Answer>) {
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -117,10 +119,47 @@ export function fakeEngine(answers: Record<string, Answer>) {
         ? await (answer as (init: RequestInit | undefined, url: URL) => unknown)(init, url)
         : answer;
     if (body instanceof Response) return body;
+    if (method === "POST" && url.pathname.endsWith("/plan") && asksNothing(init)) {
+      return Response.json({ ...(body as Plan), ...AS_IT_IS });
+    }
     return body === null ? new Response(null, { status: 204 }) : Response.json(body);
   });
   vi.stubGlobal("fetch", fetch);
   return fetch;
+}
+
+/** What the engine's plan says of a recipe with no step: the picture as it is. */
+const AS_IT_IS: Partial<Plan> = {
+  asIs: true,
+  label: "",
+  method: "keep",
+  model: null,
+  how: "",
+  warning: null,
+  cleanMatters: false,
+  cleanedFirst: false,
+  look: null,
+  edit: null,
+  fix: null,
+  fixQuality: null,
+  fixSeconds: 0,
+  fixPlace: null,
+  depth: null,
+  depthSeconds: 0,
+  depthPlace: null,
+  paintPlace: null,
+  paintNote: null,
+  needs: [],
+};
+
+/** Whether a request's recipe has no step at all. */
+function asksNothing(init: RequestInit | undefined): boolean {
+  try {
+    const recipe = JSON.parse(String(init?.body ?? "null")) as Record<string, unknown> | null;
+    return recipe !== null && Object.values(recipe).every((step) => step === null);
+  } catch {
+    return false;
+  }
 }
 
 /** Three made-up library folders, as the boards draw them. */
@@ -222,6 +261,7 @@ export function picture(
     format: name.toUpperCase().endsWith(".HEIC") ? "HEIC" : "JPEG",
     state: "ready",
     raw: false,
+    hdr: false,
     width: 4032,
     height: 3024,
     size: 3_100_000,
@@ -241,6 +281,7 @@ export function pictureDetails(
 ): PictureDetails {
   return {
     ...item,
+    gainMap: null,
     folderId: 1,
     folder: "D:\\Pictures\\Phone",
     dir: "",
@@ -463,6 +504,9 @@ export function plan(overrides: Partial<Plan> = {}): Plan {
     bytes: 18_000_000,
     seeThrough: false,
     nothingBehind: false,
+    hdr: "none",
+    hdrWhy: null,
+    asIs: false,
     needs: [],
     ...overrides,
   };
@@ -842,6 +886,7 @@ export const RECIPE: KeptRecipe = {
     keepCamera: true,
     keepColours: true,
     keepLocation: false,
+    keepHdr: true,
   },
   words: WORDS,
   used: 3,
@@ -876,6 +921,7 @@ export function batch(overrides: Partial<Batch> = {}): Batch {
     madeFor: "TV 8K",
     look: "Warm film at 60%",
     purpose: "tv",
+    savedAs: null,
     words: WORDS,
     before: 45_900_000,
     after: 166_000_000,
@@ -1128,6 +1174,7 @@ export function choice(overrides: Partial<PictureChoice> = {}): PictureChoice {
       height: 3024,
       version: "v11",
       outside: false,
+      hdr: false,
       focus: { x: 0.5, y: 0.45 },
     },
     shape: "crop",

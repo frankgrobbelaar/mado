@@ -42,7 +42,7 @@ import numpy as np
 import numpy.typing as npt
 from PIL import Image
 
-from mado import encode, hardware, history, own_looks, own_styles
+from mado import encode, hardware, hdr, history, own_looks, own_styles
 from mado.ai import (
     BIREFNET,
     COLOURER,
@@ -63,6 +63,7 @@ from mado.core.depth import DepthError, Depthing, depthing_from
 from mado.core.edits import (
     Blur,
     CutOut,
+    Edit,
     EditError,
     Erase,
     Subject,
@@ -76,22 +77,30 @@ from mado.core.files import kind_of
 from mado.core.fixes import FixError, fixing_from, jpeg_quality, stages, unchanged
 from mado.core.fixes import models_for as fix_models
 from mado.core.framing import Box, subject
+from mado.core.gainmap import GainMap
+from mado.core.gains import edited as gains_edited
+from mado.core.gains import flat as gains_flat
+from mado.core.gains import looked as gains_looked
+from mado.core.gains import painted as gains_painted
+from mado.core.gains import restored as gains_restored
+from mado.core.gains import sized as gains_sized
 from mado.core.hardware import Place, overlap_for, tile_for
 from mado.core.kind import Kind, guess
 from mado.core.looks import Look
+from mado.core.masks import Mask
 from mado.core.models import Quality
 from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
 from mado.core.painting import Painting, Style, classic, mixed
-from mado.core.quality import Format
+from mado.core.quality import HDR_FORMATS, Format
 from mado.core.recipe import Plan, Recipe, Sizing, Styling, plan
-from mado.core.restore import Colours, RestoreError, colours_of, restoring_from
+from mado.core.restore import Colours, RestoreError, Restoring, colours_of, restoring_from
 from mado.core.restore import Kind as ColourKind
 from mado.core.restore import models_for as restore_models
 from mado.core.restore import unchanged as restore_unchanged
 from mado.core.sizes import DPI, Screen, SizeError, resolve
 from mado.core.tiles import count
 from mado.core.touches import named
-from mado.depth import Depths, depthed
+from mado.depth import Depths, depthed, gains_depthed
 from mado.directml import ModelError
 from mado.editing import EditingError, Editor, cut_quality, picture_key
 from mado.extend import Filler, canvas_around, extended, squares_needed
@@ -169,6 +178,7 @@ class Seen:
     jpeg: int | None = None  # the quality a JPEG was saved at, from its tables; None otherwise
     colours: ColourKind = "colour"  # black and white, a toned print (sepia), or a colour photo
     tone: Literal["sepia", "toned"] | None = None  # a toned print's: sepia's brown, or another
+    hdr: Literal["none", "hdr", "unreadable"] = "none"  # an HDR photo's gain map, read or not
 
 
 @dataclass(frozen=True)
@@ -180,6 +190,7 @@ class Saving:
     keep_camera: bool = True
     keep_colours: bool = True
     keep_location: bool = False
+    keep_hdr: bool = True  # an HDR photo's gain map, in a format that holds one
 
 
 @dataclass(frozen=True)
@@ -260,34 +271,37 @@ class MissingLookError(ValueError):
         )
 
 
-def see(image: Image.Image, picture: Picture) -> Seen:
-    """What a picture is and where its subject is, from the picture decoded at full size."""
+def see(image: Image.Image, picture: Picture, size: tuple[int, int] | None = None) -> Seen:
+    """What a picture is and where its subject is, from the picture decoded at full size, or from
+    a smaller copy of it (its thumbnail) with its own `size` as shown."""
     rgb = image.convert("RGB")
     longest = max(rgb.size)
     small = rgb if longest <= _AS_IS else _shrunk(rgb, _SMALL, Image.Resampling.NEAREST)
     grey = np.asarray(_shrunk(rgb.convert("L"), _GREY, Image.Resampling.BOX), np.float32)
     grey /= 255.0
+    width, height = size or image.size
     kind = guess(
         np.asarray(small),
         name=picture.path.name,
         camera=picture.camera,
         format_=picture.format,
-        width=image.width,
-        height=image.height,
+        width=width,
+        height=height,
     )
     profile = image.info.get("icc_profile")
     colours = _colours(image)
     return Seen(
         kind=kind,
         focus=subject(grey),
-        width=image.width,
-        height=image.height,
+        width=width,
+        height=height,
         profile=encode.profile_name(profile if isinstance(profile, bytes) else None),
         alpha=_see_through(image),
         grey=image.mode in GREY_MODES,
         jpeg=jpeg_quality_of(picture.path) if picture.format == "JPEG" else None,
         colours=colours.kind,
         tone=colours.tone,
+        hdr=hdr.facts(picture.path).state if picture.kind != "raw" else "none",
     )
 
 
@@ -402,6 +416,30 @@ class Sight:
             self._seen[key] = found
         return found
 
+    def glance(
+        self,
+        picture: Picture,
+        version: str,
+        size: tuple[int, int],
+        thumbnail: Callable[[], Path],
+    ) -> Seen:
+        """What Mado sees in the picture at a glance, without decoding it whole: from its
+        thumbnail (made now if it hasn't been) and its `size` as the library read it. Enough for
+        a plan that asks for nothing, which a picture's page asks for as it opens: going through
+        pictures, none is decoded whole (a camera RAW developed, a huge picture) while another's
+        tools wait. What it saw whole, it says instead."""
+        key = (str(picture.path).casefold(), version)
+        with self._lock:
+            found = self._seen.get(key)
+        if found is not None:
+            return found
+        try:
+            with Image.open(thumbnail()) as small:
+                small.load()
+                return see(small, picture, size)
+        except (OSError, ValueError) as error:
+            raise UnreadableError(f"Mado couldn't open it ({error}).") from error
+
     def extended(
         self,
         picture: Picture,
@@ -459,10 +497,12 @@ def planned(
 @dataclass(frozen=True)
 class Made:
     """A picture made, and its plan as it was made: made again for how dark the picture measured,
-    when the dark photo fix asked."""
+    when the dark photo fix asked; and an HDR photo's gain map, as the tools left it (None when
+    it was none, or they left no HDR)."""
 
     image: Image.Image
     plan: Plan
+    gain: GainMap | None = None
 
 
 def make(
@@ -481,6 +521,7 @@ def make(
     replan: Callable[[float], Plan] | None = None,
     depths: Depths | None = None,
     found_focus: tuple[float, float] = (0.5, 0.5),
+    gain: GainMap | None = None,
 ) -> Made:
     """The picture made to its plan, from the picture decoded at full size and upright: its
     edits (by `editor`, `key` naming the picture and its version, keeping their masks unless
@@ -489,11 +530,11 @@ def make(
     that size (by `depths`, from the depth of the picture as its edits left it; portrait blur in
     focus at its subject, or `found_focus` without one, unless it says where), its painting
     style, then its look and touches at that size (`seed` grows them), the style and the look
-    only on a part when they say so. Its colour
-    profile comes with it. A dark photo's fix measures the picture as restoring leaves it, and
-    `replan` makes the plan again for how dark it is. Raises StoppedError when stopped,
-    ModelError when a model can't run, EditingError for edits Mado can't make, RestoringError
-    for a mask Mado won't fill."""
+    only on a part when they say so. Its colour profile comes with it, and an HDR photo's gain
+    map (`gain`, upright as the picture) follows every step (mado/core/gains.py). A dark
+    photo's fix measures the picture as restoring leaves it, and `replan` makes the plan again
+    for how dark it is. Raises StoppedError when stopped, ModelError when a model can't run,
+    EditingError for edits Mado can't make, RestoringError for a mask Mado won't fill."""
     edits = made.editing.edits if made.editing else ()
     parts = made.styling.parts if made.styling else ()
     painted_parts = made.painting.parts if made.painting else ()
@@ -503,6 +544,7 @@ def make(
     edited = image
     if edits and editor is not None:
         report("editing", 0.0)
+        recorded: dict[int, Mask] = {}
         edited = editor.state(
             image,
             key,
@@ -510,7 +552,10 @@ def make(
             stop=stop,
             report=lambda done: report("editing", done / len(edits)),
             keep=keep,
+            masks=recorded,
         )
+        if gain is not None:
+            gain = _gain_edited(gain, edits, recorded, editor, image.size, key)
     restored = edited
     if restoring is not None and editor is not None:
         if stop():
@@ -518,6 +563,8 @@ def make(
         report("restoring", 0.0)
         restored = editor.restored(edited, key, edits, restoring, stop=stop, keep=keep)
         report("restoring", 1.0)
+        if gain is not None:
+            gain = _gain_restored(gain, edited, restoring, editor, key, edits, keep=keep)
     measured = None
     if made.fixing is not None and made.fixing.dark is not None:  # only the dark fix measures
         measured = measure(restored)
@@ -528,11 +575,13 @@ def make(
         if made.method == "keep" and made.fixing is None
         else _sized(restored, made, ai, report, stop, timer, measured, fix_timer)
     )
+    if gain is not None:  # the fixes keep it as it is; the size crops and resizes it
+        gain = gains_sized(gain, made.frame, restored.size, (made.width, made.height))
     if made.depthing is not None:
         if depths is None or editor is None:
             raise EditingError("Mado can't make the depth tools here.")
         report("depthing", 0.0)
-        sized = depth_made(
+        sized, gain = depth_made(
             image,
             edited,
             sized,
@@ -544,6 +593,7 @@ def make(
             keep=keep,
             found_focus=found_focus,
             stop=stop,
+            gain=gain,
         )
         report("depthing", 1.0)
     if made.painting is not None:
@@ -551,20 +601,76 @@ def make(
             raise StoppedError
         report("painting", 0.0)
         painted = paint(sized, made.painting, ai.painter)
+        where: npt.NDArray[np.float32] | None = None
         if painted_parts and editor is not None:
             mask = editor.look_mask(image, key, edits, painted_parts, keep=keep)
             painted = only_on(painted, sized, placed(mask, made, painted.size))
+            if gain is not None:
+                shown = placed(mask, made, gain.size)
+                where = (np.asarray(shown, np.float32) / 255.0).astype(np.float32)
+        if gain is not None:
+            gain = gains_painted(gain, made.painting, where)
         report("painting", 1.0)
         sized = painted
     if made.styling is None:
-        return Made(sized, made)
+        return Made(sized, made, _kept_gain(gain))
     report("looking", 0.0)
     looked = styled(sized, made.styling, seed=seed, stop=stop)
     if parts and editor is not None:
         mask = editor.look_mask(image, key, edits, parts, keep=keep)
         looked = only_on(looked, sized, placed(mask, made, looked.size))
+    if gain is not None:
+        gain = gains_looked(gain)
     report("looking", 1.0)
-    return Made(looked, made)
+    return Made(looked, made, _kept_gain(gain))
+
+
+def _gain_edited(
+    gain: GainMap,
+    edits: tuple[Edit, ...],
+    recorded: dict[int, Mask],
+    editor: Editor,
+    size: tuple[int, int],
+    key: str,
+) -> GainMap | None:
+    """An HDR photo's gain map as the edits leave it, each by its mask: those made now as they
+    were made, the rest as they were kept. None when one isn't there to follow (no HDR kept)."""
+    kept = editor.masks_of(size, key, edits) if len(recorded) < len(edits) else []
+    masks = [
+        recorded[at] if at in recorded else (kept[at] if kept else None) for at in range(len(edits))
+    ]
+    steps = [(edit, mask) for edit, mask in zip(edits, masks, strict=True) if mask is not None]
+    if len(steps) < len(edits):
+        log.warning("An edit's mask wasn't there to follow, so the HDR wasn't kept.")
+        return None
+    return gains_edited(gain, steps)
+
+
+def _gain_restored(
+    gain: GainMap,
+    edited: Image.Image,
+    restoring: Restoring,
+    editor: Editor,
+    key: str,
+    edits: tuple[Edit, ...],
+    *,
+    keep: bool = True,
+) -> GainMap:
+    """An HDR photo's gain map as restoring leaves its picture (`edited`, as its edits left it):
+    filled where its scratches were, and one channel when its colour is brought in or back
+    (mado/core/gains.py)."""
+    filled = (
+        editor.filled_mask(edited, key, edits, restoring, keep=keep)
+        if restoring.scratches is not None
+        else None
+    )
+    recoloured = restoring.colour is not None or restoring.faded is not None
+    return gains_restored(gain, filled, recoloured=recoloured)
+
+
+def _kept_gain(gain: GainMap | None) -> GainMap | None:
+    """A gain map worth keeping: one that still brightens something."""
+    return None if gain is None or gains_flat(gain) else gain
 
 
 def paint(
@@ -655,12 +761,14 @@ def depth_made(
     keep: bool,
     found_focus: tuple[float, float],
     stop: Callable[[], bool] = lambda: False,
-) -> Image.Image:
+    gain: GainMap | None = None,
+) -> tuple[Image.Image, GainMap | None]:
     """`sized`, the picture made (or a preview of it, its own size), with its depth tools: from
     the depth of the picture (`image`, decoded; `key` naming it and its version) as its edits
     left it (`edited`, made once already; tilt-shift alone needs none), portrait blur with the
-    subject's own edges, each placed as the size step places the picture. Raises ModelError
-    when a model can't run, EditingError, StoppedError when stopped."""
+    subject's own edges, each placed as the size step places the picture; and an HDR photo's
+    gain map (`gain`, at its own size) given the same tools. Raises ModelError when a model
+    can't run, EditingError, StoppedError when stopped."""
     edits = made.editing.edits if made.editing else ()
     width, height = edited.size
     if depthing.portrait is not None or depthing.fog is not None:
@@ -673,7 +781,7 @@ def depth_made(
         found, _place = editor.subject(image, key, edits, quality, keep=keep, edited=edited)
         if found.any():
             mask = np.asarray(placed(found, made, sized.size))
-    return depthed(
+    made_image = depthed(
         sized,
         depthing,
         near,
@@ -683,6 +791,18 @@ def depth_made(
         found_focus=found_focus,
         stop=stop,
     ).image
+    if gain is not None:
+        gain = gains_depthed(
+            gain,
+            sized,
+            depthing,
+            near,
+            canvas_of(made),
+            (width, height),
+            mask=mask,
+            found_focus=found_focus,
+        )
+    return made_image, gain
 
 
 def canvas_of(made: Plan) -> tuple[float, float, float, float]:
@@ -820,10 +940,11 @@ def write(
     *,
     dpi: int | None,
     reader: Reader | None = None,
+    gain: GainMap | None = None,
 ) -> int:
     """Writes a picture made to `path` as Save would (its format and quality, and what's kept of
-    its original: a camera RAW's by `reader`), checks it, and says how many bytes it came to.
-    Raises encode.SaveError."""
+    its original: a camera RAW's by `reader`; an HDR photo's gain map, `gain`, in a format that
+    holds one), checks it, and says how many bytes it came to. Raises encode.SaveError."""
     profile = result.info.get("icc_profile")
     kept_profile = profile if isinstance(profile, bytes) else None
     image = result
@@ -836,8 +957,16 @@ def write(
         size=size,
         dpi=dpi,
     )
+    keeps_hdr = gain is not None and saving.keep_hdr and saving.format in HDR_FORMATS
     encode.save(
-        image, path, saving.format, saving.quality, exif=exif, profile=kept_profile, dpi=dpi
+        image,
+        path,
+        saving.format,
+        saving.quality,
+        exif=exif,
+        profile=kept_profile,
+        dpi=dpi,
+        gain_map=gain if keeps_hdr else None,
     )
     encode.check(path, size)
     return path.stat().st_size
@@ -1150,6 +1279,7 @@ def saving_from(data: dict[str, object]) -> Saving:
         keep_camera=data.get("keepCamera") is not False,
         keep_colours=data.get("keepColours") is not False,
         keep_location=data.get("keepLocation") is True,
+        keep_hdr=data.get("keepHdr") is not False,
     )
 
 
@@ -1431,10 +1561,12 @@ class Maker:
         editor: Editor | None = None,
         reader: Reader | None = None,
         depths: Depths | None = None,
+        scratch: Path | None = None,
     ) -> None:
         """`kept`: where See it first's pictures wait for their jobs; one is let go once its
         job has saved it. `editor` makes a recipe's edits (and a look's part); `reader` reads
-        camera RAW; `depths` reads a picture's depth for the depth tools."""
+        camera RAW; `depths` reads a picture's depth for the depth tools; `scratch`, a folder of
+        Mado's own, takes a HEIC's gain map on its way to ffmpeg."""
         self._ai = ai
         self._quarantine = quarantine
         self._ffmpeg = ffmpeg
@@ -1443,6 +1575,7 @@ class Maker:
         self._kept = kept
         self._editor = editor
         self._depths = depths
+        self._scratch = scratch
 
     def __call__(
         self,
@@ -1474,6 +1607,8 @@ class Maker:
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
         if saving.how == "replace" and picture.kind == "raw":
             raise JobError(NO_RAW_REPLACE)  # Mado can't write RAW: never one put in its place
+        if saving.how == "replace" and order.get("as_is"):
+            raise JobError(AS_IS_NEW)  # saved as it is: always a new picture
         job_id: int = row["id"]
         seen_first = _seen_first(order.get("made"), picture)
         if seen_first is not None:  # See it first made this one already, just as it's asked for
@@ -1518,7 +1653,7 @@ class Maker:
         seen = see(image, picture)
         starts_on, fix_starts_on = self._ai.starts_on(here), self._ai.fix_starts_on()
         made = planned(recipe, seen, starts_on, fix_starts_on)
-        as_is = bool(order.get("as_is"))  # a paste saved as it is is something to save
+        as_is = bool(order.get("as_is"))  # saved as it is: something to save, with nothing made
         if made.empty and not as_is:
             raise JobError(nothing_to_make(recipe))
         if waiting_for(made, self._ai):
@@ -1528,6 +1663,7 @@ class Maker:
             )
         if made.see_through and saving.format not in ("PNG", "WebP"):
             saving = replace(saving, format="PNG", quality=None)  # a cut-out keeps its nothing
+        gain = self._gain(picture, seen, saving)
         fixers = fix_models(made.fixing, made.fix_quality)
         painting_on = self._ai.painter.place(made.painting.style) if made.painting else None
         expect(
@@ -1566,12 +1702,13 @@ class Maker:
                 replan=lambda stops: planned(recipe, seen, starts_on, fix_starts_on, stops),
                 depths=self._depths,
                 found_focus=seen.focus,
+                gain=gain,
             )
         except ModelError as error:
             raise JobError(f"{error} Nothing was saved; the original is as it was.") from None
         except (EditingError, RestoringError) as error:
             raise JobError(str(error)) from None
-        result, made = making.image, making.plan
+        result, made, gain = making.image, making.plan, making.gain
         if made.empty and not as_is:  # measured, its fixes change nothing in it
             raise JobError(nothing_to_make(recipe))
         if stop():  # cancelled as its last tile was made
@@ -1587,6 +1724,7 @@ class Maker:
                 partial,
                 dpi=dpi,
                 reader=self._reader,
+                gain=gain,
             ),
             picture,
             Naming.of(made),
@@ -1605,6 +1743,13 @@ class Maker:
         hardware.learn(conn, paces, self._now())  # one picture, however many models it took
         report("saving", 1.0)
         return saved.path
+
+    def _gain(self, picture: Picture, seen: Seen, saving: Saving) -> GainMap | None:
+        """The picture's gain map, when it's an HDR photo Mado reads, kept in a format that holds
+        one; else None (one that won't read now is said as kept as it is in its log)."""
+        if not saving.keep_hdr or saving.format not in HDR_FORMATS or seen.hdr != "hdr":
+            return None
+        return hdr.read(picture.path, ffmpeg=self._ffmpeg(), scratch=self._scratch)
 
     def _let_go(self, sample: Path) -> None:
         """See it first's picture, saved: it goes, when it's one Mado keeps for its jobs."""
@@ -1660,6 +1805,14 @@ _RESTORE_CHANGED = (
 NO_RAW_REPLACE = (
     "Mado can't write camera RAW, so it saves a new picture beside it: the RAW stays exactly as "
     "it is."
+)
+AS_IS_NEW = (
+    "Saved as it is, it's a copy in the format you chose: a new picture beside the original, "
+    "which stays exactly as it is."
+)
+AS_IS_ALL_NEW = (
+    "With no steps, each picture is saved as it is, as a copy in the format you chose: new "
+    "pictures, the originals staying exactly as they are."
 )
 
 

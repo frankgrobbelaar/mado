@@ -86,6 +86,7 @@ export function FixTab(props: {
   const nothing =
     on &&
     plan !== null &&
+    !plan.asIs && // the picture's plan as it is, still there as the fixes settle, isn't theirs
     plan.fix === null &&
     plan.restore === null &&
     plan.method === "keep" &&

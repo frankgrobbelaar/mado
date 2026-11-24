@@ -53,7 +53,8 @@ export function FixStage(props: {
     .filter((tool) => tool !== undefined && tool.state !== "ready")
     .map((tool) => tool?.name ?? "");
   // The fixes on find nothing to do in it (Dark photo on a picture that isn't dark).
-  const idle = on && plan !== null && plan.fix === null && plan.restore === null;
+  // (A plan for the picture as it is, still there as the fixes settle, says nothing of them.)
+  const idle = on && plan !== null && !plan.asIs && plan.fix === null && plan.restore === null;
   // Only an empty mask leaves restoring nothing to do: colour and faded colours always change it.
   const waiting = idle
     ? fixing

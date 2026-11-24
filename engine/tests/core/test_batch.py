@@ -239,15 +239,14 @@ def test_a_painting_style_comes_after_the_size_and_before_the_look():
     )
 
 
-def test_a_recipe_makes_one_size_and_one_look_and_needs_one_of_them():
+def test_a_recipe_makes_one_size_and_one_look_and_none_saves_them_as_they_are():
     size: Step = {"step": "size", "size": "tv-8k"}
     later: Step = {"step": "sparkle"}  # a later Mado's step, in a recipe this one can't make
     with pytest.raises(StepError, match="one size"):
         recipe_of([size, size])
-    with pytest.raises(StepError, match="Pick"):
-        recipe_of([])
     with pytest.raises(StepError, match="doesn't know"):
         recipe_of([later])
+    assert all(value is None for value in recipe_of([]).values())  # just Save
 
 
 def test_a_size_is_said_as_the_boards_say_it():

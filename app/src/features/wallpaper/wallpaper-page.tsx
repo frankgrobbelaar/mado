@@ -238,6 +238,8 @@ export function WallpaperPage() {
         <p className="max-w-3xl text-13 text-fg-muted leading-normal">
           Each monitor's part is made at exactly its pixels, then set as Windows' own wallpaper;
           your pictures and folders stay as they are. An app that draws its own desktop hides it.
+          {data.choices.some((choice) => choice.picture.hdr) &&
+            " Windows shows a wallpaper as an ordinary picture, so an HDR photo's extra brightness isn't kept in it."}
         </p>
         <EngineProblem queries={[studio]} />
         {data.monitors.length === 0 ? (
