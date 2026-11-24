@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.11.0 - 2026-11-24
+
 ### Added
 - Painting styles, on the Looks tab: After Van Gogh, After Hokusai, After Monet and After Seurat,
   each shown as a small copy of the picture and on the picture itself as you go through them, with
