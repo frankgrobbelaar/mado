@@ -406,4 +406,16 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     """
     ALTER TABLE history ADD COLUMN fix TEXT;  -- what the fixes did: "took out noise"
     """,
+    # 12. Painting styles: the owner's own, each a picture's style as MicroAST read it (512
+    # numbers) with a small copy of the picture to know it by, never the picture itself.
+    """
+    CREATE TABLE styles (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,  -- never given again, as jobs name it
+        name      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        code      BLOB NOT NULL,     -- the 512 numbers, 32-bit floats, little-endian
+        thumbnail BLOB NOT NULL,     -- a small copy of the picture, WebP, 160 pixels at most
+        source    TEXT NOT NULL,     -- the picture it came from, by its name: "Night market.jpg"
+        added_at  TEXT NOT NULL
+    ) STRICT;
+    """,
 )

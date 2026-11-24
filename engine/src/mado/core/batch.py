@@ -20,7 +20,7 @@ type Step = dict[str, object]
 
 NIGHT = (time(23, 0), time(7, 0))  # when a batch for tonight runs
 MARGIN = 256 * 1024 * 1024  # bytes kept free on a drive, so Windows and other apps have room
-ORDER = ("cutout", "fix", "size", "look")  # the kinds of step Mado makes, in its order
+ORDER = ("cutout", "fix", "size", "paint", "look")  # the kinds of step Mado makes, in its order
 _GOLDEN = 0.6180339887498949  # spreads See it first's pictures across a batch, round after round
 _SAMPLES = 3
 _HELD = (1 / 3, 3.0)  # how far See it first can move the rest's time
@@ -117,8 +117,8 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
         found[kind] = {key: value for key, value in step.items() if key != "step"}
     if not found:
         raise StepError(
-            "Pick what to do first: cut out the subject, fix them, make them for a screen, or "
-            "give them a look."
+            "Pick what to do first: cut out the subject, fix them, make them for a screen, paint "
+            "them in a style, or give them a look."
         )
     fix = found.get("fix")
     if fix is not None and all(fix.get(kind) is None for kind in ("noise", "blur", "jpeg", "dark")):
@@ -143,11 +143,28 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
         "edit": edit,
         "fix": found.get("fix"),
         "size": found.get("size"),
+        "paint": found.get("paint"),
         "look": found.get("look"),
     }
 
 
-_SAID = {"cutout": "cut-out", "fix": "set of fixes", "size": "size", "look": "look"}
+_SAID = {
+    "cutout": "cut-out",
+    "fix": "set of fixes",
+    "size": "size",
+    "paint": "painting style",
+    "look": "look",
+}
+
+
+def paint_detail(name: str, strength: float, colours: bool, setting: tuple[str, int] | None) -> str:
+    """A painting style as a batch's steps say it: "After Hokusai at 80%, in each picture's own
+    colours", "Oil paint, brush 70"."""
+    percent = round(strength * 100)
+    said = name if percent >= 100 else f"{name} at {percent}%"
+    if setting is not None:
+        said = f"{said}, {setting[0].lower()} {setting[1]}"
+    return f"{said}, in each picture's own colours" if colours else said
 
 
 def cutout_detail(quality: str | None, behind: str) -> str:

@@ -25,6 +25,10 @@ const FROM = [
 export function PickCard(props: {
   /** Who it's for: "Studio 27 · 2560 × 1440". */
   forWhat: string;
+  /** Its title: "Pick a picture" unless said. */
+  title?: string;
+  /** The line at its foot: where a picture dropped or pasted goes. */
+  note?: string;
   onPick: (picture: PictureItem) => void;
   onClose: () => void;
 }) {
@@ -49,7 +53,10 @@ export function PickCard(props: {
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="w-[min(46rem,calc(100vw-2rem))]">
-        <DialogHeader title="Pick a picture" description={`For ${props.forWhat}`} />
+        <DialogHeader
+          title={props.title ?? "Pick a picture"}
+          description={props.title ? props.forWhat : `For ${props.forWhat}`}
+        />
         <DialogBody className="gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <Segmented label="Pictures from" value={from} options={FROM} onChange={setFrom} />
@@ -96,7 +103,8 @@ export function PickCard(props: {
             </Button>
           )}
           <p className="text-12 text-fg-faint">
-            Or drop a picture on the window, or paste one: it goes where this one would.
+            {props.note ??
+              "Or drop a picture on the window, or paste one: it goes where this one would."}
           </p>
         </DialogBody>
       </DialogContent>

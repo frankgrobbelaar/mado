@@ -41,6 +41,7 @@ from mado.api import (
     records,
     scan,
     settings,
+    styles,
     tools,
 )
 from mado.api import batches as batches_api
@@ -406,6 +407,7 @@ def create_app(
         making,
         editing,
         looks,
+        styles,
         jobs,
         batches_api,
         queue,

@@ -27,6 +27,7 @@ from mado.api.looks import LookIn
 from mado.api.making import Need, SizeIn
 from mado.api.pictures import Shown
 from mado.api.search import found_ids
+from mado.api.styles import PaintIn
 from mado.batches import BatchError, Picture
 from mado.core.batch import Starts, sampled, steps_in_order
 from mado.core.files import kind_of
@@ -73,7 +74,16 @@ class FixStep(FixStepIn):
     step: Literal["fix"] = "fix"
 
 
-type Step = Annotated[CutoutStep | FixStep | SizeStep | LookStep, Field(discriminator="step")]
+class PaintStep(PaintIn):
+    """A painting style, at its strength, in each picture's own colours or the style's: the Looks
+    tab's painting styles. A picture's own style goes in a batch once it's kept as a style."""
+
+    step: Literal["paint"] = "paint"
+
+
+type Step = Annotated[
+    CutoutStep | FixStep | SizeStep | PaintStep | LookStep, Field(discriminator="step")
+]
 
 
 class BatchSaving(ApiModel):

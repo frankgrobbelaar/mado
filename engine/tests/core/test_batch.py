@@ -19,6 +19,7 @@ from mado.core.batch import (
     look_chip,
     may_start,
     morning,
+    paint_detail,
     ready_words,
     recipe_of,
     sampled,
@@ -104,12 +105,14 @@ def test_steps_are_made_in_mados_order_whatever_order_they_are_listed_in():
         "edit": None,
         "fix": None,
         "size": {"size": "tv-8k", "shape": "crop"},
+        "paint": None,
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
     assert recipe_of([look]) == {
         "edit": None,
         "fix": None,
         "size": None,
+        "paint": None,
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
 
@@ -151,11 +154,29 @@ def test_cutting_out_the_subject_goes_first_as_the_recipes_edit():
         },
         "fix": None,
         "size": {"size": "tv-8k"},
+        "paint": None,
         "look": None,
     }
     assert cutout_detail("best", "colour") == "Best, on a colour"
     assert cutout_detail(None, "nothing") == "As this PC suits, with nothing behind it"
     assert cutout_detail("fast", "blurred") == "Fast, on the rest of the picture blurred"
+
+
+def test_a_painting_style_comes_after_the_size_and_before_the_look():
+    look: Step = {"step": "look", "look": "warm-film", "strength": 0.6, "touches": {}}
+    paint: Step = {"step": "paint", "style": "hokusai", "strength": 0.8}
+    size: Step = {"step": "size", "size": "tv-8k"}
+
+    assert steps_in_order([look, paint, size]) == [size, paint, look]
+    assert recipe_of([look, paint])["paint"] == {"style": "hokusai", "strength": 0.8}
+    with pytest.raises(StepError, match="one painting style"):
+        recipe_of([paint, paint])
+    assert paint_detail("After Hokusai", 0.8, colours=True, setting=None) == (
+        "After Hokusai at 80%, in each picture's own colours"
+    )
+    assert paint_detail("Oil paint", 1.0, colours=False, setting=("Brush", 70)) == (
+        "Oil paint, brush 70"
+    )
 
 
 def test_a_recipe_makes_one_size_and_one_look_and_needs_one_of_them():

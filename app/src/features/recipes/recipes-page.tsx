@@ -20,6 +20,7 @@ import {
   CutoutDialog,
   FixDialog,
   LookDialog,
+  PaintDialog,
   SavingDialog,
   SizeDialog,
 } from "@/features/batch/step-dialogs";
@@ -41,6 +42,7 @@ import {
   type FixStepItem,
   type KeptRecipe,
   type LookStepItem,
+  type PaintStepItem,
   type SizeStepItem,
   useAddWatch,
   useChangeRecipe,
@@ -352,6 +354,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
   const id = useId();
   const size_ = steps.find((each): each is SizeStepItem => each.step === "size") ?? null;
   const look = steps.find((each): each is LookStepItem => each.step === "look") ?? null;
+  const paint = steps.find((each): each is PaintStepItem => each.step === "paint") ?? null;
   const words = recipe && sameSteps(recipe, steps, saving) ? recipe.words : wordsFor(steps, saving);
 
   function save() {
@@ -445,6 +448,21 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
               look
                 ? () => {
                     setSteps(withStep(steps, null, "look"));
+                    setEditing(null);
+                  }
+                : null
+            }
+            onClose={() => setEditing(null)}
+          />
+        )}
+        {editing === "paint" && (
+          <PaintDialog
+            step={paint}
+            onStep={(step) => setSteps(withStep(steps, step, "paint"))}
+            onRemove={
+              paint
+                ? () => {
+                    setSteps(withStep(steps, null, "paint"));
                     setEditing(null);
                   }
                 : null

@@ -1623,7 +1623,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/KeepIn"
+                "$ref": "#/components/schemas/mado__api__looks__KeepIn"
               }
             }
           },
@@ -1773,6 +1773,357 @@
             "schema": {
               "type": "string",
               "title": "Look Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/styles": {
+      "get": {
+        "summary": "Styles",
+        "description": "Mado's painting styles and the owner's own.",
+        "operationId": "styles_styles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Styles"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Keep",
+        "description": "Keeps a picture's style as one of the owner's: its numbers and a small copy of the picture\nto know it by (160 pixels at most), never the picture itself.",
+        "operationId": "keep_styles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/mado__api__styles__KeepIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YourStyle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/styles/{style_id}/thumbnail": {
+      "get": {
+        "summary": "Thumbnail",
+        "description": "The small copy of the picture one of the owner's styles came from.",
+        "operationId": "thumbnail_styles__style_id__thumbnail_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "style_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Style Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/styles/{style_id}": {
+      "get": {
+        "summary": "Small Copy",
+        "description": "A small copy of the picture in a painting style, at its full strength (a classic one at\nits first setting), from its thumbnail (a camera RAW's from its view, as looks' are): WebP,\nkept by the window, as its address carries the picture's version.",
+        "operationId": "small_copy_pictures__picture_id__styles__style_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          },
+          {
+            "name": "style_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Style Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Small Asked",
+        "description": "A small copy of the picture in a style it can't ask for by GET: as its edits leave it, or\nin a picture's own style (`style_id` \"picture\", its numbers in the body).",
+        "operationId": "small_asked_pictures__picture_id__styles__style_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          },
+          {
+            "name": "style_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Style Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmallStyleAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/style": {
+      "post": {
+        "summary": "Read Style",
+        "description": "A picture's style, read by MicroAST from its colours and textures (never what it shows):\n512 numbers a recipe carries. A picture too small, or so plain there's no style in it, says\nso; MicroAST is downloaded the first time it's asked for (409 till then).",
+        "operationId": "read_style_pictures__picture_id__style_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/styles/{style_id}": {
+      "put": {
+        "summary": "Rename",
+        "description": "Gives one of the owner's styles a new name.",
+        "operationId": "rename_styles__style_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "style_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Style Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YourStyle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete",
+        "description": "Deletes one of the owner's styles. Pictures painted with it stay as they are. Not while a\nrecipe uses it, or pictures waiting in the queue are painted with it.",
+        "operationId": "delete_styles__style_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "style_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Style Id"
             }
           }
         ],
@@ -7694,6 +8045,7 @@
                   "shaping",
                   "fixing",
                   "making",
+                  "painting",
                   "looking",
                   "saving"
                 ]
@@ -7893,24 +8245,6 @@
           "members"
         ],
         "title": "Keep"
-      },
-      "KeepIn": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 200,
-            "title": "Name"
-          },
-          "look": {
-            "$ref": "#/components/schemas/LookIn"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "look"
-        ],
-        "title": "KeepIn"
       },
       "KeptRecipe": {
         "properties": {
@@ -8755,6 +9089,146 @@
           "leftOut"
         ],
         "title": "Opened"
+      },
+      "PaintHereIn": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "title": "Style"
+          },
+          "strength": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strength",
+            "default": 1.0
+          },
+          "colours": {
+            "type": "boolean",
+            "title": "Colours",
+            "default": false
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "named": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Named"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/PartIn"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "style"
+        ],
+        "title": "PaintHereIn",
+        "description": "The painting step on a picture's page: on the whole picture, or only on parts picked as\nSelect picks them, as a look's."
+      },
+      "PaintStep": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "title": "Style"
+          },
+          "strength": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strength",
+            "default": 1.0
+          },
+          "colours": {
+            "type": "boolean",
+            "title": "Colours",
+            "default": false
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "named": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Named"
+          },
+          "step": {
+            "type": "string",
+            "const": "paint",
+            "title": "Step",
+            "default": "paint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "style"
+        ],
+        "title": "PaintStep",
+        "description": "A painting style, at its strength, in each picture's own colours or the style's: the Looks\ntab's painting styles. A picture's own style goes in a batch once it's kept as a style."
       },
       "PartIn": {
         "properties": {
@@ -9802,6 +10276,32 @@
             ],
             "title": "Fixplace"
           },
+          "paintPlace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "processor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paintplace"
+          },
+          "paintNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paintnote"
+          },
           "seconds": {
             "type": "number",
             "title": "Seconds"
@@ -9887,6 +10387,8 @@
           "fixQuality",
           "fixSeconds",
           "fixPlace",
+          "paintPlace",
+          "paintNote",
           "seconds",
           "place",
           "measured",
@@ -10152,6 +10654,29 @@
         ],
         "title": "QueueOut"
       },
+      "ReadOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "named": {
+            "type": "string",
+            "title": "Named"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "named",
+          "version"
+        ],
+        "title": "ReadOut"
+      },
       "Reader": {
         "type": "string",
         "enum": [
@@ -10191,6 +10716,16 @@
               }
             ]
           },
+          "paint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaintHereIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "look": {
             "anyOf": [
               {
@@ -10204,7 +10739,7 @@
         },
         "type": "object",
         "title": "RecipeIn",
-        "description": "A recipe: the edits, the fixes, the size step, then the look step; any can be left\nout."
+        "description": "A recipe: the edits, the fixes, the size step, the painting step, then the look step;\nany can be left out."
       },
       "Region": {
         "properties": {
@@ -11821,6 +12356,46 @@
         ],
         "title": "SmallAsk"
       },
+      "SmallStyleAsk": {
+        "properties": {
+          "edit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "named": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Named"
+          }
+        },
+        "type": "object",
+        "title": "SmallStyleAsk"
+      },
       "Stage": {
         "type": "string",
         "enum": [
@@ -11875,6 +12450,9 @@
             "$ref": "#/components/schemas/SizeStep"
           },
           {
+            "$ref": "#/components/schemas/PaintStep"
+          },
+          {
             "$ref": "#/components/schemas/LookStep"
           }
         ],
@@ -11884,6 +12462,7 @@
             "cutout": "#/components/schemas/CutoutStep",
             "fix": "#/components/schemas/FixStep",
             "look": "#/components/schemas/LookStep",
+            "paint": "#/components/schemas/PaintStep",
             "size": "#/components/schemas/SizeStep"
           }
         }
@@ -12044,6 +12623,111 @@
           "kept"
         ],
         "title": "StudioState"
+      },
+      "StyleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "painter",
+              "classic"
+            ],
+            "title": "Kind"
+          },
+          "painting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Painting"
+          },
+          "download": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download"
+          },
+          "setting": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setting"
+          },
+          "first": {
+            "type": "integer",
+            "title": "First"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "painting",
+          "download",
+          "setting",
+          "first"
+        ],
+        "title": "StyleOut"
+      },
+      "Styles": {
+        "properties": {
+          "painters": {
+            "items": {
+              "$ref": "#/components/schemas/StyleOut"
+            },
+            "type": "array",
+            "title": "Painters"
+          },
+          "classics": {
+            "items": {
+              "$ref": "#/components/schemas/StyleOut"
+            },
+            "type": "array",
+            "title": "Classics"
+          },
+          "yours": {
+            "items": {
+              "$ref": "#/components/schemas/YourStyle"
+            },
+            "type": "array",
+            "title": "Yours"
+          },
+          "reader": {
+            "type": "string",
+            "title": "Reader"
+          }
+        },
+        "type": "object",
+        "required": [
+          "painters",
+          "classics",
+          "yours",
+          "reader"
+        ],
+        "title": "Styles"
       },
       "SubjectIn": {
         "properties": {
@@ -12764,6 +13448,34 @@
         ],
         "title": "YourLook"
       },
+      "YourStyle": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "addedAt": {
+            "type": "string",
+            "title": "Addedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "addedAt"
+        ],
+        "title": "YourStyle"
+      },
       "YourWallpaper": {
         "properties": {
           "monitor": {
@@ -12859,6 +13571,24 @@
           "bursts"
         ]
       },
+      "mado__api__looks__KeepIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "look": {
+            "$ref": "#/components/schemas/LookIn"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "look"
+        ],
+        "title": "KeepIn"
+      },
       "mado__api__search__Kind": {
         "type": "string",
         "enum": [
@@ -12867,6 +13597,31 @@
           "name",
           "like"
         ]
+      },
+      "mado__api__styles__KeepIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 4096,
+            "title": "Code"
+          },
+          "picture": {
+            "type": "integer",
+            "title": "Picture"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "code",
+          "picture"
+        ],
+        "title": "KeepIn"
       },
       "mado__core__kind__Kind": {
         "type": "string",

@@ -220,6 +220,7 @@ describe("The Fix tab", () => {
       expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toEqual({
         edit: null,
         size: null,
+        paint: null,
         look: null,
         fix: { noise: { strength: 1 }, blur: null, jpeg: null, dark: null },
       }),

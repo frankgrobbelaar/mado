@@ -13,6 +13,7 @@ import {
   SAMPLES,
   SETTINGS,
   SIZES,
+  STYLES,
   takes,
 } from "@/test/engine";
 import { BatchPage } from "./batch-page";
@@ -238,6 +239,57 @@ describe("BatchPage", () => {
           jpeg: null,
           dark: { contrast: 0 },
         },
+      ]),
+    );
+  });
+
+  it("paints each picture in a style as a step made after the size, before the look", async () => {
+    const fetch = fakeEngine({ ...ENGINE, "/styles": STYLES });
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED, recipe: 1 });
+    const steps = screen.getByRole("region", { name: "Steps, in order" });
+    expect(await within(steps).findByText("From the recipe")).toBeInTheDocument();
+
+    fireEvent.pointerDown(within(steps).getByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "A painting style" })).click();
+    const card = await screen.findByRole("dialog", { name: "Paint them in a style" });
+    fireEvent.click(await within(card).findByRole("button", { name: "After Hokusai" }));
+    fireEvent.click(within(card).getByRole("switch", { name: "Keep each picture's own colours" }));
+    fireEvent.keyDown(within(card).getByRole("slider", { name: "Style strength" }), {
+      key: "PageDown",
+    });
+    expect(within(card).getByRole("button", { name: "Lantern glow" })).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/batches/takes").at(-1)?.steps).toEqual([
+        RECIPE.steps[0],
+        { step: "paint", style: "hokusai", strength: 0.9, colours: true, setting: null },
+        RECIPE.steps[1],
+      ]),
+    );
+  });
+
+  it("gives a classic style its one setting in a batch, without colours to keep", async () => {
+    const fetch = fakeEngine({ ...ENGINE, "/styles": STYLES });
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (await screen.findByRole("menuitem", { name: "A painting style" })).click();
+    const card = await screen.findByRole("dialog", { name: "Paint them in a style" });
+    fireEvent.click(await within(card).findByRole("button", { name: "Pencil sketch" }));
+    expect(within(card).queryByRole("switch")).toBeNull();
+    fireEvent.keyDown(within(card).getByRole("slider", { name: "Darkness" }), { key: "PageUp" });
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/batches/takes").at(-1)?.steps).toEqual([
+        { step: "paint", style: "pencil", strength: 1, colours: false, setting: 60 },
       ]),
     );
   });

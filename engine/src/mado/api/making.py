@@ -1,8 +1,9 @@
 """Making a picture to a recipe, as the Size, Looks, Edit and Fix tabs ask: the sizes there are,
-the owner's screens, the plan for a recipe (its shape, model, look, edits, fixes, time and
-quality), a preview (all of it fitted, or a part at full detail), the name it would be saved as,
-what the Fix tab suggests, and making it, as a job (mado/api/jobs.py). A recipe is its edits, its
-fixes, a size step and a look step, any of them left out, made by one Save."""
+the owner's screens, the plan for a recipe (its shape, model, painting, look, edits, fixes, time
+and quality), a preview (all of it fitted, or a part at full detail), the name it would be saved
+as, what the Fix tab suggests, and making it, as a job (mado/api/jobs.py). A recipe is its edits,
+its fixes, a size step, a painting step and a look step, any of them left out, made by one
+Save."""
 
 import io
 import json
@@ -24,7 +25,7 @@ from fastapi.responses import Response
 from PIL import Image
 from pydantic import Field
 
-from mado import own_looks
+from mado import own_looks, own_styles
 from mado.ai import BIREFNET
 from mado.api.common import (
     ApiModel,
@@ -42,7 +43,8 @@ from mado.api.edits import EditStepIn, PartIn, editing_of, picked
 from mado.api.fixes import FixesOut, FixStepIn, fixing_of
 from mado.api.jobs import Job, job_of
 from mado.api.looks import LookIn
-from mado.core.edits import EditError, Editing, as_json
+from mado.api.styles import UNREAD_STYLE, PaintHereIn
+from mado.core.edits import Edit, EditError, Editing, Part, as_json
 from mado.core.estimate import key
 from mado.core.fixes import (
     LEAST_STOPS,
@@ -57,6 +59,7 @@ from mado.core.framing import Box, Shape
 from mado.core.kind import Kind
 from mado.core.models import Quality
 from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
+from mado.core.painting import Painting, Style, enlarged, working_size
 from mado.core.quality import Format, about_bytes, colour_words, suited
 from mado.core.recipe import Plan, Recipe, Sizing, Styling
 from mado.core.sizes import (
@@ -82,6 +85,7 @@ from mado.making import (
     estimated,
     fix_seconds,
     only_on,
+    paint,
     picture_of,
     placed,
     planned,
@@ -109,7 +113,7 @@ log = logging.getLogger(__name__)
 
 _MOST_PREVIEW = 4_000_000  # pixels a preview of a part may have
 _MARGIN = 16  # pixels of the picture around a part previewed, so its edges see what's beside
-_NOTHING = "Pick a size or a look first: as it is, there's nothing to make."
+_NOTHING = "Pick a size, a style or a look first: as it is, there's nothing to make."
 _ASIDE = (
     "It waits in Mado's quarantine, so Mado opens it to look at only. Put it back from History "
     "to make something of it."
@@ -163,12 +167,13 @@ class LookHereIn(LookIn):
 
 
 class RecipeIn(ApiModel):
-    """A recipe: the edits, the fixes, the size step, then the look step; any can be left
-    out."""
+    """A recipe: the edits, the fixes, the size step, the painting step, then the look step;
+    any can be left out."""
 
     edit: EditStepIn | None = None
     fix: FixStepIn | None = None
     size: SizeIn | None = None
+    paint: PaintHereIn | None = None
     look: LookHereIn | None = None
 
 
@@ -214,6 +219,8 @@ class PlanOut(ApiModel):
     fix_quality: Quality | None  # JPEG blocks at Fast or Best, as decided; None without them
     fix_seconds: float  # of `seconds`, about how long the fixes take
     fix_place: Literal["card", "processor"] | None  # where the fixes' models run; None without
+    paint_place: Literal["card", "processor"] | None  # where its painting is made; None without
+    paint_note: str | None  # a painting made far bigger than it's painted: its strokes soft close
     seconds: float  # about how long it takes here
     place: Literal["card", "processor"]
     measured: bool  # the time is this PC's own, not a guess
@@ -323,6 +330,8 @@ def plan_for(
     made = _planned(recipe, picture, source, seen, sight, ai, editor)
     fixers = fix_models(made.fixing, made.fix_quality)
     fix_on = ai.fix_place(fixers) if fixers else None
+    painting = made.painting
+    paint_on = ai.painter.place(painting.style) if painting is not None else None
     purpose = recipe.sizing.size.purpose if recipe.sizing else "screen"
     clear = seen.alpha or made.see_through
     # A cut-out with nothing behind it keeps its nothing: PNG, or WebP when it was WebP.
@@ -357,7 +366,9 @@ def plan_for(
         fix_quality=made.fix_quality if made.fixing and made.fixing.jpeg is not None else None,
         fix_seconds=fix_seconds(made, here, fix_on),
         fix_place=fix_on if made.fixing is not None else None,
-        seconds=estimated(made, here, ai.edit_place(BIREFNET), fix_on),
+        paint_place=paint_on,
+        paint_note=enlarged(painting, made.width, made.height) if painting is not None else None,
+        seconds=estimated(made, here, ai.edit_place(BIREFNET), fix_on, paint_on),
         place=here.place,
         measured=measured,
         format=suits.format,
@@ -400,11 +411,15 @@ def preview(
     missing = waiting_for(made, ai)
     upscaler = made.model.download if made.model is not None else None
     fixers = {model.id for model in fix_models(made.fixing, made.fix_quality)}
+    painter = ai.painter.needs(made.painting.style) if made.painting is not None else None
     # Extending and the edits need their models on either side; the upscaler and the fixes' only
-    # for a part made at full detail (all of it shows only the brightening, which needs none).
+    # for a part made at full detail (all of it shows only the brightening, which needs none);
+    # a painting style's network only after.
     for each in missing:
         if each == upscaler or each in fixers:
             needed = body.region is not None and body.side == "after"
+        elif each == painter:
+            needed = body.side == "after"
         else:
             needed = True
         if needed:
@@ -570,6 +585,7 @@ def make(
         else None
     )
     look = asked.look if made.styling is not None else None  # a look that changes nothing isn't
+    painted = asked.paint if made.painting is not None else None  # nor a painting at nought
     # The fixes as the plan decided them too: JPEG blocks at the model previewed.
     fixing = (
         replace(made.fixing, jpeg_quality=made.fix_quality)
@@ -581,6 +597,7 @@ def make(
             "edit": as_json(recipe.editing) if recipe.editing else None,  # its version too
             "fix": fixing_json(fixing),
             "size": decided.model_dump(by_alias=True) if decided else None,
+            "paint": painted.model_dump(by_alias=True) if painted else None,
             "look": look.model_dump(by_alias=True) if look else None,
         },
         "saving": saving.model_dump(by_alias=True, exclude={"always"}),
@@ -607,9 +624,10 @@ def _previewed(
     editor: Editor,
 ) -> Image.Image:
     """The preview as asked for: all of it fitted, or a part at full detail; the picture as its
-    edits left it; its look and touches where they fall on the picture made, after, only on a
-    part when the look says so."""
+    edits left it; after, its painting, then its look and touches where they fall on the picture
+    made, each only on a part when it says so."""
     looked = made.styling if body.side == "after" else None
+    painting = made.painting if body.side == "after" else None
     seed = seed_of(picture.path)
     target = (made.width, made.height)
     edits = made.editing.edits if made.editing else ()
@@ -631,6 +649,16 @@ def _previewed(
             ),
             lambda: _fitted(picture, source, seen, made, size, sight, ai, copies, editor),
         )
+        if painting is not None:
+            working = _working(
+                painting.style, picture, source, seen, made, sight, ai, copies, editor
+            )
+            painted = paint(base, painting, ai.painter, working=working)
+            if painting.parts:
+                whole = sight.picture(picture, source.version)
+                mask = editor.look_mask(whole, key, edits, painting.parts)
+                painted = only_on(painted, base, placed(mask, made, base.size))
+            base = painted
         if looked is None:
             return base
         shown = styled(base, looked, seed=seed, placement=Placement.fitted(base.size, target))
@@ -648,6 +676,16 @@ def _previewed(
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "That part is outside the picture made."
         )
+    # A classic means reaches past the part (its lines and strokes see what's beside them): the
+    # part is made with a margin, drawn, then cut back.
+    reach = min(target) / 100
+    grown = region
+    if painting is not None and painting.style.kind == "classic":
+        margin = ceil(_CLASSIC_REACHES * reach)
+        left, top = max(0, region.x - margin), max(0, region.y - margin)
+        right = min(target[0], region.x + region.width + margin)
+        bottom = min(target[1], region.y + region.height + margin)
+        grown = Region(x=left, y=top, width=right - left, height=bottom - top)
     version_ = _version_of(picture)
     decoded = sight.picture(picture, version_)
     state = editor.state(decoded, key, edits) if edits else decoded
@@ -669,9 +707,13 @@ def _previewed(
         pixels = np.asarray(state.convert("RGBA" if see_through else "RGB"))
         kept = made.frame.kept
     kx, ky = kept.width / target[0], kept.height / target[1]  # the picture's pixels a made one
-    part = Box(
-        kept.x + region.x * kx, kept.y + region.y * ky, region.width * kx, region.height * ky
-    )
+
+    def box_of(asked: Region) -> Box:
+        return Box(
+            kept.x + asked.x * kx, kept.y + asked.y * ky, asked.width * kx, asked.height * ky
+        )
+
+    part = box_of(region)
     size = (region.width, region.height)
     if body.side == "before":
         stretched = Image.fromarray(pixels).resize(
@@ -680,7 +722,8 @@ def _previewed(
             box=(part.x, part.y, part.x + part.width, part.y + part.height),
         )
         return _profiled(stretched, profile)
-    source_pixels, source_part = pixels, part
+    made_box, made_size = box_of(grown), (grown.width, grown.height)
+    source_pixels, source_part = pixels, made_box
     if made.fixing is not None:  # fixed round the part, as the whole picture measures
         measured = (
             _measure(picture, version_, made.editing, sight, editor, decoded)
@@ -689,36 +732,122 @@ def _previewed(
         )
         newer = _NEWEST.started(picture.path)
         source_pixels, source_part = _fixed_round(
-            pixels, part, made, measured, ai, offset, stop=newer
+            pixels, made_box, made, measured, ai, offset, stop=newer
         )
     if source_pixels.shape[2] == 4:  # see-through parts (a cut-out's) apart, as Save makes them
-        colours, clear, here = _round(source_pixels, source_part, size)
-        made_part = Image.fromarray(_made_part(colours, here, size, made, ai))
-        made_part.putalpha(Image.fromarray(resize_alpha(clear, here, size)))
+        colours, clear, here = _round(source_pixels, source_part, made_size)
+        made_part = Image.fromarray(_made_part(colours, here, made_size, made, ai))
+        made_part.putalpha(Image.fromarray(resize_alpha(clear, here, made_size)))
     else:
-        made_part = Image.fromarray(_made_part(source_pixels, source_part, size, made, ai))
+        made_part = Image.fromarray(_made_part(source_pixels, source_part, made_size, made, ai))
     made_part = _profiled(made_part, profile)
+    if painting is not None:
+        if painting.style.kind == "classic":
+            drawn = paint(made_part, painting, ai.painter, reach=reach)
+            inside = (region.x - grown.x, region.y - grown.y)
+            painted = drawn.crop((*inside, inside[0] + size[0], inside[1] + size[1]))
+            made_part = made_part.crop((*inside, inside[0] + size[0], inside[1] + size[1]))
+            painted = _profiled(painted, profile)
+        else:
+            working = _working(
+                painting.style, picture, source, seen, made, sight, ai, copies, editor
+            )
+            assert working is not None  # noqa: S101 - a network's style has one
+            wx, wy = working.width / target[0], working.height / target[1]
+            cut = working.resize(
+                size,
+                Image.Resampling.LANCZOS,
+                box=(
+                    region.x * wx,
+                    region.y * wy,
+                    (region.x + region.width) * wx,
+                    (region.y + region.height) * wy,
+                ),
+            )
+            painted = paint(made_part, painting, ai.painter, working=cut)
+        if painting.parts:
+            here = _part_mask(
+                editor, decoded, key, edits, painting.parts, pixels, offset, part, size
+            )
+            painted = only_on(painted, made_part, here)
+        made_part = painted
     if looked is None:
         return made_part
     at = Placement(target[0], target[1], left=region.x, top=region.y)
     shown = styled(made_part, looked, seed=seed, placement=at)
     if parts:
-        mask = editor.look_mask(decoded, key, edits, parts)
-        height, width = mask.shape
-        canvas_height, canvas_width = pixels.shape[:2]
-        left, top = offset
-        spread = np.pad(
-            mask,
-            ((top, canvas_height - top - height), (left, canvas_width - left - width)),
-            mode="edge",
-        )
-        here = Image.fromarray(spread, "L").resize(
-            (region.width, region.height),
-            Image.Resampling.BILINEAR,
-            box=(part.x, part.y, part.x + part.width, part.y + part.height),
-        )
+        here = _part_mask(editor, decoded, key, edits, parts, pixels, offset, part, size)
         shown = only_on(shown, made_part, here)
     return shown
+
+
+_CLASSIC_REACHES = 4.0  # how many hundredths of the short side a classic means sees round a part
+
+
+def _part_mask(
+    editor: Editor,
+    decoded: Image.Image,
+    key: str,
+    edits: tuple[Edit, ...],
+    parts: tuple[Part, ...],
+    pixels: Pixels,
+    offset: tuple[int, int],
+    part: Box,
+    size: tuple[int, int],
+) -> Image.Image:
+    """Where a painting or a look goes on a part of the picture made at full detail: the parts'
+    mask at the picture's size, spread over an extended canvas as its edges carry on, cut to the
+    part."""
+    mask = editor.look_mask(decoded, key, edits, parts)
+    height, width = mask.shape
+    canvas_height, canvas_width = pixels.shape[:2]
+    left, top = offset
+    spread = np.pad(
+        mask,
+        ((top, canvas_height - top - height), (left, canvas_width - left - width)),
+        mode="edge",
+    )
+    return Image.fromarray(spread, "L").resize(
+        size,
+        Image.Resampling.BILINEAR,
+        box=(part.x, part.y, part.x + part.width, part.y + part.height),
+    )
+
+
+def _working(
+    style: Style,
+    picture: Picture,
+    source: Source,
+    seen: Seen,
+    made: Plan,
+    sight: Sight,
+    ai: Models,
+    copies: Previews,
+    editor: Editor,
+) -> Image.Image | None:
+    """A network's painting of the picture made, at its working size, kept for the previews that
+    follow (another strength, the colours choice, a look, a part zoomed into); None for a classic
+    means, drawn on each preview itself."""
+    if style.kind == "classic":
+        return None
+    size = working_size(made.width, made.height)
+
+    def painted() -> Image.Image:
+        shaped = _fitted(picture, source, seen, made, size, sight, ai, copies, editor)
+        colours, _alpha = split_alpha(shaped)
+        return ai.painter.paint(Image.fromarray(colours, "RGB"), style)
+
+    asked = (
+        str(picture.path).casefold(),
+        source.version,
+        made.frame,
+        made.editing,
+        made.fixing,
+        made.fix_quality,
+        style.id,
+        style.code.tobytes() if style.code is not None else b"",
+    )
+    return ai.painter.kept(asked, painted)
 
 
 class Newest:
@@ -775,7 +904,12 @@ def _planned(
 def _nothing(recipe: Recipe) -> str:
     """What a Save with nothing to make says: why its fixes change nothing in the picture, or
     to pick a size or a look."""
-    if recipe.fixing is not None and recipe.sizing is None and recipe.styling is None:
+    if (
+        recipe.fixing is not None
+        and recipe.sizing is None
+        and recipe.styling is None
+        and recipe.painting is None
+    ):
         return unchanged(recipe.fixing)
     return _NOTHING
 
@@ -1045,7 +1179,24 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
         focus = (asked.focus[0], asked.focus[1]) if asked.focus else None
         sizing = Sizing(size, asked.shape, focus, asked.kind, asked.quality, asked.clean)
     styling: Styling | None = None
+    painting: Painting | None = None
     try:
+        if body.paint is not None:
+            asked_paint = body.paint
+            style = own_styles.resolve(conn, asked_paint.model_dump(by_alias=True))
+            if style is None and asked_paint.style == "picture":
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, UNREAD_STYLE)
+            if style is None:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, "That style isn't in your styles any more."
+                )
+            painting = Painting(
+                style,
+                asked_paint.strength,
+                asked_paint.colours,
+                asked_paint.setting,
+                picked(asked_paint.parts),
+            )
         if body.look is not None:
             look = own_looks.resolve(conn, body.look.look)
             if look is None:
@@ -1061,11 +1212,14 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     if editing is not None and editing.version is not None and editing.version != now:
         raise HTTPException(status.HTTP_409_CONFLICT, changed(name, edited=bool(editing.edits)))
-    if styling is not None and styling.parts and (editing is None or editing.version is None):
-        # Parts picked for a look are tied to the picture as it is, as edits are: a Save that
-        # finds it changed saves nothing.
+    picked_parts = (styling is not None and styling.parts) or (
+        painting is not None and painting.parts
+    )
+    if picked_parts and (editing is None or editing.version is None):
+        # Parts picked for a look or a painting are tied to the picture as it is, as edits are:
+        # a Save that finds it changed saves nothing.
         editing = Editing(editing.edits if editing else (), now)
-    return Recipe(sizing, styling, editing, fixing)
+    return Recipe(sizing, styling, editing, fixing, painting)
 
 
 def _refused(error: Exception) -> HTTPException:

@@ -22,7 +22,7 @@ models at all (the PC check finds that) gets sessions on the processor, and Mado
 """
 
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -88,15 +88,19 @@ class Sessions:
         fixed: Mapping[str, int] | None = None,
         settings: Mapping[str, str] | None = None,
         threads: int | None = None,
+        data: Callable[[], bytes] | None = None,
+        processor_settings: Mapping[str, str] | None = None,
     ) -> Session:
         """The session for a model at a fixed square `size` (its free height and width pinned;
         None for a model whose size is fixed already, or whose sizes are pinned by name in
-        `fixed`), on the card or the processor, with ONNX Runtime's `settings` for the card and
-        at most `threads` of the processor's (None: as many as it has cores) for one there.
-        Made the first time it's asked for, then kept. Raises ModelError when it can't be made
-        where it should run."""
+        `fixed`), on the card or the processor, with ONNX Runtime's `settings` for the card,
+        `processor_settings` and at most `threads` of the processor's (None: as many as it has
+        cores) for one there. `data` gives the model itself, made in memory, when there's no
+        file (`model` then only names it). Made the first time it's asked for, then kept. Raises
+        ModelError when it can't be made where it should run."""
         pinned = tuple(sorted((fixed or {}).items()))
-        configured = tuple(sorted((settings or {}).items()))
+        chosen = settings if place == "card" else processor_settings
+        configured = tuple(sorted((chosen or {}).items()))
         key = (str(model).casefold(), size, place, pinned, configured, threads)
         with self._guard:
             found = self._kept.get(key)
@@ -108,7 +112,8 @@ class Sessions:
             with self._guard:
                 found = self._kept.get(key)
             if found is None:
-                found = _make(model, size, place, dict(pinned), dict(configured), threads)
+                made = data() if data is not None else None
+                found = _make(model, size, place, dict(pinned), dict(configured), threads, made)
                 with self._guard:
                     self._kept[key] = found
             return found
@@ -127,13 +132,14 @@ def _make(
     fixed: Mapping[str, int] | None = None,
     settings: Mapping[str, str] | None = None,
     threads: int | None = None,
+    data: bytes | None = None,
 ) -> Session:
     try:
         import onnxruntime as ort  # loaded when first needed: the engine starts sooner
     except ImportError as error:
         raise ModelError(f"Mado couldn't load ONNX Runtime ({error}).") from error
     ort.disable_telemetry_events()  # its Windows builds report use to Microsoft unless told not to
-    if not model.is_file():
+    if data is None and not model.is_file():
         raise ModelError(f"The AI model {model.name} isn't there: Mado may need it again.")
     options = ort.SessionOptions()
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -145,16 +151,17 @@ def _make(
         options.add_free_dimension_override_by_name("width", size)
     for name, value in (fixed or {}).items():
         options.add_free_dimension_override_by_name(name, value)
-    if place == "card":
-        for name, setting in (settings or {}).items():
-            options.add_session_config_entry(name, setting)
-    elif threads is not None:
+    for name, setting in (settings or {}).items():
+        options.add_session_config_entry(name, setting)
+    if place == "processor" and threads is not None:
         options.intra_op_num_threads = threads
     providers: list[str | tuple[str, Mapping[str, object]]] = (
         [PROVIDER] if place == "card" else ["CPUExecutionProvider"]
     )
     try:
-        session = ort.InferenceSession(str(model), options, providers=providers)
+        session = ort.InferenceSession(
+            data if data is not None else str(model), options, providers=providers
+        )
     except Exception as error:  # ONNX Runtime raises its own kinds, all plain Exceptions
         where = "The graphics card" if place == "card" else "The processor"
         raise ModelError(f"{where} couldn't run the AI model ({error}).") from error

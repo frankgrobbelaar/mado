@@ -14,7 +14,7 @@ import {
   strayFonts,
   withFonts,
 } from "./readme-pictures.mjs";
-import { drawScene, filterPrimitives, LOOKS, parseScene, placeScenes, SCENES, sceneAddress } from "./readme-scenes.mjs";
+import { drawScene, filterPrimitives, LOOKS, parseScene, placeScenes, SCENES, STYLES, sceneAddress } from "./readme-scenes.mjs";
 
 describe("the README's pictures", () => {
   it("finds the built CSS's fonts beside it, not at the drive's root", () => {
@@ -141,6 +141,8 @@ describe("the made-up scenes", () => {
   it("reads what's asked of a scene from its address", () => {
     assert.deepEqual(parseScene("harbour/look=warm-film/strength=.6/grain=20/vignette=35/part=sky"), {
       name: "harbour",
+      style: null,
+      paint: 1,
       look: "warm-film",
       strength: 0.6,
       grain: 20,
@@ -195,6 +197,25 @@ describe("the made-up scenes", () => {
     assert.throws(() => drawScene("harbour/look=sparkle"), /no look called "sparkle"/);
     assert.throws(() => drawScene("harbour/look=warm-film/part=boat"), /no part called "boat"/);
     for (const look of Object.keys(LOOKS)) assert.ok(drawScene(`harbour/look=${look}`), look);
+  });
+
+  it("paints a scene in a style before its look, at its strength, on all of it or a part", () => {
+    assert.deepEqual(parseScene("harbour/style=monet/paint=.8"), {
+      ...parseScene("harbour"),
+      style: "monet",
+      paint: 0.8,
+    });
+    const painted = drawScene("harbour/style=monet/paint=.8");
+    assert.match(painted, /<filter id="style" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">/);
+    assert.match(painted, /<g opacity="0.8"><g filter="url\(#style\)">/);
+    // The look grades what's painted, and both go on just the part.
+    const both = drawScene("harbour/style=hokusai/look=warm-film/part=sky");
+    assert.equal(both.match(/<clipPath id="part">/g)?.length, 1);
+    assert.match(both, /<g filter="url\(#look\)"><rect width="400" height="300" fill="url\(#sky\)"\/>[^]*<g filter="url\(#style\)">/);
+    // One of the owner's styles is drawn as a picture's own.
+    assert.match(drawScene("harbour/style=yours-3"), /<filter id="style"/);
+    assert.throws(() => drawScene("harbour/style=klimt"), /no style called "klimt"/);
+    for (const style of Object.keys(STYLES)) assert.ok(drawScene(`harbour/style=${style}`), style);
   });
 
   it("cuts out a part on nothing, blurs, mirrors, and shows a region stretched to its place", () => {

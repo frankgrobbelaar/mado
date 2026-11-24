@@ -35,6 +35,7 @@ import type {
   Sizes,
   StepWords,
   StudioState,
+  Styles,
   Takes,
   Tool,
   ToolState,
@@ -442,6 +443,8 @@ export function plan(overrides: Partial<Plan> = {}): Plan {
     fixQuality: null,
     fixSeconds: 0,
     fixPlace: null,
+    paintPlace: null,
+    paintNote: null,
     seconds: 40,
     place: "card",
     measured: true,
@@ -604,6 +607,112 @@ export const LOOKS: Looks = {
     },
   ],
 };
+
+/** Mado's painting styles, as the engine lists them, and one of the owner's: a picture's style
+ * kept. */
+export const STYLES: Styles = {
+  painters: [
+    {
+      id: "van-gogh",
+      name: "After Van Gogh",
+      kind: "painter",
+      painting: "Van Gogh's The Starry Night",
+      download: "style-van-gogh-starry-night",
+      setting: null,
+      first: 50,
+    },
+    {
+      id: "hokusai",
+      name: "After Hokusai",
+      kind: "painter",
+      painting: "Hokusai's The Great Wave off Kanagawa",
+      download: "style-hokusai-great-wave",
+      setting: null,
+      first: 50,
+    },
+    {
+      id: "monet",
+      name: "After Monet",
+      kind: "painter",
+      painting: "Monet's Water Lilies (1915)",
+      download: "style-monet-water-lilies-1915",
+      setting: null,
+      first: 50,
+    },
+    {
+      id: "seurat",
+      name: "After Seurat",
+      kind: "painter",
+      painting: "Seurat's The Channel of Gravelines",
+      download: "style-seurat-gravelines",
+      setting: null,
+      first: 50,
+    },
+  ],
+  classics: [
+    {
+      id: "pencil",
+      name: "Pencil sketch",
+      kind: "classic",
+      painting: null,
+      download: null,
+      setting: "Darkness",
+      first: 50,
+    },
+    {
+      id: "coloured-pencil",
+      name: "Coloured pencil",
+      kind: "classic",
+      painting: null,
+      download: null,
+      setting: "Darkness",
+      first: 50,
+    },
+    {
+      id: "oil",
+      name: "Oil paint",
+      kind: "classic",
+      painting: null,
+      download: null,
+      setting: "Brush",
+      first: 50,
+    },
+    {
+      id: "cartoon",
+      name: "Cartoon",
+      kind: "classic",
+      painting: null,
+      download: null,
+      setting: "Colours",
+      first: 40,
+    },
+  ],
+  yours: [
+    {
+      id: "yours-1",
+      name: "Lantern glow",
+      source: "Night market.jpg",
+      addedAt: "2026-11-23T20:00:00+02:00",
+    },
+  ],
+  reader: "microast",
+};
+
+/** A painting style's network as /tools lists it: downloaded, or not yet. */
+export function styleTool(id: string, name: string, state: Tool["state"] = "ready"): Tool {
+  return {
+    id,
+    name,
+    version: "models-3",
+    purpose: `A painting style for the Looks tab: repaints a picture after ${name}.`,
+    licence: "MIT AND BSD-3-Clause",
+    size: 6_888_971,
+    when: "asked",
+    state,
+    done: state === "ready" ? 6_888_971 : 0,
+    problem: null,
+  };
+}
 
 /** One of Holiday's made-up pictures, as a batch holds it. */
 export function batchPicture(id: number | null, name: string): BatchPicture {

@@ -8,6 +8,28 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Painting styles, on the Looks tab: After Van Gogh, After Hokusai, After Monet and After Seurat,
+  each shown as a small copy of the picture and on the picture itself as you go through them, with
+  its strength. "Keep the picture's colours" paints with a style's brushwork in the picture's own
+  colours. Mado trained the four itself on public-domain paintings, and the paintings never ship.
+- Any picture as the style: "A picture of yours…" takes the style of this picture, one from the
+  library, or one dropped on the window or pasted, from its colours and textures, never what it
+  shows. "Keep as a style" keeps it among your styles to use again, rename or delete: Mado keeps
+  its style and a small copy to know it by, never the picture itself, and your styles go in the
+  export.
+- Pencil sketch, coloured pencil, oil paint and cartoon, drawn by code with nothing to download,
+  each with its strength and one setting of its own: the pencil's darkness, the brush's size, the
+  cartoon's colours.
+- A style goes with a look and the finishing touches: it's painted first, then the look and the
+  touches go on top, and like a look it can go on just a part. Each is painted at about
+  1600 × 1200 and then made the picture's size, so its strokes look the same in the preview as in
+  the picture saved, and a picture made far bigger than that says its strokes will be soft.
+- A painting style is a step for many at once, recipes and watch folders, and History names it.
+- Each style's model comes the first time it's asked for, with its size and progress, as the
+  installer's first page lists them: 6.9 MB a painter, and MicroAST (2 MB) for a picture's own
+  style.
+
 ## 0.10.0 - 2026-11-23
 
 ### Added

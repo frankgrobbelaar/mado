@@ -31,6 +31,7 @@ import {
   type FixStepItem,
   type KeptRecipe,
   type LookStepItem,
+  type PaintStepItem,
   type Picked,
   type SizeStepItem,
   type Starts,
@@ -49,7 +50,14 @@ import { about, count, size } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 import { type BatchStart, useOpenPictures } from "./open";
 import { SeeFirst } from "./see-first";
-import { CutoutDialog, FixDialog, LookDialog, SavingDialog, SizeDialog } from "./step-dialogs";
+import {
+  CutoutDialog,
+  FixDialog,
+  LookDialog,
+  PaintDialog,
+  SavingDialog,
+  SizeDialog,
+} from "./step-dialogs";
 import {
   cutoutStep,
   fixStep,
@@ -205,6 +213,7 @@ function Batch({ start }: { start: BatchStart }) {
   const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
   const fixing = steps.find((step): step is FixStepItem => step.step === "fix") ?? null;
   const look = steps.find((each): each is LookStepItem => each.step === "look") ?? null;
+  const paint = steps.find((each): each is PaintStepItem => each.step === "paint") ?? null;
   const library = pictures.find((each) => each.id !== null);
   const ready =
     steps.length > 0 && takes.data !== undefined && !takes.data.needs.length && !put.isPending;
@@ -436,6 +445,14 @@ function Batch({ start }: { start: BatchStart }) {
             }
             setEditing(null);
           }}
+        />
+      )}
+      {editing === "paint" && (
+        <PaintDialog
+          step={paint}
+          onStep={(step) => setSteps(withStep(steps, step, "paint"))}
+          onRemove={paint ? () => removed("paint") : null}
+          onClose={() => setEditing(null)}
         />
       )}
       {editing === "cutout" && cut && (

@@ -18,6 +18,7 @@ import {
   type Look,
   type LookStep,
   lookAddress,
+  type Need,
   type PickedPart,
   type PictureDetails,
   type Plan,
@@ -65,8 +66,9 @@ export function changes(step: LookStep): boolean {
 /**
  * The Looks tab, as Picture-Looks draws it: every look as a small copy of this picture (going
  * through them, by the arrow keys or the mouse, shows each on the big picture), its strength, the
- * finishing touches, the owner's own looks (a .cube file imported, or the mix kept), and Save,
- * which makes the whole recipe: the look, and the size chosen on the Size tab.
+ * painting styles (a group of their own, styles-section.tsx), the finishing touches, the owner's
+ * own looks (a .cube file imported, or the mix kept), and Save, which makes the whole recipe: the
+ * look, the style, and the size chosen on the Size tab.
  */
 export function LooksTab(props: {
   picture: PictureDetails;
@@ -85,6 +87,8 @@ export function LooksTab(props: {
   fix?: FixStep | null;
   /** "Only on a part", as the page holds the parts. */
   part?: ReactNode;
+  /** The painting styles, as the page holds the painting chosen: a group of their own. */
+  styles?: ReactNode;
 }) {
   const { picture, step, onStep, onPoint } = props;
   const looks = useLooks();
@@ -148,6 +152,8 @@ export function LooksTab(props: {
         </div>
       </section>
 
+      {props.styles}
+
       <Touches step={step} onStep={onStep} />
 
       {props.part}
@@ -166,14 +172,20 @@ export function LooksTab(props: {
         recipe={props.recipe}
         plan={props.settling ? null : props.plan}
         ready={props.recipe !== null}
-        caption={
-          props.plan?.needs.length && !props.settling
-            ? `Save waits for ${props.plan.needs.map((need) => need.name).join(" and ")}, which the Size tab downloads.`
-            : undefined
-        }
+        caption={props.settling ? undefined : waitsFor(props.plan?.needs ?? [])}
       />
     </div>
   );
+}
+
+/** What Save waits for: a painting style's network downloads under Painting styles, the rest on
+ * the Size tab. */
+function waitsFor(needs: Need[]): string | undefined {
+  if (!needs.length) return undefined;
+  const names = needs.map((need) => need.name).join(" and ");
+  return needs.every((need) => need.id.startsWith("style-") || need.id === "microast")
+    ? `Save waits for ${names}, which downloads under Painting styles.`
+    : `Save waits for ${names}, which the Size tab downloads.`;
 }
 
 /** Every look as a small copy of the picture in it (as its edits leave it, once it has some),

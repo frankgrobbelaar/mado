@@ -4,6 +4,7 @@ import type {
   CutoutStepItem,
   FixStepItem,
   LookStepItem,
+  PaintStepItem,
   Settings,
   SizeStepItem,
   StepWords,
@@ -42,6 +43,18 @@ export function lookStep(look: string, before?: LookStepItem): LookStepItem {
     look,
     strength: before?.strength ?? 1,
     touches: before?.touches ?? { grain: 0, vignette: 0, glow: 0, fade: 0, leak: 0, dust: 0 },
+  };
+}
+
+/** A painting style step: Mado's style or the owner's, at its strength and with the colours chosen
+ * so far (all of it, the first time), a classic one at its own first setting. */
+export function paintStep(style: string, before?: PaintStepItem): PaintStepItem {
+  return {
+    step: "paint",
+    style,
+    strength: before?.strength ?? 1,
+    colours: before?.colours ?? false,
+    setting: before?.style === style ? before.setting : null,
   };
 }
 
@@ -84,21 +97,22 @@ export function keepsNothing(steps: BatchStep[]): boolean {
 /** The formats that keep see-through parts. */
 export const SEE_THROUGH: BatchSaving["format"][] = ["PNG", "WebP"];
 
-/** The steps with one put in its place (the subject cut out, the fixes, the size, then the
- * look), or taken out. */
+/** The steps with one put in its place (the subject cut out, the fixes, the size, the painting
+ * style, then the look), or taken out. */
 export function withStep(steps: BatchStep[], step: BatchStep | null, kind: BatchStep["step"]) {
   const rest = steps.filter((each) => each.step !== kind);
   const next = step ? [...rest, step] : rest;
   return next.sort((a, b) => ORDER.indexOf(a.step) - ORDER.indexOf(b.step));
 }
 
-const ORDER: BatchStep["step"][] = ["cutout", "fix", "size", "look"];
+const ORDER: BatchStep["step"][] = ["cutout", "fix", "size", "paint", "look"];
 
 /** What a step is called, before the engine's words for it come. */
 export const TITLES: Record<string, string> = {
   cutout: "Cut out the subject",
   fix: "Fix",
   size: "Make it for a screen",
+  paint: "A painting style",
   look: "A look",
   save: "Save",
 };
@@ -115,9 +129,11 @@ export function wordsFor(steps: BatchStep[], saving: BatchSaving): StepWords[] {
           ? step.size
           : step.step === "look"
             ? step.look
-            : step.step === "fix"
-              ? "Fix"
-              : "Cut out the subject",
+            : step.step === "paint"
+              ? step.style
+              : step.step === "fix"
+                ? "Fix"
+                : "Cut out the subject",
       amount: null,
     })),
     {

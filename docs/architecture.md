@@ -174,9 +174,10 @@ flowchart LR
 
 The Looks tab shows every look as a small copy of the picture and the one picked on the picture
 itself, with its strength and finishing touches; what the Edit, Size and Looks tabs set together
-is one recipe (`mado/core/recipe.py`: the edits, the size step, then the look step, any left out),
-made by one Save: edited, cropped or extended, made bigger, given its look and touches at that
-size (only on a part, when the look says so), then saved.
+is one recipe (`mado/core/recipe.py`: the edits, the fixes, the size step, the painting style,
+then the look step, any left out), made by one Save: edited, fixed, cropped or extended, made
+bigger, painted in its style, given its look and touches at that size (only on a part, when the
+look says so), then saved.
 Every look is a table of colours (a 3D LUT) run through Pillow's `Color3DLUT`; the owner's own
 (a `.cube` file imported, or a mix kept) are kept in the database. docs/stack/looks.md has how
 looks are made, what `.cube` files may be, and the times.
@@ -186,6 +187,35 @@ looks are made, what `.cube` files may be, and the times.
 | The rules | `mado/core/` (`grids`, `looks`, `cube`, `touches`, `recipe`) | Pure: a table of colours and keeping it small, Mado's looks made by code, reading a `.cube` file, the touches' shapes, the recipe of steps and its plan |
 | Laying it on | `mado/looks.py` | A look's one table, then the touches where they fall on the picture made, see-through parts and grey pictures kept as they are |
 | Your looks | `mado/own_looks.py` | Importing, keeping, renaming and deleting the owner's looks, and finding any look by its id |
+
+## Painting a picture in a style
+
+The Looks tab's painting styles are a group of their own beside the looks: Mado's four painters,
+the classic means drawn by code, and the owner's own styles (a picture's style kept); any picture
+can be the style. A style is the recipe's step after the size and before the look (`paint`): Save
+paints the picture made at a working size of about 1600 × 1200, whole, never in tiles, makes it
+the size made by plain resampling, mixes it with the picture at its strength (in the picture's
+own colours when asked), and then gives it its look and touches. The stage shows it the same
+way, so its strokes look as they will in the picture saved; the small copies are painted on the
+processor on a smaller canvas, so going through the styles never takes the card's memory. docs/stack/styles.md
+has the networks, the working size, the choices and what was measured.
+
+```mermaid
+flowchart LR
+    tab["Looks tab: painting styles"] -- "/pictures/{id}/styles/{style}" --> small["a small copy in each style"]
+    tab -- "/pictures/{id}/style" --> reader["MicroAST reads a picture's style (processor)"]
+    tab -- "/plan, /preview with the recipe's paint" --> painter["mado/painting.py: at the working size, the last few kept"]
+    painter -- "one session for the painters; MicroAST's own" --> models["ONNX Runtime, DirectML"]
+    tab -- "Save" --> job["a job: edits, fixes, size, paint, look, saved"]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/painting.py`, `mado/core/onnx_graph.py` | Pure: the styles and the painting step and its words, the working size and the square canvas a picture is mirrored out to, mixing at a strength and in the picture's own colours, the classic means (pencil, coloured pencil, oil paint, cartoon), whether a picture can give a style; an ONNX graph read and written again with the painters' weights taken out as inputs |
+| Painting | `mado/painting.py` | The painters' one session (made from the first painter's file, each painter's own weights read once) and MicroAST's two halves, each on the card when it has room for what it keeps, else the processor; a picture's style read on the processor; the last few paintings at the working size kept for the previews |
+| Your styles | `mado/own_styles.py` | Keeping, renaming and deleting the owner's styles (a picture's 512 numbers and a small copy of it, never the picture), and finding any style by its id |
+| Making | `mado/making.py` | The paint step of a Save: painted at the working size, made the picture's size, mixed, on a part when it says so, its see-through parts and a grey picture's greyness kept |
+| The API | `mado/api/styles.py`, `mado/api/making.py` | The styles, their small copies, reading and keeping a picture's style; the recipe's paint step in plans, previews and Save |
 
 ## Editing by clicking
 
@@ -230,7 +260,7 @@ flowchart LR
     tab["Fix tab"] -- "/pictures/{id}/fixes" --> found["a JPEG's quality, how dark it is"]
     tab -- "/plan, /preview with the recipe's fix" --> fix["mado/fixing.py: blocks, brighten, noise, blur, contrast"]
     fix -- "a tile at a time" --> models["FBCNN, SCUNet, NAFNet (ONNX Runtime, DirectML)"]
-    tab -- "Save" --> job["a job: edits, shape, fixes, size, look, saved"]
+    tab -- "Save" --> job["a job: edits, shape, fixes, size, paint, look, saved"]
 ```
 
 | Part | File | Does |
@@ -370,7 +400,7 @@ Change a contract on both sides in the same commit.
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
 | `POST /pictures/{id}/select` | Parts picked with clicks on the picture as its edits so far left it: a click starts a part, an Alt-click takes from the part it's in; each part's name ("Part 1"), its answer and the outline round them all; how long reading the picture took and how long it waited for the card (409 while SAM isn't downloaded, or the picture changed) |
 | `POST /pictures/{id}/edit` | Makes the edits (the last one new) so the previews show them: how long it took, where it ran, and whether an erase came out smooth where the picture has detail |
-| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its fixes, its size step and its look step, any of them none, the look on the whole picture or parts): its shape and the words for it, what it is, the model (not cleaning again what the fixes cleaned), its look, edits and fixes, about how long here (the fixes' share apart), the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
+| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its fixes, its size step, its painting style and its look step, any of them none, the style and the look on the whole picture or parts): its shape and the words for it, what it is, the model (not cleaning again what the fixes cleaned), its look (the style named with it), edits and fixes, about how long here (the fixes' share apart), where its style is painted and whether it's made so much bigger than it's painted that its strokes go soft, the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
 | `GET /pictures/{id}/fixes` | What the Fix tab suggests: a JPEG's own quality from its tables, how many stops dark it is, and whether it's grey, has see-through parts or wide colours, kept as they are |
 | `POST /pictures/{id}/preview` | The picture made, all of it fitted (from its screen-sized view, as JPEG) or a part at full detail (as WebP), before (stretched) or after (made, with its look and touches), with its colour profile and how long it took |
 | `POST /pictures/{id}/saving` | The name a picture made would be saved as ("Harbour at dusk (TV 8K, Warm film).jpg"), whether that's taken, and about how big it comes out |
@@ -380,6 +410,12 @@ Change a contract on both sides in the same commit.
 | `POST /pictures/{id}/looks/{look}` | The same, of the picture as its edits leave it, once the Edit tab has made some (409 once the picture changed) |
 | `POST /looks/import`, `POST /looks` | Importing a `.cube` file as a look; keeping the mix on the Looks tab (a look, its strength and its touches) as one |
 | `PUT /looks/{id}`, `DELETE /looks/{id}` | Renaming one of the owner's looks; deleting one (pictures made with it stay as they are; not while a recipe uses it, or pictures waiting in the queue are made with it) |
+| `GET /styles` | Mado's painting styles (the painters, each with its download, and the classic means, each with its one setting) and the owner's own; the download that reads a picture's style |
+| `GET /pictures/{id}/styles/{style}` | A small copy of the picture in a style at its full strength, from its thumbnail (WebP, kept by the window; 409 while its model isn't downloaded) |
+| `POST /pictures/{id}/styles/{style}` | The same, of the picture as its edits leave it, or in a picture's own style not kept (`picture`, its numbers in the body) |
+| `POST /pictures/{id}/style` | A picture's style, read by MicroAST from its colours and textures: its 512 numbers, what it's called and its version (422, with why, for a picture too small or too plain to give one; 409 while MicroAST isn't downloaded) |
+| `GET /styles/{id}/thumbnail` | The small copy of the picture one of the owner's styles came from |
+| `POST /styles`, `PUT /styles/{id}`, `DELETE /styles/{id}` | Keeping a picture's style as one of the owner's (its numbers and a small copy of the picture, never the picture); renaming one; deleting one (pictures painted with it stay as they are; not while a recipe uses it, or pictures waiting in the queue are painted with it) |
 | `GET /jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` | Pictures' own Saves (a picture's, or those under way; the queue's are `/queue`'s): stage, progress, time left, what they saved, why they didn't work; Cancel |
 | `GET /jobs/held`, `POST /jobs/{id}/try-now`, `POST /jobs/{id}/skip` | The pictures waiting while they're open in another app, the queue's and Saves'; trying one again now; skipping one |
 | `POST /batches/pictures` | The pictures a batch would be made of: ticked (`ids`), a folder's (`folder`, `dir`), what a search found (`q`), the favourites (with `q`, those it found among them), or the pictures in files and folders dropped or picked (`paths`), with those left out and why (`waiting`: a camera RAW left out only while Mado's RAW reader comes); a batch with camera RAW saves new pictures only (409 for Replace) |
@@ -435,7 +471,7 @@ Change a contract on both sides in the same commit.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
   picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), the words read
-  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited and what the fixes did, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
+  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited and what the fixes did, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their painting styles (`styles.json`, each style's numbers, and the small copy it's known by in `styles/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

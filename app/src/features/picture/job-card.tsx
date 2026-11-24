@@ -10,6 +10,7 @@ const STAGES = {
   shaping: "Drawing the new edges",
   fixing: "Fixing it",
   making: "Making it bigger",
+  painting: "Painting it",
   looking: "Giving it its look",
   saving: "Saving it",
 } as const;

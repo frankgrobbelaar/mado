@@ -36,7 +36,12 @@ class Job(ApiModel):
     fix: str | None  # what the fixes do: "took out noise"; None with no fixes
     how: Literal["new", "replace"]
     state: JobState
-    stage: Literal["reading", "editing", "shaping", "fixing", "making", "looking", "saving"] | None
+    stage: (
+        Literal[
+            "reading", "editing", "shaping", "fixing", "making", "painting", "looking", "saving"
+        ]
+        | None
+    )
     progress: float  # 0 to 1
     seconds_left: float | None
     queued_at: str

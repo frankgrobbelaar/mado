@@ -16,6 +16,7 @@ import {
   type FixStep,
   type Job,
   type LookStep,
+  type PaintStep,
   type Part,
   type PictureDetails,
   type Place,
@@ -36,6 +37,8 @@ import {
   usePictureJobs,
   usePlan,
   useReadAgain,
+  useStyles,
+  useTools,
 } from "@/lib/engine";
 import { showInFolder, useExplorer } from "@/lib/explorer";
 import { madeWith, size, split, stem, takenOn } from "@/lib/format";
@@ -51,8 +54,10 @@ import { LooksStage } from "./looks-stage";
 import { changes, OnlyOnAPart, ORIGINAL, PLAIN, TOUCHES } from "./looks-tab";
 import { NeighbourStrip } from "./neighbour-strip";
 import { LookOnly, WhereItLives } from "./outside";
+import { networkOf, type PictureStyle, painted, styleName } from "./painting";
 import { SizeStage } from "./size-stage";
 import { Stage, type Zoom } from "./stage";
+import { StylesSection } from "./styles-section";
 import { type Tool, ToolsColumn } from "./tools-column";
 
 // Controls that keep the arrow keys to themselves.
@@ -95,11 +100,15 @@ export function PicturePage() {
   const navigate = useNavigate();
   const [zoom, setZoom] = useState<Zoom>("fit");
   const [tool, setTool] = useState<Tool>("size");
-  // The size and the look chosen stay from picture to picture; what the picture is and the point
-  // a crop is around are each picture's own.
+  // The size, the look and the painting style chosen stay from picture to picture (a picture's
+  // style read but not kept too); what the picture is and the point a crop is around are each
+  // picture's own.
   const [sized, setSized] = useState<SizeStep | null>(null);
   const [look, setLook] = useState<LookStep>(PLAIN);
   const [pointed, setPointed] = useState<LookStep | null>(null);
+  const [paint, setPaint] = useState<PaintStep | null>(null);
+  const [pointedPaint, setPointedPaint] = useState<PaintStep | null>(null);
+  const [pictureStyle, setPictureStyle] = useState<PictureStyle | null>(null);
   const [held, setHeld] = useState(false);
   // The edits are each picture's own: another picture starts with none, as the parts picked do.
   const [edits, setEdits] = useState<Edit[]>([]);
@@ -122,6 +131,7 @@ export function PicturePage() {
   if (shownFor !== id) {
     setShownFor(id);
     setPointed(null);
+    setPointedPaint(null);
     setEdits([]);
     setEditedOn(null);
     setEditedSince(null);
@@ -133,6 +143,7 @@ export function PicturePage() {
       // A picture Mado just made, opened from its job: shown as it is, not made again.
       setSized(null);
       setLook(PLAIN);
+      setPaint(null);
     } else if (sized && (sized.focus || sized.kind)) {
       setSized({ ...sized, focus: null, kind: null });
     }
@@ -167,9 +178,12 @@ export function PicturePage() {
   const picking = usePicking(id, version, edits, { keyedByEdits: true });
   const lookPicking = usePicking(id, version, edits, { keyedByEdits: false });
   const editing = useEdit();
-  // The plan follows the look and the fixes once they stop changing (a strength being dragged).
+  // The plan follows the look, the fixes and the style once they stop changing (a strength being
+  // dragged).
   const settled = useSettled(look, 300);
   const settledFix = useSettled(fix, 300);
+  const settledPaint = useSettled(paint, 300);
+  const settling = settled !== look || settledFix !== fix || settledPaint !== paint;
   // A picture opened next starts with no fixes: the last one's, still settling, never reach it.
   const fixStep = hasFix(fix) && hasFix(settledFix) ? settledFix : null;
   const ready = picture.data?.state === "ready";
@@ -179,14 +193,18 @@ export function PicturePage() {
       ? { ...settled, parts: lookParts }
       : settled
     : null;
+  // The style goes on the parts the look does ("Only on a part" is the Looks tab's); none chosen
+  // goes at once, as the fixes do.
+  const paintStep = paint ? painted(settledPaint, lookParts) : null;
   const editStep: EditStep | null = edits.length ? { version: editedOn ?? version, edits } : null;
-  // Parts a look goes on are tied to the picture as it is, as edits are: a Save that finds it
-  // changed saves nothing.
-  const recipeEdit = editStep ?? (looked?.parts?.length ? { version, edits: [] } : null);
+  // Parts a look or a style goes on are tied to the picture as it is, as edits are: a Save that
+  // finds it changed saves nothing.
+  const onParts = Boolean(looked?.parts?.length || paintStep?.parts?.length);
+  const recipeEdit = editStep ?? (onParts ? { version, edits: [] } : null);
   // A paste can be saved as it is: nothing chosen is still something to save.
   const recipe: Recipe | null =
-    ready && (sized || looked || editStep || fixStep)
-      ? fixed({ edit: recipeEdit, size: sized, look: looked }, fixStep)
+    ready && (sized || looked || editStep || fixStep || paintStep)
+      ? fixed({ edit: recipeEdit, size: sized, paint: paintStep, look: looked }, fixStep)
       : ready && picture.data?.pasted
         ? AS_IT_IS
         : null;
@@ -453,6 +471,7 @@ export function PicturePage() {
                 sized={sized}
                 plan={plan.data ?? null}
                 look={pointed ?? look}
+                paint={pointedPaint ?? paint}
                 held={held}
                 outline={lookPicking.picked.outline}
                 parts={lookParts}
@@ -512,6 +531,7 @@ export function PicturePage() {
                 zoom={zoom}
                 sized={sized}
                 look={looked}
+                paint={paintStep}
                 plan={sized ? (plan.data ?? null) : null}
                 onFocus={(focus) => sized && setSized({ ...sized, focus })}
               />
@@ -542,9 +562,21 @@ export function PicturePage() {
           onPoint={setPointed}
           recipe={recipe}
           plan={plan}
-          settling={settled !== look || settledFix !== fix}
+          settling={settling}
           edited={editStep}
           fixed={fixStep}
+          styles={
+            <StylesSection
+              picture={picture.data}
+              edit={editStep}
+              paint={paint}
+              onPaint={setPaint}
+              onPoint={setPointedPaint}
+              chosen={pictureStyle}
+              onChosen={setPictureStyle}
+              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+            />
+          }
           part={
             <OnlyOnAPart
               parts={lookPicking.picked.parts}
@@ -563,7 +595,7 @@ export function PicturePage() {
               onFix={setFix}
               recipe={recipe}
               plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
-              settling={settled !== look || settledFix !== fix}
+              settling={settling}
             />
           }
           edit={
@@ -604,7 +636,7 @@ export function PicturePage() {
               onCutQuality={setCutQuality}
               recipe={recipe}
               plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
-              settling={settled !== look || settledFix !== fix}
+              settling={settling}
             />
           }
         />
@@ -667,6 +699,8 @@ function LooksOnStage(props: {
   sized: SizeStep | null;
   plan: Plan | null;
   look: LookStep;
+  /** The painting style shown: the one pointed at, or the one picked; null for none. */
+  paint: PaintStep | null;
   held: boolean;
   /** Round the parts the look goes on, as fractions of the picture (×1000). */
   outline: string;
@@ -675,6 +709,13 @@ function LooksOnStage(props: {
 }) {
   const { picture, plan, look } = props;
   const looks = useLooks();
+  const styles = useStyles();
+  const tools = useTools();
+  const paint = painted(props.paint, props.parts);
+  // A style whose network is still to download shows once it's here: till then, the picture
+  // without it, and why.
+  const network = paint ? networkOf(paint, styles.data) : null;
+  const fetching = tools.data?.find((each) => each.id === network && each.state !== "ready");
   const explorer = useExplorer();
   if (picture.state !== "ready") {
     return (
@@ -692,8 +733,17 @@ function LooksOnStage(props: {
   const touched = TOUCHES.filter((touch) => look.touches[touch.name] > 0)
     .map((touch) => touch.label.toLowerCase())
     .join(", ");
+  // The style first, as it's made before the look: "After Monet · 80% · Warm film · 60%".
+  const style = paint
+    ? `${styleName(paint, styles.data)} · ${Math.round(paint.strength * 100)}%`
+    : "";
   const label = [
-    look.look === ORIGINAL ? "Original" : `${name} · ${Math.round(look.strength * 100)}%`,
+    style,
+    look.look === ORIGINAL
+      ? style
+        ? ""
+        : "Original"
+      : `${name} · ${Math.round(look.strength * 100)}%`,
     touched,
     props.parts.length > 0 ? `only on ${props.parts.length === 1 ? "a part" : "parts"}` : "",
   ]
@@ -718,13 +768,20 @@ function LooksOnStage(props: {
         size={decided}
         plan={decided ? plan : null}
         look={changes(look) ? (props.parts.length ? { ...look, parts: props.parts } : look) : null}
+        paint={fetching ? null : paint}
+        paintPlace={plan?.paintPlace ?? null}
+        paintWaits={
+          fetching
+            ? `The style shows once ${fetching.name} is downloaded, under Painting styles`
+            : null
+        }
         label={label}
         held={props.held}
         outline={props.outline}
         onPick={props.onPick}
       />
       <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
-        <span>Every look is shown on this picture as you go through them</span>
+        <span>Every look and style is shown on this picture as you go through them</span>
         <span>Nothing changes until you save</span>
       </p>
     </>
@@ -846,6 +903,7 @@ function OnStage({
   zoom,
   sized,
   look,
+  paint,
   plan,
   onFocus,
 }: {
@@ -855,6 +913,7 @@ function OnStage({
   zoom: Zoom;
   sized: SizeStep | null;
   look: LookStep | null;
+  paint: PaintStep | null;
   plan: Plan | null;
   onFocus: (focus: [number, number]) => void;
 }) {
@@ -910,6 +969,7 @@ function OnStage({
           plan={plan}
           size={sized}
           look={look}
+          paint={paint}
           zoom={zoom}
           onFocus={onFocus}
         />

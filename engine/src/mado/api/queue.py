@@ -30,6 +30,7 @@ _STEPS = {
     "cutout": "Cut out the subject",
     "fix": "Fix",
     "size": "Make it for a screen",
+    "paint": "A painting style",
     "look": "A look",
 }
 # A job's stage as the step of its batch it's at: the edits are a batch's cut-out; reading the
@@ -39,6 +40,7 @@ _STAGE_STEP = {
     "fixing": "fix",
     "shaping": "size",
     "making": "size",
+    "painting": "paint",
     "looking": "look",
 }
 

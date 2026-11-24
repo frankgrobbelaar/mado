@@ -3,27 +3,31 @@ import {
   type EditStep,
   type FixStep,
   type LookStep,
+  type PaintStep,
   type PictureDetails,
   type Plan,
   pictureAddress,
   type SizeStep,
   usePictureImage,
   usePreview,
+  useQueueNow,
 } from "@/lib/engine";
 import { stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { brightening, fixed } from "./fixes";
+import { useSlow } from "./size-stage";
 import { fitted, useBox } from "./stage-box";
 
 const LABEL = "absolute rounded-4 bg-black/70 px-2.5 py-1 text-12 text-white";
 const STEP = 128; // the preview's size moves in steps this big, so a window resized a little asks again only once
 
 /**
- * The picture with its look, as Picture-Looks draws it: fitted to the stage, every look shown on
- * this picture as the list is gone through, its touches where they'll fall on the picture saved.
- * With a size chosen it shows the picture as that makes it (cropped, or on its extended canvas).
- * Holding "Hold to see the original" shows it without the look. The last preview stays while the
- * next is made. A click picks a part for "Only on a part" (Alt takes away), on the picture as its
+ * The picture with its look, as Picture-Looks draws it: fitted to the stage, every look and
+ * painting style shown on this picture as the lists are gone through, its touches where they'll
+ * fall on the picture saved. With a size chosen it shows the picture as that makes it (cropped, or
+ * on its extended canvas). Holding "Hold to see the original" shows it without its look or style.
+ * The last preview stays while the next is made; a style waiting for the graphics card while the
+ * queue has it says so. A click picks a part for "Only on a part" (Alt takes away), on the picture as its
  * edits leave it, through the shape the size step gives it; the part is hatched, as the board
  * draws it.
  */
@@ -39,6 +43,12 @@ export function LooksStage(props: {
   plan: Plan | null;
   /** The look shown: the one pointed at, or the one picked; null when it changes nothing. */
   look: LookStep | null;
+  /** The painting style shown, as the look is; null with none. */
+  paint?: PaintStep | null;
+  /** Where the style chosen is painted, as the plan says: on the card, the queue may have it. */
+  paintPlace?: "card" | "processor" | null;
+  /** What the style waits for: its network, still to download. */
+  paintWaits?: string | null;
   /** What the label over the picture says of it: "Warm film · 60%". */
   label: string;
   held: boolean;
@@ -47,6 +57,8 @@ export function LooksStage(props: {
   onPick: (x: number, y: number, alt: boolean) => void;
 }) {
   const { picture, plan, look, held } = props;
+  const paint = props.paint ?? null;
+  const styled = look !== null || paint !== null;
   const lama = plan?.needs.find((each) => each.id === "lama");
   // A size whose new edges wait for LaMa shows the whole picture meanwhile.
   const size = props.size && plan && !lama ? props.size : null;
@@ -73,11 +85,18 @@ export function LooksStage(props: {
   );
   const looked = usePreview(
     picture.id,
-    look && box.measured
-      ? { recipe: fixed({ edit, size, look }, fix), side: "after", fit: wanted }
+    styled && box.measured
+      ? { recipe: fixed({ edit, size, paint, look }, fix), side: "after", fit: wanted }
       : null,
     { keep: true },
   );
+  // A style painted on the graphics card waits a tile while the queue's picture has it.
+  const slow = useSlow(looked.busy && paint !== null);
+  const queue = useQueueNow().data;
+  const waiting =
+    slow && props.paintPlace === "card" && queue?.working
+      ? `Waiting for the graphics card: ${queue.batch} lets it go after the tile it's on`
+      : null;
   // What's shown is the picture itself, or the part of it (or more) the size step makes.
   const canvas = size && plan ? plan.canvas : { x: 0, y: 0, width: 1, height: 1 };
   const hatch = useId();
@@ -111,7 +130,7 @@ export function LooksStage(props: {
         ) : (
           <span role="status" aria-label="Loading the picture" className="absolute inset-0" />
         )}
-        {looked.address && look && (
+        {looked.address && styled && (
           <img
             src={looked.address}
             alt={`${stem(picture.name)} in ${props.label}`}
@@ -156,17 +175,21 @@ export function LooksStage(props: {
         )}
       </div>
       <span className={cn(LABEL, "top-3 left-3 font-semibold")}>
-        {held || !look ? "Original" : props.label}
+        {held || !styled ? "Original" : props.label}
       </span>
       {lama && (
         <span className={cn(LABEL, "bottom-3 left-3")}>
           The new edges show once {lama.name} is downloaded, on the Size tab
         </span>
       )}
-      {!lama && ((look && looked.busy) || (size && plain.busy)) && !problem && (
+      {!lama && ((styled && looked.busy) || (size && plain.busy)) && !problem ? (
         <span role="status" className={cn(LABEL, "bottom-3 left-3")}>
-          Making the preview…
+          {waiting ?? "Making the preview…"}
         </span>
+      ) : (
+        !lama &&
+        !problem &&
+        props.paintWaits && <span className={cn(LABEL, "bottom-3 left-3")}>{props.paintWaits}</span>
       )}
       {problem && (
         <p role="alert" className={cn(LABEL, "bottom-3 left-3 max-w-[80%] bg-black/80")}>

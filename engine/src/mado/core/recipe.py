@@ -3,15 +3,16 @@ it (a plan). Pure.
 
 The steps, in the order they're made: the edits (erased, cut out, blurred behind: the Edit tab,
 mado/core/edits.py), the fixes (noise, blur, JPEG blocks and darkness taken out: the Fix tab,
-mado/core/fixes.py), the size (cropped or extended, then made bigger: the Size tab) and a look
-with its finishing touches, on the whole picture or only a part (the Looks tab); then the picture
-is saved. The fixes are made on the part of the picture the size keeps, before it grows: noise
-and blocks come out first, and the upscaler, given a picture cleaned already, doesn't clean it
-again (Fast keeps what's left, with its weak-denoise twin). What the fixes make goes by what the
-picture measures: a picture that isn't dark isn't brightened, and a batch's JPEG blocks come out
-as hard as each JPEG was squeezed. Any step can be left out. Each step
-is a value that says all it does, so a recipe can be kept by name and run on many pictures ("4K,
-then Warm film at 60%, then JPEG into Edited").
+mado/core/fixes.py), the size (cropped or extended, then made bigger: the Size tab), a painting
+style (mado/core/painting.py) and a look with its finishing touches, each on the whole picture
+or only a part (the Looks tab); then the picture is saved. The fixes are made on the part of the
+picture the size keeps, before it grows: noise and blocks come out first, and the upscaler,
+given a picture cleaned already, doesn't clean it again (Fast keeps what's left, with its
+weak-denoise twin). What the fixes make goes by what the picture measures: a picture that isn't
+dark isn't brightened, and a batch's JPEG blocks come out as hard as each JPEG was squeezed. The
+painting comes before the look, so a look grades the painted picture, and the touches go on top
+of both. Any step can be left out. Each step is a value that says all it does, so a recipe can
+be kept by name and run on many pictures ("4K, then Warm film at 60%, then JPEG into Edited").
 
 The ways of making a picture bigger: the AI model, four times bigger, then resized exactly to
 the size made ("ai"); pixel art grown by repeating its pixels ("pixels"); a screenshot resized
@@ -33,6 +34,10 @@ from mado.core.framing import Frame, Shape, frame, note
 from mado.core.kind import Kind
 from mado.core.looks import Look, changes, label, phrase
 from mado.core.models import SCALE, Model, Quality, model_for
+from mado.core.painting import Painting
+from mado.core.painting import changes as paints
+from mado.core.painting import label as paint_label
+from mado.core.painting import phrase as paint_phrase
 from mado.core.quality import phrase as size_phrase
 from mado.core.sizes import Size, turned
 from mado.core.touches import NONE, Touches
@@ -70,6 +75,7 @@ class Recipe:
     styling: Styling | None = None
     editing: Editing | None = None  # made first, on the picture at its own size
     fixing: Fixing | None = None  # made next, on the part the size keeps, before it grows
+    painting: Painting | None = None  # made after the size, before the look
 
 
 @dataclass(frozen=True)
@@ -101,15 +107,18 @@ class Plan:
     fix_quality: Quality = "fast"  # JPEG blocks at Fast (SCUNet) or Best (FBCNN), as decided
     cleaned_first: bool = False  # the fixes clean it, so the upscaler doesn't clean it again
     fix_stops: float = 0.0  # how dark the fixes take it for: as measured, or MOST_STOPS till then
+    painting: Painting | None = None  # the painting made after the size, when it changes it
 
     @property
     def empty(self) -> bool:
-        """Nothing to make: no edits, no fixes, no size, and no look that changes the picture."""
+        """Nothing to make: no edits, no fixes, no size, no painting and no look that changes
+        the picture."""
         return (
             self.method == "keep"
             and self.styling is None
             and self.editing is None
             and self.fixing is None
+            and self.painting is None
         )
 
 
@@ -139,10 +148,16 @@ def plan(
     styling = recipe.styling
     if styling is not None and not changes(styling.look, styling.strength, styling.touches):
         styling = None  # a look that changes nothing isn't a step
-    look = phrase(styling.look, styling.strength, styling.touches) if styling else None
-    if look and styling and styling.parts:
-        look = f"{look} on {'a part' if len(styling.parts) == 1 else 'parts'}"
-    looks_as = label(styling.look, styling.strength, styling.touches) if styling else None
+    painting = recipe.painting if recipe.painting and paints(recipe.painting) else None
+    look = said_with(painting, styling)
+    looks_as = ", ".join(
+        each
+        for each in (
+            paint_label(painting) if painting else None,
+            label(styling.look, styling.strength, styling.touches) if styling else None,
+        )
+        if each
+    )
     editing = recipe.editing if recipe.editing and recipe.editing.edits else None
     edited = edit_label(editing)
     edit_words = edit_phrase(editing)
@@ -185,6 +200,7 @@ def plan(
             fix_quality=fix_quality,
             cleaned_first=cleaned,
             fix_stops=dark,
+            painting=painting,
         )
     target = turned(sizing.size, width, height)
     focus = sizing.focus or found_focus
@@ -219,7 +235,29 @@ def plan(
         fix_quality=fix_quality,
         cleaned_first=cleaned,
         fix_stops=dark,
+        painting=painting,
     )
+
+
+def said_with(painting: Painting | None, styling: Styling | None) -> str | None:
+    """A painting and a look as Save and History say them, after "with": "After Hokusai at 80%
+    and Warm film at 60%" (", and" when the painting's words have a comma of their own), each
+    "on a part" when it is; None with neither."""
+    looked = phrase(styling.look, styling.strength, styling.touches) if styling else None
+    if looked and styling and styling.parts:
+        looked = f"{looked} {_on(styling.parts)}"
+    painted = (
+        paint_phrase(painting, on=_on(painting.parts) if painting.parts else "")
+        if painting
+        else None
+    )
+    if painted and looked:
+        return f"{painted}{',' if ',' in painted else ''} and {looked}"
+    return painted or looked
+
+
+def _on(parts: tuple[object, ...]) -> str:
+    return f"on {'a part' if len(parts) == 1 else 'parts'}"
 
 
 def _phrase(size: Size) -> str:

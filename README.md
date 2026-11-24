@@ -19,7 +19,7 @@ on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, paints them after a painter or in any picture's style, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
@@ -53,11 +53,13 @@ two to four times bigger looks real, while 8K from a thumbnail looks painted.
 
 Go through the looks and each one shows on your picture as you pass it: film, cinematic, black and
 white, golden hour, night neon, duotone and more. Set how strong it is, then add finishing touches:
-grain, a vignette, glow, fade, light leaks or dust. Click the sky, a person or the background to
-give just that part a look. Keep a mix you like as a look of your own, or bring in the .cube files
-you already use.
+grain, a vignette, glow, fade, light leaks or dust. Paint it after Van Gogh, Hokusai, Monet or
+Seurat, in the style of any picture of yours, or as a pencil sketch, oil paint or a cartoon, with
+the look and touches on top. Click the sky, a person or the background to give just that part a
+look or a style. Keep a mix you like as a look of your own, or bring in the .cube files you
+already use.
 
-![Looks: Warm film on just the sky, with grain and a vignette, and every look shown on the picture](docs/readme/looks.png)
+![Looks: Warm film on just the sky, with grain and a vignette, every look shown on the picture, and the painting styles under them](docs/readme/looks.png)
 
 ### 3. Edit by clicking
 
@@ -170,6 +172,8 @@ it, and each runs on your PC.
 | SCUNet | Takes noise out, and the noise brightening a dark photo brings out; JPEG blocks at Fast (downloaded the first time, 73 MB) | Apache-2.0, MIT |
 | FBCNN | Best: takes JPEG blocks and the halos round letters out, as hard as you choose (downloaded the first time, 288 MB) | Apache-2.0, MIT |
 | NAFNet | Mends blur from a shaking camera or a moving subject, held back where a picture is flat (downloaded the first time, 69 MB) | MIT, Apache-2.0 |
+| Mado's painting styles: After Van Gogh, After Hokusai, After Monet, After Seurat | Paint a picture after a painter. Mado trained them itself on public-domain paintings, which aren't in Mado (downloaded the first time each is asked for, 6.9 MB each) | MIT, the network's design PyTorch examples' (BSD-3-Clause) |
+| MicroAST | Paints a picture in the style of any picture of yours, from its colours and textures (downloaded the first time, 2 MB) | MIT |
 
 They run on ONNX Runtime (MIT) with Microsoft's DirectML, which Mado carries under Microsoft's
 terms.

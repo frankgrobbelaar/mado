@@ -30,8 +30,11 @@ library or from outside it (`/pictures/:id`: where it lives in place of the brea
 its folder to the library"; pasted; or in a quarantine, to look at only:
 `features/picture/outside.tsx`), the picture large at Fit, 100% or 400%, its neighbours, and its
 tools column: the Size tab, with the shape over the picture, before and after at full detail when
-zoomed; the Looks tab, every look as a small copy of the picture, its strength, the finishing
-touches, "Only on a part", the owner's own looks, and "Hold to see the original"; the Edit tab
+zoomed; the Looks tab, every look as a small copy of the picture, its strength, the painting
+styles (`styles-section.tsx`, `painting.ts`: Mado's painters, the classic means and the owner's
+own styles as small copies, a picture of the owner's as the style and "Keep as a style", strength,
+the picture's own colours, a classic one's setting, each model downloaded the first time), the
+finishing touches, "Only on a part", the owner's own looks, and "Hold to see the original"; the Edit tab
 (`edit-tab.tsx`, `edit-stage.tsx`, `editing.ts`: Select, Erase and Cut out, what's picked and what
 to do with it, the brush, undo and Start again, each model downloaded the first time); the Fix tab
 (`fix-tab.tsx`, `fix-stage.tsx`, `fixes.ts`: noise, blur, JPEG blocks and dark photos, each with its
@@ -132,7 +135,8 @@ README), shoot it from a test, as `src/test/readme-screens.test.tsx` shoots the 
 - Draw it as the other tests do, in `AppShell` with made-up data, and call `dump("name")` from
   `src/test/shots.ts` once it has settled. Pictures come as `scene("harbour")` answers (the scenes
   in `scripts/readme-scenes.mjs`, drawn by code), after `drawScenes()`; call
-  `measuredBoxes("name")` before drawing, for a stage that fits a picture to its space.
+  `measuredBoxes("name")` before drawing, for a stage that fits a picture to its space. An
+  element marked `data-shot-top` as it's dumped is shot scrolled to the top of its column.
 - Wrap it in `describe.runIf(SHOTS)`, so it runs only when asked: it can stay in the repo.
 - From the repo's root:
   `node scripts/readme-pictures.mjs --screens app/src/features/<area>/<name>.test.tsx --out <folder>`

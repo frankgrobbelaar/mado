@@ -8,6 +8,7 @@ from mado.core.fixes import Fixing
 from mado.core.kind import Kind
 from mado.core.looks import Look, mado_look
 from mado.core.models import BEST_DRAWING, BEST_PHOTO, FAST, FAST_GRAIN, model_for
+from mado.core.painting import Painting, mado_style
 from mado.core.recipe import Plan, Recipe, Sizing, Styling, plan
 from mado.core.sizes import resolve
 from mado.core.touches import Touches
@@ -263,3 +264,60 @@ def test_the_edits_then_the_fixes_then_the_size_name_a_new_picture():
 
     assert made.named == "Erased, Brightened, TV 8K"
     assert made.fix == "brightened it"
+
+
+def _painting(
+    style_id: str, strength: float = 1.0, *, colours: bool = False, parts: tuple[Part, ...] = ()
+) -> Painting:
+    found = mado_style(style_id)
+    assert found is not None
+    return Painting(found, strength, colours=colours, parts=parts)
+
+
+def test_a_painting_alone_keeps_the_pictures_size_and_is_named_after_its_painter():
+    made = _plan(Recipe(painting=_painting("van-gogh", 0.8)))
+
+    assert not made.empty
+    assert made.method == "keep"
+    assert (made.width, made.height) == (4032, 3024)
+    assert made.named == "After Van Gogh"
+    assert made.look == "After Van Gogh at 80%"
+    assert made.painting is not None
+
+
+def test_a_size_a_painting_and_a_look_are_one_recipe_said_in_the_order_theyre_made():
+    made = _plan(
+        Recipe(
+            Sizing(resolve("tv-8k")),
+            Styling(_look("warm-film"), 0.6, Touches(grain=20)),
+            painting=_painting("hokusai", 0.8, colours=True),
+        )
+    )
+
+    assert made.named == "TV 8K, After Hokusai, Warm film"
+    assert made.look == "After Hokusai at 80%, in the picture's own colours, and Warm film at 60%"
+    assert made.made_for == "TV 8K"
+
+
+def test_a_painting_at_no_strength_isnt_a_step():
+    made = _plan(Recipe(painting=_painting("oil", 0.0)))
+
+    assert made.empty
+    assert made.painting is None
+    assert made.look is None
+
+
+def test_a_painting_on_a_part_says_so():
+    made = _plan(Recipe(painting=_painting("cartoon", 1.0, parts=(BOAT,))))
+
+    assert made.look == "Cartoon on a part"
+    own = _plan(Recipe(painting=_painting("hokusai", 0.9, colours=True, parts=(BOAT, BOAT))))
+    assert own.look == "After Hokusai at 90% on parts, in the picture's own colours"
+
+
+def test_fixes_go_before_the_size_and_a_painting_after_it_in_the_name():
+    made = _plan(
+        Recipe(Sizing(resolve("tv-8k")), fixing=Fixing(noise=0.8), painting=_painting("monet"))
+    )
+
+    assert made.named == "Cleaned, TV 8K, After Monet"

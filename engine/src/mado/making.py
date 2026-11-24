@@ -11,9 +11,12 @@
 5. Making: four times bigger through the AI model a tile at a time, then resized exactly, or
    without AI for pixel art, screenshots and a picture already big enough (mado/upscale.py).
    With no size, the picture keeps its pixels.
-6. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
+6. Painting: a painting style (mado/painting.py): a painter's or a picture's style painted at
+   the working size and made the size made by plain resampling, a classic means drawn at that
+   size; mixed with the picture at its strength; only on a part, as a look is.
+7. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
    never grow into blobs; only on a part, through its mask placed as the picture is.
-7. Saving: as a new picture beside the original (or in a folder the owner chose), named after
+8. Saving: as a new picture beside the original (or in a folder the owner chose), named after
    it with what it was made for and with, or in the original's place, the original going into
    quarantine; either way written beside first, checked, then put in place, and in History.
 
@@ -37,7 +40,7 @@ import numpy as np
 import numpy.typing as npt
 from PIL import Image
 
-from mado import encode, hardware, history, own_looks
+from mado import encode, hardware, history, own_looks, own_styles
 from mado.ai import BIREFNET, FIX_OVERLAP, FIX_TILE, LAMA, MIGAN, SAM, Ai, Timer
 from mado.core.edits import (
     Blur,
@@ -60,6 +63,7 @@ from mado.core.kind import Kind, guess
 from mado.core.looks import Look
 from mado.core.models import Quality
 from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
+from mado.core.painting import Painting, Style, classic, mixed
 from mado.core.quality import Format
 from mado.core.recipe import Plan, Recipe, Sizing, Styling, plan
 from mado.core.sizes import DPI, Screen, SizeError, resolve
@@ -83,6 +87,7 @@ from mado.jobs import (
 )
 from mado.libraw import Reader
 from mado.looks import seed_of, styled
+from mado.painting import Painter
 from mado.pictures import (
     Command,
     InUseError,
@@ -194,6 +199,17 @@ class Naming:
     def of(cls, made: Plan) -> Naming:
         return cls(
             made.width, made.height, made.named, made.made_for, made.look, made.edit, made.fix
+        )
+
+
+class MissingStyleError(ValueError):
+    """A recipe's painting style that isn't there any more (the owner deleted it, or it was left
+    out of Mado), with a sentence."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Its painting style isn't in your styles any more, so nothing was made and the "
+            "original is as it was. Pick another style, then save again."
         )
 
 
@@ -421,7 +437,8 @@ def make(
     ModelError when a model can't run, EditingError for edits Mado can't make."""
     edits = made.editing.edits if made.editing else ()
     parts = made.styling.parts if made.styling else ()
-    if (edits or parts) and editor is None:
+    painted_parts = made.painting.parts if made.painting else ()
+    if (edits or parts or painted_parts) and editor is None:
         raise EditingError("Mado can't make edits here.")
     edited = image
     if edits and editor is not None:
@@ -444,6 +461,16 @@ def make(
         if made.method == "keep" and made.fixing is None
         else _sized(edited, made, ai, report, stop, timer, measured, fix_timer)
     )
+    if made.painting is not None:
+        if stop():
+            raise StoppedError
+        report("painting", 0.0)
+        painted = paint(sized, made.painting, ai.painter)
+        if painted_parts and editor is not None:
+            mask = editor.look_mask(image, key, edits, painted_parts, keep=keep)
+            painted = only_on(painted, sized, placed(mask, made, painted.size))
+        report("painting", 1.0)
+        sized = painted
     if made.styling is None:
         return Made(sized, made)
     report("looking", 0.0)
@@ -453,6 +480,49 @@ def make(
         looked = only_on(looked, sized, placed(mask, made, looked.size))
     report("looking", 1.0)
     return Made(looked, made)
+
+
+def paint(
+    image: Image.Image,
+    painting: Painting,
+    painter: Painter,
+    *,
+    working: Image.Image | None = None,
+    reach: float | None = None,
+) -> Image.Image:
+    """The picture, as the size step left it, with its painting: a painter's or a picture's style
+    painted at the working size (`working`, when a preview has it already) and made this size by
+    plain resampling, or a classic means drawn at this size (`reach`: a hundredth of the picture
+    made's short side, in these pixels, when this isn't all of it); mixed with the picture at its
+    strength, in the picture's own colours when asked. Its see-through parts and colour profile
+    are kept, and a grey picture comes back grey when the painting leaves it so. Raises
+    ModelError when the style's network can't run."""
+    profile = image.info.get("icc_profile")
+    grey = image.mode in GREY_MODES
+    pixels, alpha = split_alpha(image)
+    picture = Image.fromarray(pixels, "RGB")
+    style = painting.style
+    if style.kind == "classic":
+        drawn = classic(picture, style, painting.amount, reach=reach or min(picture.size) / 100)
+    else:
+        small = working if working is not None else painter.paint(picture, style)
+        drawn = small.resize(picture.size, Image.Resampling.LANCZOS)
+    result = mixed(drawn, picture, painting.strength, colours=painting.keeps_colours)
+    if alpha is not None:
+        result.putalpha(Image.fromarray(alpha, "L"))
+    elif grey and _all_grey(result):
+        result = result.convert("L")
+    if isinstance(profile, bytes):
+        result.info["icc_profile"] = profile
+    return result
+
+
+def _all_grey(image: Image.Image) -> bool:
+    pixels = np.asarray(image)
+    return bool(
+        np.array_equal(pixels[..., 0], pixels[..., 1])
+        and np.array_equal(pixels[..., 1], pixels[..., 2])
+    )
 
 
 def placed(mask: npt.NDArray[np.uint8], made: Plan, size: tuple[int, int]) -> Image.Image:
@@ -838,13 +908,17 @@ def _unsaved(folder: Path, error: OSError) -> str:
 
 
 def recipe_from(
-    data: dict[str, object], screens: list[Screen], looks: Callable[[str], Look | None]
+    data: dict[str, object],
+    screens: list[Screen],
+    looks: Callable[[str], Look | None],
+    styles: Callable[[dict[str, object]], Style | None] = lambda _asked: None,
 ) -> Recipe:
-    """A recipe as a job keeps it (JSON: its edit step, its size step and its look step, any of
-    them none), the owner's screens naming theirs and `looks` finding a look by its id. A job
-    Mado 0.1 kept is its size step alone, flat. Raises SizeError for a size Mado can't make,
-    MissingLookError for a look that isn't there any more, EditError for edits it can't make,
-    FixError for fixes it can't read."""
+    """A recipe as a job keeps it (JSON: its edit, fix, size, paint and look steps, any of them
+    none), the owner's screens naming theirs, `looks` finding a look by its id and `styles` a
+    painting step's style (mado/own_styles.py's `resolve`). A job Mado 0.1 kept is its size step
+    alone, flat. Raises SizeError for a size Mado can't make, MissingLookError for a look that
+    isn't there any more, MissingStyleError for a painting style that isn't, EditError for edits
+    it can't make, FixError for fixes it can't read."""
     if isinstance(data.get("size"), str):  # Mado 0.1's: the size step's fields, flat
         return Recipe(sizing=_sizing_from(data, screens))
     size, look = data.get("size"), data.get("look")
@@ -871,6 +945,29 @@ def recipe_from(
         styling=styling,
         editing=editing_from(data.get("edit")),
         fixing=fixing_from(data.get("fix")),
+        painting=_painting_from(data.get("paint"), styles),
+    )
+
+
+def _painting_from(
+    data: object, styles: Callable[[dict[str, object]], Style | None]
+) -> Painting | None:
+    """The painting step as a job keeps it: its style, strength, whether the picture keeps its
+    own colours, a classic style's setting and the parts it's only on. Raises MissingStyleError
+    for a style that isn't there any more."""
+    if not isinstance(data, dict):
+        return None
+    asked = cast("dict[str, object]", data)
+    style = styles(asked)
+    if style is None:
+        raise MissingStyleError
+    strength, setting = asked.get("strength"), asked.get("setting")
+    return Painting(
+        style,
+        strength=min(max(float(strength), 0.0), 1.0) if isinstance(strength, int | float) else 1.0,
+        colours=asked.get("colours") is True,
+        setting=min(max(int(setting), 0), 100) if isinstance(setting, int | float) else None,
+        parts=parts_from(asked.get("parts")),
     )
 
 
@@ -914,15 +1011,21 @@ def saving_from(data: dict[str, object]) -> Saving:
 
 
 def estimated(
-    made: Plan, here: Here, cut_on: Place | None = None, fix_on: Place | None = None
+    made: Plan,
+    here: Here,
+    cut_on: Place | None = None,
+    fix_on: Place | None = None,
+    paint_on: Place | None = None,
 ) -> float:
     """How long making a plan takes here, in seconds. `cut_on`: where cutting out a subject at
     its best runs (on the processor, unless the card has a great deal of room); `fix_on`: where
-    the fixes' models run (None: where this PC runs the models)."""
+    the fixes' models run (None: where this PC runs the models); `paint_on`: where its painting
+    style's network runs (None: where this PC runs the models)."""
     pixels = made.width * made.height
     canvas = made.frame.canvas
     seconds = _edit_seconds(made, here.place, cut_on or "processor")
     seconds += fix_seconds(made, here, fix_on)
+    seconds += paint_seconds(made, paint_on or here.place)
     if made.styling is not None:
         drawn = made.styling.touches.spatial()
         seconds += pixels / 1e6 * (_LOOK_SECONDS + (_TOUCHES_SECONDS if drawn else 0.0))
@@ -963,6 +1066,43 @@ def fix_seconds(made: Plan, here: Here, fix_on: Place | None = None) -> float:
             seconds += tiles * _PER_FIX_TILE
     return seconds
 
+
+def paint_seconds(made: Plan, place: Place) -> float:
+    """About how long a plan's painting takes: a network once at the working size (where it
+    runs), or a classic means at the size made; then made that size and mixed, by the megapixel
+    (docs/stack/styles.md has what was measured)."""
+    if made.painting is None:
+        return 0.0
+    megapixels = made.width * made.height / 1e6
+    style = made.painting.style
+    if style.kind == "classic":
+        each, at_least = _CLASSIC_SECONDS.get(style.id, (0.1, 0.3))
+        seconds = max(at_least, each * megapixels)
+    else:
+        seconds = _NETWORK_SECONDS[(style.kind, place)]
+    seconds += _MIX_SECONDS * megapixels
+    if made.painting.parts:
+        seconds += _EDIT_SECONDS["mask"] * megapixels
+    return seconds
+
+
+# What painting takes on the owner's PC (docs/stack/styles.md): a painter's network or MicroAST
+# at the working size, on the card or the processor; a classic means by the megapixel made, and
+# at least, as the oil and the cartoon work where their squares are a few pixels across; making
+# the painting the size made and mixing it with the picture, by the megapixel.
+_NETWORK_SECONDS: dict[tuple[str, Place], float] = {
+    ("painter", "card"): 0.34,
+    ("painter", "processor"): 2.6,
+    ("picture", "card"): 0.22,
+    ("picture", "processor"): 1.55,
+}
+_CLASSIC_SECONDS: dict[str, tuple[float, float]] = {
+    "pencil": (0.045, 0.05),
+    "coloured-pencil": (0.12, 0.1),
+    "oil": (0.035, 0.3),
+    "cartoon": (0.045, 0.35),
+}
+_MIX_SECONDS = 0.04
 
 _NUMPY_SECONDS = 0.15  # a megapixel brightened, or given local contrast, on the owner's i5-9600K
 _PER_FIX_TILE = 0.01  # each fix tile laid back in place
@@ -1011,7 +1151,9 @@ def waiting_for(made: Plan, ai: Ai) -> list[str]:
     if made.model is not None and made.model.download and ai.file(made.model) is None:
         found.append(made.model.download)
     edits = models_for(made.editing, cut_quality=cut_quality(ai))
-    if made.styling is not None and made.styling.parts:
+    if (made.styling is not None and made.styling.parts) or (
+        made.painting is not None and made.painting.parts
+    ):
         edits.add("select")
     extending = made.frame.shape == "extend" and made.frame.sides != "none"
     if (extending or "erase-best" in edits) and ai.lama_file() is None:
@@ -1027,6 +1169,10 @@ def waiting_for(made: Plan, ai: Ai) -> list[str]:
     for model in fix_models(made.fixing, made.fix_quality):
         if ai.fix_file(model) is None:
             found.append(model.id)
+    if made.painting is not None:
+        painter = ai.painter.needs(made.painting.style)
+        if painter is not None:
+            found.append(painter)
     return found
 
 
@@ -1074,9 +1220,12 @@ class Maker:
         order = cast("dict[str, dict[str, object]]", json.loads(row["recipe"]))
         try:
             recipe = recipe_from(
-                order["recipe"], screens_kept(conn), lambda look: own_looks.resolve(conn, look)
+                order["recipe"],
+                screens_kept(conn),
+                lambda look: own_looks.resolve(conn, look),
+                lambda asked: own_styles.resolve(conn, asked),
             )
-        except (SizeError, MissingLookError, EditError, FixError) as error:
+        except (SizeError, MissingLookError, MissingStyleError, EditError, FixError) as error:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
@@ -1132,7 +1281,16 @@ class Maker:
         if made.see_through and saving.format not in ("PNG", "WebP"):
             saving = replace(saving, format="PNG", quality=None)  # a cut-out keeps its nothing
         fixers = fix_models(made.fixing, made.fix_quality)
-        expect(estimated(made, here, self._ai.edit_place(BIREFNET), self._ai.fix_place(fixers)))
+        painting_on = self._ai.painter.place(made.painting.style) if made.painting else None
+        expect(
+            estimated(
+                made,
+                here,
+                self._ai.edit_place(BIREFNET),
+                self._ai.fix_place(fixers),
+                painting_on,
+            )
+        )
         timer = Timer()
         fix_timers = {model.id: Timer() for model in fixers}
         if stop():  # cancelled while it was read: a way without a model never asks again
@@ -1247,11 +1405,16 @@ NO_RAW_REPLACE = (
 def nothing_to_make(recipe: Recipe) -> str:
     """What a job with nothing to make says: why its fixes change nothing in its picture (it
     isn't dark, or isn't a JPEG), or that it was asked for nothing at all."""
-    if recipe.fixing is not None and recipe.sizing is None and recipe.styling is None:
+    if (
+        recipe.fixing is not None
+        and recipe.sizing is None
+        and recipe.styling is None
+        and recipe.painting is None
+    ):
         return f"{unchanged(recipe.fixing)} Nothing was saved, and the original is as it was."
     return (
-        "There was nothing to make: no size, and no look that changes it. Nothing was saved, "
-        "and the original is as it was."
+        "There was nothing to make: no size, and no style or look that changes it. Nothing was "
+        "saved, and the original is as it was."
     )
 
 

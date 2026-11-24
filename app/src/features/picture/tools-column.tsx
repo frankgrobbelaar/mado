@@ -49,6 +49,8 @@ export function ToolsColumn(props: {
   fixed?: FixStep | null;
   /** The Looks tab's "Only on a part". */
   part: ReactNode;
+  /** The Looks tab's painting styles. */
+  styles?: ReactNode;
   /** The Edit tab, as the page holds its edits. */
   edit: ReactNode;
   /** The Fix tab, as the page holds its fixes. */
@@ -145,6 +147,7 @@ export function ToolsColumn(props: {
             edit={props.edited}
             fix={props.fixed ?? null}
             part={props.part}
+            styles={props.styles}
           />
         ) : (
           <SizeTab

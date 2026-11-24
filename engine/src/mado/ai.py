@@ -23,6 +23,7 @@ from mado.directml import LOCK, Array, ModelError, Session, Sessions, Tensor
 from mado.extend import SIZE as LAMA_SIZE
 from mado.extend import Filler
 from mado.hardware import Here
+from mado.painting import Painter
 from mado.tools import Tools
 from mado.upscale import Tiling
 
@@ -130,6 +131,7 @@ class Ai:
         self._tools = tools
         self._where = where
         self._room = room
+        self.painter = Painter(sessions, tools, where, room)  # the painting styles' networks
 
     def where(self) -> Here:
         return self._where()

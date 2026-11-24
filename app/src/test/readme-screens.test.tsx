@@ -23,6 +23,7 @@ import {
   EngineProvider,
   type KeptRecipe,
   type LookStep,
+  type PaintStep,
   type PictureItem,
   type Recipe,
   type StepWords,
@@ -45,6 +46,7 @@ import {
   READY,
   SETTINGS,
   SIZES,
+  STYLES,
   scanDone,
   studio,
   takes,
@@ -176,6 +178,7 @@ const EVERYWHERE: Record<string, unknown> = {
   "/tools": [],
   "/sizes": SIZES_HERE,
   "/looks": ALL_LOOKS,
+  "/styles": STYLES,
   "POST /screens": [],
   "/queue/now": {
     working: true,
@@ -199,6 +202,14 @@ function looked(step: LookStep | null, part: string | null): string {
     step.parts?.length && part ? `part=${part}` : "",
   ];
   return words.filter(Boolean).join("/");
+}
+
+/** A painting style as a scene's words: "style=monet/paint=.8". */
+function painted(step: PaintStep | null | undefined): string {
+  if (!step) return "";
+  return [`style=${step.style}`, step.strength < 1 ? `paint=${step.strength}` : ""]
+    .filter(Boolean)
+    .join("/");
 }
 
 /** Pictures shown with something wrong with them while a screen fixes it, by their number: the
@@ -231,10 +242,20 @@ function pictureFor(url: URL, init: RequestInit | undefined): Response | undefin
     const drawn = SCENES.get(Number(look[1])) ?? "harbour";
     return scene(look[2] === "original" ? drawn : `${drawn}/look=${look[2]}`);
   }
+  const style = path.match(/^\/pictures\/(\d+)\/styles\/([\w-]+)$/);
+  if (style) return scene(`${SCENES.get(Number(style[1])) ?? "harbour"}/style=${style[2]}`);
+  if (/^\/styles\/yours-\d+\/thumbnail$/.test(path)) return scene("night-market");
   const preview = path.match(/^\/pictures\/(\d+)\/preview$/);
   if (preview) {
     const asked = JSON.parse(String(init?.body)) as { recipe: Recipe; side: string };
-    const words = looked(asked.recipe.look, "sky");
+    const onPart = !asked.recipe.look?.parts?.length && asked.recipe.paint?.parts?.length;
+    const words = [
+      painted(asked.recipe.paint),
+      looked(asked.recipe.look, "sky"),
+      onPart ? "part=sky" : "",
+    ]
+      .filter(Boolean)
+      .join("/");
     const id = Number(preview[1]);
     const fix = asked.side === "after" ? asked.recipe.fix : null;
     const damaged = DAMAGED.get(id);

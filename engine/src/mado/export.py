@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from mado import __version__, db, own_looks
+from mado import __version__, db, own_looks, own_styles
 from mado.config import DataPaths
 
 _UNSAFE = str.maketrans(dict.fromkeys('<>:"/\\|?*', "-"))
@@ -21,9 +21,10 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
     settings as JSON, the library's folders as JSON and its pictures as CSV (what Mado read of
     each), the words Mado read in each for search as CSV, History as CSV (each picture made,
     replaced, taken away or set aside, and what waits in quarantine), the owner's looks (listed
-    in JSON, each a .cube file any app opens), their recipes and watch folders as JSON, what they
-    decided of duplicates and bursts as JSON, their favourites and the wallpaper studio as JSON,
-    and a manifest saying which Mado wrote it.
+    in JSON, each a .cube file any app opens), their painting styles (listed in JSON with each
+    one's numbers, and the small copy each keeps of its picture), their recipes and watch folders
+    as JSON, what they decided of duplicates and bursts as JSON, their favourites and the
+    wallpaper studio as JSON, and a manifest saying which Mado wrote it.
 
     Returns None when Mado has no data yet. Never overwrites a file: a second
     export on the same day becomes `Mado export <date> (2).zip`.
@@ -48,6 +49,7 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             words = _words(source)
             done = _history(source)
             looks = _looks(source)
+            styles = _styles(source)
             kept_recipes = _recipes(source)
             watch_folders = _watch_folders(source)
             duplicates = _duplicates(source)
@@ -71,6 +73,9 @@ def export_data(paths: DataPaths, folder: Path, now: datetime | None = None) -> 
             archive.writestr("looks.json", json.dumps([each for each, _ in looks], indent=2))
             for listed, text in looks:
                 archive.writestr(str(listed["file"]), text)
+            archive.writestr("styles.json", json.dumps([each for each, _ in styles], indent=2))
+            for listed, small in styles:
+                archive.writestr(str(listed["thumbnail"]), small)
             archive.writestr("recipes.json", json.dumps(kept_recipes, indent=2))
             archive.writestr("watch-folders.json", json.dumps(watch_folders, indent=2))
             archive.writestr("duplicates.json", json.dumps(duplicates, indent=2))
@@ -217,6 +222,34 @@ def _looks(conn: sqlite3.Connection) -> list[tuple[dict[str, object], str]]:
             "file": file,
         }
         found.append((listed, own_looks.cube_text(kept.name, mine[1].grid)))
+    return found
+
+
+def _styles(conn: sqlite3.Connection) -> list[tuple[dict[str, object], bytes]]:
+    """The owner's painting styles, each as the export lists it (with its 512 numbers) and the
+    small copy it keeps of the picture it came from."""
+    if not _has_table(conn, "styles"):
+        return []
+    found: list[tuple[dict[str, object], bytes]] = []
+    files: set[str] = set()
+    for kept in own_styles.listed(conn):
+        mine = own_styles.found(conn, kept.id)
+        small = own_styles.thumbnail(conn, kept.id)
+        if mine is None or mine[1].code is None or small is None:
+            continue  # numbers damaged in the records: nothing to write out
+        base = f"styles/{kept.name.translate(_UNSAFE)}"
+        file, number = f"{base}.webp", 2
+        while file.casefold() in files:
+            file, number = f"{base} ({number}).webp", number + 1
+        files.add(file.casefold())
+        listed: dict[str, object] = {
+            "name": kept.name,
+            "source": kept.source,
+            "addedAt": kept.added_at,
+            "code": [float(value) for value in mine[1].code],  # each exact, as a double
+            "thumbnail": file,
+        }
+        found.append((listed, small))
     return found
 
 

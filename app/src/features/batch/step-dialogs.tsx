@@ -21,14 +21,16 @@ import {
   type CutoutStepItem,
   type FixStepItem,
   type LookStepItem,
+  type PaintStepItem,
   type Quality,
   type SaveFormat,
   type SizeStepItem,
   useLooks,
   useSizes,
+  useStyles,
 } from "@/lib/engine";
 import { cn } from "@/lib/utils";
-import { cutoutStep, lookStep, SEE_THROUGH, sizeStep } from "./steps";
+import { cutoutStep, lookStep, paintStep, SEE_THROUGH, sizeStep } from "./steps";
 
 const SHAPES = [
   { value: "crop", label: "Crop around the subject" },
@@ -274,6 +276,105 @@ export function LookDialog(props: {
           </div>
         </section>
       )}
+    </StepCard>
+  );
+}
+
+/**
+ * Paint them in a style, as the Looks tab's painting styles choose it: Mado's painters and classic
+ * means and the owner's own styles, its strength, each picture's own colours or the style's, and a
+ * classic one's one setting. Each picture is painted whole after its size, before its look.
+ */
+export function PaintDialog(props: {
+  step: PaintStepItem | null;
+  onStep: (step: PaintStepItem) => void;
+  onRemove: (() => void) | null;
+  onClose: () => void;
+}) {
+  const { step, onStep } = props;
+  const styles = useStyles();
+  const colours = useId();
+  const data = styles.data;
+  const classic = step ? data?.classics.find((each) => each.id === step.style) : undefined;
+  const pick = (style: string) => onStep(paintStep(style, step ?? undefined));
+  return (
+    <StepCard
+      title="Paint them in a style"
+      description="The same style on every picture, each painted whole after it's made its size, so the strokes suit the picture saved."
+      onClose={props.onClose}
+      onRemove={props.onRemove}
+    >
+      <section aria-labelledby="batch-styles" className="flex flex-col gap-2">
+        <h3 id="batch-styles" className="type-eyebrow">
+          Painting styles
+        </h3>
+        {styles.isError && (
+          <p role="alert" className="text-13 text-broken-fg">
+            Mado couldn't list the styles: {styles.error.message}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          {[...(data?.painters ?? []), ...(data?.classics ?? [])].map((style) => (
+            <Pill key={style.id} chosen={style.id === step?.style} onClick={() => pick(style.id)}>
+              {style.name}
+            </Pill>
+          ))}
+        </div>
+      </section>
+      {data && data.yours.length > 0 && (
+        <section aria-labelledby="batch-yours-styles" className="flex flex-col gap-2">
+          <h3 id="batch-yours-styles" className="type-eyebrow">
+            Your styles
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {data.yours.map((mine) => (
+              <Pill key={mine.id} chosen={mine.id === step?.style} onClick={() => pick(mine.id)}>
+                {mine.name}
+              </Pill>
+            ))}
+          </div>
+        </section>
+      )}
+      {step && (
+        <div className="flex max-w-md flex-col gap-3">
+          <div className="flex items-center gap-3 text-13">
+            <span>Strength</span>
+            <Slider
+              label="Style strength"
+              value={Math.round(step.strength * 100)}
+              onChange={(value) => onStep({ ...step, strength: value / 100 })}
+              valueText={`${Math.round(step.strength * 100)}%`}
+            />
+            <span className="w-10 text-right font-mono">{Math.round(step.strength * 100)}%</span>
+          </div>
+          {classic?.setting ? (
+            <div className="flex items-center gap-3 text-13">
+              <span>{classic.setting}</span>
+              <Slider
+                label={classic.setting}
+                value={step.setting ?? classic.first}
+                onChange={(value) => onStep({ ...step, setting: value })}
+              />
+              <span className="w-10 text-right font-mono">{step.setting ?? classic.first}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 text-13">
+              <Switch
+                id={colours}
+                checked={step.colours}
+                onCheckedChange={(on) => onStep({ ...step, colours: on })}
+              />
+              <label htmlFor={colours} className="cursor-pointer">
+                Keep each picture's own colours
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+      <p className="max-w-md text-12 text-fg-faint leading-normal">
+        A picture's own style goes on a batch once it's kept as one of your styles, from the Looks
+        tab of a picture.
+      </p>
     </StepCard>
   );
 }

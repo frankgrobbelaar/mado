@@ -8,7 +8,7 @@ own tool: one user, one PC, never commercial, no sign-in. The code is shared und
 licence: anyone may fork it, but the repo takes no contributions. It's the sibling of Kura (an
 anime library) and Maku (TV series and films), and stands on their foundations.
 
-**Where it stands (2026-11-23):** scoped with the owner and the repo set up on Kura's
+**Where it stands (2026-11-24):** scoped with the owner and the repo set up on Kura's
 foundations: CI, the installer, the updater and the downloads page; the window with its engine and
 token, Setup fetching ffmpeg, Settings (light or dark, Start with Windows, updates, nightly backups
 and restoring one, the export), and records damaged past use. The look is Graphite, the owner's
@@ -58,7 +58,13 @@ with its one setting and compared before and after, the brightening over the who
 every fix at full detail; suggested only where Mado can measure the need; made before a picture
 grows, never cleaned twice; a step for batches and recipes, each JPEG's blocks as hard as it was
 squeezed; SCUNet, FBCNN and NAFNet downloaded the first time each is needed, on the card while it
-has room). Next: the rest of 1.1 and 1.2, by [What's next](#whats-next).
+has room); and painting styles, the twelfth and the third of 1.1 (a group of their own on the
+Looks tab: After Van Gogh, After Hokusai, After Monet and After Seurat from networks Mado trained
+on public-domain paintings, any picture as the style through MicroAST and kept as one of the
+owner's styles, and pencil, coloured pencil, oil paint and cartoon drawn by code; each with its
+strength, the networks' in the picture's own colours if asked, on a part as a look is, painted at
+a working size and made the picture's size; a step for batches and recipes; each model downloaded
+the first time). Next: the rest of 1.2, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -813,6 +819,90 @@ Everything decided so far. Don't ask again; change only with the owner.
   all (26.3); darkened 4 and 16 times from 9.9 and 6.0 to 36.1 and 37.0. Found on the way: the Queue
   said a picture being cut out was at its save step, and Many at once called every model it waited
   for "Best for photos", offering Fast for it.
+- Painting styles, as built (2026-11-24, Claude's calls while the owner is away;
+  docs/stack/styles.md): a group of their own on the Looks tab, after the looks, as no board drew
+  them: a small copy of the picture in each (None, Mado's painters, the classic means, the owner's
+  own styles, a picture's style not kept yet) and "A picture of yours…" last; resting the pointer on
+  one shows it on the picture, as the looks do. A style is a step of its own (`paint`, after the
+  size and before the look), not one of the looks: a look grades the colours and a style repaints
+  the picture, so a look can still warm or cool what's painted, the touches go on top of both, and
+  picking one never clears the other. Of the six networks Mado trained (models-3, 6.9 MB each, MIT,
+  the network's design PyTorch examples' under BSD-3-Clause), four earn their place, judged in Mado
+  on made-up pictures at full strength, at 60% and in their own colours: After Van Gogh and After
+  Hokusai, the strongest, each reading at once as its painting; After Monet, soft dabs, the least
+  distinctive alone and the best painted photo in the picture's own colours; After Seurat, pale
+  pastel dots, pretty in daylight. Klimt's Birch Forest is left out (everything becomes the same
+  rust-and-moss tapestry, skies and seas leaf litter, and neither strength nor the picture's colours
+  rescue it), and so is Turner's Fighting Temeraire (a warm amber haze over canvas grain, which the
+  looks already do, with grain). Strength mixes the painting with the picture as it was, 100% at
+  first; "Keep the picture's colours", offered for the networks (a classic means' colours are its
+  own), takes the painting's lightness with the picture's own colour and reads well, above all
+  where a painting's palette fights a picture (Van Gogh's has no red; Monet's skies go olive,
+  Seurat's nights pale). A style is painted whole, never in tiles, at a working size: a 1392 square
+  canvas (1600 × 1200's pixels, a multiple of 4), the picture's long side 1392 and the rest
+  mirrored out, so one size compiles once and the strokes are the same size against any picture,
+  on the stage and in the picture saved (the small copies, thumbnails where no stroke shows, are
+  painted on the processor on a 464 canvas, 0.4 s each, so going through the styles never takes
+  the card's memory for a style not chosen); then it's made the picture's size, or
+  the Size tab's, by plain Lanczos, chosen on 100% crops (docs/stack/styles/) over the upscaler,
+  which drew streaks and cracks into the dabs and smeared Seurat's dots in 23 s on the processor,
+  and over the picture's fine detail put back, which looked the same or printed the photo through
+  the paint; made more than five times bigger than it's painted, a picture says its strokes go soft
+  and that a smaller size keeps them crisp. The four painters share one session, as each session
+  keeps 2.2 GB of the card for good: made from the first painter's file with its 62 weights taken
+  out of the graph as inputs (Mado's own reader and writer of the file, `core/onnx_graph.py`, no
+  `onnx` package), each painter's own passed in; weights left in the graph as overridable defaults
+  gave wrong pictures, DirectML's fused node baking in the first painter's. A picture as the style
+  is MicroAST (MIT, 2 MB from models-3), taken from this picture, one picked from the library, or
+  one dropped or pasted while its card is open, and kept from picture to picture as the style
+  chosen is: its first half reads a copy 512 pixels long on the processor into 512 numbers (44 ms),
+  kept in the recipe as base64 (2 KB); its second paints at the same canvas with its own strength
+  at full, Mado mixing after; a picture under 96 pixels across, or nearly one colour with nearly no
+  texture, says why it can't give a style, and the card says plainly the style comes from a
+  picture's colours and textures, never what it shows. "Keep as a style" keeps its numbers and a
+  copy 160 pixels at most to know it by, never the picture (migration 12, the `styles` table; in the
+  export as `styles.json` and `styles/`), names unique and never Mado's, a number never given
+  again, so a recipe naming one deleted fails rather than painting with another, and none deleted
+  while a recipe or the queue needs it. Pencil sketch (a colour dodge; its setting the darkness),
+  coloured pencil (a pale wash under the lines), oil paint (a soft Kuwahara worked out where its
+  squares are 6 px, brush strokes in relief; the brush) and cartoon (after Winnemöller: Kuwahara
+  smoothing, soft tone steps, colour kept and a little fuller, a difference of Gaussians inked; the
+  colours) are NumPy and Pillow only, every reach a hundredth of the picture made's short side:
+  2 to 15 ms a small copy, 0.07 to 0.40 s the stage's preview (oil's finest brush 0.84 s), 0.4 to
+  1.4 s at 12 MP. On the card when this process has room for what each keeps (2.3 GB the painters,
+  1.25 GB MicroAST, 512 MB spare), else the processor with denormals as nought; one lock, sessions
+  kept, the canvas pinned, full precision (fp16 is slower on GTX 16 cards). Measured on the owner's
+  PC through Mado's own code: a painter at the working size 0.34 s on the card and 2.5 s on the
+  processor; the whole painting step of a 12 MP Save 0.63 s and 2.9 s, of 8K 1.1 s and 3.3 s;
+  MicroAST 0.22 s and 1.6 s; the painters' session holds 2.2 GB of the card, MicroAST's 1.2 GB. The
+  small things: each model downloaded the first time with its size and progress (its tile tagged
+  with the size, a card under the styles, the stage saying the style shows once it's here, Save
+  waiting; offline, the classic means work); the card busy with the queue ("Waiting for the
+  graphics card: Holiday prints lets it go after the tile it's on"); a huge picture (the soft
+  strokes said); a style picture too small or too plain (a sentence why); a grey picture (painted
+  in the style's colours, which the tab says, unless its own are kept, then grey again); see-through
+  parts kept (what they hide carried in from what shows first, so no dark fringe is painted); a
+  look, a style and touches at once (the stage says "After Monet · 80% · Warm film · 60% · grain");
+  and a style on a part (the Looks tab's "Only on a part" goes for its style as for its look, the
+  rest as it was). A batch's step (`{"step": "paint", ...}`, after the size, before the look), its
+  card the tab's choices (Mado's and the owner's styles as pills, strength, each picture's own
+  colours, a classic one's setting); a picture's own style goes on a batch once it's kept. Save and
+  History say it with the look ("with After Hokusai at 80% and Warm film at 60%"), a new picture is
+  named after it ("Harbour at dusk (TV 8K, After Hokusai, Warm film).jpg"), and a job's stage is
+  "Painting it". A fresh agent's review found eighteen things, the real ones fixed test first: the
+  Queue called a picture being painted "Save"; small copies of a see-through picture lost their
+  see-through parts; a long panorama was refused as too small to give a style; the small copies
+  took the card's memory (2.2 GB, and 1.2 GB more with a kept style) before any style was
+  chosen; every visit to the Looks tab measured the whole picture for the grey hint, now asked
+  only with a style chosen; a batch's estimate asked DirectX for room once a picture; a picture's
+  style was read from what its see-through parts hide; a name past 200 letters broke its style;
+  damaged numbers were said as a style gone; "on a part" came after the colours; a job of only a
+  style at 0% said "no look"; See it first's guess didn't know where a style paints, and the
+  processor's times were the trainer's; unused plumbing went; and the words say "AI model", not
+  "network". Found on the way: a picture read as the style kept the first one's name in "Keep as
+  a style". Left as they are: oil paint at 100% lays its strokes from the part's own corner (the
+  same look, not the same pixels as the picture saved), and the Recipes card shows a style's id
+  till the engine's words come, as it does a look's.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -941,8 +1031,9 @@ Everything decided so far. Don't ask again; change only with the owner.
    bursts).
 3. 1.1: search by describing a picture and by the words in it, the wallpaper studio (the owner's
    monitors, pixel-exact, changed daily from favourites if wanted), and painting styles. Built:
-   the wallpaper studio, with favourites, and search (by describing a picture, by the words in it,
-   and More like this).
+   the wallpaper studio, with favourites, search (by describing a picture, by the words in it,
+   and More like this), and painting styles (four painters, any picture as the style, pencil, oil
+   paint and cartoon by classic means, a step for batches and recipes): done.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG
    blocks, dark photos), portrait blur and 3D photos. Built: the quick fixes (the Fix tab, a step
    for batches and recipes).

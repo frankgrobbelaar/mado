@@ -1,4 +1,4 @@
-import { Download, Monitor, Plus, Scissors, Wand } from "lucide-react";
+import { Brush, Download, Monitor, Plus, Scissors, Wand } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
@@ -29,6 +29,7 @@ const ICONS: Record<string, ReactNode> = {
   cutout: <Scissors size={20} strokeWidth={1.6} aria-hidden="true" />,
   fix: <Wand size={20} strokeWidth={1.6} aria-hidden="true" />,
   size: <Monitor size={20} strokeWidth={1.6} aria-hidden="true" />,
+  paint: <Brush size={20} strokeWidth={1.6} aria-hidden="true" />,
   look: <LookIcon />,
   save: <Download size={20} strokeWidth={1.6} aria-hidden="true" />,
 };
@@ -51,7 +52,7 @@ export function StepsPanel(props: {
   onRecipe?: (recipe: KeptRecipe) => void;
 }) {
   const { steps, words } = props;
-  const missing = (["cutout", "fix", "size", "look"] as const).filter(
+  const missing = (["cutout", "fix", "size", "paint", "look"] as const).filter(
     (kind) => !steps.some((step) => step.step === kind),
   );
   return (
@@ -68,7 +69,7 @@ export function StepsPanel(props: {
       {steps.length === 0 && (
         <p className="border-edge border-t px-4.5 py-3.5 text-13 text-fg-muted leading-normal">
           Pick what to do: cut out their subject, fix them, make them right for a screen or a print,
-          give them a look, or start from a recipe.
+          paint them in a style, give them a look, or start from a recipe.
         </p>
       )}
       <ol>
@@ -129,9 +130,11 @@ export function StepsPanel(props: {
                       ? "Make it for a screen"
                       : kind === "look"
                         ? "A look"
-                        : kind === "fix"
-                          ? "Fix: noise, blur, JPEG blocks, dark"
-                          : "Cut out the subject"}
+                        : kind === "paint"
+                          ? "A painting style"
+                          : kind === "fix"
+                            ? "Fix: noise, blur, JPEG blocks, dark"
+                            : "Cut out the subject"}
                   </DropdownMenu.Item>
                 ))}
               </DropdownMenu.Content>

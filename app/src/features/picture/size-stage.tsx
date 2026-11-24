@@ -3,6 +3,7 @@ import {
   type EditStep,
   type FixStep,
   type LookStep,
+  type PaintStep,
   type PictureDetails,
   type Plan,
   pictureAddress,
@@ -27,8 +28,8 @@ const SLOW = 600; // milliseconds after which a preview on the card says why it 
  * The picture as the Size tab makes it, as Picture-Size draws it. Fitted: the part kept framed
  * (the rest dimmed), the point it's cropped around to drag; or, extending, the new edges as
  * LaMa draws them. At 100% or 400%: before and after, the line between them dragged to compare,
- * a part of the picture made at full detail, moved by dragging; after carries the look chosen on
- * the Looks tab too, as Save makes it.
+ * a part of the picture made at full detail, moved by dragging; after carries the look and the
+ * painting style chosen on the Looks tab too, as Save makes them.
  */
 export function SizeStage(props: {
   picture: PictureDetails;
@@ -40,6 +41,8 @@ export function SizeStage(props: {
   size: SizeStep;
   /** The look chosen on the Looks tab, which after carries; null with none. */
   look: LookStep | null;
+  /** The painting style chosen on the Looks tab, which after carries too; null with none. */
+  paint?: PaintStep | null;
   zoom: Zoom;
   onFocus: (focus: [number, number]) => void;
 }) {
@@ -72,6 +75,7 @@ export function SizeStage(props: {
           plan={plan}
           size={decided}
           look={props.look}
+          paint={props.paint ?? null}
           scale={zoom === "400" ? 4 : 1}
         />
       )}
@@ -272,8 +276,8 @@ function Fitted(props: {
   );
 }
 
-/** Before and after at full detail on the Size tab: the picture made, after carrying the look,
- * as Save makes it; before the picture only stretched. */
+/** Before and after at full detail on the Size tab: the picture made, after carrying the look
+ * and the style, as Save makes it; before the picture only stretched. */
 function Compared(props: {
   picture: PictureDetails;
   edit: EditStep | null;
@@ -281,9 +285,10 @@ function Compared(props: {
   plan: Plan;
   size: SizeStep;
   look: LookStep | null;
+  paint: PaintStep | null;
   scale: number;
 }) {
-  const { picture, plan, size, look } = props;
+  const { picture, plan, size, look, paint } = props;
   // A model still to download: extending needs LaMa on either side, the rest only after.
   const lama = plan.needs.some((each) => each.id === "lama");
   const waiting = plan.needs.map((each) => each.name).join(" and ");
@@ -294,7 +299,7 @@ function Compared(props: {
       height={plan.height}
       start={startingPoint(plan)}
       before={lama ? null : { edit: props.edit, size, look: null }}
-      after={waiting ? null : fixed({ edit: props.edit, size, look }, props.fix)}
+      after={waiting ? null : fixed({ edit: props.edit, size, paint, look }, props.fix)}
       label={`After · ${plan.label}`}
       waiting={waiting ? `After shows once ${waiting} is downloaded` : null}
       scale={props.scale}

@@ -13,6 +13,7 @@ import {
   READY,
   SETTINGS,
   SIZES,
+  STYLES,
 } from "@/test/engine";
 import { PicturePage } from "./picture-page";
 
@@ -84,6 +85,7 @@ function engine(answers: Record<string, unknown> = {}): Fetch {
     "/sizes": SIZES,
     "POST /screens": [],
     "/looks": LOOKS,
+    "/styles": STYLES,
     ...copies,
     "POST /pictures/11/plan": planned,
     "POST /pictures/11/preview": () =>
@@ -200,7 +202,7 @@ describe("The Looks tab", () => {
     expect(screen.getByRole("button", { name: "Hold to see the original" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Zoom" })).not.toBeInTheDocument();
     expect(
-      screen.getByText("Every look is shown on this picture as you go through them"),
+      screen.getByText("Every look and style is shown on this picture as you go through them"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save…" })).toBeDisabled();
   });

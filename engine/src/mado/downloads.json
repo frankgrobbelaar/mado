@@ -401,6 +401,152 @@
           "sha256": "a29ecef3456149898f08e4c71b11b33e7d333664e087bc212e84e18ddd6599ad"
         }
       ]
+    },
+    {
+      "id": "style-van-gogh-starry-night",
+      "name": "After Van Gogh",
+      "version": "models-3",
+      "purpose": "A painting style for the Looks tab: repaints a picture after Van Gogh's The Starry Night. A small network Mado trained itself on the public-domain painting, which isn't in the download. Mado fetches it the first time the style is asked for.",
+      "licence": "MIT AND BSD-3-Clause",
+      "home": "https://github.com/frankgrobbelaar/mado/releases/tag/models-3",
+      "url": null,
+      "size": 6888971,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "style-van-gogh-starry-night.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/style-van-gogh-starry-night.onnx",
+          "size": 6887451,
+          "sha256": "73321b4fe4903555ef08ba85e5d60934d6cd670bdd6d6b052b7bcfa55a85d337"
+        },
+        {
+          "name": "LICENSE-pytorch-examples.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-pytorch-examples.txt",
+          "size": 1520,
+          "sha256": "7e5dc9b5cf276166c4a0678d33e53b14e3d7ef47eee9356ab786c4ba45414efd"
+        }
+      ]
+    },
+    {
+      "id": "style-hokusai-great-wave",
+      "name": "After Hokusai",
+      "version": "models-3",
+      "purpose": "A painting style for the Looks tab: repaints a picture after Hokusai's The Great Wave off Kanagawa. A small network Mado trained itself on the public-domain painting, which isn't in the download. Mado fetches it the first time the style is asked for.",
+      "licence": "MIT AND BSD-3-Clause",
+      "home": "https://github.com/frankgrobbelaar/mado/releases/tag/models-3",
+      "url": null,
+      "size": 6888971,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "style-hokusai-great-wave.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/style-hokusai-great-wave.onnx",
+          "size": 6887451,
+          "sha256": "77b16b67d9d6425e402d6280defa35b50a8d3feddad86637b7d802295a001a9b"
+        },
+        {
+          "name": "LICENSE-pytorch-examples.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-pytorch-examples.txt",
+          "size": 1520,
+          "sha256": "7e5dc9b5cf276166c4a0678d33e53b14e3d7ef47eee9356ab786c4ba45414efd"
+        }
+      ]
+    },
+    {
+      "id": "style-monet-water-lilies-1915",
+      "name": "After Monet",
+      "version": "models-3",
+      "purpose": "A painting style for the Looks tab: repaints a picture after Monet's Water Lilies (1915). A small network Mado trained itself on the public-domain painting, which isn't in the download. Mado fetches it the first time the style is asked for.",
+      "licence": "MIT AND BSD-3-Clause",
+      "home": "https://github.com/frankgrobbelaar/mado/releases/tag/models-3",
+      "url": null,
+      "size": 6888971,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "style-monet-water-lilies-1915.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/style-monet-water-lilies-1915.onnx",
+          "size": 6887451,
+          "sha256": "a10839cc4c4ab2eafcf2e861adfbe4af348c3494f0a8353e1971482162446b43"
+        },
+        {
+          "name": "LICENSE-pytorch-examples.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-pytorch-examples.txt",
+          "size": 1520,
+          "sha256": "7e5dc9b5cf276166c4a0678d33e53b14e3d7ef47eee9356ab786c4ba45414efd"
+        }
+      ]
+    },
+    {
+      "id": "style-seurat-gravelines",
+      "name": "After Seurat",
+      "version": "models-3",
+      "purpose": "A painting style for the Looks tab: repaints a picture after Seurat's The Channel of Gravelines. A small network Mado trained itself on the public-domain painting, which isn't in the download. Mado fetches it the first time the style is asked for.",
+      "licence": "MIT AND BSD-3-Clause",
+      "home": "https://github.com/frankgrobbelaar/mado/releases/tag/models-3",
+      "url": null,
+      "size": 6888971,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "style-seurat-gravelines.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/style-seurat-gravelines.onnx",
+          "size": 6887451,
+          "sha256": "d10ee2069d1df3af07cc358c850cf974875b24520b657d2dacae4aede17e7914"
+        },
+        {
+          "name": "LICENSE-pytorch-examples.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-pytorch-examples.txt",
+          "size": 1520,
+          "sha256": "7e5dc9b5cf276166c4a0678d33e53b14e3d7ef47eee9356ab786c4ba45414efd"
+        }
+      ]
+    },
+    {
+      "id": "microast",
+      "name": "MicroAST",
+      "version": "models-3",
+      "purpose": "Paints a picture in the style of any picture of yours, from its colours and textures, never what it shows. Mado fetches it the first time a picture is picked as the style.",
+      "licence": "MIT",
+      "home": "https://github.com/EndyWon/MicroAST",
+      "url": null,
+      "size": 1996025,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "microast-style.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/microast-style.onnx",
+          "size": 681987,
+          "sha256": "d0569eedd5cc88581e3ef561a034147949161f3e468f2c80b08ce890a32a8e9e"
+        },
+        {
+          "name": "microast-stylize.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/microast-stylize.onnx",
+          "size": 1312968,
+          "sha256": "f2455d9f64ca064298e583fe2b8f79158016ce091d2a326fed2421622aad3343"
+        },
+        {
+          "name": "LICENSE-MicroAST.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-MicroAST.txt",
+          "size": 1070,
+          "sha256": "e8f0b2c00854430149f8af45b20ac30320634cda110eaa490b9ff577ba4c6c54"
+        }
+      ]
     }
   ]
 }

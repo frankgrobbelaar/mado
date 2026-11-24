@@ -290,11 +290,13 @@ async function openEdge(folder) {
   };
 }
 
-// Waits for a page to be whole: loaded, its fonts and pictures in; says which fonts it has.
+// Waits for a page to be whole: loaded, its fonts and pictures in, and what the screen asks to be
+// seen (data-shot-top) scrolled to the top of its column; says which fonts it has.
 const READY = `(async () => {
   while (document.readyState !== "complete") await new Promise((done) => setTimeout(done, 20));
   await document.fonts.ready;
   await Promise.all([...document.images].map((image) => image.decode().catch(() => {})));
+  for (const seen of document.querySelectorAll("[data-shot-top]")) seen.scrollIntoView({ block: "start" });
   await new Promise((done) => setTimeout(done, 50));
   return [...new Set([...document.fonts].filter((face) => face.status === "loaded").map((face) => face.family))];
 })()`;

@@ -195,6 +195,13 @@ def test_what_mado_downloads_is_told_apart_from_what_it_ships():
     for name in ("SCUNet", "FBCNN", "NAFNet"):
         assert allowed(found[name].licence), name
         assert "the first time it's needed" in found[name].texts[0]
+    # So are the painting styles' networks: Mado's own four, under MIT with the BSD-3 notice of the
+    # network's design, and MicroAST; each keeps its licence file beside it.
+    for name in ("After Van Gogh", "After Hokusai", "After Monet", "After Seurat", "MicroAST"):
+        assert allowed(found[name].licence), name
+        assert "keeps its licence files beside it" in found[name].texts[0], name
+        assert "models-3" in found[name].texts[0], name
+    assert found["After Monet"].licence == "MIT AND BSD-3-Clause"
     text = render("0.1.0", {"The installer": []}, list(found.values()))
     assert "  2. Downloaded to the PC, never shipped:" in text
     assert text.index("Downloaded to the PC, never shipped") > text.index("1. The installer")

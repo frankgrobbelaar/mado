@@ -312,7 +312,14 @@ class Samples:
         if waiting_for(made, self._ai):
             raise JobError("It needs a model Mado downloads the first time it's asked for.")
         fixers = fix_models(made.fixing, made.fix_quality)
-        guess = estimated(made, here, self._ai.edit_place(BIREFNET), self._ai.fix_place(fixers))
+        paint_on = self._ai.painter.place(made.painting.style) if made.painting else None
+        guess = estimated(
+            made,
+            here,
+            self._ai.edit_place(BIREFNET),
+            self._ai.fix_place(fixers),
+            paint_on=paint_on,
+        )
 
         def report(_stage: object, within: float) -> None:
             with self._lock:

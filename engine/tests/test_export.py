@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mado import __version__, db, history, own_looks, recipes, watching
+from mado import __version__, db, history, own_looks, own_styles, recipes, watching
 from mado.config import DataPaths
 from mado.core.cube import read
 from mado.core.grids import blended
@@ -54,11 +54,13 @@ def test_export_writes_one_zip_with_the_database_settings_and_manifest(
             "pictures.csv",
             "recipes.json",
             "settings.json",
+            "styles.json",
             "wallpaper.json",
             "watch-folders.json",
             "words.csv",
         ]
         assert json.loads(zipped.read("looks.json")) == []
+        assert json.loads(zipped.read("styles.json")) == []
         assert json.loads(zipped.read("favourites.json")) == []
         studio = json.loads(zipped.read("wallpaper.json"))
         assert (studio["layout"], studio["daily"]["on"], studio["pictures"]) == ("each", False, [])
@@ -211,6 +213,34 @@ def test_your_looks_are_in_the_export_as_files_any_app_opens(paths: DataPaths, t
     ]
     assert cube.title == "Holiday: warm"
     assert np.allclose(cube.grid, blended(warm.grid, 0.6), atol=1e-4)
+
+
+def test_your_styles_are_in_the_export_as_their_numbers_and_small_copies(
+    paths: DataPaths, tmp_path: Path
+):
+    _records_with_one_setting(paths)
+    code = np.linspace(-1, 1, 512, dtype=np.float32)
+    small = b"RIFF\x10\x00\x00\x00WEBPVP8 tiny"
+    with closing(db.connect(paths.database)) as conn:
+        own_styles.kept(conn, "Lantern: glow", code, small, "Night market.jpg", NOW)
+
+    archive = export_data(paths, tmp_path / "exports", now=NOW)
+
+    assert archive is not None
+    with zipfile.ZipFile(archive) as zipped:
+        listed = json.loads(zipped.read("styles.json"))
+        kept_small = zipped.read("styles/Lantern- glow.webp")
+    assert listed == [
+        {
+            "name": "Lantern: glow",
+            "source": "Night market.jpg",
+            "addedAt": NOW.isoformat(timespec="seconds"),
+            "code": listed[0]["code"],
+            "thumbnail": "styles/Lantern- glow.webp",
+        }
+    ]
+    assert np.array_equal(np.array(listed[0]["code"], np.float32), code)  # exactly
+    assert kept_small == small  # the small copy only: never the picture itself
 
 
 def test_recipes_and_watch_folders_are_in_the_export(paths: DataPaths, tmp_path: Path):

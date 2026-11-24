@@ -371,6 +371,7 @@ describe("The Edit tab", () => {
       expect(sent(fetch, "POST", "/pictures/11/plan").at(-1)).toEqual({
         edit: { version: details.version, edits: [erase] },
         size: null,
+        paint: null,
         look: null,
       }),
     );

@@ -163,6 +163,7 @@ describe("The Size tab", () => {
     expect(sent(fetch, "POST", "/pictures/11/plan")[0]).toEqual({
       edit: null,
       size: { size: "tv-8k", shape: "crop", focus: null, kind: null, quality: null, clean: true },
+      paint: null,
       look: null,
     });
     expect(screen.getByRole("button", { name: "Save…" })).toBeEnabled();

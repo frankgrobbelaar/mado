@@ -298,7 +298,7 @@ def test_the_name_a_picture_would_have_says_its_look(client: TestClient, library
     assert grain["name"] == "Harbour at dusk (Grain).jpg"
     assert nothing.status_code == 422
     assert nothing.json()["detail"] == (
-        "Pick a size or a look first: as it is, there's nothing to make."
+        "Pick a size, a style or a look first: as it is, there's nothing to make."
     )
 
 

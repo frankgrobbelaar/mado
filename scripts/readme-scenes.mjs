@@ -1,7 +1,8 @@
 // The made-up pictures in the README's screens, drawn by code: the Mado Screens boards' own
 // scenes (docs/design/screens/, the Pic board and the Library board's tiles), as SVG. The screens
-// test asks for one by name and what's done to it ("harbour/look=warm-film/part=sky", see
-// app/src/test/shots.ts); `placeScenes` draws each where the page shows it. Never a real photo.
+// test asks for one by name and what's done to it ("harbour/look=warm-film/part=sky",
+// "harbour/style=monet/paint=.8", see app/src/test/shots.ts); `placeScenes` draws each where the
+// page shows it. Never a real photo, and never a painting: a style is drawn by SVG's own filters.
 
 /** Each scene: its sky (the boards' CSS gradient, from top to bottom), what's drawn on it in a
  * frame 400 by 300, and its parts, for a look or a cut-out on just that part. */
@@ -213,6 +214,61 @@ export const LOOKS = {
 
 const round = (value) => Number(value.toFixed(4));
 
+/** The painting styles as SVG filters, a stand-in for each drawn by code: a painter's palette over
+ * brushwork the scene's own shapes are pushed about by, a pencil's lines, oil paint's flattened
+ * strokes, a cartoon's few tones and ink; a picture's own style a palette of its own. */
+export const STYLES = {
+  "van-gogh": brushed(0.035, 7, gradient(["#16245e", "#2f5aa8", "#7fa6d8", "#f3d36b"])),
+  hokusai: brushed(0.02, 4, steps(["#0f2a4f", "#2f5f8f", "#e9dcc0", "#f7f1e3"])),
+  monet: `${brushed(0.09, 3, gradient(["#3a4a5a", "#5f7f6a", "#a7b48d", "#d4c9e6"]), 0.55)}<feGaussianBlur stdDeviation=".6"/>`,
+  seurat: `${brushed(0.6, 2, gradient(["#8d9cc6", "#c8cfe6", "#f2e6c4", "#fbf6e8"]))}<feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="1" seed="3" result="dots"/><feColorMatrix in="dots" type="saturate" values="0" result="grey"/><feComponentTransfer in="grey" result="specks"><feFuncA type="discrete" tableValues="0 0 .35"/></feComponentTransfer><feComposite in="specks" in2="painted" operator="over"/>`,
+  pencil: `${lines()}<feColorMatrix type="saturate" values="0"/>`,
+  "coloured-pencil": `${lines("inked")}<feComponentTransfer in="SourceGraphic" result="pale"><feFuncR type="linear" slope=".45" intercept=".55"/><feFuncG type="linear" slope=".45" intercept=".55"/><feFuncB type="linear" slope=".45" intercept=".55"/></feComponentTransfer><feBlend in="inked" in2="pale" mode="multiply"/>`,
+  oil: `${brushed(0.05, 6, null)}${posterized(6)}`,
+  cartoon: `${posterized(4, "flat")}${lines("ink", "flat")}<feBlend in="ink" in2="flat" mode="multiply"/>`,
+  picture: brushed(0.06, 5, gradient(["#3b1f4f", "#b04a5a", "#f2a65a", "#fbe7b5"]), 0.7),
+};
+
+/** Brushwork: the picture pushed about by a soft noise (`scale` pixels at `frequency`), then put
+ * through `palette` (its lightness mapped to the painting's colours), mixed back with the scene's
+ * own colours by `own`. The result is "painted". */
+function brushed(frequency, scale, palette, own = 0) {
+  const moved = `<feTurbulence type="fractalNoise" baseFrequency="${frequency}" numOctaves="2" seed="5" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="${scale}" xChannelSelector="R" yChannelSelector="G" result="moved"/>`;
+  if (!palette) return `${moved}<feMerge result="painted"><feMergeNode in="moved"/></feMerge>`;
+  const toned = `<feColorMatrix in="moved" type="saturate" values="0" result="light"/><feComponentTransfer in="light" result="toned">${palette}</feComponentTransfer>`;
+  return own > 0
+    ? `${moved}${toned}<feComposite in="toned" in2="moved" operator="arithmetic" k2="${round(1 - own)}" k3="${round(own)}" result="painted"/>`
+    : `${moved}${toned}<feMerge result="painted"><feMergeNode in="toned"/></feMerge>`;
+}
+
+/** A lightness ramp to a painting's colours, darkest first ("#16245e"). */
+function gradient(colours) {
+  return transfer(colours, "table");
+}
+
+/** The same in flat steps, as a print's few inks. */
+function steps(colours) {
+  return transfer(colours, "discrete");
+}
+
+function transfer(colours, type) {
+  const channel = (at) =>
+    colours.map((hex) => round(Number.parseInt(hex.slice(1 + at * 2, 3 + at * 2), 16) / 255)).join(" ");
+  return ["R", "G", "B"].map((c, at) => `<feFunc${c} type="${type}" tableValues="${channel(at)}"/>`).join("");
+}
+
+/** A picture's colours in `count` steps each. */
+function posterized(count, result = "posterized") {
+  const values = Array.from({ length: count }, (_, at) => round(at / (count - 1))).join(" ");
+  return `<feComponentTransfer result="${result}">${["R", "G", "B"].map((c) => `<feFunc${c} type="discrete" tableValues="${values}"/>`).join("")}</feComponentTransfer>`;
+}
+
+/** Dark lines where the picture changes, on white: an edge-finding kernel, turned over. */
+function lines(result = "lines", source = "SourceGraphic") {
+  return `<feColorMatrix in="${source}" type="saturate" values="0" result="grey"/><feConvolveMatrix in="grey" order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true" result="edges"/><feComponentTransfer in="edges" result="${result}"><feFuncR type="linear" slope="-3" intercept="1"/><feFuncG type="linear" slope="-3" intercept="1"/><feFuncB type="linear" slope="-3" intercept="1"/></feComponentTransfer>`;
+}
+
+
 /** A CSS filter ("sepia(.3) saturate(1.3)") as SVG filter primitives, by the matrices the
  * Filter Effects spec gives each function. */
 export function filterPrimitives(css) {
@@ -269,6 +325,8 @@ export function parseScene(spec) {
   const [name, ...asks] = decodeURIComponent(spec).split("/");
   const scene = {
     name,
+    style: null,
+    paint: 1,
     look: null,
     strength: 1,
     grain: 0,
@@ -284,7 +342,8 @@ export function parseScene(spec) {
   for (const ask of asks) {
     const [key, value = ""] = ask.split("=");
     if (key === "look") scene.look = value;
-    else if (["strength", "grain", "vignette", "blur", "dark", "blocks"].includes(key))
+    else if (key === "style") scene.style = value;
+    else if (["paint", "strength", "grain", "vignette", "blur", "dark", "blocks"].includes(key))
       scene[key] = Number(value);
     else if (key === "part") scene.part = value;
     else if (key === "cutout") scene.cutout = value;
@@ -295,8 +354,9 @@ export function parseScene(spec) {
   return scene;
 }
 
-/** The scene as an SVG document: its sky and drawing, with a look at a strength and finishing
- * touches (grain and a vignette, 0 to 100), on all of it or a part; cut out (only a part, on
+/** The scene as an SVG document: its sky and drawing, painted in a style at its strength (`paint`,
+ * 0 to 1), then a look at a strength and finishing touches (grain and a vignette, 0 to 100), the
+ * style and the look on all of it or a part; cut out (only a part, on
  * nothing); blurred (a picture only stretched, or shaken); its colours squeezed into `blocks`
  * steps (a JPEG saved small); darkened by `dark` stops; a region of it (fractions of the picture:
  * x, y, width, height); or mirrored, a scene twice over looking like two. */
@@ -310,7 +370,18 @@ export function drawScene(spec) {
     if (!shape) throw new Error(`The scene "${asked.name}" has no part called "${name}".`);
     return shape;
   };
-  const plain = `<rect width="400" height="300" fill="url(#sky)"/>${scene.body}`;
+  const drawing = `<rect width="400" height="300" fill="url(#sky)"/>${scene.body}`;
+  let plain = drawing;
+  if (asked.style) {
+    // A style is painted before the look, so the look grades what's painted.
+    const style = STYLES[asked.style.startsWith("yours-") ? "picture" : asked.style];
+    if (!style) throw new Error(`There's no style called "${asked.style}" (${spec}).`);
+    defs.push(`<filter id="style" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">${style}</filter>`);
+    const paint = asked.paint < 1 ? ` opacity="${asked.paint}"` : "";
+    const painted = `<g${paint}><g filter="url(#style)">${drawing}</g></g>`;
+    if (asked.part) defs.push(`<clipPath id="part">${part(asked.part)}</clipPath>`);
+    plain += asked.part ? `<g clip-path="url(#part)">${painted}</g>` : painted;
+  }
   let picture = plain;
   let looked = "";
   if (asked.look) {
@@ -333,7 +404,7 @@ export function drawScene(spec) {
     looked += `<rect width="400" height="300" filter="url(#grain)" opacity="${round(asked.grain / 250)}"/>`;
   }
   if (looked) {
-    if (asked.part) defs.push(`<clipPath id="part">${part(asked.part)}</clipPath>`);
+    if (asked.part && !asked.style) defs.push(`<clipPath id="part">${part(asked.part)}</clipPath>`);
     picture += asked.part ? `<g clip-path="url(#part)">${looked}</g>` : looked;
   }
   if (asked.cutout) {

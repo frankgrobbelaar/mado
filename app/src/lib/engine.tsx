@@ -991,7 +991,27 @@ export interface Recipe {
   edit?: EditStep | null;
   fix?: FixStep | null;
   size: SizeStep | null;
+  /** A painting style, made after the size and before the look. */
+  paint?: PaintStep | null;
   look: LookStep | null;
+}
+
+/** The painting step: what the owner asks for in the Looks tab's painting styles. */
+export interface PaintStep {
+  /** "van-gogh", "pencil", one of the owner's ("yours-3"), or "picture" with its `code`. */
+  style: string;
+  /** 0 to 1: mixed with the picture as it was. */
+  strength: number;
+  /** The picture's own colours, the painting's lightness. */
+  colours: boolean;
+  /** A classic one's one setting, 0 to 100; null: where it starts. */
+  setting: number | null;
+  /** A picture's own style: its 512 numbers, as the engine read them. */
+  code?: string | null;
+  /** What that picture is called: "Night market". */
+  named?: string | null;
+  /** Only on these parts, as a look's ("Only on a part"); none or missing: the whole picture. */
+  parts?: Part[];
 }
 
 /** A part as picked: plain names, never a guess at what it is. */
@@ -1088,6 +1108,10 @@ export interface Plan {
   /** Where the fixes' models run: the processor when the card has no room left for them; null
    * without fixes. */
   fixPlace: "card" | "processor" | null;
+  /** Where its painting style is made; null without one. */
+  paintPlace: "card" | "processor" | null;
+  /** A painting made far bigger than it's painted: seen close, its strokes are soft. */
+  paintNote: string | null;
   seconds: number;
   place: "card" | "processor";
   /** The time is this PC's own, not a guess. */
@@ -1206,6 +1230,72 @@ export const useLooks = () => useEngineQuery<Looks>("/looks");
 export function lookAddress(picture: { id: number; version: string }, look: Look) {
   return `/pictures/${picture.id}/looks/${look.id}?v=${encodeURIComponent(picture.version)}-${look.version}`;
 }
+
+// Painting styles: Mado's painters and classic means, and the owner's own (the Looks tab).
+
+/** One of Mado's painting styles: after a public-domain painter, or drawn by code. */
+export interface PaintingStyle {
+  /** "van-gogh", "oil" */
+  id: string;
+  /** "After Van Gogh" */
+  name: string;
+  kind: "painter" | "classic";
+  /** A painter's: the painting it learned from. */
+  painting: string | null;
+  /** A painter's network, as /tools lists it. */
+  download: string | null;
+  /** A classic one's one setting: "Darkness". */
+  setting: string | null;
+  /** Where that setting starts. */
+  first: number;
+}
+
+/** One of the owner's styles: a picture's style kept, as its numbers and a small copy. */
+export interface YourStyle {
+  /** "yours-3" */
+  id: string;
+  name: string;
+  /** The picture it came from, by name. */
+  source: string;
+  addedAt: string;
+}
+
+export interface Styles {
+  painters: PaintingStyle[];
+  classics: PaintingStyle[];
+  yours: YourStyle[];
+  /** The download that reads a picture's style and paints with it. */
+  reader: string;
+}
+
+/** A picture's style as the engine read it. */
+export interface ReadStyle {
+  code: string;
+  /** "Night market" */
+  named: string;
+  /** The picture's version, which the address of its small copy carries. */
+  version: string;
+}
+
+export const useStyles = () => useEngineQuery<Styles>("/styles");
+
+/** A small copy of a picture in a style: its address carries the picture's version, and a kept
+ * style's id, never given again, says which. */
+export function styleAddress(picture: { id: number; version: string }, style: string) {
+  return `/pictures/${picture.id}/styles/${style}?v=${encodeURIComponent(picture.version)}`;
+}
+
+/** The small copy of the picture one of the owner's styles came from. */
+export const styleThumbnailAddress = (style: string) => `/styles/${style}/thumbnail`;
+
+/** Reads a picture's style: `read.mutate({ path: "/pictures/7/style" })`. */
+export const useReadStyle = () => useEngineAction<ReadStyle>([]);
+/** Keeps a picture's style: `keep.mutate({ path: "/styles", body: { name, code, picture } })`. */
+export const useKeepStyle = () => useEngineAction<YourStyle>(["/styles"]);
+/** Renames one: `rename.mutate({ path: "/styles/yours-3", body: { name } })`. */
+export const useRenameStyle = () => useEngineAction<YourStyle>(["/styles"], "PUT");
+/** Deletes one: `remove.mutate({ path: "/styles/yours-3" })`. */
+export const useDeleteStyle = () => useEngineAction<void>(["/styles"], "DELETE");
 
 /** Imports a .cube file: `importing.mutate({ path: "/looks/import", body: { path } })`. */
 export const useImportLook = () => useEngineAction<YourLook>(["/looks"]);
@@ -1385,7 +1475,16 @@ export interface Job {
   fix: string | null;
   how: "new" | "replace";
   state: JobState;
-  stage: "reading" | "editing" | "shaping" | "fixing" | "making" | "looking" | "saving" | null;
+  stage:
+    | "reading"
+    | "editing"
+    | "shaping"
+    | "fixing"
+    | "making"
+    | "painting"
+    | "looking"
+    | "saving"
+    | null;
   /** 0 to 1. */
   progress: number;
   secondsLeft: number | null;
@@ -1607,6 +1706,12 @@ export interface FixStepItem extends FixStep {
   step: "fix";
 }
 
+/** A painting style, as a batch's step: the Looks tab's choices, on the whole of each picture. A
+ * picture's own style goes in a batch once it's kept as a style. */
+export interface PaintStepItem extends Omit<PaintStep, "parts" | "code" | "named"> {
+  step: "paint";
+}
+
 /** Cut out the subject, as a batch's step: found without a click in each picture. */
 export interface CutoutStepItem {
   step: "cutout";
@@ -1617,7 +1722,7 @@ export interface CutoutStepItem {
 }
 
 /** A batch's step. Later pieces add kinds of their own. */
-export type BatchStep = CutoutStepItem | FixStepItem | SizeStepItem | LookStepItem;
+export type BatchStep = CutoutStepItem | FixStepItem | SizeStepItem | PaintStepItem | LookStepItem;
 
 /** How a batch saves: new pictures (beside the originals, into a folder by name beside each,
  * or into a folder of their own), or in the originals' places, each original to quarantine. */

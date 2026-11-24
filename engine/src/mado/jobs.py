@@ -53,7 +53,9 @@ from mado.upscale import StoppedError
 
 log = logging.getLogger(__name__)
 
-type Stage = Literal["reading", "editing", "shaping", "fixing", "making", "looking", "saving"]
+type Stage = Literal[
+    "reading", "editing", "shaping", "fixing", "making", "painting", "looking", "saving"
+]
 type Where = Literal["next", "last"]
 
 PARTIAL = ".mado-partial"  # a picture being written, beside where it goes
@@ -70,7 +72,8 @@ _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's who
     "shaping": (0.12, 0.22),
     "fixing": (0.22, 0.22),
     "making": (0.22, 0.85),
-    "looking": (0.85, 0.93),
+    "painting": (0.85, 0.89),
+    "looking": (0.89, 0.93),
     "saving": (0.93, 1.0),
 }
 # A job with fixes: they take the first part of making's, as they take about as long; all of it

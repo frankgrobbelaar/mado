@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path, PureWindowsPath
 from typing import Literal, cast
 
-from mado import own_looks
+from mado import own_looks, own_styles
 from mado.ai import BIREFNET, Ai
 from mado.core.batch import (
     KEPT_SECONDS,
@@ -28,6 +28,7 @@ from mado.core.batch import (
     fits,
     folder_words,
     look_chip,
+    paint_detail,
     recipe_of,
     saving_chip,
     size_chip,
@@ -42,14 +43,22 @@ from mado.core.fixes import detail as fix_detail
 from mado.core.fixes import phrase as fix_phrase
 from mado.core.looks import phrase
 from mado.core.naming import EXTENSIONS, QUARANTINE
+from mado.core.painting import Painting
 from mado.core.quality import Format, about_bytes
-from mado.core.recipe import Plan, Recipe, Styling, plan
+from mado.core.recipe import Plan, Recipe, Styling, plan, said_with
 from mado.core.sizes import Purpose, SizeError
 from mado.core.touches import named as named_touches
 from mado.core.touches import words as touch_words
 from mado.jobs import Jobs, NewBatch, destination
 from mado.libraw import Reader
-from mado.making import MissingLookError, estimated, recipe_from, screens_kept, waiting_for
+from mado.making import (
+    MissingLookError,
+    MissingStyleError,
+    estimated,
+    recipe_from,
+    screens_kept,
+    waiting_for,
+)
 from mado.pictures import NeedsReaderError, PictureGoneError, UnreadableError, read_facts
 from mado.previews import version
 
@@ -274,6 +283,8 @@ def takes(
     level = quality if isinstance(quality, int) else None
     each: list[tuple[float, int]] = []
     first: Plan | None = None
+    # Its style paints in the same place for every picture.
+    paint_on = ai.painter.place(recipe.painting.style) if recipe.painting else None
     for picture in pictures:
         made = plan(
             recipe,
@@ -288,7 +299,7 @@ def takes(
         )
         first = first or made
         bytes_ = about_bytes(chosen, level, "photo", made.width * made.height)
-        each.append((estimated(made, here, cut_on), bytes_))
+        each.append((estimated(made, here, cut_on, paint_on=paint_on), bytes_))
     assert first is not None  # noqa: S101 - there's a picture
     times = [(guess, took) for _at, guess, took, _b, _m in found]
     sizes = [(float(guessed), float(made)) for _at, _g, _t, guessed, made in found]
@@ -322,9 +333,12 @@ def recipe_from_steps(conn: sqlite3.Connection, steps: Sequence[dict[str, object
     """The recipe a batch's steps make. Raises BatchError for steps Mado can't make."""
     try:
         return recipe_from(
-            recipe_of(steps), screens_kept(conn), lambda look: own_looks.resolve(conn, look)
+            recipe_of(steps),
+            screens_kept(conn),
+            lambda look: own_looks.resolve(conn, look),
+            lambda asked: own_styles.resolve(conn, asked),
         )
-    except (StepError, SizeError, MissingLookError, FixError) as error:
+    except (StepError, SizeError, MissingLookError, MissingStyleError, FixError) as error:
         raise BatchError(str(error)) from None
 
 
@@ -523,6 +537,8 @@ def words_for(
                     None,
                 )
             )
+        elif kind == "paint":
+            found.append(_paint_words(conn, step))
         elif kind == "look":
             look_id = str(step.get("look", ""))
             look = own_looks.resolve(conn, look_id)
@@ -599,9 +615,41 @@ def _made_words(
     """What a batch's pictures are made for and with, what's edited first and what the fixes do,
     as a job and History say them."""
     made_for = recipe.sizing.size.label if recipe.sizing else None
-    styling = recipe.styling
-    look = phrase(styling.look, styling.strength, styling.touches) if styling else None
+    look = said_with(recipe.painting, recipe.styling)
     return made_for, look, edit_phrase(recipe.editing), fix_phrase(recipe.fixing)
+
+
+def _paint_words(
+    conn: sqlite3.Connection, step: dict[str, object]
+) -> tuple[str, str, str, str, str | None]:
+    """A painting style as a batch's steps and a recipe's line say it: "After Hokusai", "80"."""
+    style = own_styles.resolve(conn, step)
+    if style is None:
+        return (
+            "paint",
+            "A painting style",
+            "A style that isn't in your styles any more",
+            "?",
+            None,
+        )
+    strength = step.get("strength")
+    amount = min(max(float(strength), 0.0), 1.0) if isinstance(strength, int | float) else 1.0
+    setting = step.get("setting")
+    painting = Painting(
+        style,
+        amount,
+        colours=step.get("colours") is True,
+        setting=int(setting) if isinstance(setting, int | float) else None,
+    )
+    said = (style.setting, painting.amount) if style.kind == "classic" and style.setting else None
+    chip, percent = look_chip(style.name, amount)
+    return (
+        "paint",
+        "A painting style",
+        paint_detail(style.name, amount, painting.keeps_colours, said),
+        chip,
+        percent,
+    )
 
 
 def _fix_chip(on: tuple[str, ...]) -> str:

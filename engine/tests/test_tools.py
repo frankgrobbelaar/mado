@@ -75,6 +75,11 @@ def test_the_list_says_what_each_download_is_and_where_it_comes_from():
         "scunet",
         "fbcnn",
         "nafnet",
+        "style-van-gogh-starry-night",
+        "style-hokusai-great-wave",
+        "style-monet-water-lilies-1915",
+        "style-seurat-gravelines",
+        "microast",
     ]
     for item in items:
         addresses = [each.url for each in item.files] if item.files else [item.url]
@@ -168,6 +173,40 @@ def test_the_fixes_models_come_from_mados_first_and_third_sets_with_their_licenc
     assert next(each.name for each in models["nafnet"].files) == "nafnet-gopro-width32.onnx"
 
 
+def test_the_painting_styles_come_from_mados_third_set_with_their_licences():
+    painters = [item for item in manifest() if item.id.startswith("style-")]
+    microast = next(item for item in manifest() if item.id == "microast")
+
+    # The four that earned their place (docs/stack/styles.md), each named after its painter.
+    assert [item.name for item in painters] == [
+        "After Van Gogh",
+        "After Hokusai",
+        "After Monet",
+        "After Seurat",
+    ]
+    for item in [*painters, microast]:
+        assert item.when == "asked"
+        assert item.size == sum(each.size for each in item.files)
+        assert all("/releases/download/models-3/" in each.url for each in item.files)
+        assert any(each.name.startswith("LICENSE") for each in item.files)
+    for item in painters:
+        assert item.licence == "MIT AND BSD-3-Clause"  # Mado's own, the network's design BSD-3
+        assert [each.name for each in item.files] == [
+            f"{item.id}.onnx",
+            "LICENSE-pytorch-examples.txt",
+        ]
+        assert item.files[0].size == 6887451
+    assert microast.licence == "MIT"
+    assert [each.name for each in microast.files] == [
+        "microast-style.onnx",
+        "microast-stylize.onnx",
+        "LICENSE-MicroAST.txt",
+    ]
+    # The never-published pilot's checksum isn't the one listed.
+    van_gogh = painters[0].files[0].sha256
+    assert van_gogh == "73321b4fe4903555ef08ba85e5d60934d6cd670bdd6d6b052b7bcfa55a85d337"
+
+
 def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
     tools = Tools(paths, fetch=serving(BUILD))
 
@@ -184,6 +223,11 @@ def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
         "scunet",
         "fbcnn",
         "nafnet",
+        "style-van-gogh-starry-night",
+        "style-hokusai-great-wave",
+        "style-monet-water-lilies-1915",
+        "style-seurat-gravelines",
+        "microast",
     ]
     with pytest.raises(KeyError):
         tools.start("webview2")

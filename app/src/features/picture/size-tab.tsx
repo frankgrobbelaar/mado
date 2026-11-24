@@ -458,8 +458,12 @@ function neededFor(need: Need): string {
       return `Blur is mended with ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
     case "birefnet-lite":
       return `Cutting out at Best is ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
+    case "microast":
+      return `A picture's own style is painted with ${need.name}, a small AI model Mado downloads the first time it's asked for (${size}).`;
     default:
-      return `It needs ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
+      return need.id.startsWith("style-")
+        ? `${need.name} paints with a small AI model Mado downloads the first time it's asked for (${size}).`
+        : `It needs ${need.name}, an AI model Mado downloads the first time it's asked for (${size}).`;
   }
 }
 
