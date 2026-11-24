@@ -484,7 +484,8 @@ describe("Restoring an old photo", () => {
       };
       expect(asked.restore.scratches.strokes).toHaveLength(SCRATCH_STROKES);
     });
-  });
+    // 513 strokes each draw the page again: about 6 s alone, 19 s beside a busy processor.
+  }, 60_000);
 
   it("holds Save on every tab till the mask has been checked", async () => {
     engine();
