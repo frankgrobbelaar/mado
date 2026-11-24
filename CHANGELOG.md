@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.13.0 - 2026-11-24
+
 ### Added
 - Restoring old photos, at the top of the Fix tab: Mado finds a scanned print's scratches,
   creases and dust and shows them on the picture first. Paint over any it missed (dark scratches
