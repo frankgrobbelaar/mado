@@ -294,6 +294,39 @@ describe("BatchPage", () => {
     );
   });
 
+  it("gives each picture depth as a step made after the size, portrait blur at each subject", async () => {
+    const fetch = fakeEngine(ENGINE);
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    (
+      await screen.findByRole("menuitem", { name: "Depth: portrait blur, fog, tilt-shift" })
+    ).click();
+    const card = await screen.findByRole("dialog", { name: "Give them depth" });
+    expect(within(card).getByRole("switch", { name: "Portrait blur" })).toBeChecked();
+    expect(
+      within(card).getByText(
+        "Each picture is in focus at its own subject, found as Cut out finds it.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(within(card).getByRole("switch", { name: "Tilt-shift" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/batches/takes").at(-1)?.steps).toEqual([
+        {
+          step: "depth",
+          portrait: { focus: null, aperture: 2.8, quality: null },
+          fog: null,
+          tilt: { centre: 0.55, height: 0.2, strength: 0.6 },
+        },
+      ]),
+    );
+  });
+
   it("takes each JPEG's blocks out as hard as it was squeezed, with no strength to set", async () => {
     const fetch = fakeEngine(ENGINE);
     renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });

@@ -1,5 +1,6 @@
 import { type MouseEvent, useId, useRef } from "react";
 import {
+  type DepthStep,
   type EditStep,
   type FixStep,
   type LookStep,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/engine";
 import { stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { withDepth } from "./depth";
 import { brightening, fixed } from "./fixes";
 import { useSlow } from "./size-stage";
 import { fitted, useBox } from "./stage-box";
@@ -37,6 +39,8 @@ export function LooksStage(props: {
   edit: EditStep | null;
   /** The fixes chosen on the Fix tab, which the picture shows; null with none. */
   fix?: FixStep | null;
+  /** The depth tools chosen on the Depth tab, which the picture shows; null with none. */
+  depth?: DepthStep | null;
   /** The size step as the plan decided it (null: the picture keeps its pixels). */
   size: SizeStep | null;
   /** The plan for the whole recipe, while a size is chosen: the picture made's shape. */
@@ -75,18 +79,27 @@ export function LooksStage(props: {
   const edit = props.edit;
   // Of the fixes, all of it shows a dark photo's brightening: the rest show at full detail.
   const fix = brightening(props.fix);
-  const changed = size !== null || edit !== null || fix !== null;
+  const depth = props.depth ?? null;
+  const changed = size !== null || edit !== null || fix !== null || depth !== null;
   const view = usePictureImage(changed ? null : pictureAddress(picture, "view"));
   const plain = usePreview(
     picture.id,
     changed && box.measured
-      ? { recipe: fixed({ edit, size, look: null }, fix), side: "after", fit: wanted }
+      ? {
+          recipe: withDepth(fixed({ edit, size, look: null }, fix), depth),
+          side: "after",
+          fit: wanted,
+        }
       : null,
   );
   const looked = usePreview(
     picture.id,
     styled && box.measured
-      ? { recipe: fixed({ edit, size, paint, look }, fix), side: "after", fit: wanted }
+      ? {
+          recipe: withDepth(fixed({ edit, size, paint, look }, fix), depth),
+          side: "after",
+          fit: wanted,
+        }
       : null,
     { keep: true },
   );

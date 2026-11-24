@@ -5,6 +5,7 @@ import {
   count,
   dayAndTime,
   dayHeading,
+  depthAs,
   editedAs,
   madeAt,
   madeWith,
@@ -37,6 +38,31 @@ describe("madeWith and versionOf", () => {
     expect(madeWith(sizedToo)).toBe("for TV 8K (cut out the subject)");
     expect(versionOf(erased)).toBe("edited");
     expect(versionOf(sizedToo)).toBe("TV 8K");
+  });
+});
+
+describe("the depth tools and a 3D photo", () => {
+  it("say the depth tools with the look, and a 3D photo as what it was made into", () => {
+    const blurred = { madeFor: null, look: null, depth: "portrait blur at f/2.8" };
+    const all = {
+      madeFor: "TV 8K",
+      look: "Warm film at 60%",
+      depth: "portrait blur at f/2.8 and fog",
+    };
+    const video = { madeFor: null, look: null, depth: "into a 3D photo, swaying for 5 s" };
+
+    expect(madeWith(blurred)).toBe("with portrait blur at f/2.8");
+    expect(madeWith(all)).toBe(
+      "for TV 8K, with portrait blur at f/2.8 and fog and Warm film at 60%",
+    );
+    expect(madeWith(video)).toBe("into a 3D photo, swaying for 5 s");
+    expect(versionOf(blurred)).toBe("portrait blur");
+    expect(depthAs("portrait blur at f/1.4")).toBe("Portrait blur");
+    expect(depthAs("fog")).toBe("Fog");
+    expect(depthAs("tilt-shift")).toBe("Tilt-shift");
+    expect(depthAs("portrait blur at f/2.8, fog and tilt-shift")).toBe("Depth");
+    expect(depthAs(video.depth)).toBe("3D photo");
+    expect(depthAs(null)).toBeNull();
   });
 });
 

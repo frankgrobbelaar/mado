@@ -24,7 +24,7 @@ import {
   usePictureImage,
   useReviewUndo,
 } from "@/lib/engine";
-import { count, madeWith, size, split, stem, versionOf } from "@/lib/format";
+import { count, MOTION_WORDS, madeWith, size, split, stem, versionOf } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 
 const KEEP = [
@@ -584,7 +584,7 @@ function words(entry: HistoryEntry): [string, string] {
         ];
       return [
         `Made ${stem(entry.name)} ${madeWith(entry)}`,
-        `As a new picture: ${entry.resultName ?? ""}${entry.result ? ` in ${split(split(entry.result)[1])[0]}` : ""}`,
+        `${entry.depth?.startsWith(MOTION_WORDS) ? "As a video" : "As a new picture"}: ${entry.resultName ?? ""}${entry.result ? ` in ${split(split(entry.result)[1])[0]}` : ""}`,
       ];
   }
 }

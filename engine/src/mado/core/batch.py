@@ -4,8 +4,8 @@ whether a drive has room, a batch's steps and the words for them. Pure.
 
 A batch's steps are a list, each its kind of step and its choices (`{"step": "size", ...}`), so
 later pieces add kinds of their own. They're made in Mado's order, the subject cut out, the
-fixes, the size and then the look, whatever order they're listed in, and saved as the batch
-says.
+fixes, the size, the depth tools and then the look, whatever order they're listed in, and saved
+as the batch says.
 """
 
 from collections.abc import Sequence
@@ -20,7 +20,14 @@ type Step = dict[str, object]
 
 NIGHT = (time(23, 0), time(7, 0))  # when a batch for tonight runs
 MARGIN = 256 * 1024 * 1024  # bytes kept free on a drive, so Windows and other apps have room
-ORDER = ("cutout", "fix", "size", "paint", "look")  # the kinds of step Mado makes, in its order
+ORDER = (
+    "cutout",
+    "fix",
+    "size",
+    "depth",
+    "paint",
+    "look",
+)  # the kinds of step Mado makes, in order
 _GOLDEN = 0.6180339887498949  # spreads See it first's pictures across a batch, round after round
 _SAMPLES = 3
 _HELD = (1 / 3, 3.0)  # how far See it first can move the rest's time
@@ -101,9 +108,9 @@ def steps_in_order(steps: Sequence[Step]) -> list[Step]:
 
 
 def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
-    """Steps as a job keeps its recipe: its edits (the subject cut out), its fixes, its size step
-    and its look step, any of them None. Raises StepError for none, two of a kind, or a kind this
-    Mado doesn't know."""
+    """Steps as a job keeps its recipe: its edits (the subject cut out), its fixes, its size
+    step, its depth step and its look step, any of them None. Raises StepError for none, two of a
+    kind, or a kind this Mado doesn't know."""
     found: dict[str, dict[str, object]] = {}
     for step in steps:
         kind = str(step.get("step"))
@@ -117,12 +124,15 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
         found[kind] = {key: value for key, value in step.items() if key != "step"}
     if not found:
         raise StepError(
-            "Pick what to do first: cut out the subject, fix them, make them for a screen, paint "
-            "them in a style, or give them a look."
+            "Pick what to do first: cut out the subject, fix them, make them for a screen, give "
+            "them depth, paint them in a style, or give them a look."
         )
     fix = found.get("fix")
     if fix is not None and all(fix.get(kind) is None for kind in ("noise", "blur", "jpeg", "dark")):
         raise StepError("The Fix step has no fix turned on: turn one on, or take the step out.")
+    depth = found.get("depth")
+    if depth is not None and all(depth.get(kind) is None for kind in ("portrait", "fog", "tilt")):
+        raise StepError("The Depth step has no tool turned on: turn one on, or take the step out.")
     cut = found.get("cutout")
     edit = (
         {
@@ -143,6 +153,7 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
         "edit": edit,
         "fix": found.get("fix"),
         "size": found.get("size"),
+        "depth": found.get("depth"),
         "paint": found.get("paint"),
         "look": found.get("look"),
     }
@@ -152,6 +163,7 @@ _SAID = {
     "cutout": "cut-out",
     "fix": "set of fixes",
     "size": "size",
+    "depth": "set of depth tools",
     "paint": "painting style",
     "look": "look",
 }
@@ -248,10 +260,12 @@ def told(
     look: str | None,
     edit: str | None = None,
     fix: str | None = None,
+    depth: str | None = None,
 ) -> tuple[str, str]:
     """A batch done, as its notification says it: "Holiday prints is done", "48 pictures made
     for TV 8K · 1 didn't work", "12 pictures made: cut out the subject"."""
     edit = ", ".join(each for each in (edit, fix) if each) or None
+    look = " and ".join(each for each in (depth, look) if each) or None
     if made == 0:
         whole = failed
         return (

@@ -1,5 +1,6 @@
 import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import {
+  type DepthStep,
   type EditStep,
   type FixStep,
   type LookStep,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/engine";
 import { about, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { withDepth } from "./depth";
 import { brightening, fixed } from "./fixes";
 import type { Zoom } from "./stage";
 import { fitted, useBox } from "./stage-box";
@@ -37,6 +39,8 @@ export function SizeStage(props: {
   edit: EditStep | null;
   /** The fixes chosen on the Fix tab, which after carries; null with none. */
   fix?: FixStep | null;
+  /** The depth tools chosen on the Depth tab, which after carries; null with none. */
+  depth?: DepthStep | null;
   plan: Plan;
   size: SizeStep;
   /** The look chosen on the Looks tab, which after carries; null with none. */
@@ -72,6 +76,7 @@ export function SizeStage(props: {
           picture={picture}
           edit={props.edit}
           fix={props.fix ?? null}
+          depth={props.depth ?? null}
           plan={plan}
           size={decided}
           look={props.look}
@@ -282,6 +287,7 @@ function Compared(props: {
   picture: PictureDetails;
   edit: EditStep | null;
   fix: FixStep | null;
+  depth: DepthStep | null;
   plan: Plan;
   size: SizeStep;
   look: LookStep | null;
@@ -299,7 +305,11 @@ function Compared(props: {
       height={plan.height}
       start={startingPoint(plan)}
       before={lama ? null : { edit: props.edit, size, look: null }}
-      after={waiting ? null : fixed({ edit: props.edit, size, paint, look }, props.fix)}
+      after={
+        waiting
+          ? null
+          : withDepth(fixed({ edit: props.edit, size, paint, look }, props.fix), props.depth)
+      }
       label={`After · ${plan.label}`}
       waiting={waiting ? `After shows once ${waiting} is downloaded` : null}
       scale={props.scale}

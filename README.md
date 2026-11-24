@@ -19,7 +19,7 @@ on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, paints them after a painter or in any picture's style, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, paints them after a painter or in any picture's style, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, blurs a picture as a lens would by its depth or makes it a moving 3D photo, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
@@ -174,6 +174,7 @@ it, and each runs on your PC.
 | NAFNet | Mends blur from a shaking camera or a moving subject, held back where a picture is flat (downloaded the first time, 69 MB) | MIT, Apache-2.0 |
 | Mado's painting styles: After Van Gogh, After Hokusai, After Monet, After Seurat | Paint a picture after a painter. Mado trained them itself on public-domain paintings, which aren't in Mado (downloaded the first time each is asked for, 6.9 MB each) | MIT, the network's design PyTorch examples' (BSD-3-Clause) |
 | MicroAST | Paints a picture in the style of any picture of yours, from its colours and textures (downloaded the first time, 2 MB) | MIT |
+| Depth Anything V2 Small | Reads how far away each part of a picture is, for portrait blur, fog and 3D photos (downloaded the first time, 99 MB) | Apache-2.0 |
 
 They run on ONNX Runtime (MIT) with Microsoft's DirectML, which Mado carries under Microsoft's
 terms.

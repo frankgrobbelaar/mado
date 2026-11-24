@@ -9,6 +9,8 @@ import { Loading, Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import {
+  type DepthRead,
+  type DepthStep,
   type Edit,
   type EditingPlaces,
   type EditStep,
@@ -27,6 +29,7 @@ import {
   type Stroke,
   shownFrom,
   shownQuery,
+  useDepthRead,
   useEdit,
   useFolders,
   useLooks,
@@ -44,6 +47,9 @@ import { showInFolder, useExplorer } from "@/lib/explorer";
 import { madeWith, size, split, stem, takenOn } from "@/lib/format";
 import { useSettled } from "@/lib/settled";
 import { cn } from "@/lib/utils";
+import { DEPTH_MODEL, hasDepth, NO_DEPTH, readsDepth, withDepth } from "./depth";
+import { DepthStage, MotionStage } from "./depth-stage";
+import { type DepthMode, DepthTab } from "./depth-tab";
 import { EditStage, type EditTool } from "./edit-stage";
 import { type Backing, EditTab } from "./edit-tab";
 import { bare, NOTHING, tooBig, usePicking } from "./editing";
@@ -52,6 +58,7 @@ import { FixTab } from "./fix-tab";
 import { fixed, hasFix, NO_FIX } from "./fixes";
 import { LooksStage } from "./looks-stage";
 import { changes, OnlyOnAPart, ORIGINAL, PLAIN, TOUCHES } from "./looks-tab";
+import { MOTION_START, type MotionChoices, type MotionMaker, useMotionMaker } from "./motion";
 import { NeighbourStrip } from "./neighbour-strip";
 import { LookOnly, WhereItLives } from "./outside";
 import { networkOf, type PictureStyle, painted, styleName } from "./painting";
@@ -120,8 +127,11 @@ export function PicturePage() {
   const [eraseQuality, setEraseQuality] = useState<Quality>("fast");
   const [cutQuality, setCutQuality] = useState<Quality>("fast");
   const [backing, setBacking] = useState<Backing>({ behind: "nothing", colour: "#ffffff" });
-  // The fixes are each picture's own, as its flaws are.
+  // The fixes are each picture's own, as its flaws are; so are its depth tools and 3D photo.
   const [fix, setFix] = useState<FixStep>(NO_FIX);
+  const [depth, setDepth] = useState<DepthStep>(NO_DEPTH);
+  const [depthMode, setDepthMode] = useState<DepthMode>("picture");
+  const [choices, setChoices] = useState<MotionChoices>(MOTION_START);
   const [smeared, setSmeared] = useState(false);
   const [letGo, setLetGo] = useState<string | null>(null);
   const [shownFor, setShownFor] = useState(id);
@@ -139,6 +149,7 @@ export function PicturePage() {
     setSmeared(false);
     setLetGo(null);
     setFix(NO_FIX);
+    setDepth(NO_DEPTH);
     if (opened?.fresh) {
       // A picture Mado just made, opened from its job: shown as it is, not made again.
       setSized(null);
@@ -183,9 +194,12 @@ export function PicturePage() {
   const settled = useSettled(look, 300);
   const settledFix = useSettled(fix, 300);
   const settledPaint = useSettled(paint, 300);
-  const settling = settled !== look || settledFix !== fix || settledPaint !== paint;
+  const settledDepth = useSettled(depth, 300);
+  const settling =
+    settled !== look || settledFix !== fix || settledPaint !== paint || settledDepth !== depth;
   // A picture opened next starts with no fixes: the last one's, still settling, never reach it.
   const fixStep = hasFix(fix) && hasFix(settledFix) ? settledFix : null;
+  const depthStep = hasDepth(depth) && hasDepth(settledDepth) ? settledDepth : null;
   const ready = picture.data?.state === "ready";
   const lookParts = bare(lookPicking.picked.parts);
   const looked = changes(settled)
@@ -203,11 +217,30 @@ export function PicturePage() {
   const recipeEdit = editStep ?? (onParts ? { version, edits: [] } : null);
   // A paste can be saved as it is: nothing chosen is still something to save.
   const recipe: Recipe | null =
-    ready && (sized || looked || editStep || fixStep || paintStep)
-      ? fixed({ edit: recipeEdit, size: sized, paint: paintStep, look: looked }, fixStep)
+    ready && (sized || looked || editStep || fixStep || paintStep || depthStep)
+      ? withDepth(
+          fixed({ edit: recipeEdit, size: sized, paint: paintStep, look: looked }, fixStep),
+          depthStep,
+        )
       : ready && picture.data?.pasted
         ? AS_IT_IS
         : null;
+  const depthing = tool === "depth";
+  const depthRead = useDepthRead(
+    id,
+    depthing && ready ? { version: editedOn ?? version, edits } : null,
+  );
+  // Kept whatever tab is open: only another picture, or this one changed, lets a 3D photo go.
+  const maker = useMotionMaker(
+    ready && picture.data ? { id, version: editedOn ?? version } : null,
+    edits,
+  );
+  const tools = useTools();
+  const depthModel = tools.data?.find((each) => each.id === DEPTH_MODEL);
+  const depthWaiting =
+    depthModel && depthModel.state !== "ready" && readsDepth(depth)
+      ? `After shows once ${depthModel.name} is downloaded`
+      : null;
   const big = picture.data ? tooBig(picture.data) : null;
   const places = usePc().data?.editing;
   const plan = usePlan(id, recipe);
@@ -294,10 +327,10 @@ export function PicturePage() {
     return () => window.removeEventListener("keydown", letGo);
   }, [tool, picking.clear]);
 
-  // On the Looks and Edit tabs, holding the key shows the original, as the button beside the
-  // title does on Looks.
+  // On the Looks, Edit and Depth tabs, holding the key shows the original, as the button beside
+  // the title does on Looks.
   useEffect(() => {
-    if (tool !== "looks" && tool !== "edit") return;
+    if (tool !== "looks" && tool !== "edit" && tool !== "depth") return;
     function down(event: KeyboardEvent) {
       // Some keyboards type \ with AltGr, which Windows reports as Ctrl and Alt together.
       const altGr = event.getModifierState("AltGraph");
@@ -413,7 +446,7 @@ export function PicturePage() {
             </span>
           ) : looking ? (
             <HoldButton held={held} onHeld={setHeld} disabled={!ready} />
-          ) : (
+          ) : depthing && depthMode === "motion" ? null : (
             <>
               <Segmented
                 label="Zoom"
@@ -422,7 +455,8 @@ export function PicturePage() {
                 onChange={setZoom}
                 className="ml-auto [&_button:not(:first-child)]:font-mono"
               />
-              {!outside && !fixing && (
+              {depthing && <HoldButton held={held} onHeld={setHeld} disabled={!ready} quiet />}
+              {!outside && !fixing && !depthing && (
                 <>
                   <Button
                     size="sm"
@@ -468,6 +502,7 @@ export function PicturePage() {
                 picture={picture.data}
                 edit={editStep}
                 fix={fixStep}
+                depth={depthStep}
                 sized={sized}
                 plan={plan.data ?? null}
                 look={pointed ?? look}
@@ -523,11 +558,28 @@ export function PicturePage() {
                 zoom={zoom}
               />
             )}
-            {picture.data && !looking && !editingNow && !fixing && (
+            {picture.data && depthing && (
+              <DepthOnStage
+                picture={picture.data}
+                edit={editStep}
+                fix={fixStep}
+                depth={depth}
+                onDepth={setDepth}
+                read={depthRead.data ?? null}
+                plan={depthStep ? (plan.data ?? null) : null}
+                zoom={zoom}
+                held={held}
+                waiting={depthWaiting}
+                mode={depthMode}
+                maker={maker}
+              />
+            )}
+            {picture.data && !looking && !editingNow && !fixing && !depthing && (
               <OnStage
                 picture={picture.data}
                 edit={editStep}
                 fix={fixStep}
+                depth={depthStep}
                 zoom={zoom}
                 sized={sized}
                 look={looked}
@@ -539,15 +591,21 @@ export function PicturePage() {
           </>
         )}
 
-        {picture.data && !outside && neighbours.data && !looking && !editingNow && !fixing && (
-          <NeighbourStrip
-            label={`Pictures in ${back === "Library" ? "your library" : back}`}
-            current={picture.data}
-            before={neighbours.data.before}
-            after={neighbours.data.after}
-            to={to}
-          />
-        )}
+        {picture.data &&
+          !outside &&
+          neighbours.data &&
+          !looking &&
+          !editingNow &&
+          !fixing &&
+          !depthing && (
+            <NeighbourStrip
+              label={`Pictures in ${back === "Library" ? "your library" : back}`}
+              current={picture.data}
+              before={neighbours.data.before}
+              after={neighbours.data.after}
+              to={to}
+            />
+          )}
       </div>
       {picture.data?.aside && <LookOnly />}
       {picture.data && !picture.data.aside && (
@@ -586,6 +644,24 @@ export function PicturePage() {
               onSize={() => setTool("size")}
               onRemove={lookPicking.remove}
               onWhole={lookPicking.clear}
+            />
+          }
+          depthed={depthStep}
+          depth={
+            <DepthTab
+              picture={picture.data}
+              depth={depth}
+              onDepth={setDepth}
+              mode={depthMode}
+              onMode={setDepthMode}
+              read={depthRead.data ?? null}
+              readProblem={depthRead.isError ? depthRead.error.message : null}
+              recipe={recipe}
+              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+              settling={settling}
+              choices={choices}
+              onChoices={setChoices}
+              maker={maker}
             />
           }
           fix={
@@ -657,8 +733,14 @@ function factsOf(picture: PictureDetails): string {
 }
 
 /** "Hold to see the original", as the Looks board draws it: the picture without its look while
- * it's held down, by the pointer, Space or Enter (and the \ key, anywhere on the tab). */
-function HoldButton(props: { held: boolean; onHeld: (held: boolean) => void; disabled: boolean }) {
+ * it's held down, by the pointer, Space or Enter (and the \ key, anywhere on the tab). `quiet`:
+ * beside the zoom, not pushed to the header's end. */
+function HoldButton(props: {
+  held: boolean;
+  onHeld: (held: boolean) => void;
+  disabled: boolean;
+  quiet?: boolean;
+}) {
   const { onHeld } = props;
   return (
     <Button
@@ -667,7 +749,7 @@ function HoldButton(props: { held: boolean; onHeld: (held: boolean) => void; dis
       aria-keyshortcuts="Backslash"
       title="Or hold the \ key"
       disabled={props.disabled}
-      className="ml-auto touch-none select-none font-medium"
+      className={cn("touch-none select-none font-medium", !props.quiet && "ml-auto")}
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture(event.pointerId);
         onHeld(true);
@@ -696,6 +778,7 @@ function LooksOnStage(props: {
   picture: PictureDetails;
   edit: EditStep | null;
   fix: FixStep | null;
+  depth: DepthStep | null;
   sized: SizeStep | null;
   plan: Plan | null;
   look: LookStep;
@@ -765,6 +848,7 @@ function LooksOnStage(props: {
         picture={picture}
         edit={props.edit}
         fix={props.fix}
+        depth={props.depth}
         size={decided}
         plan={decided ? plan : null}
         look={changes(look) ? (props.parts.length ? { ...look, parts: props.parts } : look) : null}
@@ -861,6 +945,52 @@ function EditOnStage(props: {
   );
 }
 
+/** The picture on the Depth tab, with its depth tools, or as a 3D photo: or, for one that can't
+ * be shown, why, in its place. */
+function DepthOnStage(props: {
+  picture: PictureDetails;
+  edit: EditStep | null;
+  fix: FixStep | null;
+  depth: DepthStep;
+  onDepth: (depth: DepthStep) => void;
+  read: DepthRead | null;
+  plan: Plan | null;
+  zoom: Zoom;
+  held: boolean;
+  waiting: string | null;
+  mode: DepthMode;
+  maker: MotionMaker;
+}) {
+  const { picture } = props;
+  const explorer = useExplorer();
+  if (picture.state !== "ready") {
+    return (
+      <Unshown
+        picture={picture}
+        onShow={() => explorer.run(() => showInFolder(picture.path))}
+        problem={explorer.problem}
+      >
+        {null}
+      </Unshown>
+    );
+  }
+  if (props.mode === "motion") return <MotionStage picture={picture} maker={props.maker} />;
+  return (
+    <DepthStage
+      picture={picture}
+      edit={props.edit}
+      fix={props.fix}
+      depth={props.depth}
+      onDepth={props.onDepth}
+      focus={props.read?.focus ?? null}
+      plan={props.plan}
+      zoom={props.zoom}
+      held={props.held}
+      waiting={props.waiting}
+    />
+  );
+}
+
 /** The picture on the Fix tab, before and after its fixes: or, for one that can't be shown, why,
  * in its place. */
 function FixOnStage(props: {
@@ -900,6 +1030,7 @@ function OnStage({
   picture,
   edit,
   fix,
+  depth,
   zoom,
   sized,
   look,
@@ -910,6 +1041,7 @@ function OnStage({
   picture: PictureDetails;
   edit: EditStep | null;
   fix: FixStep | null;
+  depth: DepthStep | null;
   zoom: Zoom;
   sized: SizeStep | null;
   look: LookStep | null;
@@ -966,6 +1098,7 @@ function OnStage({
           picture={picture}
           edit={edit}
           fix={fix}
+          depth={depth}
           plan={plan}
           size={sized}
           look={look}

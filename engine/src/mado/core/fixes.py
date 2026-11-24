@@ -22,7 +22,7 @@ from typing import Literal, cast
 import numpy as np
 import numpy.typing as npt
 
-from mado.core.masks import box
+from mado.core.masks import box, running
 
 type Quality = Literal["fast", "best"]
 type Floats = npt.NDArray[np.float32]
@@ -510,29 +510,9 @@ def light_of(lightness: Floats) -> Floats:
 def local_range(values: Floats, window: int) -> Floats:
     """Each value's square of neighbours `window` across, from brightest to darkest (the edges
     repeat outward): by doubling runs, so as quick for a wide square as a small one."""
-    highest = _running(values, window, np.maximum)
-    lowest = _running(values, window, np.minimum)
+    highest = running(values, window, np.maximum)
+    lowest = running(values, window, np.minimum)
     return (highest - lowest).astype(np.float32)
-
-
-def _running(values: Floats, window: int, pick: np.ufunc) -> Floats:
-    out = values
-    for axis in (0, 1):
-        moved = np.moveaxis(out, axis, 0)
-        count = moved.shape[0]
-        before = window // 2
-        padded = np.concatenate(
-            [np.repeat(moved[:1], before, 0), moved, np.repeat(moved[-1:], window - 1 - before, 0)]
-        )
-        span = 1
-        while span * 2 <= window:
-            padded = pick(padded[:-span], padded[span:])
-            span *= 2
-        rest = window - span
-        if rest:
-            padded = pick(padded[: padded.shape[0] - rest], padded[rest:])
-        out = np.moveaxis(padded[:count], 0, axis)
-    return np.ascontiguousarray(out, np.float32)
 
 
 def guarded(before: Floats, after: Floats, window: int = GUARD, slack: float = SLACK) -> Floats:

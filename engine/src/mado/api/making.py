@@ -1,9 +1,9 @@
-"""Making a picture to a recipe, as the Size, Looks, Edit and Fix tabs ask: the sizes there are,
-the owner's screens, the plan for a recipe (its shape, model, painting, look, edits, fixes, time
-and quality), a preview (all of it fitted, or a part at full detail), the name it would be saved
-as, what the Fix tab suggests, and making it, as a job (mado/api/jobs.py). A recipe is its edits,
-its fixes, a size step, a painting step and a look step, any of them left out, made by one
-Save."""
+"""Making a picture to a recipe, as the Size, Looks, Edit, Fix and Depth tabs ask: the sizes
+there are, the owner's screens, the plan for a recipe (its shape, model, depth tools, painting,
+look, edits, fixes, time and quality), a preview (all of it fitted, or a part at full detail), the
+name it would be saved as, what the Fix tab suggests, and making it, as a job (mado/api/jobs.py).
+A recipe is its edits, its fixes, a size step, a depth step, a painting step and a look step, any
+of them left out, made by one Save."""
 
 import io
 import json
@@ -31,6 +31,7 @@ from mado.api.common import (
     ApiModel,
     Copies,
     Database,
+    Depthing,
     Editors,
     Models,
     Seeing,
@@ -38,12 +39,14 @@ from mado.api.common import (
     Toolbox,
     Working,
 )
+from mado.api.depth import DepthStepIn, depthing_of
 from mado.api.editing import changed
 from mado.api.edits import EditStepIn, PartIn, editing_of, picked
 from mado.api.fixes import FixesOut, FixStepIn, fixing_of
 from mado.api.jobs import Job, job_of
 from mado.api.looks import LookIn
 from mado.api.styles import UNREAD_STYLE, PaintHereIn
+from mado.core.depth import DepthError, depthing_json
 from mado.core.edits import Edit, EditError, Editing, Part, as_json
 from mado.core.estimate import key
 from mado.core.fixes import (
@@ -72,8 +75,9 @@ from mado.core.sizes import (
     resolve,
     yours,
 )
+from mado.depth import Depths, Worked, joined_on, work_out
 from mado.directml import ModelError
-from mado.editing import EditingError, Editor, picture_key
+from mado.editing import EditingError, Editor, cut_quality, picture_key
 from mado.fixing import MARGIN, Measure, fixed
 from mado.looks import Placement, seed_of, styled
 from mado.making import (
@@ -82,6 +86,8 @@ from mado.making import (
     Picture,
     Seen,
     Sight,
+    canvas_of,
+    depth_seconds,
     estimated,
     fix_seconds,
     only_on,
@@ -167,12 +173,13 @@ class LookHereIn(LookIn):
 
 
 class RecipeIn(ApiModel):
-    """A recipe: the edits, the fixes, the size step, the painting step, then the look step;
-    any can be left out."""
+    """A recipe: the edits, the fixes, the size step, the depth step, the painting step, then the
+    look step; any can be left out."""
 
     edit: EditStepIn | None = None
     fix: FixStepIn | None = None
     size: SizeIn | None = None
+    depth: DepthStepIn | None = None
     paint: PaintHereIn | None = None
     look: LookHereIn | None = None
 
@@ -219,6 +226,9 @@ class PlanOut(ApiModel):
     fix_quality: Quality | None  # JPEG blocks at Fast or Best, as decided; None without them
     fix_seconds: float  # of `seconds`, about how long the fixes take
     fix_place: Literal["card", "processor"] | None  # where the fixes' models run; None without
+    depth: str | None  # the depth tools, as Save and History say them: "portrait blur at f/2.8"
+    depth_seconds: float  # of `seconds`, about how long the depth tools take
+    depth_place: Literal["card", "processor"] | None  # where the depth model runs; None without
     paint_place: Literal["card", "processor"] | None  # where its painting is made; None without
     paint_note: str | None  # a painting made far bigger than it's painted: its strokes soft close
     seconds: float  # about how long it takes here
@@ -332,6 +342,7 @@ def plan_for(
     fix_on = ai.fix_place(fixers) if fixers else None
     painting = made.painting
     paint_on = ai.painter.place(painting.style) if painting is not None else None
+    depth_on = ai.depth_place()
     purpose = recipe.sizing.size.purpose if recipe.sizing else "screen"
     clear = seen.alpha or made.see_through
     # A cut-out with nothing behind it keeps its nothing: PNG, or WebP when it was WebP.
@@ -366,9 +377,14 @@ def plan_for(
         fix_quality=made.fix_quality if made.fixing and made.fixing.jpeg is not None else None,
         fix_seconds=fix_seconds(made, here, fix_on),
         fix_place=fix_on if made.fixing is not None else None,
+        depth=made.depth,
+        depth_seconds=depth_seconds(made, depth_on, ai.edit_place(BIREFNET)),
+        depth_place=depth_on if made.depthing is not None else None,
         paint_place=paint_on,
         paint_note=enlarged(painting, made.width, made.height) if painting is not None else None,
-        seconds=estimated(made, here, ai.edit_place(BIREFNET), fix_on, paint_on),
+        seconds=estimated(
+            made, here, ai.edit_place(BIREFNET), fix_on, paint_on=paint_on, depth_on=depth_on
+        ),
         place=here.place,
         measured=measured,
         format=suits.format,
@@ -400,11 +416,13 @@ def preview(
     ai: Models,
     copies: Copies,
     editor: Editors,
+    depths: Depthing,
 ) -> Response:
     """A preview of the picture made: all of it no bigger than `fit` (from its view the size of a
     screen), or a part of it at full detail (`region`); before (the picture only stretched) or
-    after (made, as Save would, with its look and touches). All of it comes as JPEG, quick to
-    make as looks are gone through (WebP when it has see-through parts); a part as WebP."""
+    after (made, as Save would, with its depth tools, look and touches). All of it comes as JPEG,
+    quick to make as looks are gone through (WebP when it has see-through parts); a part as
+    WebP."""
     picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = _planned(recipe, picture, source, seen, sight, ai, editor)
@@ -414,11 +432,11 @@ def preview(
     painter = ai.painter.needs(made.painting.style) if made.painting is not None else None
     # Extending and the edits need their models on either side; the upscaler and the fixes' only
     # for a part made at full detail (all of it shows only the brightening, which needs none);
-    # a painting style's network only after.
+    # a painting style's network and the depth tools' only after.
     for each in missing:
         if each == upscaler or each in fixers:
             needed = body.region is not None and body.side == "after"
-        elif each == painter:
+        elif each == painter or (each in _DEPTH_MODELS and made.depthing is not None):
             needed = body.side == "after"
         else:
             needed = True
@@ -429,14 +447,14 @@ def preview(
             )
     began = time.perf_counter()
     try:
-        image = _previewed(picture, source, seen, made, body, sight, ai, copies, editor)
+        image = _previewed(picture, source, seen, made, body, sight, ai, copies, editor, depths)
     except ModelError as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
     except EditingError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
         raise _refused(error) from None
-    except StoppedError:  # a part's fixes, stopped as a newer preview of the picture came
+    except StoppedError:  # a part's fixes or depth, stopped as a newer preview of it came
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "A newer preview took this one's place."
         ) from None
@@ -586,6 +604,10 @@ def make(
     )
     look = asked.look if made.styling is not None else None  # a look that changes nothing isn't
     painted = asked.paint if made.painting is not None else None  # nor a painting at nought
+    # The depth tools as the plan decided them: the subject's edges at the quality previewed.
+    depthing = made.depthing
+    if depthing is not None and depthing.portrait is not None and depthing.portrait.quality is None:
+        depthing = replace(depthing, portrait=replace(depthing.portrait, quality=cut_quality(ai)))
     # The fixes as the plan decided them too: JPEG blocks at the model previewed.
     fixing = (
         replace(made.fixing, jpeg_quality=made.fix_quality)
@@ -597,6 +619,7 @@ def make(
             "edit": as_json(recipe.editing) if recipe.editing else None,  # its version too
             "fix": fixing_json(fixing),
             "size": decided.model_dump(by_alias=True) if decided else None,
+            "depth": depthing_json(depthing),
             "paint": painted.model_dump(by_alias=True) if painted else None,
             "look": look.model_dump(by_alias=True) if look else None,
         },
@@ -605,6 +628,7 @@ def make(
         "look": made.look,
         "edit": made.edit,
         "fix": made.fix,
+        "depth": made.depth,
         "estimate": round(made.scale, 3),
         "as_is": as_is,
     }
@@ -622,10 +646,12 @@ def _previewed(
     ai: Models,
     copies: Previews,
     editor: Editor,
+    depths: Depths,
 ) -> Image.Image:
     """The preview as asked for: all of it fitted, or a part at full detail; the picture as its
-    edits left it; after, its painting, then its look and touches where they fall on the picture
-    made, each only on a part when it says so."""
+    edits left it; after, its depth tools, worked out on the whole picture made, then its
+    painting, then its look and touches where they fall on the picture made, each only on a part
+    when it says so."""
     looked = made.styling if body.side == "after" else None
     painting = made.painting if body.side == "after" else None
     seed = seed_of(picture.path)
@@ -649,6 +675,14 @@ def _previewed(
             ),
             lambda: _fitted(picture, source, seen, made, size, sight, ai, copies, editor),
         )
+        if made.depthing is not None and body.side == "after":
+            whole = sight.picture(picture, source.version)
+            worked = _worked(picture, source, seen, made, base, whole, depths, editor, ai)
+            base = joined_on(
+                base, (0, 0, base.width, base.height), worked, mask=_subject_on(
+                    whole, made, base.size, None, key, editor, ai
+                ),
+            )  # fmt: skip
         if painting is not None:
             working = _working(
                 painting.style, picture, source, seen, made, sight, ai, copies, editor
@@ -741,6 +775,37 @@ def _previewed(
     else:
         made_part = Image.fromarray(_made_part(source_pixels, source_part, made_size, made, ai))
     made_part = _profiled(made_part, profile)
+    if made.depthing is not None:  # worked out on the whole picture made, as Save does
+        fit = _fit_for(target)
+        whole_made = sight.fitted(
+            (
+                str(picture.path).casefold(),
+                source.version,
+                made.frame,
+                fit,
+                made.editing,
+                made.fixing,
+                made.fix_quality,
+            ),
+            lambda: _fitted(picture, source, seen, made, fit, sight, ai, copies, editor),
+        )
+        worked = _worked(picture, source, seen, made, whole_made, decoded, depths, editor, ai)
+        # The part as made: with a classic painting's margin round it, cut back after.
+        made_part = joined_on(
+            made_part,
+            (grown.x, grown.y, target[0], target[1]),
+            worked,
+            mask=_subject_on(
+                decoded,
+                made,
+                target,
+                (grown.x, grown.y, grown.width, grown.height),
+                key,
+                editor,
+                ai,
+            ),
+            stop=_NEWEST.started(picture.path),
+        )
     if painting is not None:
         if painting.style.kind == "classic":
             drawn = paint(made_part, painting, ai.painter, reach=reach)
@@ -899,6 +964,75 @@ def _planned(
         except ModelError as error:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
     return planned(recipe, seen, ai.starts_on(), ai.fix_starts_on(), stops)
+
+
+_DEPTH_MODELS = {"depth-anything-v2-small", BIREFNET}
+
+
+def _fit_for(target: tuple[int, int]) -> tuple[int, int]:
+    """The size the whole picture made is worked out from for its depth tools: as a preview of
+    all of it fits the copy they're worked out on."""
+    scale = min(1600 / target[0], 1600 / target[1], 1.0)
+    return max(1, round(target[0] * scale)), max(1, round(target[1] * scale))
+
+
+def _worked(
+    picture: Picture,
+    source: Source,
+    seen: Seen,
+    made: Plan,
+    whole_made: Image.Image,
+    whole: Image.Image,
+    depths: Depths,
+    editor: Editor,
+    ai: Models,
+) -> Worked:
+    """The depth tools worked out on the whole picture made (`whole_made`, a preview of all of
+    it), from the depth of the picture (`whole`, decoded) as its edits leave it."""
+    assert made.depthing is not None  # noqa: S101 - asked for with depth tools
+    key = picture_key(picture.path, source.version)
+    edits = made.editing.edits if made.editing else ()
+    depthing = made.depthing
+    if depthing.portrait is not None or depthing.fog is not None:
+        near = depths.read(whole, key, edits).near
+    else:
+        near = np.zeros((2, 2), np.float32)
+    mask = _subject_on(whole, made, whole_made.size, None, key, editor, ai)
+    return work_out(
+        whole_made,
+        depthing,
+        near,
+        canvas_of(made),
+        whole.size,  # edits keep the picture's size
+        mask=mask,
+        found_focus=seen.focus,
+    )
+
+
+def _subject_on(
+    whole: Image.Image,
+    made: Plan,
+    size: tuple[int, int],
+    region: tuple[int, int, int, int] | None,
+    key: str,
+    editor: Editor,
+    ai: Models,
+) -> npt.NDArray[np.uint8] | None:
+    """The subject portrait blur keeps sharp, on the picture made `size` big (`region`, a part of
+    it: left, top, width, height in its pixels), or None without portrait blur or a subject."""
+    depthing = made.depthing
+    if depthing is None or depthing.portrait is None:
+        return None
+    edits = made.editing.edits if made.editing else ()
+    quality = depthing.portrait.quality or cut_quality(ai)
+    found, _where = editor.subject(whole, key, edits, quality)
+    if not found.any():
+        return None
+    if region is None:
+        return np.asarray(placed(found, made, size))
+    full = np.asarray(placed(found, made, size))
+    left, top, width, height = region
+    return np.ascontiguousarray(full[top : top + height, left : left + width])
 
 
 def _nothing(recipe: Recipe) -> str:
@@ -1208,7 +1342,8 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
             )
         editing: Editing | None = editing_of(body.edit)
         fixing = fixing_of(body.fix)
-    except (EditError, FixError) as error:
+        depthing = depthing_of(body.depth)
+    except (EditError, FixError, DepthError) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     if editing is not None and editing.version is not None and editing.version != now:
         raise HTTPException(status.HTTP_409_CONFLICT, changed(name, edited=bool(editing.edits)))
@@ -1219,7 +1354,7 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
         # Parts picked for a look or a painting are tied to the picture as it is, as edits are:
         # a Save that finds it changed saves nothing.
         editing = Editing(editing.edits if editing else (), now)
-    return Recipe(sizing, styling, editing, fixing, painting)
+    return Recipe(sizing, styling, editing, fixing, depthing=depthing, painting=painting)
 
 
 def _refused(error: Exception) -> HTTPException:

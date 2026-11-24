@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { useOpenPictures } from "@/features/batch/open";
 import {
   CutoutDialog,
+  DepthDialog,
   FixDialog,
   LookDialog,
   PaintDialog,
@@ -26,6 +27,7 @@ import {
 } from "@/features/batch/step-dialogs";
 import {
   cutoutStep,
+  depthStep,
   fixStep,
   keepsNothing,
   savingFor,
@@ -39,6 +41,7 @@ import {
   type BatchSaving,
   type BatchStep,
   type CutoutStepItem,
+  type DepthStepItem,
   type FixStepItem,
   type KeptRecipe,
   type LookStepItem,
@@ -345,6 +348,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
   const saving = savingFor(steps, chosenSaving);
   const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
   const fixing = steps.find((step): step is FixStepItem => step.step === "fix") ?? null;
+  const depthing = steps.find((step): step is DepthStepItem => step.step === "depth") ?? null;
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const keep = useKeepRecipe();
@@ -389,6 +393,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             onAdd={(kind) => {
               if (kind === "cutout") setSteps(withStep(steps, cutoutStep(), "cutout"));
               if (kind === "fix") setSteps(withStep(steps, fixStep(), "fix"));
+              if (kind === "depth") setSteps(withStep(steps, depthStep(), "depth"));
               setEditing(kind);
             }}
           />
@@ -492,6 +497,22 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             onClose={() => {
               if (!fixing.noise && !fixing.blur && !fixing.jpeg && !fixing.dark) {
                 setSteps(withStep(steps, null, "fix")); // fixes all off aren't a step
+              }
+              setEditing(null);
+            }}
+          />
+        )}
+        {editing === "depth" && depthing && (
+          <DepthDialog
+            step={depthing}
+            onStep={(step) => setSteps(withStep(steps, step, "depth"))}
+            onRemove={() => {
+              setSteps(withStep(steps, null, "depth"));
+              setEditing(null);
+            }}
+            onClose={() => {
+              if (!depthing.portrait && !depthing.fog && !depthing.tilt) {
+                setSteps(withStep(steps, null, "depth")); // tools all off aren't a step
               }
               setEditing(null);
             }}

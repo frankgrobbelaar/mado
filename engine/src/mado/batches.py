@@ -35,6 +35,9 @@ from mado.core.batch import (
     size_detail,
     steps_in_order,
 )
+from mado.core.depth import DepthError, depthing_from
+from mado.core.depth import detail as depth_detail
+from mado.core.depth import phrase as depth_phrase
 from mado.core.edits import phrase as edit_phrase
 from mado.core.estimate import key
 from mado.core.files import kind_of, skipped_folder
@@ -283,8 +286,9 @@ def takes(
     level = quality if isinstance(quality, int) else None
     each: list[tuple[float, int]] = []
     first: Plan | None = None
-    # Its style paints in the same place for every picture.
+    # Its style paints in the same place for every picture, as the depth model reads.
     paint_on = ai.painter.place(recipe.painting.style) if recipe.painting else None
+    depth_on = ai.depth_place() if recipe.depthing else None
     for picture in pictures:
         made = plan(
             recipe,
@@ -299,7 +303,7 @@ def takes(
         )
         first = first or made
         bytes_ = about_bytes(chosen, level, "photo", made.width * made.height)
-        each.append((estimated(made, here, cut_on, paint_on=paint_on), bytes_))
+        each.append((estimated(made, here, cut_on, paint_on=paint_on, depth_on=depth_on), bytes_))
     assert first is not None  # noqa: S101 - there's a picture
     times = [(guess, took) for _at, guess, took, _b, _m in found]
     sizes = [(float(guessed), float(made)) for _at, _g, _t, guessed, made in found]
@@ -338,7 +342,14 @@ def recipe_from_steps(conn: sqlite3.Connection, steps: Sequence[dict[str, object
             lambda look: own_looks.resolve(conn, look),
             lambda asked: own_styles.resolve(conn, asked),
         )
-    except (StepError, SizeError, MissingLookError, MissingStyleError, FixError) as error:
+    except (
+        StepError,
+        SizeError,
+        MissingLookError,
+        MissingStyleError,
+        FixError,
+        DepthError,
+    ) as error:
         raise BatchError(str(error)) from None
 
 
@@ -466,6 +477,7 @@ def _orders(
             "look": words[1],
             "edit": words[2],
             "fix": words[3],
+            "depth": words[4],
             "seconds": round(seconds, 2),
             "bytes": bytes_,
         }
@@ -516,6 +528,15 @@ def words_for(
                     None,
                 )
             )
+        elif kind == "depth":
+            try:
+                depthing = depthing_from({k: v for k, v in step.items() if k != "step"})
+            except DepthError:
+                depthing = None
+            if depthing is None:
+                found.append(("depth", "Depth", "Depth tools Mado can't read", "?", None))
+                continue
+            found.append(("depth", "Depth", depth_detail(depthing), _depth_chip(depthing.on), None))
         elif kind == "size":
             try:
                 recipe = recipe_from(
@@ -611,12 +632,26 @@ def purpose_of(conn: sqlite3.Connection, steps: Sequence[dict[str, object]]) -> 
 
 def _made_words(
     recipe: Recipe,
-) -> tuple[str | None, str | None, str | None, str | None]:
-    """What a batch's pictures are made for and with, what's edited first and what the fixes do,
-    as a job and History say them."""
+) -> tuple[str | None, str | None, str | None, str | None, str | None]:
+    """What a batch's pictures are made for and with, what's edited first, what the fixes do and
+    the depth tools, as a job and History say them."""
     made_for = recipe.sizing.size.label if recipe.sizing else None
     look = said_with(recipe.painting, recipe.styling)
-    return made_for, look, edit_phrase(recipe.editing), fix_phrase(recipe.fixing)
+    return (
+        made_for,
+        look,
+        edit_phrase(recipe.editing),
+        fix_phrase(recipe.fixing),
+        depth_phrase(recipe.depthing),
+    )
+
+
+def _depth_chip(on: tuple[str, ...]) -> str:
+    """The depth tools as a recipe's line says them: "Portrait blur and fog"."""
+    names = {"portrait": "portrait blur", "fog": "fog", "tilt": "tilt-shift"}
+    said = [names[kind] for kind in on]
+    joined = said[0] if len(said) == 1 else f"{', '.join(said[:-1])} and {said[-1]}"
+    return joined[:1].upper() + joined[1:]
 
 
 def _paint_words(

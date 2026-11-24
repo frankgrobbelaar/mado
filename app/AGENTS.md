@@ -39,7 +39,10 @@ finishing touches, "Only on a part", the owner's own looks, and "Hold to see the
 to do with it, the brush, undo and Start again, each model downloaded the first time); the Fix tab
 (`fix-tab.tsx`, `fix-stage.tsx`, `fixes.ts`: noise, blur, JPEG blocks and dark photos, each with its
 one setting, what Mado suggests, before and after fitted or at full detail, each model downloaded
-the first time); one Save for all four, and the job making it), History (a week at a time, a batch or a review as one line with
+the first time); the Depth tab (`depth-tab.tsx`, `depth-stage.tsx`, `depth.ts`, `motion.ts`:
+portrait blur in focus where the picture is clicked, fog, tilt-shift's band dragged on the picture,
+and the 3D photo, made, played on the stage and saved); one Save for all five (a 3D photo has its
+own), and the job making it), History (a week at a time, a batch or a review as one line with
 Take them away or Put them back, take away and put back, replace again), Settings (General with
 Saving and Search, Your data with Set aside, Updates, About with This PC and the downloads), the
 update card, the notes at the window's foot (a picture open in another app among them,

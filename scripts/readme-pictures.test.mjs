@@ -153,6 +153,10 @@ describe("the made-up scenes", () => {
       blur: 0,
       dark: 0,
       blocks: 0,
+      bokeh: 0,
+      focus: null,
+      fog: 0,
+      tilt: null,
       flip: false,
     });
     assert.deepEqual(parseScene("harbour/region=0.1,0.2,0.3,0.4/blur=1.5/flip"), {
@@ -241,6 +245,27 @@ describe("the made-up scenes", () => {
     const blocky = drawScene("harbour/blocks=6");
     assert.match(blocky, /<feFuncG type="discrete" tableValues="0 0.2 0.4 0.6 0.8 1"\/>/);
     assert.match(blocky, /<g filter="url\(#blocks\)">/);
+  });
+
+  it("blurs a scene but its part in focus, keeps a band in focus, and hazes it, for the Depth tab", () => {
+    assert.deepEqual(parseScene("little-sail/bokeh=3/focus=boat/fog=60/tilt=0.4,0.6"), {
+      ...parseScene("little-sail"),
+      bokeh: 3,
+      focus: "boat",
+      fog: 60,
+      tilt: [0.4, 0.6],
+    });
+    const portrait = drawScene("little-sail/bokeh=3/focus=boat");
+    assert.match(portrait, /<filter id="bokeh"[^>]*><feGaussianBlur stdDeviation="3"\/><\/filter>/);
+    assert.match(portrait, /<clipPath id="focus"><path d="M262 120/);
+    assert.match(portrait, /<g filter="url\(#bokeh\)">[\s\S]*<\/g><g clip-path="url\(#focus\)">/);
+    assert.throws(() => drawScene("harbour/bokeh=3/focus=boat"), /no part called "boat"/);
+    const tilted = drawScene("harbour/tilt=0.5,0.7");
+    assert.match(tilted, /<stop offset="0.4" stop-color="#fff" stop-opacity="0"\/><stop offset="0.5" stop-color="#fff"\/><stop offset="0.7" stop-color="#fff"\/><stop offset="0.8"/);
+    assert.match(tilted, /<g filter="url\(#richer\)"><g filter="url\(#tilt\)">[\s\S]*<g mask="url\(#band-mask\)">/);
+    const foggy = drawScene("harbour/fog=60");
+    assert.match(foggy, /<stop offset="0" stop-color="#e4e8ec" stop-opacity="0.51"\/>/);
+    assert.match(foggy, /<rect width="400" height="300" fill="url\(#fog\)"\/><\/svg>$/);
   });
 
   it("turns CSS filters into the Filter Effects spec's own matrices", () => {

@@ -29,6 +29,7 @@ from mado.core.fixes import models_for as fix_models
 from mado.core.naming import EXTENSIONS
 from mado.core.quality import about_bytes
 from mado.core.recipe import Recipe
+from mado.depth import Depths
 from mado.editing import Editor, picture_key
 from mado.jobs import JobError
 from mado.libraw import Reader
@@ -82,6 +83,7 @@ class Sample:
     look: str | None = None
     edit: str | None = None
     fix: str | None = None
+    depth: str | None = None
     problem: str | None = None
 
 
@@ -118,9 +120,11 @@ class Samples:
         wake: Callable[[], None],
         editor: Editor | None = None,
         reader: Reader | None = None,
+        depths: Depths | None = None,
     ) -> None:
         """`wake` asks the jobs' worker to look for work: three to make; `editor` makes a step
-        that cuts out the subject; `reader` reads camera RAW."""
+        that cuts out the subject; `reader` reads camera RAW; `depths` reads a picture's depth for
+        a depth step."""
         self._paths = paths
         self._folder = paths.cache / "samples"
         self._ai = ai
@@ -128,6 +132,7 @@ class Samples:
         self._reader = reader
         self._wake = wake
         self._editor = editor
+        self._depths = depths
         self._lock = threading.Lock()
         self._asked: dict[str, _Asked] = {}
         self._order: list[str] = []  # oldest first
@@ -243,6 +248,7 @@ class Samples:
                 "look": sample.look,
                 "edit": sample.edit,
                 "fix": sample.fix,
+                "depth": sample.depth,
             }
         return kept
 
@@ -319,6 +325,7 @@ class Samples:
             self._ai.edit_place(BIREFNET),
             self._ai.fix_place(fixers),
             paint_on=paint_on,
+            depth_on=self._ai.depth_place(),
         )
 
         def report(_stage: object, within: float) -> None:
@@ -338,6 +345,8 @@ class Samples:
             key=picture_key(picture.path, sample.picture.version),
             keep=False,  # made once, for a batch
             replan=lambda stops: planned(asked.recipe, seen, starts_on, fix_starts_on, stops),
+            depths=self._depths,
+            found_focus=seen.focus,
         )
         result, made = making.image, making.plan
         if made.empty:  # measured, its fixes change nothing in it
@@ -391,6 +400,7 @@ class Samples:
             look=made.look,
             edit=made.edit,
             fix=made.fix,
+            depth=made.depth,
         )
 
     def _update(self, asked: _Asked, sample: Sample) -> None:

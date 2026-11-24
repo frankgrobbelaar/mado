@@ -985,13 +985,44 @@ export interface FixStep {
   dark: { contrast: number } | null;
 }
 
-/** One picture, one recipe: what the Edit, Fix, Size and Looks tabs set together, made by one
- * Save. */
+/** Portrait blur: in focus at a point (fractions across and down; null, its subject), blurred
+ * as a lens at `aperture` would (f/1.4 to f/16), the subject's edges found at Fast or Best (null:
+ * as this PC suits). */
+export interface PortraitStep {
+  focus: [number, number] | null;
+  aperture: number;
+  quality: Quality | null;
+}
+
+/** Fog: how thick, 0 to 1, in a colour ("#rrggbb"; null, the picture's own haze). */
+export interface FogStep {
+  density: number;
+  colour: string | null;
+}
+
+/** Tilt-shift: the band kept in focus (its middle and height, fractions of the picture's height)
+ * and how much blur grows away from it, 0 to 1. */
+export interface TiltStep {
+  centre: number;
+  height: number;
+  strength: number;
+}
+
+/** The depth tools, each off (null) or on: what the Depth tab asks for. */
+export interface DepthStep {
+  portrait: PortraitStep | null;
+  fog: FogStep | null;
+  tilt: TiltStep | null;
+}
+
+/** One picture, one recipe: what the Edit, Fix, Size, Depth and Looks tabs set together, made by
+ * one Save. */
 export interface Recipe {
   edit?: EditStep | null;
   fix?: FixStep | null;
   size: SizeStep | null;
-  /** A painting style, made after the size and before the look. */
+  depth?: DepthStep | null;
+  /** A painting style, made after the size and the depth tools, before the look. */
   paint?: PaintStep | null;
   look: LookStep | null;
 }
@@ -1108,6 +1139,12 @@ export interface Plan {
   /** Where the fixes' models run: the processor when the card has no room left for them; null
    * without fixes. */
   fixPlace: "card" | "processor" | null;
+  /** The depth tools, as Save and History say them: "portrait blur at f/2.8"; null with none. */
+  depth: string | null;
+  /** Of `seconds`, about how long the depth tools take. */
+  depthSeconds: number;
+  /** Where the depth model runs; null without the depth tools. */
+  depthPlace: "card" | "processor" | null;
   /** Where its painting style is made; null without one. */
   paintPlace: "card" | "processor" | null;
   /** A painting made far bigger than it's painted: seen close, its strokes are soft. */
@@ -1181,6 +1218,119 @@ export interface Fixes {
   colour: string;
   megapixels: number;
 }
+
+/** What Mado read of a picture's depth, for the Depth tab. */
+export interface DepthRead {
+  /** The depth model, while it isn't downloaded: nothing else is read till then. */
+  needs: Need[];
+  /** Its depth was read (or kept from before). */
+  read: boolean;
+  /** No depth to speak of: a scan, a screenshot. */
+  flat: boolean;
+  /** Where the depth model runs. */
+  place: "card" | "processor";
+  /** What reading it took, when this asked it to be read; null when it was kept. */
+  seconds: number | null;
+  /** Of which waiting for the graphics card, while the queue's picture had it. */
+  waited: number;
+  /** Mado found a subject, which portrait blur keeps sharp by its own edges. */
+  subject: boolean;
+  /** Where portrait blur is in focus without a click: its subject's middle. */
+  focus: [number, number] | null;
+  /** Its see-through parts stay as they are. */
+  seeThrough: boolean;
+  grey: boolean;
+  megapixels: number;
+  /** Past what Mado edits: the Size tab makes a smaller copy first. */
+  tooBig: boolean;
+}
+
+/** What Mado reads of a picture's depth, as its edits leave it (null: not asked yet). */
+export const useDepthRead = (id: number, ask: { version: string; edits: Edit[] } | null) =>
+  useEnginePost<DepthRead>(`/pictures/${id}/depth`, ask, ask !== null);
+
+/** A size a 3D photo can be made at. */
+export interface MotionSize {
+  size: "1080p" | "4k";
+  width: number;
+  height: number;
+  /** About how big it comes out at the length asked for. */
+  bytes: number;
+}
+
+/** What this PC can make a picture's 3D photo with. */
+export interface MotionFacts {
+  /** Mado's ffmpeg is downloaded: an MP4 needs it. */
+  ffmpeg: boolean;
+  /** The H.264 encoder that works here ("h264_mf"); null with none. */
+  encoder: string | null;
+  /** "Windows' own video encoder" */
+  encoderName: string | null;
+  /** 1080p, and 4K when the picture has the pixels for it. */
+  sizes: MotionSize[];
+  /** An animated WebP's size. */
+  webp: MotionSize;
+  /** The lengths it can be, in seconds. */
+  seconds: number[];
+  /** The downloads it waits for: the depth model. */
+  needs: string[];
+}
+
+export const useMotionFacts = (id: number | null) =>
+  useEngineQuery<MotionFacts>(id === null ? "" : `/pictures/${id}/motion`, undefined, id !== null);
+
+export type Movement = "push" | "sway" | "circle";
+
+/** A 3D photo asked for: of the picture as its edits leave it. */
+export interface MotionAsk {
+  version: string;
+  edits: Edit[];
+  motion: Movement;
+  seconds: number;
+  /** How much the view moves, 0 to 1. */
+  amount: number;
+  /** What the moving view uncovers: stretched from beside it (Fast) or drawn by LaMa (Best). */
+  fill: Quality;
+  size: "1080p" | "4k";
+  format: "mp4" | "webp";
+}
+
+/** A 3D photo, as it's coming on. */
+export interface Motion {
+  id: string;
+  state: "waiting" | "making" | "done" | "failed";
+  progress: number;
+  /** What making it took. */
+  seconds: number | null;
+  width: number;
+  height: number;
+  bytes: number;
+  format: "mp4" | "webp";
+  /** What made an MP4: "Windows' own video encoder". */
+  encoderName: string | null;
+  problem: string | null;
+}
+
+/** A 3D photo saved: where, and its line in History. */
+export interface MotionSaved {
+  path: string;
+  name: string;
+  historyId: number;
+}
+
+/** Makes a 3D photo into Mado's cache: `make.mutate({ path: "/pictures/7/motion", body })`. */
+export const useMakeMotion = () => useEngineAction<Motion>([]);
+/** How a 3D photo is coming on, asked again while it's made. */
+export const useMotion = (id: string | null) =>
+  useEngineQuery<Motion>(
+    id === null ? "" : `/motion/${id}`,
+    (found) => (found && (found.state === "waiting" || found.state === "making") ? 300 : false),
+    id !== null,
+  );
+/** Saves one: `save.mutate({ path: "/motion/ab12/save", body: { folder } })`. */
+export const useSaveMotion = () => useEngineAction<MotionSaved>(["/history"]);
+/** Lets one go: `drop.mutate({ path: "/motion/ab12" })`. */
+export const useDropMotion = () => useEngineAction<void>([], "DELETE");
 
 /** What the Fix tab suggests for a picture, asked again once its file changes. */
 export const useFixes = (picture: { id: number; version: string } | null) =>
@@ -1473,6 +1623,8 @@ export interface Job {
   edit: string | null;
   /** What the fixes do: "took out noise"; null with no fixes. */
   fix: string | null;
+  /** The depth tools: "portrait blur at f/2.8"; null without. */
+  depth: string | null;
   how: "new" | "replace";
   state: JobState;
   stage:
@@ -1481,6 +1633,7 @@ export interface Job {
     | "shaping"
     | "fixing"
     | "making"
+    | "depthing"
     | "painting"
     | "looking"
     | "saving"
@@ -1545,6 +1698,8 @@ export interface HistoryEntry {
   edit: string | null;
   /** What the fixes did: "took out noise". */
   fix: string | null;
+  /** The depth tools: "portrait blur at f/2.8"; a 3D photo: "into a 3D photo, swaying for 5 s". */
+  depth: string | null;
   original: string | null;
   result: string | null;
   resultName: string | null;
@@ -1722,7 +1877,18 @@ export interface CutoutStepItem {
 }
 
 /** A batch's step. Later pieces add kinds of their own. */
-export type BatchStep = CutoutStepItem | FixStepItem | SizeStepItem | PaintStepItem | LookStepItem;
+/** The depth tools, as a batch's step: portrait blur in focus at each picture's subject. */
+export interface DepthStepItem extends DepthStep {
+  step: "depth";
+}
+
+export type BatchStep =
+  | CutoutStepItem
+  | FixStepItem
+  | SizeStepItem
+  | DepthStepItem
+  | PaintStepItem
+  | LookStepItem;
 
 /** How a batch saves: new pictures (beside the originals, into a folder by name beside each,
  * or into a folder of their own), or in the originals' places, each original to quarantine. */
@@ -1983,6 +2149,8 @@ export interface BatchLine {
   edit: string | null;
   /** "took out noise" */
   fix: string | null;
+  /** "portrait blur at f/2.8" */
+  depth: string | null;
   purpose: string | null;
   into: string;
   made: number;
@@ -2005,6 +2173,7 @@ export interface MadeToday {
   look: string | null;
   edit: string | null;
   fix: string | null;
+  depth: string | null;
 }
 
 // "/batches/done", not "/batches": that would ask again for the pictures a batch is made of.

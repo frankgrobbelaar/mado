@@ -337,17 +337,25 @@ export function parseScene(spec) {
     blur: 0,
     dark: 0,
     blocks: 0,
+    bokeh: 0,
+    focus: null,
+    fog: 0,
+    tilt: null,
     flip: false,
   };
   for (const ask of asks) {
     const [key, value = ""] = ask.split("=");
     if (key === "look") scene.look = value;
     else if (key === "style") scene.style = value;
-    else if (["paint", "strength", "grain", "vignette", "blur", "dark", "blocks"].includes(key))
+    else if (
+      ["paint", "strength", "grain", "vignette", "blur", "dark", "blocks", "bokeh", "fog"].includes(key)
+    )
       scene[key] = Number(value);
     else if (key === "part") scene.part = value;
     else if (key === "cutout") scene.cutout = value;
+    else if (key === "focus") scene.focus = value;
     else if (key === "region") scene.region = value.split(",").map(Number);
+    else if (key === "tilt") scene.tilt = value.split(",").map(Number);
     else if (key === "flip") scene.flip = true;
     else throw new Error(`A scene can't be asked for "${ask}" (${spec}).`);
   }
@@ -358,8 +366,10 @@ export function parseScene(spec) {
  * 0 to 1), then a look at a strength and finishing touches (grain and a vignette, 0 to 100), the
  * style and the look on all of it or a part; cut out (only a part, on
  * nothing); blurred (a picture only stretched, or shaken); its colours squeezed into `blocks`
- * steps (a JPEG saved small); darkened by `dark` stops; a region of it (fractions of the picture:
- * x, y, width, height); or mirrored, a scene twice over looking like two. */
+ * steps (a JPEG saved small); darkened by `dark` stops; blurred as a lens would but for the part
+ * in `focus` (portrait blur, `bokeh` its blur), with a band in focus (tilt-shift, its top and foot
+ * as fractions of the height) or hazed with distance (fog, 0 to 100); a region of it (fractions of
+ * the picture: x, y, width, height); or mirrored, a scene twice over looking like two. */
 export function drawScene(spec) {
   const asked = parseScene(spec);
   const scene = SCENES[asked.name];
@@ -410,6 +420,36 @@ export function drawScene(spec) {
   if (asked.cutout) {
     defs.push(`<clipPath id="cut">${part(asked.cutout)}</clipPath>`);
     picture = `<g clip-path="url(#cut)">${picture}</g>`;
+  }
+  if (asked.bokeh > 0) {
+    // Portrait blur: all of it blurred, as a lens's would be, but the part in focus.
+    defs.push(`<filter id="bokeh" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${asked.bokeh}"/></filter>`);
+    let sharp = "";
+    if (asked.focus) {
+      defs.push(`<clipPath id="focus">${part(asked.focus)}</clipPath>`);
+      sharp = `<g clip-path="url(#focus)">${picture}</g>`;
+    }
+    picture = `<g filter="url(#bokeh)">${picture}</g>${sharp}`;
+  }
+  if (asked.tilt) {
+    // Tilt-shift: a band in focus, the blur growing above and below it, colours a little richer.
+    const [top, bottom] = asked.tilt;
+    const at = (value) => round(Math.min(1, Math.max(0, value)));
+    defs.push(
+      `<filter id="tilt" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="2.5"/></filter>`,
+      `<linearGradient id="band" x1="0" y1="0" x2="0" y2="300" gradientUnits="userSpaceOnUse"><stop offset="${at(top - 0.1)}" stop-color="#fff" stop-opacity="0"/><stop offset="${at(top)}" stop-color="#fff"/><stop offset="${at(bottom)}" stop-color="#fff"/><stop offset="${at(bottom + 0.1)}" stop-color="#fff" stop-opacity="0"/></linearGradient>`,
+      `<mask id="band-mask"><rect width="400" height="300" fill="url(#band)"/></mask>`,
+      `<filter id="richer" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="1.12"/></filter>`,
+    );
+    picture = `<g filter="url(#richer)"><g filter="url(#tilt)">${picture}</g><g mask="url(#band-mask)">${picture}</g></g>`;
+  }
+  if (asked.fog > 0) {
+    // Fog: haze thickening with distance, which in these scenes is up towards the horizon.
+    const thick = (share) => round((share * asked.fog) / 100);
+    defs.push(
+      `<linearGradient id="fog" x1="0" y1="0" x2="0" y2="300" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e4e8ec" stop-opacity="${thick(0.85)}"/><stop offset="0.62" stop-color="#e4e8ec" stop-opacity="${thick(0.6)}"/><stop offset="1" stop-color="#e4e8ec" stop-opacity="0"/></linearGradient>`,
+    );
+    picture += `<rect width="400" height="300" fill="url(#fog)"/>`;
   }
   if (asked.blur > 0) {
     defs.push(`<filter id="soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${asked.blur}"/></filter>`);

@@ -64,7 +64,12 @@ on public-domain paintings, any picture as the style through MicroAST and kept a
 owner's styles, and pencil, coloured pencil, oil paint and cartoon drawn by code; each with its
 strength, the networks' in the picture's own colours if asked, on a part as a look is, painted at
 a working size and made the picture's size; a step for batches and recipes; each model downloaded
-the first time). Next: the rest of 1.2, by [What's next](#whats-next).
+the first time); and depth, the thirteenth and the second of 1.2 (the Depth tab: Depth Anything V2
+Small reading how far away each part of a picture is, downloaded the first time; portrait blur in
+focus at the subject or where it's clicked, fog and tilt-shift's band dragged on the picture, a
+step for batches and recipes; and 3D photos, a short looping video of the picture with the view
+moving through it, made with Windows' own encoder or the graphics card's, played on the page
+before it's saved). Next: the rest of 1.2, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -903,6 +908,59 @@ Everything decided so far. Don't ask again; change only with the owner.
   a style". Left as they are: oil paint at 100% lays its strokes from the part's own corner (the
   same look, not the same pixels as the picture saved), and the Recipes card shows a style's id
   till the engine's words come, as it does a look's.
+- Depth, as built (2026-11-24, Claude's calls while the owner is away; docs/stack/depth.md): a tab
+  of its own, "Depth", after Fix, rather than touches in Looks: its tools need the depth model and
+  the card, portrait blur takes a click on the picture and tilt-shift a band dragged on it where
+  the Looks stage's clicks pick a part, and the Looks tab's small copies would each need the depth
+  read. No board drew it, so it's the Fix tab's patterns, "Blur and fog" and "3D photo" above.
+  Depth Anything V2 Small (Apache-2.0; its bigger sizes are non-commercial) reads the whole picture
+  squeezed to one 518 square: as good as keeping its shape on made-up scenes whose depth is known
+  (rank correlation 0.994 to 0.996), twice as quick, one session for every shape. Its numbers are
+  made 0 (the farthest) to 1 (the nearest) by the picture's own 2nd and 98th percentiles and kept in
+  `cache/depth` by the picture's version and edits; a flat picture (little spread for its size and
+  no jumps: a scan, a screenshot; pixel art too) is said, the tools still working. Portrait blur is
+  in focus at the subject (u2netp at Fast, BiRefNet lite at Best, as Cut out finds it, made firm
+  from 30% to 70% so a crisp edge stays crisp, a part of it not as near as the subject, a sun, left
+  out) or where clicked; the blur grows with the nearness's distance from the focus's, as a lens's
+  circle grows with the difference of inverse distances, to 3% of the shorter side at f/1.4 (f/1.4
+  to f/16, f/2.8 first), made in up to twelve layers on a 1024 copy, one exactly at the focus, what's
+  behind a nearer layer carried in from its own colours, small bright places boosted to bloom into
+  discs, then joined at full size a band at a time. Edit's "Blur what's behind it" stays apart (an
+  even blur behind a part, no model, for a flat backdrop or a drawing), and the tab says how they
+  differ. Fog keeps exp(-3.2 x density x far²) of each point, the rest the picture's own haze (its
+  farthest twentieth made paler) or Mist, Warm or Cool. Tilt-shift goes by place, not depth: by depth
+  the band is a focus distance, portrait blur's job, and by place read as a miniature on made-up
+  rows of houses and the field; blur to 2% of the shorter side at the farther of its top and foot,
+  colours 12% richer, so it works without the model. The three are the recipe's `depth` step after
+  the size and before a painting style and the look (a lens and the air come before a painter paints
+  what they saw), made at the size made; a new picture is named "(Portrait blur)", "(Fog)",
+  "(Tilt-shift)" or "(Depth)"; History has a `depth` column (migration 13), "portrait blur
+  at f/2.8, fog and tilt-shift"; a batch's Depth step has each picture in focus at its own subject
+  and the band at the same fractions. 3D photos push in, sway or circle for 3, 5 or 8 s at 30 frames
+  a second, looping: the subject stays put, nearer things move one way and farther ones the other
+  (3.5% of the shorter side at full amount), the whole a little bigger; each frame is found backwards
+  on a 3-pixel grid, and where the view stretches the picture or a point never settles, a layer
+  behind shows, filled three times the view's reach into near things from what's farther (Fast
+  stretches it in; Best draws over that with LaMa, a 384 square at a time). In what the view
+  uncovered on a made-up scene whose truth is known, Fast scored 21.9 and 20.9 dB, Best 20.7 and
+  21.2, the picture only stretched 16.5 and 17.9 (filled only as far as the view reached, Best came
+  out purple, 15.3). The video is H.264 in MP4 through Mado's ffmpeg, Windows' own encoder
+  (`h264_mf`) first, then NVENC, AMF and Quick Sync, never OpenH264 (its patent licence covers only
+  Cisco's builds); 1080p, or 4K when the picture has the pixels; an animated WebP where no encoder
+  works. It's made into `cache/motion`, played on the stage and saved only when asked, beside the
+  picture or into a folder ("(3D photo).mp4"), History's line "into a 3D photo, swaying for 5 s". A
+  batch doesn't make them: its saving, See it first and History work on pictures, and each wants
+  looking at. Measured on the owner's PC at 12 MP: depth read in 0.14 s on the card (0.4 GB held)
+  and 0.52 s on the processor; portrait blur 4.0 s at f/2.8 and 4.6 at f/1.4, fog 2.0, tilt-shift
+  3.9, all three 7.3; a 5-second 3D photo at 1080p in 54 s (1.9 MB) at Fast and 61 s at Best (LaMa
+  holding 1.0 GB more), at 4K in 3.7 minutes (23 MB), as an animated WebP 1280 across in 42 s (1.5
+  MB). Found on the way: a cut-out mask's soft fringe blurred the subject's own edge and haloed it,
+  and the layer behind took the near thing's colours. A fresh agent's review found the depth step
+  making a batch's edits again on the picture already edited, the window's security policy
+  refusing to play the video (no `media-src`), tilt-shift's band taken as fractions of a crop,
+  ffmpeg's end (Windows' `EINVAL`, its words never read, a stopped one left running), 3D photos
+  in a wide-colour picture's colours with no tags, a 3D photo let go by looking at another tab,
+  and the focus and band with no keyboard handle; all mended, each with its test.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -951,7 +1009,9 @@ Everything decided so far. Don't ask again; change only with the owner.
 - `%LOCALAPPDATA%\Mado`: mado.db, nightly backups (keep 7), logs (30 days), `tools\` (ffmpeg,
   downloaded on first run, see docs/stack/ffmpeg.md; LibRaw, the first time a camera RAW is read,
   see docs/stack/libraw.md; and the AI models fetched when asked; each with its licence files),
-  `cache\` (each picture's thumbnail and screen-sized view, made again when gone), and `pasted\`
+  `cache\` (each picture's thumbnail and screen-sized view, made again when gone; the depth Mado
+  read of a picture, kept by its version as the edits' masks are; 3D photos made and not saved,
+  cleared as the engine starts), and `pasted\`
   (pictures pasted from the clipboard, till a month after they were last opened).
 - Next to the pictures: `Mado quarantine` at the top of each drive, a folder a day, holding
   replaced originals and pictures taken away for 30 days; Mado deletes only what's in a day's
@@ -1036,7 +1096,8 @@ Everything decided so far. Don't ask again; change only with the owner.
    paint and cartoon by classic means, a step for batches and recipes): done.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG
    blocks, dark photos), portrait blur and 3D photos. Built: the quick fixes (the Fix tab, a step
-   for batches and recipes).
+   for batches and recipes), and portrait blur and 3D photos (the Depth tab, with fog and
+   tilt-shift, a step for batches and recipes).
 5. Later: people (faces grouped, on the PC only), renaming by date taken, shrinking the library
    (AVIF or JPEG XL, originals to quarantine), and captions.
 

@@ -1,6 +1,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
 import type {
+  DepthStep,
   EditStep,
   FixStep,
   LookStep,
@@ -13,13 +14,14 @@ import { cn } from "@/lib/utils";
 import { LooksTab } from "./looks-tab";
 import { SizeTab } from "./size-tab";
 
-export type Tool = "size" | "looks" | "edit" | "fix";
+export type Tool = "size" | "looks" | "edit" | "fix" | "depth";
 
 const TOOLS = [
   { key: "size", label: "Size" },
   { key: "looks", label: "Looks" },
   { key: "edit", label: "Edit" },
   { key: "fix", label: "Fix" },
+  { key: "depth", label: "Depth" },
 ] as const;
 
 /**
@@ -27,7 +29,8 @@ const TOOLS = [
  * and Edit along its top, and Fix after them. Size makes the picture right for a screen or a
  * print, Looks gives it a look and finishing touches (on the whole picture or a part), Edit
  * picks parts with a click to erase, cut out or blur behind, Fix takes noise, blur, JPEG blocks
- * and darkness out; one Save on any of them makes them all.
+ * and darkness out, Depth blurs it as a lens would, hazes it with distance, keeps a band in focus
+ * or makes a 3D photo; one Save on any of them makes them all (a 3D photo has its own).
  */
 export function ToolsColumn(props: {
   picture: PictureDetails;
@@ -55,6 +58,10 @@ export function ToolsColumn(props: {
   edit: ReactNode;
   /** The Fix tab, as the page holds its fixes. */
   fix: ReactNode;
+  /** The Depth tab, as the page holds its depth tools and 3D photo. */
+  depth: ReactNode;
+  /** The depth tools chosen, settled: the Looks tab's picture shows them. */
+  depthed?: DepthStep | null;
 }) {
   const ready = props.picture.state === "ready";
   const tabs = useRef<Partial<Record<Tool, HTMLButtonElement | null>>>({});
@@ -128,13 +135,15 @@ export function ToolsColumn(props: {
         {!ready ? (
           <p className="text-13 text-fg-muted leading-normal">
             {props.picture.state === "waiting"
-              ? "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look, edited or fixed."
-              : "Mado can't open this picture, so it can't make it for a screen, give it a look, edit it or fix it."}
+              ? "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look, edited, fixed or given depth."
+              : "Mado can't open this picture, so it can't make it for a screen, give it a look, edit it, fix it or give it depth."}
           </p>
         ) : props.tool === "edit" ? (
           props.edit
         ) : props.tool === "fix" ? (
           props.fix
+        ) : props.tool === "depth" ? (
+          props.depth
         ) : props.tool === "looks" ? (
           <LooksTab
             picture={props.picture}

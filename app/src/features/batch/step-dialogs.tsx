@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { DepthControls } from "@/features/picture/depth-tab";
 import { BehindIt } from "@/features/picture/edit-tab";
 import { FixControls } from "@/features/picture/fix-tab";
 import { LookGrid, Touches } from "@/features/picture/looks-tab";
@@ -19,6 +20,7 @@ import { pickFolder } from "@/lib/dialogs";
 import {
   type BatchSaving,
   type CutoutStepItem,
+  type DepthStepItem,
   type FixStepItem,
   type LookStepItem,
   type PaintStepItem,
@@ -404,6 +406,35 @@ export function FixDialog(props: {
       <p className="max-w-md text-12 text-fg-faint leading-normal">
         Each dark photo is brightened as it measures, and each JPEG's blocks come out as hard as it
         was squeezed. A picture with nothing for them to fix is left as it is, and Mado says so.
+      </p>
+    </StepCard>
+  );
+}
+
+/**
+ * The depth tools, as the Depth tab gives them: portrait blur (each picture in focus at its own
+ * subject), fog and tilt-shift (its band as the tab's own, the same on every picture).
+ */
+export function DepthDialog(props: {
+  step: DepthStepItem;
+  onStep: (step: DepthStepItem) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const { step, onStep } = props;
+  return (
+    <StepCard
+      title="Give them depth"
+      description="Each picture's depth read by Mado, then blurred as a lens would, hazed with distance or kept sharp in a band, as the Depth tab does it."
+      onClose={props.onClose}
+      onRemove={props.onRemove}
+    >
+      <div className="max-w-md">
+        <DepthControls depth={step} onDepth={(depth) => onStep({ ...depth, step: "depth" })} many />
+      </div>
+      <p className="max-w-md text-12 text-fg-faint leading-normal">
+        A flat picture (a scan, a screenshot) barely changes; tilt-shift goes by place, so it works
+        on every picture. A 3D photo is made one picture at a time, on its Depth tab.
       </p>
     </StepCard>
   );

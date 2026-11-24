@@ -8,6 +8,26 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- The Depth tab, after Fix: Mado reads how far away each part of a picture is, then blurs it as a
+  lens would (portrait blur, in focus at its subject or where you click, at an aperture from f/1.4
+  to f/16, bright places turning to round discs and the subject's edges kept sharp), hazes it
+  with distance (fog, in the picture's own haze or a colour), or keeps a band in focus with blur
+  growing up and down from it, as a miniature looks (tilt-shift, the band dragged into place on
+  the picture). Each shows on the picture as it's chosen, and at 100% and 400% before and after;
+  Save names the new picture after them ("Harbour at dusk (Portrait blur).jpg").
+- 3D photos, on the Depth tab: a short video of a picture with the view moving gently through it
+  by its depth, a slow push in, a sway or a circle, 3, 5 or 8 seconds, looping. What the moving
+  view uncovers behind near things is stretched from beside it at Fast or drawn by LaMa at Best.
+  It plays on the page first, then saves as an MP4 (or an animated WebP) beside the picture or
+  into a folder, with its line in History.
+- Portrait blur, fog and tilt-shift are a step for many at once, recipes and watch folders, each
+  picture in focus at its own subject, and History names each. They're made after the size and
+  before a painting style and a look, as a lens and the air come before a painter.
+- Depth Anything V2 Small (99 MB) comes the first time depth is asked for, with its size and
+  progress, as the installer's first page lists it. Tilt-shift goes by place, so it works without
+  it, and on a flat picture: a scan or a screenshot, which the tab says has little depth.
+
 ## 0.11.0 - 2026-11-24
 
 ### Added

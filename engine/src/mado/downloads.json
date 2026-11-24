@@ -221,6 +221,34 @@
       ]
     },
     {
+      "id": "depth-anything-v2-small",
+      "name": "Depth Anything V2 Small",
+      "version": "models-2",
+      "purpose": "Reads how far away each part of a picture is, for portrait blur, fog and 3D photos on the Depth tab. Mado fetches it the first time depth is asked for.",
+      "licence": "Apache-2.0",
+      "home": "https://github.com/DepthAnything/Depth-Anything-V2",
+      "url": null,
+      "size": 99072196,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "depth-anything-v2-small.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/depth-anything-v2-small.onnx",
+          "size": 99060839,
+          "sha256": "afb6a5c28f3b6bf1618c6e43f02073ef9dfdc70e937502d51603e57b0a1df10c"
+        },
+        {
+          "name": "LICENSE-Depth-Anything-V2.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-2/LICENSE-Depth-Anything-V2.txt",
+          "size": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
       "id": "siglip-base-patch16-224",
       "name": "SigLIP base",
       "version": "models-3",

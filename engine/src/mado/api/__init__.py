@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from PIL import Image
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from mado import __version__, db, favourites, hardware, watching
@@ -26,6 +27,7 @@ from mado.ai import Ai
 from mado.api import (
     backups,
     data,
+    depth,
     duplicates,
     editing,
     health,
@@ -34,6 +36,7 @@ from mado.api import (
     library,
     looks,
     making,
+    motion,
     opening,
     pc,
     pictures,
@@ -52,10 +55,12 @@ from mado.backups import restore_asked
 from mado.batches import Picture
 from mado.care import Care
 from mado.config import DataPaths
+from mado.core.files import kind_of
 from mado.core.hardware import Place
 from mado.core.models import BEST_PHOTO
 from mado.core.search import Reader as SearchReader
 from mado.core.search import reader_for
+from mado.depth import Depths
 from mado.desktop import Desktop, NoDesktop
 from mado.directml import Sessions
 from mado.duplicates import Finder
@@ -65,6 +70,8 @@ from mado.hardware import Here
 from mado.jobs import Jobs
 from mado.libraw import Reader
 from mado.making import Maker, Sight
+from mado.making import Picture as Picture_
+from mado.motion import Motions
 from mado.ocr import PPOCR, Best, Fast
 from mado.pc_check import Check, PcCheck, check_in_own_process
 from mado.pictures import Command
@@ -205,6 +212,8 @@ def create_app(
             running.state.samples.tidy(conn)  # what an earlier run left in the cache goes
             studio.recover(conn)  # a wallpaper a stop cut short is made again
         running.state.editor.tidy()  # the masks of pictures not edited for a month go
+        running.state.depths.tidy()  # and the depth of pictures not used for a month
+        running.state.motions.tidy()  # 3D photos an earlier run made and nobody saved
         making_.start()  # a job Mado's closing cut short starts again, and batches carry on
         folders = WatchFolders(paths, take, now=_now, reader=reader_) if watch else None
         running.state.watch_folders = folders
@@ -221,6 +230,7 @@ def create_app(
         if folders is not None:
             folders.stop()
         making_.stop()  # after the tile it's on
+        running.state.motions.stop()  # between frames
         if watcher is not None:
             watcher.stop()
         scanner.stop()  # after the picture it's on
@@ -309,6 +319,29 @@ def create_app(
     app.state.sight = Sight(decoder, app.state.reader)
     # Editing by clicking: parts picked and edits made, kept so the previews and Save agree.
     app.state.editor = Editor(app.state.ai, paths.cache / "edits")
+    # Depth: each picture's read once and kept, for portrait blur, fog, tilt-shift and 3D photos.
+    app.state.depths = Depths(app.state.ai, app.state.editor, paths.cache / "depth")
+
+    # 3D photos: made into the cache, played in the page, saved when the owner says.
+    def picture_image(source: Path, version_: str) -> Image.Image:
+        return app.state.sight.picture(
+            Picture_(source, kind_of(source.name) or "picture", None, None), version_
+        )
+
+    def motion_ffmpeg() -> list[str] | None:
+        found = (ffmpeg or (lambda: app.state.tools.path("ffmpeg")))()
+        if found is None:
+            return None
+        return [str(found)] if isinstance(found, Path) else [str(each) for each in found]
+
+    app.state.motions = Motions(
+        paths.cache / "motion",
+        app.state.ai,
+        app.state.depths,
+        app.state.editor,
+        image=picture_image,
+        ffmpeg=motion_ffmpeg,
+    )
     app.state.jobs = Jobs(
         paths,
         Maker(
@@ -319,6 +352,7 @@ def create_app(
             kept=paths.cache / "samples" / "kept",
             editor=app.state.editor,
             reader=app.state.reader,
+            depths=app.state.depths,
         ),
         app.state.quarantine,
         now=_now,
@@ -332,6 +366,7 @@ def create_app(
         wake=app.state.jobs.wake,
         editor=app.state.editor,
         reader=app.state.reader,
+        depths=app.state.depths,
     )
     # The wallpaper studio: its wallpapers made by the jobs' worker after See it first's.
     app.state.wallpaper = Studio(
@@ -406,6 +441,8 @@ def create_app(
         opening,
         making,
         editing,
+        depth,
+        motion,
         looks,
         styles,
         jobs,

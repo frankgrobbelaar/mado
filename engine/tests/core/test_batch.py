@@ -105,6 +105,7 @@ def test_steps_are_made_in_mados_order_whatever_order_they_are_listed_in():
         "edit": None,
         "fix": None,
         "size": {"size": "tv-8k", "shape": "crop"},
+        "depth": None,
         "paint": None,
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
@@ -112,6 +113,7 @@ def test_steps_are_made_in_mados_order_whatever_order_they_are_listed_in():
         "edit": None,
         "fix": None,
         "size": None,
+        "depth": None,
         "paint": None,
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
@@ -142,6 +144,31 @@ def test_the_fixes_come_after_a_cut_out_and_before_the_size():
         recipe_of([size, nothing_on])
 
 
+def test_the_depth_tools_come_after_the_size_before_a_painting_style_and_the_look():
+    look: Step = {"step": "look", "look": "warm-film", "strength": 0.6, "touches": {}}
+    depth: Step = {
+        "step": "depth",
+        "portrait": {"focus": None, "aperture": 2.8, "quality": None},
+        "fog": None,
+        "tilt": None,
+    }
+    size: Step = {"step": "size", "size": "tv-8k"}
+    paint: Step = {"step": "paint", "style": "hokusai", "strength": 1, "colours": False}
+
+    assert steps_in_order([look, depth, size]) == [size, depth, look]
+    assert steps_in_order([paint, look, depth, size]) == [size, depth, paint, look]
+    assert recipe_of([look, depth])["depth"] == {
+        "portrait": {"focus": None, "aperture": 2.8, "quality": None},
+        "fog": None,
+        "tilt": None,
+    }
+    with pytest.raises(StepError, match="one set of depth tools"):
+        recipe_of([depth, depth])
+    nothing_on: Step = {"step": "depth", "portrait": None, "fog": None, "tilt": None}
+    with pytest.raises(StepError, match="no tool turned on"):
+        recipe_of([size, nothing_on])
+
+
 def test_cutting_out_the_subject_goes_first_as_the_recipes_edit():
     cut: Step = {"step": "cutout", "quality": "fast", "behind": "nothing", "colour": None}
     size: Step = {"step": "size", "size": "tv-8k"}
@@ -154,6 +181,7 @@ def test_cutting_out_the_subject_goes_first_as_the_recipes_edit():
         },
         "fix": None,
         "size": {"size": "tv-8k"},
+        "depth": None,
         "paint": None,
         "look": None,
     }
@@ -181,7 +209,7 @@ def test_a_painting_style_comes_after_the_size_and_before_the_look():
 
 def test_a_recipe_makes_one_size_and_one_look_and_needs_one_of_them():
     size: Step = {"step": "size", "size": "tv-8k"}
-    later: Step = {"step": "depth"}  # a later piece's step, in a recipe this Mado can't make
+    later: Step = {"step": "sparkle"}  # a later Mado's step, in a recipe this one can't make
     with pytest.raises(StepError, match="one size"):
         recipe_of([size, size])
     with pytest.raises(StepError, match="Pick"):

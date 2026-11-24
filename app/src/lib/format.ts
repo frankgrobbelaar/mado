@@ -87,17 +87,18 @@ export function about(seconds: number): string {
 }
 
 /** What a picture was made for and with, after its name: "for TV 8K", "with Warm film at 60%",
- * "for TV 8K, with Warm film at 60%". */
+ * "for TV 8K, with portrait blur at f/2.8 and Warm film at 60%"; a 3D photo, "into a 3D photo,
+ * swaying for 5 s". */
 export function madeWith(made: {
   madeFor: string | null;
   look: string | null;
   edit?: string | null;
   fix?: string | null;
+  depth?: string | null;
 }): string {
-  const parts = [
-    made.madeFor ? `for ${made.madeFor}` : null,
-    made.look ? `with ${made.look}` : null,
-  ];
+  if (made.depth?.startsWith(MOTION_WORDS)) return made.depth;
+  const withs = [made.depth, made.look].filter(Boolean).join(" and ");
+  const parts = [made.madeFor ? `for ${made.madeFor}` : null, withs ? `with ${withs}` : null];
   const said = parts.filter(Boolean).join(", ");
   // The edits and fixes, made first, come after in brackets: "for TV 8K (erased a part; took out
   // noise)".
@@ -106,17 +107,35 @@ export function madeWith(made: {
 }
 
 /** The same as a version of it is called: "TV 8K", "Warm film at 60%", "TV 8K, Warm film at 60%";
- * "edited" for one only edited. */
+ * "edited" for one only edited, "fixed" for one only fixed, its depth tools' name for one given
+ * only those ("Portrait blur"). */
 export function versionOf(made: {
   madeFor: string | null;
   look: string | null;
   edit?: string | null;
   fix?: string | null;
+  depth?: string | null;
 }): string {
   return (
     [made.madeFor, made.look].filter(Boolean).join(", ") ||
-    (made.edit ? "edited" : made.fix ? "fixed" : "")
+    (made.edit ? "edited" : made.fix ? "fixed" : (depthAs(made.depth)?.toLowerCase() ?? ""))
   );
+}
+
+/** How History's words for a 3D photo start (engine/src/mado/core/motion.py's MOTION_WORDS). */
+export const MOTION_WORDS = "into a 3D photo";
+
+/** What the depth tools made a picture, as its new name says it ("Portrait blur", "Fog",
+ * "Tilt-shift", or "Depth" for more than one; "3D photo"), from History's words for them, as
+ * `label` writes them in engine/src/mado/core/depth.py. */
+export function depthAs(depth: string | null | undefined): string | null {
+  if (!depth) return null;
+  if (depth.startsWith(MOTION_WORDS)) return "3D photo";
+  const kinds = [/portrait blur/, /fog/, /tilt-shift/].filter((each) => each.test(depth));
+  if (kinds.length > 1) return "Depth";
+  if (/portrait blur/.test(depth)) return "Portrait blur";
+  if (/fog/.test(depth)) return "Fog";
+  return "Tilt-shift";
 }
 
 /** What the fixes made a picture, as its new name says it ("Cleaned", "Sharpened", "Brightened",

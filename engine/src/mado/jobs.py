@@ -54,7 +54,15 @@ from mado.upscale import StoppedError
 log = logging.getLogger(__name__)
 
 type Stage = Literal[
-    "reading", "editing", "shaping", "fixing", "making", "painting", "looking", "saving"
+    "reading",
+    "editing",
+    "shaping",
+    "fixing",
+    "making",
+    "depthing",
+    "painting",
+    "looking",
+    "saving",
 ]
 type Where = Literal["next", "last"]
 
@@ -72,22 +80,14 @@ _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's who
     "shaping": (0.12, 0.22),
     "fixing": (0.22, 0.22),
     "making": (0.22, 0.85),
+    "depthing": (0.85, 0.85),
     "painting": (0.85, 0.89),
     "looking": (0.89, 0.93),
     "saving": (0.93, 1.0),
 }
-# A job with fixes: they take the first part of making's, as they take about as long; all of it
-# when nothing is made bigger.
-_FIXED_SHARE: dict[Stage, tuple[float, float]] = {
-    **_SHARE,
-    "fixing": (0.22, 0.45),
-    "making": (0.45, 0.85),
-}
-_ONLY_FIXED_SHARE: dict[Stage, tuple[float, float]] = {
-    **_SHARE,
-    "fixing": (0.22, 0.85),
-    "making": (0.85, 0.85),
-}
+# A job with fixes or depth tools: they share making's part with the size, the fixes about as long
+# as making it bigger, the depth tools about half as long; all of it when nothing is made bigger.
+_WEIGHTS: dict[Stage, float] = {"fixing": 0.23, "making": 0.4, "depthing": 0.15}
 
 
 @dataclass(frozen=True)
@@ -729,7 +729,7 @@ class Jobs:
         ).fetchone()
         order = _object(json.loads(first["recipe"])) if first else {}
         label, look, edit = order.get("label"), order.get("look"), order.get("edit")
-        fix = order.get("fix")
+        fix, depth = order.get("fix"), order.get("depth")
         title, body = told(
             batch["name"],
             made=row["made"],
@@ -738,6 +738,7 @@ class Jobs:
             look=look if isinstance(look, str) else None,
             edit=edit if isinstance(edit, str) else None,
             fix=fix if isinstance(fix, str) else None,
+            depth=depth if isinstance(depth, str) else None,
         )
         self._notify(title, body, link="/")
 
@@ -1069,14 +1070,29 @@ _LEFT_ASIDE = (
 
 def _shares(kept: str) -> dict[Stage, tuple[float, float]]:
     """Each stage's part of a job's whole, by its recipe (as the jobs table keeps it): its fixes
-    take a part of making's, or all of it when there's no size to make."""
+    and depth tools share making's part with the size, or take all of it when there's no size to
+    make."""
     try:
         recipe = _object(_object(json.loads(kept)).get("recipe"))
     except ValueError:
         return _SHARE
-    if recipe.get("fix") is None:
+    steps: tuple[tuple[Stage, str], ...] = (
+        ("fixing", "fix"),
+        ("making", "size"),
+        ("depthing", "depth"),
+    )
+    present: list[Stage] = [stage for stage, step in steps if recipe.get(step) is not None]
+    if not present or (len(present) == 1 and present[0] == "making"):
         return _SHARE
-    return _FIXED_SHARE if recipe.get("size") is not None else _ONLY_FIXED_SHARE
+    low, high = _SHARE["making"]
+    whole = sum(_WEIGHTS[stage] for stage in present)
+    shares = dict(_SHARE)
+    at = low
+    for stage, _step in steps:
+        width = (high - low) * _WEIGHTS[stage] / whole if stage in present else 0.0
+        shares[stage] = (at, at + width)
+        at += width
+    return shares
 
 
 def _left(began: float, progress: float, expected: list[float]) -> float | None:

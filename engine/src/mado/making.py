@@ -11,12 +11,14 @@
 5. Making: four times bigger through the AI model a tile at a time, then resized exactly, or
    without AI for pixel art, screenshots and a picture already big enough (mado/upscale.py).
    With no size, the picture keeps its pixels.
-6. Painting: a painting style (mado/painting.py): a painter's or a picture's style painted at
+6. Depth: portrait blur, fog and tilt-shift (mado/depth.py), at the size made, from the depth
+   of the picture as its edits left it, placed as the picture is.
+7. Painting: a painting style (mado/painting.py): a painter's or a picture's style painted at
    the working size and made the size made by plain resampling, a classic means drawn at that
    size; mixed with the picture at its strength; only on a part, as a look is.
-7. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
+8. Looking: its look and finishing touches (mado/looks.py), at the size made, so grain and dust
    never grow into blobs; only on a part, through its mask placed as the picture is.
-8. Saving: as a new picture beside the original (or in a folder the owner chose), named after
+9. Saving: as a new picture beside the original (or in a folder the owner chose), named after
    it with what it was made for and with, or in the original's place, the original going into
    quarantine; either way written beside first, checked, then put in place, and in History.
 
@@ -41,7 +43,8 @@ import numpy.typing as npt
 from PIL import Image
 
 from mado import encode, hardware, history, own_looks, own_styles
-from mado.ai import BIREFNET, FIX_OVERLAP, FIX_TILE, LAMA, MIGAN, SAM, Ai, Timer
+from mado.ai import BIREFNET, DEPTH, DEPTH_FILE, FIX_OVERLAP, FIX_TILE, LAMA, MIGAN, SAM, Ai, Timer
+from mado.core.depth import DepthError, Depthing, depthing_from
 from mado.core.edits import (
     Blur,
     CutOut,
@@ -69,6 +72,7 @@ from mado.core.recipe import Plan, Recipe, Sizing, Styling, plan
 from mado.core.sizes import DPI, Screen, SizeError, resolve
 from mado.core.tiles import count
 from mado.core.touches import named
+from mado.depth import Depths, depthed
 from mado.directml import ModelError
 from mado.editing import EditingError, Editor, cut_quality, picture_key
 from mado.extend import Filler, canvas_around, extended, squares_needed
@@ -194,11 +198,19 @@ class Naming:
     look: str | None
     edit: str | None = None  # what was edited: "erased a part"
     fix: str | None = None  # what the fixes did: "took out noise"
+    depth: str | None = None  # the depth tools: "portrait blur at f/2.8 and fog"
 
     @classmethod
     def of(cls, made: Plan) -> Naming:
         return cls(
-            made.width, made.height, made.named, made.made_for, made.look, made.edit, made.fix
+            made.width,
+            made.height,
+            made.named,
+            made.made_for,
+            made.look,
+            made.edit,
+            made.fix,
+            made.depth,
         )
 
 
@@ -427,11 +439,16 @@ def make(
     keep: bool = True,
     fix_timer: Timer | None = None,
     replan: Callable[[float], Plan] | None = None,
+    depths: Depths | None = None,
+    found_focus: tuple[float, float] = (0.5, 0.5),
 ) -> Made:
     """The picture made to its plan, from the picture decoded at full size and upright: its
     edits (by `editor`, `key` naming the picture and its version, keeping their masks unless
-    it's a batch's picture, made once), its fixes on the part kept, its size, then its look and
-    touches at that size (`seed` grows them), only on a part when the look says so. Its colour
+    it's a batch's picture, made once), its fixes on the part kept, its size, its depth tools at
+    that size (by `depths`, from the depth of the picture as its edits left it; portrait blur in
+    focus at its subject, or `found_focus` without one, unless it says where), its painting
+    style, then its look and touches at that size (`seed` grows them), the style and the look
+    only on a part when they say so. Its colour
     profile comes with it. A dark photo's fix measures the picture as its edits leave it, and
     `replan` makes the plan again for how dark it is. Raises StoppedError when stopped,
     ModelError when a model can't run, EditingError for edits Mado can't make."""
@@ -461,6 +478,24 @@ def make(
         if made.method == "keep" and made.fixing is None
         else _sized(edited, made, ai, report, stop, timer, measured, fix_timer)
     )
+    if made.depthing is not None:
+        if depths is None or editor is None:
+            raise EditingError("Mado can't make the depth tools here.")
+        report("depthing", 0.0)
+        sized = depth_made(
+            image,
+            edited,
+            sized,
+            made,
+            made.depthing,
+            depths,
+            editor,
+            key=key,
+            keep=keep,
+            found_focus=found_focus,
+            stop=stop,
+        )
+        report("depthing", 1.0)
     if made.painting is not None:
         if stop():
             raise StoppedError
@@ -555,6 +590,57 @@ def only_on(looked: Image.Image, plain: Image.Image, mask: Image.Image) -> Image
     if isinstance(profile, bytes):
         joined.info["icc_profile"] = profile
     return joined
+
+
+def depth_made(
+    image: Image.Image,
+    edited: Image.Image,
+    sized: Image.Image,
+    made: Plan,
+    depthing: Depthing,
+    depths: Depths,
+    editor: Editor,
+    *,
+    key: str,
+    keep: bool,
+    found_focus: tuple[float, float],
+    stop: Callable[[], bool] = lambda: False,
+) -> Image.Image:
+    """`sized`, the picture made (or a preview of it, its own size), with its depth tools: from
+    the depth of the picture (`image`, decoded; `key` naming it and its version) as its edits
+    left it (`edited`, made once already; tilt-shift alone needs none), portrait blur with the
+    subject's own edges, each placed as the size step places the picture. Raises ModelError
+    when a model can't run, EditingError, StoppedError when stopped."""
+    edits = made.editing.edits if made.editing else ()
+    width, height = edited.size
+    if depthing.portrait is not None or depthing.fog is not None:
+        near = depths.read(image, key, edits, keep=keep, edited=edited).near
+    else:
+        near = np.zeros((2, 2), np.float32)  # tilt-shift goes by place alone
+    mask = None
+    if depthing.portrait is not None:
+        quality = depthing.portrait.quality or cut_quality(depths.ai)
+        found, _place = editor.subject(image, key, edits, quality, keep=keep, edited=edited)
+        if found.any():
+            mask = np.asarray(placed(found, made, sized.size))
+    return depthed(
+        sized,
+        depthing,
+        near,
+        canvas_of(made),
+        (width, height),
+        mask=mask,
+        found_focus=found_focus,
+        stop=stop,
+    ).image
+
+
+def canvas_of(made: Plan) -> tuple[float, float, float, float]:
+    """The part of the picture a plan makes, in its pixels: its crop, or its canvas when its
+    edges are extended."""
+    frame = made.frame
+    shown = frame.canvas if frame.shape == "extend" and frame.sides != "none" else frame.kept
+    return (shown.x, shown.y, shown.width, shown.height)
 
 
 def _sized(
@@ -774,6 +860,7 @@ def keep(
                 result=target,
                 edit=naming.edit,
                 fix=naming.fix,
+                depth=naming.depth,
             )
             try:
                 target = _into_place(
@@ -800,6 +887,7 @@ def keep(
             aside=aside,
             edit=naming.edit,
             fix=naming.fix,
+            depth=naming.depth,
         )
         _replacing(
             partial, target, original, aside, quarantine, now, lambda: history.forget(conn, entry)
@@ -913,12 +1001,12 @@ def recipe_from(
     looks: Callable[[str], Look | None],
     styles: Callable[[dict[str, object]], Style | None] = lambda _asked: None,
 ) -> Recipe:
-    """A recipe as a job keeps it (JSON: its edit, fix, size, paint and look steps, any of them
-    none), the owner's screens naming theirs, `looks` finding a look by its id and `styles` a
+    """A recipe as a job keeps it (JSON: its edit, fix, size, depth, paint and look steps, any of
+    them none), the owner's screens naming theirs, `looks` finding a look by its id and `styles` a
     painting step's style (mado/own_styles.py's `resolve`). A job Mado 0.1 kept is its size step
     alone, flat. Raises SizeError for a size Mado can't make, MissingLookError for a look that
     isn't there any more, MissingStyleError for a painting style that isn't, EditError for edits
-    it can't make, FixError for fixes it can't read."""
+    it can't make, FixError for fixes it can't read, DepthError for a depth step it can't read."""
     if isinstance(data.get("size"), str):  # Mado 0.1's: the size step's fields, flat
         return Recipe(sizing=_sizing_from(data, screens))
     size, look = data.get("size"), data.get("look")
@@ -945,6 +1033,7 @@ def recipe_from(
         styling=styling,
         editing=editing_from(data.get("edit")),
         fixing=fixing_from(data.get("fix")),
+        depthing=depthing_from(data.get("depth")),
         painting=_painting_from(data.get("paint"), styles),
     )
 
@@ -1016,15 +1105,18 @@ def estimated(
     cut_on: Place | None = None,
     fix_on: Place | None = None,
     paint_on: Place | None = None,
+    depth_on: Place | None = None,
 ) -> float:
     """How long making a plan takes here, in seconds. `cut_on`: where cutting out a subject at
     its best runs (on the processor, unless the card has a great deal of room); `fix_on`: where
     the fixes' models run (None: where this PC runs the models); `paint_on`: where its painting
-    style's network runs (None: where this PC runs the models)."""
+    style's network runs (None: where this PC runs the models); `depth_on`: where the depth
+    model runs."""
     pixels = made.width * made.height
     canvas = made.frame.canvas
     seconds = _edit_seconds(made, here.place, cut_on or "processor")
     seconds += fix_seconds(made, here, fix_on)
+    seconds += depth_seconds(made, depth_on or here.place, cut_on or "processor")
     seconds += paint_seconds(made, paint_on or here.place)
     if made.styling is not None:
         drawn = made.styling.touches.spatial()
@@ -1065,6 +1157,34 @@ def fix_seconds(made: Plan, here: Here, fix_on: Place | None = None) -> float:
             seconds += megapixels * speed(stage.model.id, place, here.speeds)
             seconds += tiles * _PER_FIX_TILE
     return seconds
+
+
+def depth_seconds(made: Plan, depth_on: Place, cut_on: Place) -> float:
+    """About how long a plan's depth tools take: reading its depth (none for tilt-shift alone),
+    finding its subject for portrait blur (Fast, or Best where it runs), and each tool by the
+    megapixel of the picture made."""
+    depthing = made.depthing
+    if depthing is None:
+        return 0.0
+    megapixels = made.width * made.height / 1e6
+    seconds = 0.0
+    if depthing.portrait is not None or depthing.fog is not None:
+        seconds += _DEPTH_READ_SECONDS[depth_on]
+    if depthing.portrait is not None:
+        best = depthing.portrait.quality == "best"
+        seconds += _CUT_SECONDS[cut_on] if best else _CUT_SECONDS["fast"]
+        seconds += _DEPTH_TOOL_SECONDS["portrait"] * megapixels
+    if depthing.fog is not None:
+        seconds += _DEPTH_TOOL_SECONDS["fog"] * megapixels
+    if depthing.tilt is not None:
+        seconds += _DEPTH_TOOL_SECONDS["tilt"] * megapixels
+    return seconds
+
+
+# What the depth tools take on the owner's PC (docs/stack/depth.md): reading a picture's depth,
+# and each tool for a megapixel of the picture made.
+_DEPTH_READ_SECONDS: dict[Place, float] = {"card": 0.3, "processor": 0.8}
+_DEPTH_TOOL_SECONDS = {"portrait": 0.3, "fog": 0.16, "tilt": 0.3}
 
 
 def paint_seconds(made: Plan, place: Place) -> float:
@@ -1169,6 +1289,18 @@ def waiting_for(made: Plan, ai: Ai) -> list[str]:
     for model in fix_models(made.fixing, made.fix_quality):
         if ai.fix_file(model) is None:
             found.append(model.id)
+    depthing = made.depthing
+    reads = depthing is not None and (depthing.portrait is not None or depthing.fog is not None)
+    if reads and ai.edit_file(DEPTH, DEPTH_FILE) is None:
+        found.append(DEPTH)
+    if (
+        depthing is not None
+        and depthing.portrait is not None
+        and depthing.portrait.quality == "best"
+        and BIREFNET not in found
+        and ai.edit_file(BIREFNET, "birefnet-lite.onnx") is None
+    ):
+        found.append(BIREFNET)
     if made.painting is not None:
         painter = ai.painter.needs(made.painting.style)
         if painter is not None:
@@ -1197,10 +1329,11 @@ class Maker:
         kept: Path | None = None,
         editor: Editor | None = None,
         reader: Reader | None = None,
+        depths: Depths | None = None,
     ) -> None:
         """`kept`: where See it first's pictures wait for their jobs; one is let go once its
         job has saved it. `editor` makes a recipe's edits (and a look's part); `reader` reads
-        camera RAW."""
+        camera RAW; `depths` reads a picture's depth for the depth tools."""
         self._ai = ai
         self._quarantine = quarantine
         self._ffmpeg = ffmpeg
@@ -1208,6 +1341,7 @@ class Maker:
         self._now = now
         self._kept = kept
         self._editor = editor
+        self._depths = depths
 
     def __call__(
         self,
@@ -1225,7 +1359,14 @@ class Maker:
                 lambda look: own_looks.resolve(conn, look),
                 lambda asked: own_styles.resolve(conn, asked),
             )
-        except (SizeError, MissingLookError, MissingStyleError, EditError, FixError) as error:
+        except (
+            SizeError,
+            MissingLookError,
+            MissingStyleError,
+            EditError,
+            FixError,
+            DepthError,
+        ) as error:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
         picture = picture_of(conn, row["picture_id"], Path(row["source"]))
@@ -1288,7 +1429,8 @@ class Maker:
                 here,
                 self._ai.edit_place(BIREFNET),
                 self._ai.fix_place(fixers),
-                painting_on,
+                paint_on=painting_on,
+                depth_on=self._ai.depth_place(),
             )
         )
         timer = Timer()
@@ -1309,6 +1451,8 @@ class Maker:
                 keep=edited_on is not None,  # a batch's picture is made once: nothing kept
                 fix_timer=_one_timer(fix_timers),
                 replan=lambda stops: planned(recipe, seen, starts_on, fix_starts_on, stops),
+                depths=self._depths,
+                found_focus=seen.focus,
             )
         except ModelError as error:
             raise JobError(f"{error} Nothing was saved; the original is as it was.") from None
@@ -1468,7 +1612,7 @@ def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
     if f"{stat.st_mtime_ns:x}-{stat.st_size:x}" != version_ or not Path(path).is_file():
         return None
     made_for, look, edit = made.get("madeFor"), made.get("look"), made.get("edit")
-    fix = made.get("fix")
+    fix, depth = made.get("fix"), made.get("depth")
     return Path(path), Naming(
         width,
         height,
@@ -1477,6 +1621,7 @@ def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
         look if isinstance(look, str) else None,
         edit if isinstance(edit, str) else None,
         fix if isinstance(fix, str) else None,
+        depth if isinstance(depth, str) else None,
     )
 
 

@@ -24,7 +24,7 @@ import {
   useSettings,
 } from "@/lib/engine";
 import { openFolder, useExplorer } from "@/lib/explorer";
-import { count, dayAndTime, editedAs, fixedAs, size } from "@/lib/format";
+import { count, dayAndTime, depthAs, editedAs, fixedAs, size } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SpaceCard } from "./space-card";
 import { WontOpen } from "./wont-open";
@@ -353,6 +353,7 @@ function Made({ made }: { made: MadeToday }) {
     made.look?.replace(/ at \d+%$/, "") ??
     editedAs(made.edit) ??
     fixedAs(made.fix) ??
+    depthAs(made.depth) ??
     "";
   return (
     <figure className="m-0 flex min-w-0 flex-col gap-1.5">

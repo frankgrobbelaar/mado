@@ -67,6 +67,29 @@ def _box_along(values: Floats, radius: int, axis: int) -> Floats:
     return np.ascontiguousarray(np.moveaxis(spread, 0, axis), dtype=np.float32)
 
 
+def running(values: Floats, window: int, pick: np.ufunc) -> Floats:
+    """Each value's highest or lowest (`pick`: np.maximum, np.minimum) over its square of
+    neighbours `window` across, the edges repeating outward: by doubling runs, so as quick for a
+    wide square as a small one."""
+    out = values
+    for axis in (0, 1):
+        moved = np.moveaxis(out, axis, 0)
+        count = moved.shape[0]
+        before = window // 2
+        padded = np.concatenate(
+            [np.repeat(moved[:1], before, 0), moved, np.repeat(moved[-1:], window - 1 - before, 0)]
+        )
+        span = 1
+        while span * 2 <= window:
+            padded = pick(padded[:-span], padded[span:])
+            span *= 2
+        rest = window - span
+        if rest:
+            padded = pick(padded[: padded.shape[0] - rest], padded[rest:])
+        out = np.moveaxis(padded[:count], 0, axis)
+    return np.ascontiguousarray(out, np.float32)
+
+
 def feathered(mask: Mask, radius: int) -> Mask:
     """A mask's edge made soft over about `radius` pixels each way (two passes of a box, close to
     a bell's curve), so what's laid through it fades in rather than steps. Worked out only round

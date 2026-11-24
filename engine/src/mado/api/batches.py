@@ -5,7 +5,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Response, status
 from fastapi.responses import FileResponse
@@ -22,6 +22,7 @@ from mado.api.common import (
     Toolbox,
     Working,
 )
+from mado.api.depth import DepthStepIn
 from mado.api.fixes import FixStepIn
 from mado.api.looks import LookIn
 from mado.api.making import Need, SizeIn
@@ -74,6 +75,13 @@ class FixStep(FixStepIn):
     step: Literal["fix"] = "fix"
 
 
+class DepthStep(DepthStepIn):
+    """The depth tools: portrait blur (each picture in focus at its own subject), fog and
+    tilt-shift, each off or at its settings: the Depth tab's choices."""
+
+    step: Literal["depth"] = "depth"
+
+
 class PaintStep(PaintIn):
     """A painting style, at its strength, in each picture's own colours or the style's: the Looks
     tab's painting styles. A picture's own style goes in a batch once it's kept as a style."""
@@ -82,7 +90,8 @@ class PaintStep(PaintIn):
 
 
 type Step = Annotated[
-    CutoutStep | FixStep | SizeStep | PaintStep | LookStep, Field(discriminator="step")
+    CutoutStep | FixStep | SizeStep | DepthStep | PaintStep | LookStep,
+    Field(discriminator="step"),
 ]
 
 
@@ -563,6 +572,9 @@ def steps_of(body: list[Step]) -> list[dict[str, object]]:
         kept = step.model_dump(by_alias=True)
         if kept.get("step") == "size":
             kept.pop("focus", None)
+        portrait = kept.get("portrait")
+        if kept.get("step") == "depth" and isinstance(portrait, dict):
+            cast("dict[str, object]", portrait)["focus"] = None  # each at its own subject
         found.append(kept)
     return steps_in_order(found)
 

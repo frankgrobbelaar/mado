@@ -12,6 +12,7 @@ from pydantic.alias_generators import to_camel
 from mado import db
 from mado.ai import Ai
 from mado.config import DataPaths
+from mado.depth import Depths
 from mado.duplicates import Finder
 from mado.editing import Editor
 from mado.jobs import Jobs
@@ -101,6 +102,11 @@ def _editor(request: Request) -> Editor:
     return found
 
 
+def _depths(request: Request) -> Depths:
+    found: Depths = request.app.state.depths
+    return found
+
+
 def _pc(request: Request) -> PcCheck:
     found: PcCheck = request.app.state.pc
     return found
@@ -127,3 +133,4 @@ FirstLook = Annotated[Samples, Depends(_samples)]  # See it first's pictures
 Finding = Annotated[Finder, Depends(_finder)]  # duplicates and bursts, found in the background
 Editors = Annotated[Editor, Depends(_editor)]  # editing by clicking: parts picked, edits made
 Searching = Annotated[Search, Depends(_search)]  # the library read for search, and finding in it
+Depthing = Annotated[Depths, Depends(_depths)]  # each picture's depth, read once and kept

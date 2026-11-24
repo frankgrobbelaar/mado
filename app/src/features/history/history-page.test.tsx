@@ -461,6 +461,7 @@ function batchLine(overrides: Partial<BatchLine>): BatchLine {
     look: null,
     edit: null,
     fix: null,
+    depth: null,
     purpose: "tv",
     into: "Holiday › Edited",
     made: 47,

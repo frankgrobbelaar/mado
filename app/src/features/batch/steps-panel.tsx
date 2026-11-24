@@ -1,4 +1,4 @@
-import { Brush, Download, Monitor, Plus, Scissors, Wand } from "lucide-react";
+import { Brush, Download, Monitor, Mountain, Plus, Scissors, Wand } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
@@ -28,6 +28,7 @@ export function LookIcon({ className }: { className?: string }) {
 const ICONS: Record<string, ReactNode> = {
   cutout: <Scissors size={20} strokeWidth={1.6} aria-hidden="true" />,
   fix: <Wand size={20} strokeWidth={1.6} aria-hidden="true" />,
+  depth: <Mountain size={20} strokeWidth={1.6} aria-hidden="true" />,
   size: <Monitor size={20} strokeWidth={1.6} aria-hidden="true" />,
   paint: <Brush size={20} strokeWidth={1.6} aria-hidden="true" />,
   look: <LookIcon />,
@@ -52,7 +53,7 @@ export function StepsPanel(props: {
   onRecipe?: (recipe: KeptRecipe) => void;
 }) {
   const { steps, words } = props;
-  const missing = (["cutout", "fix", "size", "paint", "look"] as const).filter(
+  const missing = (["cutout", "fix", "size", "depth", "paint", "look"] as const).filter(
     (kind) => !steps.some((step) => step.step === kind),
   );
   return (
@@ -69,7 +70,7 @@ export function StepsPanel(props: {
       {steps.length === 0 && (
         <p className="border-edge border-t px-4.5 py-3.5 text-13 text-fg-muted leading-normal">
           Pick what to do: cut out their subject, fix them, make them right for a screen or a print,
-          paint them in a style, give them a look, or start from a recipe.
+          give them depth, paint them in a style, give them a look, or start from a recipe.
         </p>
       )}
       <ol>
@@ -134,7 +135,9 @@ export function StepsPanel(props: {
                           ? "A painting style"
                           : kind === "fix"
                             ? "Fix: noise, blur, JPEG blocks, dark"
-                            : "Cut out the subject"}
+                            : kind === "depth"
+                              ? "Depth: portrait blur, fog, tilt-shift"
+                              : "Cut out the subject"}
                   </DropdownMenu.Item>
                 ))}
               </DropdownMenu.Content>

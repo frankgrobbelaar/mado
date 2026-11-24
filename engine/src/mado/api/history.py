@@ -16,6 +16,7 @@ from mado.api.common import ApiModel, Copies, Database, Finding, Paths, Scans, S
 from mado.api.jobs import PictureRef
 from mado.core.batch import at_night
 from mado.core.files import kind_of
+from mado.core.motion import MOTION_WORDS
 from mado.history import Entry, UndoError
 from mado.pictures import (
     NeedsFfmpegError,
@@ -47,6 +48,7 @@ class EntryOut(ApiModel):
     look: str | None  # what it was made with: "Warm film at 60%"
     edit: str | None  # what was edited first: "erased a part"
     fix: str | None  # what the fixes did: "took out noise"
+    depth: str | None  # the depth tools: "portrait blur at f/2.8"; a video: "into a 3D photo"
     original: str | None
     result: str | None
     result_name: str | None
@@ -76,6 +78,7 @@ class BatchLine(ApiModel):
     look: str | None
     edit: str | None  # "cut out the subject"
     fix: str | None  # "took out noise"
+    depth: str | None  # "portrait blur at f/2.8"
     purpose: str | None  # what its size made them for: "tv"
     into: str  # where they went: "Holiday › Edited"
     made: int  # its pictures made, not taken away or put back
@@ -127,6 +130,7 @@ class MadeToday(ApiModel):
     look: str | None  # "Warm film at 60%"
     edit: str | None  # "erased a part"
     fix: str | None  # "took out noise"
+    depth: str | None  # "portrait blur at f/2.8", "into a 3D photo"
 
 
 class ClearHistory(ApiModel):
@@ -207,7 +211,7 @@ def made_today(conn: Database) -> list[MadeToday]:
     """The pictures made today, newest first, for Home."""
     today = _now().date().isoformat()
     rows = conn.execute(
-        """SELECT id, name, made_for, look, edit, fix FROM history
+        """SELECT id, name, made_for, look, edit, fix, depth FROM history
            WHERE kind IN ('made', 'replaced') AND undone_at IS NULL AND substr(at, 1, 10) = ?
            ORDER BY at DESC, id DESC LIMIT 12""",
         (today,),
@@ -220,6 +224,7 @@ def made_today(conn: Database) -> list[MadeToday]:
             look=row["look"],
             edit=row["edit"],
             fix=row["fix"],
+            depth=row["depth"],
         )
         for row in rows
     ]
@@ -231,11 +236,13 @@ _THUMBNAIL: dict[int | str, dict[str, Any]] = {200: {"content": {"image/webp": {
 @router.get("/history/{entry_id}/thumbnail", response_class=FileResponse, responses=_THUMBNAIL)
 def made_thumbnail(entry_id: int, conn: Database, paths: Paths, copies: Copies) -> FileResponse:
     """A thumbnail of the picture a line made (WebP): the library's, or made now from the picture
-    itself when it's outside the library. Only a picture Mado made."""
+    itself when it's outside the library; for a 3D photo, its picture's. Only a picture Mado
+    made."""
     found = history.entry(conn, entry_id)
     if found is None or not found.result or found.undone_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That picture isn't there any more.")
-    result = Path(found.result)
+    video = bool(found.depth and found.depth.startswith(MOTION_WORDS))
+    result = Path(found.original) if video and found.original else Path(found.result)
     row = conn.execute(
         "SELECT * FROM pictures WHERE path = ? AND gone_at IS NULL AND read_at IS NOT NULL",
         (str(result),),
@@ -351,6 +358,7 @@ def _out(conn: sqlite3.Connection, found: Entry) -> EntryOut:
         look=found.look,
         edit=found.edit,
         fix=found.fix,
+        depth=found.depth,
         original=found.original,
         result=found.result,
         result_name=PureWindowsPath(found.result).name if found.result else None,
@@ -426,7 +434,7 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
     ]
     order = batches.first_order(conn, batch_id)
     made_for, look, edit = order.get("label"), order.get("look"), order.get("edit")
-    fix = order.get("fix")
+    fix, depth = order.get("fix"), order.get("depth")
     started = row["started_at"]
     try:
         overnight = started is not None and at_night(datetime.fromisoformat(started))
@@ -443,6 +451,7 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
         look=look if isinstance(look, str) else None,
         edit=edit if isinstance(edit, str) else None,
         fix=fix if isinstance(fix, str) else None,
+        depth=depth if isinstance(depth, str) else None,
         purpose=batches.purpose_of(conn, steps),
         into=batches.into_words(saving, row["shared"]),
         made=counts["made"],

@@ -30,6 +30,7 @@ _STEPS = {
     "cutout": "Cut out the subject",
     "fix": "Fix",
     "size": "Make it for a screen",
+    "depth": "Depth",
     "paint": "A painting style",
     "look": "A look",
 }
@@ -40,6 +41,7 @@ _STAGE_STEP = {
     "fixing": "fix",
     "shaping": "size",
     "making": "size",
+    "depthing": "depth",
     "painting": "paint",
     "looking": "look",
 }

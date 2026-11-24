@@ -1170,7 +1170,7 @@
     "/pictures/{picture_id}/preview": {
       "post": {
         "summary": "Preview",
-        "description": "A preview of the picture made: all of it no bigger than `fit` (from its view the size of a\nscreen), or a part of it at full detail (`region`); before (the picture only stretched) or\nafter (made, as Save would, with its look and touches). All of it comes as JPEG, quick to\nmake as looks are gone through (WebP when it has see-through parts); a part as WebP.",
+        "description": "A preview of the picture made: all of it no bigger than `fit` (from its view the size of a\nscreen), or a part of it at full detail (`region`); before (the picture only stretched) or\nafter (made, as Save would, with its depth tools, look and touches). All of it comes as JPEG,\nquick to make as looks are gone through (WebP when it has see-through parts); a part as\nWebP.",
         "operationId": "preview_pictures__picture_id__preview_post",
         "security": [
           {
@@ -1577,6 +1577,337 @@
             "description": "Successful Response",
             "content": {
               "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/depth": {
+      "post": {
+        "summary": "Depth Of",
+        "description": "Reads how near each part of the picture is (as its edits leave it), the first time it's\nasked for (about a tenth of a second on the card, half a second on the processor), and finds\nits subject: what the Depth tab says of it. While the depth model isn't downloaded, says so\nand reads nothing.",
+        "operationId": "depth_of_pictures__picture_id__depth_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepthAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepthOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pictures/{picture_id}/motion": {
+      "get": {
+        "summary": "Motion Facts",
+        "description": "What a picture's 3D photo can be made with here: ffmpeg and the H.264 encoder that works\n(looked for once), the sizes the picture has the pixels for, and what it waits for.",
+        "operationId": "motion_facts_pictures__picture_id__motion_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotionFacts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Make Motion",
+        "description": "Makes a 3D photo into the cache, on a thread of its own (the one asked for before it, if\nit isn't made yet, is let go): how it's coming on comes from /motion/{id}.",
+        "operationId": "make_motion_pictures__picture_id__motion_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotionAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/motion/{motion_id}": {
+      "get": {
+        "summary": "Motion State",
+        "description": "How a 3D photo is coming on.",
+        "operationId": "motion_state_motion__motion_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "motion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Motion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Drop Motion",
+        "description": "Lets a 3D photo go: one being made stops between frames, and its file goes.",
+        "operationId": "drop_motion_motion__motion_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "motion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Motion Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/motion/{motion_id}/video": {
+      "get": {
+        "summary": "Motion Video",
+        "description": "A 3D photo made: its MP4, or its animated WebP.",
+        "operationId": "motion_video_motion__motion_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "motion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Motion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "video/mp4": {},
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/motion/{motion_id}/save": {
+      "post": {
+        "summary": "Save Motion",
+        "description": "Saves a 3D photo made as a new file beside its picture or into a folder chosen (\"Harbour\nat dusk (3D photo).mp4\"), with its line in History. A pasted picture's goes only into a folder\nchosen; the picture is never changed.",
+        "operationId": "save_motion_motion__motion_id__save_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "motion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Motion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotionSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotionSaved"
+                }
+              }
             }
           },
           "422": {
@@ -4580,7 +4911,7 @@
     "/history/{entry_id}/thumbnail": {
       "get": {
         "summary": "Made Thumbnail",
-        "description": "A thumbnail of the picture a line made (WebP): the library's, or made now from the picture\nitself when it's outside the library. Only a picture Mado made.",
+        "description": "A thumbnail of the picture a line made (WebP): the library's, or made now from the picture\nitself when it's outside the library; for a 3D photo, its picture's. Only a picture Mado\nmade.",
         "operationId": "made_thumbnail_history__entry_id__thumbnail_get",
         "security": [
           {
@@ -5550,6 +5881,17 @@
             ],
             "title": "Fix"
           },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
           "purpose": {
             "anyOf": [
               {
@@ -5640,6 +5982,7 @@
           "look",
           "edit",
           "fix",
+          "depth",
           "purpose",
           "into",
           "made",
@@ -6636,6 +6979,224 @@
         ],
         "title": "DayCount"
       },
+      "DepthAsk": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/EditIn"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Edits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "DepthAsk",
+        "description": "The picture as the window has it, and the edits made on it: its depth is read as they\nleave it."
+      },
+      "DepthNeed": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "size"
+        ],
+        "title": "DepthNeed"
+      },
+      "DepthOut": {
+        "properties": {
+          "needs": {
+            "items": {
+              "$ref": "#/components/schemas/DepthNeed"
+            },
+            "type": "array",
+            "title": "Needs"
+          },
+          "read": {
+            "type": "boolean",
+            "title": "Read"
+          },
+          "flat": {
+            "type": "boolean",
+            "title": "Flat"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "card",
+              "processor"
+            ],
+            "title": "Place"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "waited": {
+            "type": "number",
+            "title": "Waited"
+          },
+          "subject": {
+            "type": "boolean",
+            "title": "Subject"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          },
+          "seeThrough": {
+            "type": "boolean",
+            "title": "Seethrough"
+          },
+          "grey": {
+            "type": "boolean",
+            "title": "Grey"
+          },
+          "megapixels": {
+            "type": "number",
+            "title": "Megapixels"
+          },
+          "tooBig": {
+            "type": "boolean",
+            "title": "Toobig"
+          }
+        },
+        "type": "object",
+        "required": [
+          "needs",
+          "read",
+          "flat",
+          "place",
+          "seconds",
+          "waited",
+          "subject",
+          "focus",
+          "seeThrough",
+          "grey",
+          "megapixels",
+          "tooBig"
+        ],
+        "title": "DepthOut",
+        "description": "What Mado read of a picture's depth, for the Depth tab."
+      },
+      "DepthStep": {
+        "properties": {
+          "portrait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortraitIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fog": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FogIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tilt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TiltIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "step": {
+            "type": "string",
+            "const": "depth",
+            "title": "Step",
+            "default": "depth"
+          }
+        },
+        "type": "object",
+        "title": "DepthStep",
+        "description": "The depth tools: portrait blur (each picture in focus at its own subject), fog and\ntilt-shift, each off or at its settings: the Depth tab's choices."
+      },
+      "DepthStepIn": {
+        "properties": {
+          "portrait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortraitIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fog": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FogIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tilt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TiltIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "DepthStepIn",
+        "description": "The depth tools: portrait blur, fog and tilt-shift, each null (off) or its settings."
+      },
       "DriveAside": {
         "properties": {
           "drive": {
@@ -7055,6 +7616,17 @@
             ],
             "title": "Fix"
           },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
           "original": {
             "anyOf": [
               {
@@ -7220,6 +7792,7 @@
           "look",
           "edit",
           "fix",
+          "depth",
           "original",
           "result",
           "resultName",
@@ -7506,6 +8079,32 @@
         ],
         "title": "FixesOut",
         "description": "What Mado measures of a picture, for the Fix tab: only what it can measure cheaply and\nreliably (docs/stack/fixes.md says how often each suggestion was right)."
+      },
+      "FogIn": {
+        "properties": {
+          "density": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Density",
+            "default": 0.5
+          },
+          "colour": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colour"
+          }
+        },
+        "type": "object",
+        "title": "FogIn",
+        "description": "Fog: how thick, 0 to 1, and its colour (\"#rrggbb\"; null, the picture's own haze)."
       },
       "FolderNode": {
         "properties": {
@@ -8024,6 +8623,17 @@
             ],
             "title": "Fix"
           },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
           "how": {
             "type": "string",
             "enum": [
@@ -8045,6 +8655,7 @@
                   "shaping",
                   "fixing",
                   "making",
+                  "depthing",
                   "painting",
                   "looking",
                   "saving"
@@ -8161,6 +8772,7 @@
           "look",
           "edit",
           "fix",
+          "depth",
           "how",
           "state",
           "stage",
@@ -8686,6 +9298,17 @@
               }
             ],
             "title": "Fix"
+          },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
           }
         },
         "type": "object",
@@ -8695,7 +9318,8 @@
           "madeFor",
           "look",
           "edit",
-          "fix"
+          "fix",
+          "depth"
         ],
         "title": "MadeToday"
       },
@@ -8920,6 +9544,274 @@
           "version"
         ],
         "title": "MonitorItem"
+      },
+      "MotionAsk": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/EditIn"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Edits"
+          },
+          "motion": {
+            "type": "string",
+            "enum": [
+              "push",
+              "sway",
+              "circle"
+            ],
+            "title": "Motion",
+            "default": "push"
+          },
+          "seconds": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 3.0,
+            "title": "Seconds",
+            "default": 5
+          },
+          "amount": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Amount",
+            "default": 0.5
+          },
+          "fill": {
+            "type": "string",
+            "enum": [
+              "fast",
+              "best"
+            ],
+            "title": "Fill",
+            "default": "fast"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "1080p",
+              "4k"
+            ],
+            "title": "Size",
+            "default": "1080p"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "mp4",
+              "webp"
+            ],
+            "title": "Format",
+            "default": "mp4"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "MotionAsk",
+        "description": "A 3D photo of the picture as its edits leave it."
+      },
+      "MotionFacts": {
+        "properties": {
+          "ffmpeg": {
+            "type": "boolean",
+            "title": "Ffmpeg"
+          },
+          "encoder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encoder"
+          },
+          "encoderName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encodername"
+          },
+          "sizes": {
+            "items": {
+              "$ref": "#/components/schemas/SizeChoice"
+            },
+            "type": "array",
+            "title": "Sizes"
+          },
+          "webp": {
+            "$ref": "#/components/schemas/SizeChoice"
+          },
+          "seconds": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Seconds"
+          },
+          "needs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Needs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ffmpeg",
+          "encoder",
+          "encoderName",
+          "sizes",
+          "webp",
+          "seconds",
+          "needs"
+        ],
+        "title": "MotionFacts",
+        "description": "What this PC can make a picture's 3D photo with."
+      },
+      "MotionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "making",
+              "done",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "mp4",
+              "webp"
+            ],
+            "title": "Format"
+          },
+          "encoderName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encodername"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "progress",
+          "seconds",
+          "width",
+          "height",
+          "bytes",
+          "format",
+          "encoderName",
+          "problem"
+        ],
+        "title": "MotionOut"
+      },
+      "MotionSave": {
+        "properties": {
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          }
+        },
+        "type": "object",
+        "title": "MotionSave"
+      },
+      "MotionSaved": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "historyId": {
+            "type": "integer",
+            "title": "Historyid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "name",
+          "historyId"
+        ],
+        "title": "MotionSaved"
       },
       "Moved": {
         "properties": {
@@ -10276,6 +11168,36 @@
             ],
             "title": "Fixplace"
           },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
+          "depthSeconds": {
+            "type": "number",
+            "title": "Depthseconds"
+          },
+          "depthPlace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "processor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depthplace"
+          },
           "paintPlace": {
             "anyOf": [
               {
@@ -10387,6 +11309,9 @@
           "fixQuality",
           "fixSeconds",
           "fixPlace",
+          "depth",
+          "depthSeconds",
+          "depthPlace",
           "paintPlace",
           "paintNote",
           "seconds",
@@ -10420,6 +11345,46 @@
           "y"
         ],
         "title": "Point"
+      },
+      "PortraitIn": {
+        "properties": {
+          "focus": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          },
+          "aperture": {
+            "type": "number",
+            "maximum": 16.0,
+            "minimum": 1.4,
+            "title": "Aperture",
+            "default": 2.8
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PortraitIn",
+        "description": "Portrait blur: in focus at a point (fractions across and down; null, the subject), as a\nlens at `aperture` (f/1.4 to f/16), the subject's edges at Fast or Best (null: as this PC\nsuits)."
       },
       "PreviewIn": {
         "properties": {
@@ -10716,6 +11681,16 @@
               }
             ]
           },
+          "depth": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepthStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "paint": {
             "anyOf": [
               {
@@ -10739,7 +11714,7 @@
         },
         "type": "object",
         "title": "RecipeIn",
-        "description": "A recipe: the edits, the fixes, the size step, the painting step, then the look step;\nany can be left out."
+        "description": "A recipe: the edits, the fixes, the size step, the depth step, the painting step, then the\nlook step; any can be left out."
       },
       "Region": {
         "properties": {
@@ -12129,6 +13104,38 @@
         "title": "ShownGroup",
         "description": "A group as the review showed it."
       },
+      "SizeChoice": {
+        "properties": {
+          "size": {
+            "type": "string",
+            "enum": [
+              "1080p",
+              "4k"
+            ],
+            "title": "Size"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "size",
+          "width",
+          "height",
+          "bytes"
+        ],
+        "title": "SizeChoice"
+      },
       "SizeIn": {
         "properties": {
           "size": {
@@ -12450,6 +13457,9 @@
             "$ref": "#/components/schemas/SizeStep"
           },
           {
+            "$ref": "#/components/schemas/DepthStep"
+          },
+          {
             "$ref": "#/components/schemas/PaintStep"
           },
           {
@@ -12460,6 +13470,7 @@
           "propertyName": "step",
           "mapping": {
             "cutout": "#/components/schemas/CutoutStep",
+            "depth": "#/components/schemas/DepthStep",
             "fix": "#/components/schemas/FixStep",
             "look": "#/components/schemas/LookStep",
             "paint": "#/components/schemas/PaintStep",
@@ -12953,6 +13964,34 @@
           "jobs"
         ],
         "title": "Ticked"
+      },
+      "TiltIn": {
+        "properties": {
+          "centre": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Centre",
+            "default": 0.55
+          },
+          "height": {
+            "type": "number",
+            "maximum": 0.9,
+            "minimum": 0.02,
+            "title": "Height",
+            "default": 0.2
+          },
+          "strength": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strength",
+            "default": 0.6
+          }
+        },
+        "type": "object",
+        "title": "TiltIn",
+        "description": "Tilt-shift: the band in focus (its middle and height, fractions of the picture's height)\nand how much blur grows away from it, 0 to 1."
       },
       "Tool": {
         "properties": {

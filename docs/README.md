@@ -42,7 +42,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Pillow | 13.0 | Reading pictures: their facts and EXIF, and the copies the window shows | [pillow.md](stack/pillow.md) |
 | Looks | Pillow's Color3DLUT, Mado's own code | Looks as tables of colours (Mado's, `.cube` files, mixes kept), finishing touches drawn by code | [looks.md](stack/looks.md) |
 | watchdog | 7.1 | Noticing new, changed and removed pictures in the library's folders | [watchdog.md](stack/watchdog.md) |
-| ffmpeg | 9.0.2 (downloaded on first run) | Decoding a phone's HEIC; more formats for Mado's tools to come | [ffmpeg.md](stack/ffmpeg.md) |
+| ffmpeg | 9.0.2 (downloaded on first run) | Decoding a phone's HEIC; making a 3D photo's video | [ffmpeg.md](stack/ffmpeg.md) |
 | LibRaw | 0.22.3 (downloaded the first time a camera RAW is read) | Reading camera RAW: its facts, its camera's preview, the picture developed into Display P3 | [libraw.md](stack/libraw.md) |
 | ONNX Runtime (DirectML) | 1.24.4 | Running the AI models on the graphics card, or the processor | [upscaling.md](stack/upscaling.md) |
 | NumPy | 2.5 | The pictures' pixels as the models take them | [upscaling.md](stack/upscaling.md) |
@@ -51,6 +51,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | Editing models | SAM 2.1 tiny, MI-GAN v2 pipeline, BiRefNet lite (downloaded); U²-Net small (shipped) | Picking parts with a click, erasing, cutting out | [editing.md](stack/editing.md) |
 | The quick fixes | SCUNet, FBCNN, NAFNet (downloaded); Mado's own code for dark photos | Noise, JPEG blocks, blur from a shaking camera or a moving subject, dark photos | [fixes.md](stack/fixes.md) |
 | Painting styles | Mado's four painters and MicroAST (downloaded); Mado's own code for pencil, oil paint and cartoon | Painting a picture after a painter, in the style of any picture, or by classic means | [styles.md](stack/styles.md) |
+| Depth | Depth Anything V2 Small (downloaded); Mado's own code for the lens, fog, tilt-shift and 3D photos | How far away each part is; portrait blur, fog, tilt-shift; 3D photos made with ffmpeg's H.264 | [depth.md](stack/depth.md) |
 | This PC | | What the graphics card can do, tested and timed | [hardware.md](stack/hardware.md) |
 | The queue | Mado's own code | Many at once: batches made one at a time, nights, room on a drive, See it first, recipes and watch folders | [queue.md](stack/queue.md) |
 | Duplicates and bursts | Mado's own code, on NumPy and Pillow | Fingerprints from the thumbnails, groups, which to keep, setting the rest aside | [duplicates.md](stack/duplicates.md) |
@@ -62,5 +63,5 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | GitHub Actions | | CI and releases | [github-actions.md](stack/github-actions.md) |
 | NSIS | via Tauri | The Windows installer | [tauri.md](stack/tauri.md#installer) |
 
-Tools still to come (the models for selecting, erasing, depth and the library) get a page, or a
-section, when they're first used.
+Tools still to come (the models for faces, restoring and captions) get a page, or a section,
+when they're first used.

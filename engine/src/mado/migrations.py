@@ -418,4 +418,8 @@ MIGRATIONS: Final[tuple[str, ...]] = (
         added_at  TEXT NOT NULL
     ) STRICT;
     """,
+    # 13. Depth: what History says the depth tools did, and a 3D photo made.
+    """
+    ALTER TABLE history ADD COLUMN depth TEXT;  -- "portrait blur at f/2.8", "into a 3D photo"
+    """,
 )

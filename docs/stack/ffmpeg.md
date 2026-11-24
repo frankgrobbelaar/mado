@@ -1,8 +1,7 @@
 # ffmpeg (picture and video formats)
 
 [ffmpeg](https://ffmpeg.org) 9.0.2 is the program Mado leans on for formats the engine's own
-libraries don't read or write (a phone's HEIC now; JPEG XL and the short videos a 3D photo becomes
-as the tools come). Mado doesn't ship it: Setup downloads one pinned build, from the list in
+libraries don't read or write: a phone's HEIC, and the short videos a 3D photo becomes. Mado doesn't ship it: Setup downloads one pinned build, from the list in
 [engine/src/mado/downloads.json](../../engine/src/mado/downloads.json), the same list the installer
 shows (see [releasing.md](../releasing.md)).
 
@@ -11,6 +10,15 @@ shows (see [releasing.md](../releasing.md)).
 | For | Command | Where |
 | --- | --- | --- |
 | A HEIC's pixels, for its thumbnail, its view and its full-size copy | `ffmpeg -v error -nostdin -noautorotate -i <picture> -frames:v 1 [-vf scale=…] -f image2pipe -c:v png -pix_fmt rgb24 -` | `_decode_heif` in [mado/pictures.py](../../engine/src/mado/pictures.py) |
+| Which H.264 encoder works here, once: a fifth of a second of grey with each in turn | `ffmpeg -nostdin -v error -f lavfi -i color=c=gray:s=320x240:r=30:d=0.2 -pix_fmt yuv420p -c:v <encoder> … -f null -` | `Encoders` in [mado/motion.py](../../engine/src/mado/motion.py) |
+| A 3D photo's video, its frames handed over as they're made | `ffmpeg -v error -f rawvideo -pix_fmt rgb24 -s WxH -r 30 -i - -pix_fmt yuv420p -c:v <encoder> -b:v <rate> -g 60 -movflags +faststart -an -y <out.mp4>` | `_encoded` in [mado/motion.py](../../engine/src/mado/motion.py) |
+
+- **H.264 only from encoders that come with their licence.** The LGPL build Mado downloads has
+  `h264_mf` (Windows' own, Media Foundation's, part of Windows), `h264_nvenc`, `h264_amf` and
+  `h264_qsv` (the graphics cards' own), tried in that order (`ENCODERS` in
+  `mado/core/motion.py`), the first that works kept. It also has `libopenh264`, which Mado never
+  uses: Cisco's patent licence for OpenH264 covers only the builds Cisco publishes. With none that
+  works, a 3D photo is made as an animated WebP (Pillow, no ffmpeg) and the Depth tab says why.
 
 - **Its facts aren't ffmpeg's.** A HEIC's size, turn and Exif come from Mado's own reading of its
   layout (see [pillow.md](pillow.md#heic-and-heif)), so the library lists a HEIC without ffmpeg.

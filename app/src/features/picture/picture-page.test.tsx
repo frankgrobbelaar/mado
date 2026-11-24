@@ -283,7 +283,7 @@ describe("PicturePage", () => {
     );
     expect(
       screen.getByText(
-        "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look, edited or fixed.",
+        "This camera RAW waits for Mado's RAW reader: once it's here, it can be made for a screen, given a look, edited, fixed or given depth.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(within(note).getByRole("button", { name: "Try again" }));

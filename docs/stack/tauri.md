@@ -73,7 +73,9 @@ the person, so write it as a sentence.
   it, and say why in the description.
 - **Content security policy** (`app.security.csp`): scripts and styles from the app only,
   connections to the app, Tauri's IPC and the engine on `http://127.0.0.1:*`, images also from the
-  engine (for the pictures to come).
+  engine, and video from `blob:` (a 3D photo plays from what the page fetched; without
+  `media-src` it falls back to `default-src` and the window refuses to play it, which jsdom and
+  the README's shots never notice).
 - The installed window's origin is `http://tauri.localhost`; in development it is
   `http://localhost:1420`. The engine allows exactly these two (see [fastapi.md](fastapi.md)).
 

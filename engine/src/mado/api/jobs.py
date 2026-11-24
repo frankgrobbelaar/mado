@@ -34,11 +34,20 @@ class Job(ApiModel):
     look: str | None  # what it's made with: "Warm film at 60%"; None with no look
     edit: str | None  # what's edited first: "erased a part"; None with no edits
     fix: str | None  # what the fixes do: "took out noise"; None with no fixes
+    depth: str | None  # the depth tools: "portrait blur at f/2.8"; None without
     how: Literal["new", "replace"]
     state: JobState
     stage: (
         Literal[
-            "reading", "editing", "shaping", "fixing", "making", "painting", "looking", "saving"
+            "reading",
+            "editing",
+            "shaping",
+            "fixing",
+            "making",
+            "depthing",
+            "painting",
+            "looking",
+            "saving",
         ]
         | None
     )
@@ -163,6 +172,7 @@ def job_of(conn: sqlite3.Connection, jobs: Jobs, job_id: int) -> Job:
         look=str(order["look"]) if order.get("look") else None,
         edit=str(order["edit"]) if order.get("edit") else None,
         fix=str(order["fix"]) if order.get("fix") else None,
+        depth=str(order["depth"]) if order.get("depth") else None,
         how="replace" if saving.get("how") == "replace" else "new",
         state=row["state"],
         stage=live.stage if live else row["stage"],

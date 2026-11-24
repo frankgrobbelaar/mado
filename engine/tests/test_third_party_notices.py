@@ -189,10 +189,18 @@ def test_what_mado_downloads_is_told_apart_from_what_it_ships():
     assert "Not inside Mado" in libraw.texts[0]
     assert "https://www.libraw.org/data/LibRaw-0.22.3-Win64.zip" in libraw.texts[0]
     # Each keeps the licence files it comes with: an archive's (its `notices`), or a model's own.
-    for name in ("LibRaw", "ffmpeg", "LaMa", "SCUNet", "FBCNN", "NAFNet"):
+    for name in (
+        "LibRaw",
+        "ffmpeg",
+        "LaMa",
+        "SCUNet",
+        "FBCNN",
+        "NAFNet",
+        "Depth Anything V2 Small",
+    ):
         assert "keeps its licence files beside it" in found[name].texts[0]
-    # The fixes' models are on licences Mado could ship, though it only downloads them.
-    for name in ("SCUNet", "FBCNN", "NAFNet"):
+    # The fixes' and depth's models are on licences Mado could ship, though it only downloads them.
+    for name in ("SCUNet", "FBCNN", "NAFNet", "Depth Anything V2 Small"):
         assert allowed(found[name].licence), name
         assert "the first time it's needed" in found[name].texts[0]
     # So are the painting styles' networks: Mado's own four, under MIT with the BSD-3 notice of the

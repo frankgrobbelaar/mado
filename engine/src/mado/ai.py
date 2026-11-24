@@ -16,6 +16,7 @@ import numpy.typing as npt
 from PIL import Image
 
 from mado import hardware
+from mado.core.depth import READ as DEPTH_READ
 from mado.core.fixes import FBCNN, NAFNET, SCUNET, FixModel, guarded
 from mado.core.hardware import Place, overlap_for, tile_for
 from mado.core.models import BEST_PHOTO, Model, Quality
@@ -40,6 +41,10 @@ MIGAN_FILE = "migan-pipeline-v2.onnx"
 BIREFNET = "birefnet-lite"
 BIREFNET_FILE = "birefnet-lite.onnx"
 U2NETP_FILE = "u2netp.onnx"
+# Depth (docs/stack/depth.md): Depth Anything V2 Small reads how near each part of a picture is,
+# for portrait blur, fog, tilt-shift and 3D photos; a download.
+DEPTH = "depth-anything-v2-small"
+DEPTH_FILE = "depth-anything-v2-small.onnx"
 _MIB = 1024 * 1024
 # What each keeps of the graphics card's own memory once it has run, as measured on the owner's
 # card: a session is never let go (mado/directml.py), so one is made there only when the card has
@@ -57,6 +62,7 @@ HELD: dict[str, int] = {
     SCUNET.id: 1300 * _MIB,
     FBCNN.id: 1340 * _MIB,
     NAFNET.id: 380 * _MIB,
+    DEPTH: 420 * _MIB,  # at its 518 square: 401 MB measured
 }
 _SPARE = 512 * _MIB  # room left on the card besides
 _UNKNOWN_ROOM = 4096 * _MIB  # where DirectX can't say how much room there is: a small card's
@@ -115,6 +121,7 @@ class EditingPlaces:
 
 type Fill = Callable[[Pixels, npt.NDArray[np.bool_]], Pixels]  # a 512 square, its hole filled
 type Matte = Callable[[Image.Image], Tensor]  # a picture's subject, 0 to 1, at its own size
+type DepthReader = Callable[[Tensor], Tensor]  # the model's square in, its numbers (bigger, nearer)
 
 
 class Ai:
@@ -374,6 +381,64 @@ class Ai:
 
         return _matte(fetched, "input_image", 1024, place, clock, logits=True), place
 
+    # Depth.
+
+    def depth_place(self) -> Place:
+        """Where the depth model runs now: on the card when it was made there or the card has
+        room for it, else on the processor (as the editing models)."""
+        return self.edit_place(DEPTH, self.edit_file(DEPTH, DEPTH_FILE))
+
+    def depth_reader(self, timer: Timer | None = None) -> tuple[DepthReader, Place]:
+        """Depth Anything V2 Small, reading a picture squeezed to its square (`DEPTH_READ`), its
+        size pinned; and where it runs. Raises ModelError when it isn't downloaded, or as it runs
+        when it can't."""
+        found = self.edit_file(DEPTH, DEPTH_FILE)
+        if found is None:
+            raise ModelError(
+                "Depth Anything, which reads how far away things are, isn't downloaded yet."
+            )
+        place = self.edit_place(DEPTH, found)
+        clock = timer or Timer()
+        clock.place = place
+        fixed = {"batch_size": 1, "height": DEPTH_READ, "width": DEPTH_READ}
+
+        def read(pixels: Tensor) -> Tensor:
+            with _turn(place, clock):  # timed once it has the card, not while it waits its turn
+                session = self._sessions.get(found, None, place, fixed=fixed)
+                began = time.perf_counter()
+                out = session.run({"pixel_values": pixels})[0]
+                clock.add(time.perf_counter() - began, DEPTH_READ * DEPTH_READ / 1e6)
+            return np.asarray(out[0], np.float32)
+
+        return read, place
+
+    def subject_finder(self, quality: Quality, timer: Timer | None = None) -> tuple[Matte, Place]:
+        """Finding a picture's subject as Cut out does (`matte`), but as the model says it, not
+        stretched: how sure it is (its strongest answer) tells a picture with a subject from one
+        without."""
+        clock = timer or Timer()
+        if quality == "fast":
+            small = self.edit_file("u2netp", U2NETP_FILE)
+            assert small is not None  # noqa: S101 - shipped
+
+            def shipped() -> Session:
+                return self._sessions.get(small, None, "processor")
+
+            return (
+                _matte(shipped, "input.1", 320, "processor", clock, logits=False, stretch=False),
+                "processor",
+            )
+        found = self.edit_file(BIREFNET, BIREFNET_FILE)
+        if found is None:
+            raise ModelError("BiRefNet lite, which cuts out at its best, isn't downloaded yet.")
+        place = self.edit_place(BIREFNET, found)
+        settings = _BIREFNET_SETTINGS if place == "card" else None
+
+        def fetched() -> Session:
+            return self._sessions.get(found, None, place, settings=settings)
+
+        return _matte(fetched, "input_image", 1024, place, clock, logits=True, stretch=False), place
+
 
 ERASE_SIZE = 512  # the square the erasing models take
 
@@ -434,8 +499,10 @@ def _matte(
     clock: Timer,
     *,
     logits: bool,
+    stretch: bool = True,
 ) -> Matte:
-    """A subject found by U²-Net or BiRefNet, its session made the first time it runs."""
+    """A subject found by U²-Net or BiRefNet, its session made the first time it runs: stretched
+    to 0 to 1 as rembg does, unless asked for as the model says it."""
 
     def found(picture: Image.Image) -> Tensor:
         values = imagenet(picture, size)
@@ -447,6 +514,8 @@ def _matte(
         soft = out[0, 0].astype(np.float32)
         if logits:
             soft = 1.0 / (1.0 + np.exp(-np.clip(soft, -30, 30)))
+        if not stretch:
+            return np.clip(soft, 0.0, 1.0).astype(np.float32)
         low, high = float(soft.min()), float(soft.max())
         if high - low > 1e-6:  # stretched to 0 to 1, as rembg does
             soft = (soft - low) / (high - low)

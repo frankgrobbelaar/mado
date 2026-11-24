@@ -70,6 +70,7 @@ def test_the_list_says_what_each_download_is_and_where_it_comes_from():
         "sam2.1-hiera-tiny",
         "mi-gan",
         "birefnet-lite",
+        "depth-anything-v2-small",
         "siglip-base-patch16-224",
         "pp-ocrv6-small",
         "scunet",
@@ -156,6 +157,25 @@ def test_the_editing_models_come_from_mados_second_set_of_models_with_their_lice
     ]
 
 
+def test_the_depth_model_comes_from_mados_second_set_with_its_licence():
+    [item] = [each for each in manifest() if each.id == "depth-anything-v2-small"]
+
+    assert item.name == "Depth Anything V2 Small"
+    assert item.when == "asked"
+    assert item.licence == "Apache-2.0"  # Small only: its bigger sizes are non-commercial
+    assert item.size == sum(each.size for each in item.files) == 99072196
+    assert [each.name for each in item.files] == [
+        "depth-anything-v2-small.onnx",
+        "LICENSE-Depth-Anything-V2.txt",
+    ]
+    assert all(
+        "/frankgrobbelaar/mado/releases/download/models-2/" in each.url for each in item.files
+    )
+    assert (
+        item.files[0].sha256 == "afb6a5c28f3b6bf1618c6e43f02073ef9dfdc70e937502d51603e57b0a1df10c"
+    )
+
+
 def test_the_fixes_models_come_from_mados_first_and_third_sets_with_their_licences():
     models = {item.id: item for item in manifest() if item.id in ("scunet", "fbcnn", "nafnet")}
 
@@ -218,6 +238,7 @@ def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
         "sam2.1-hiera-tiny",
         "mi-gan",
         "birefnet-lite",
+        "depth-anything-v2-small",
         "siglip-base-patch16-224",
         "pp-ocrv6-small",
         "scunet",

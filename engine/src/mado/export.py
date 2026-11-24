@@ -329,6 +329,7 @@ _HISTORY_COLUMNS = (
     ("look", "look"),
     ("edit", "edit"),
     ("fix", "fix"),
+    ("depth", "depth"),
     ("original", "original"),
     ("result", "result"),
     ("aside", "aside"),

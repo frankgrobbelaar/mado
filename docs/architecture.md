@@ -27,7 +27,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray; the paths Windows hands Mado, the files copied in File Explorer, and File Explorer's "Open in Mado" |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites, search: the library read for what each picture shows and the words in it), editing pictures by clicking, fixing them (noise, blur, JPEG blocks, dark photos), making them right for a screen (the AI models on the graphics card) and giving them a look, and saving them, many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites, search: the library read for what each picture shows and the words in it), editing pictures by clicking, fixing them (noise, blur, JPEG blocks, dark photos), making them right for a screen (the AI models on the graphics card), giving them depth (portrait blur, fog, tilt-shift) and a look, and saving them, 3D photos (a video of a picture moving by its depth), many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -206,7 +206,7 @@ flowchart LR
     tab -- "/pictures/{id}/style" --> reader["MicroAST reads a picture's style (processor)"]
     tab -- "/plan, /preview with the recipe's paint" --> painter["mado/painting.py: at the working size, the last few kept"]
     painter -- "one session for the painters; MicroAST's own" --> models["ONNX Runtime, DirectML"]
-    tab -- "Save" --> job["a job: edits, fixes, size, paint, look, saved"]
+    tab -- "Save" --> job["a job: edits, fixes, size, depth, paint, look, saved"]
 ```
 
 | Part | File | Does |
@@ -260,7 +260,7 @@ flowchart LR
     tab["Fix tab"] -- "/pictures/{id}/fixes" --> found["a JPEG's quality, how dark it is"]
     tab -- "/plan, /preview with the recipe's fix" --> fix["mado/fixing.py: blocks, brighten, noise, blur, contrast"]
     fix -- "a tile at a time" --> models["FBCNN, SCUNet, NAFNet (ONNX Runtime, DirectML)"]
-    tab -- "Save" --> job["a job: edits, shape, fixes, size, paint, look, saved"]
+    tab -- "Save" --> job["a job: edits, shape, fixes, size, depth, paint, look, saved"]
 ```
 
 | Part | File | Does |
@@ -269,6 +269,35 @@ flowchart LR
 | Fixing | `mado/fixing.py` | What the dark photo fix takes from the whole picture (measured once on a small copy), and the fixes made on any part of it, the models a tile at a time through `upscale.through_model` (their answers the tile's own size), brightening and contrast a band of rows at a time; all of a picture fitted, the brightening and contrast alone |
 | Models | `mado/ai.py` | Each fix model's file (a download) and its kept session, a 384 tile at a time, on the card while it has room for it: FBCNN told how hard, NAFNet's answer held by the guard, either kept as strongly as asked |
 | The API | `mado/api/fixes.py`, `mado/api/making.py` | The fix step's choices; what's suggested (`/pictures/{id}/fixes`); the recipe's fix step in plans (made for how dark the picture measures), previews (fitted, the brightening on the copy shown; a part, every fix on the picture round it, stopped when a newer one comes) and Save |
+
+## Depth
+
+The Depth tab reads how far away each part of a picture is, once, with Depth Anything V2 Small,
+and makes three tools of it: portrait blur (a lens's depth of field, from a point in focus),
+fog (haze thickening with distance) and tilt-shift (a band in focus, blur growing up and down from
+it). They're the recipe's step after the size and before the look, made at the size made. A 3D
+photo is a video of the picture with the view moving gently through it by its depth, made into
+the cache, played on the page, and saved only when the owner says. docs/stack/depth.md has the
+model, the lens blur, the choices made and what was measured.
+
+```mermaid
+flowchart LR
+    tab["Depth tab"] -- "/pictures/{id}/depth" --> read["Depth Anything V2 Small at 518 square (card or processor)"]
+    read -- "nearness, by version" --> cache[("cache/depth")]
+    tab -- "/plan, /preview with the recipe's depth" --> tools["mado/depth.py: fog, the lens in layers, tilt-shift"]
+    tab -- "Save" --> job["a job: edits, fixes, size, depth, paint, look, saved"]
+    tab -- "/pictures/{id}/motion" --> motion["mado/motion.py: frames by depth, the layer behind filled"]
+    motion -- "frames" --> ffmpeg["ffmpeg: H.264 (Windows' own first) or an animated WebP"]
+    ffmpeg --> video[("cache/motion, then saved beside it or into a folder")]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/depth.py`, `mado/core/motion.py` | Pure: the depth step and its words; the model's square, nearness and a flat picture; placing it on what's made; the lens blur in layers, its highlights, its join at full size; fog; tilt-shift's band; a 3D photo's path, finding each frame backwards, what it uncovers, its size and the encoders' commands |
+| Reading depth | `mado/depth.py` | The model's reading of a picture as its edits leave it, kept in memory and in `cache/depth` by picture and version; the tools worked out on a copy and joined at full size a band of rows at a time, the subject's edges from Cut out's model |
+| 3D photos | `mado/motion.py` | The video's frames on a few threads, the layer behind filled (stretched, or LaMa), ffmpeg's H.264 encoder found once, an animated WebP; made into `cache/motion` one at a time, saved with History's line |
+| Models | `mado/ai.py` | The depth model's session, its size pinned, on the card while it has room for it |
+| The API | `mado/api/depth.py`, `mado/api/motion.py`, `mado/api/making.py` | The depth step's choices; what the tab reads; the recipe's depth step in plans, previews (fitted, or a part at full detail joined to the whole's) and Save; 3D photos made, played and saved |
 
 ## Many at once
 
@@ -400,7 +429,10 @@ Change a contract on both sides in the same commit.
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
 | `POST /pictures/{id}/select` | Parts picked with clicks on the picture as its edits so far left it: a click starts a part, an Alt-click takes from the part it's in; each part's name ("Part 1"), its answer and the outline round them all; how long reading the picture took and how long it waited for the card (409 while SAM isn't downloaded, or the picture changed) |
 | `POST /pictures/{id}/edit` | Makes the edits (the last one new) so the previews show them: how long it took, where it ran, and whether an erase came out smooth where the picture has detail |
-| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its fixes, its size step, its painting style and its look step, any of them none, the style and the look on the whole picture or parts): its shape and the words for it, what it is, the model (not cleaning again what the fixes cleaned), its look (the style named with it), edits and fixes, about how long here (the fixes' share apart), where its style is painted and whether it's made so much bigger than it's painted that its strokes go soft, the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
+| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its fixes, its size step, its depth tools, its painting style and its look step, any of them none, the style and the look on the whole picture or parts): its shape and the words for it, what it is, the model (not cleaning again what the fixes cleaned), its look (the style named with it), edits, fixes and depth tools, about how long here (the fixes' and the depth tools' shares apart, and where the depth model runs), where its style is painted and whether it's made so much bigger than it's painted that its strokes go soft, the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
+| `POST /pictures/{id}/depth` | How near each part of the picture is, as its edits leave it, read once (the depth model while it isn't downloaded, said and nothing read): whether it's flat, its subject's middle, where the model runs and how long reading took |
+| `GET /pictures/{id}/motion`, `POST /pictures/{id}/motion` | What a picture's 3D photo can be made with here (ffmpeg, the H.264 encoder that works, the sizes the picture has the pixels for); making one into the cache, the one before it let go |
+| `GET /motion/{id}`, `GET /motion/{id}/video`, `POST /motion/{id}/save`, `DELETE /motion/{id}` | How a 3D photo is coming on; the video (MP4, or an animated WebP); saving it beside the picture or into a folder, with History's line; letting it go |
 | `GET /pictures/{id}/fixes` | What the Fix tab suggests: a JPEG's own quality from its tables, how many stops dark it is, and whether it's grey, has see-through parts or wide colours, kept as they are |
 | `POST /pictures/{id}/preview` | The picture made, all of it fitted (from its screen-sized view, as JPEG) or a part at full detail (as WebP), before (stretched) or after (made, with its look and touches), with its colour profile and how long it took |
 | `POST /pictures/{id}/saving` | The name a picture made would be saved as ("Harbour at dusk (TV 8K, Warm film).jpg"), whether that's taken, and about how big it comes out |
@@ -447,9 +479,10 @@ Change a contract on both sides in the same commit.
   models fetched when asked, each with its licence files), `pasted/` (pictures pasted from the
   clipboard, till a month after last opened), `wallpapers/` (the wallpapers Mado made, those
   showing and the last 3 days', and its copy of the owner's own), `cache/` (the pictures'
-  thumbnails and views, the last few full-size copies, and each edit's mask in `cache/edits`, by
-  picture and version, let go after a month unedited: anything in it can go, a mask made again from
-  its clicks), and `backups/` (the last 7 nights, each checked as it's made, and apart from them the
+  thumbnails and views, the last few full-size copies, each edit's mask in `cache/edits` and each
+  picture's depth in `cache/depth`, by picture and version, let go after a month unused: anything
+  in it can go, a mask made again from its clicks and depth read again; and the last few 3D photos
+  made in `cache/motion`, cleared as the engine starts), and `backups/` (the last 7 nights, each checked as it's made, and apart from them the
   last 7 made by hand, before a restore and from an export; none is ever written over).
   `mado/care.py` makes tonight's backup from 03:00 (or the first chance after). A backup chosen in
   Settings is restored as the engine starts again, before anything opens the database, once it
@@ -471,7 +504,7 @@ Change a contract on both sides in the same commit.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
   picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), the words read
-  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited and what the fixes did, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their painting styles (`styles.json`, each style's numbers, and the small copy it's known by in `styles/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
+  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited, what the fixes and the depth tools did, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their painting styles (`styles.json`, each style's numbers, and the small copy it's known by in `styles/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

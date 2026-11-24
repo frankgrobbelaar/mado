@@ -68,6 +68,7 @@ _DAYS = 30  # a picture's masks are let go of once it hasn't been edited for thi
 _LOCKS = 64  # pictures' edits are made under one of these, by the picture
 _MADE = 256  # edits whose outcome is kept, to say how they went
 _SMALLS = 4  # small copies of pictures as edits left them, for the Looks tab's looks
+SURE = 0.5  # a subject model's strongest answer under this: no subject to speak of
 
 
 class EditingError(Exception):
@@ -250,6 +251,39 @@ class Editor:
         made = feathered(mask, max(2, round(min(state.size) * _FEATHER)))
         self._store(name, key, made, keep)
         return made
+
+    def subject(
+        self,
+        image: Image.Image,
+        key: str,
+        edits: tuple[Edit, ...],
+        quality: Quality,
+        *,
+        keep: bool = True,
+        timer: Timer | None = None,
+        edited: Image.Image | None = None,
+    ) -> tuple[Mask, Place | None]:
+        """The picture's subject on the picture as the edits leave it (`edited`, when they're
+        made already), as Cut out finds it (Fast, u2netp; Best, BiRefNet lite), its mask at full
+        size following the picture's own edges; empty when the model isn't sure there's one (its
+        strongest answer under `SURE`), as in a landscape or a scan. Where it ran (None when it
+        was kept). Without `keep`, nothing is kept of it. Raises EditingError, ModelError."""
+        _too_big(image)
+        state = edited if edited is not None else self.state(image, key, edits, keep=keep)
+        at = _digest(key, edits)
+        name = _named(at, {"subject": quality})
+        found = self._mask(name, key, state.size)
+        if found is not None:
+            return found, None
+        finder, place = self._ai.subject_finder(quality, timer)
+        raw = finder(flat(state))
+        if float(raw.max()) < SURE:
+            mask = np.zeros((state.height, state.width), np.uint8)
+        else:
+            low, high = float(raw.min()), float(raw.max())
+            mask = refined(state, (raw - low) / max(high - low, 1e-6))
+        self._store(name, key, mask, keep)
+        return mask, place
 
     def tidy(self) -> None:
         """As the engine starts: the masks of pictures not edited for a month go."""
@@ -469,6 +503,12 @@ class Editor:
 def picture_key(path: Path, version: str) -> str:
     """What names a picture and its version among the edits kept."""
     return f"{str(path).casefold()}|{version}"
+
+
+def edits_key(key: str, edits: tuple[Edit, ...]) -> str:
+    """What names a picture (`key`) as some edits leave it: what's worked out from it is kept
+    by this (its depth, mado/depth.py)."""
+    return _digest(key, edits)
 
 
 def cut_quality(ai: Ai) -> Quality:
