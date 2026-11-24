@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.14.0 - 2026-11-24
+
 ### Added
 - HDR photos: a recent phone's HDR photo (an Ultra HDR JPEG, a HEIC with its gain map, or an AVIF
   with one) wears an "HDR" tag in the Library and on its page, and shows in HDR on a screen where
