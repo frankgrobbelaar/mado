@@ -13,6 +13,7 @@ import {
   type Plan,
   pictureAddress,
   type Recipe,
+  type RestoreStep,
   usePictureImage,
   usePreview,
   useQueueNow,
@@ -21,6 +22,7 @@ import { about, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { bandAt, bandOf, bandTo, depthNames, hasDepth, readsDepth } from "./depth";
 import type { MotionMaker } from "./motion";
+import { restored } from "./restore";
 import { capitalised, LABEL, PartsCompared, useSlow } from "./size-stage";
 import type { Zoom } from "./stage";
 import { fitted, useBox } from "./stage-box";
@@ -38,6 +40,9 @@ const EDGE = 10; // pixels either side of the band's edge that drag the edge, no
 export function DepthStage(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  /** Restoring chosen on the Fix tab, which before and after both show once its models are here;
+   * null with none. */
+  restore?: RestoreStep | null;
   fix: FixStep | null;
   depth: DepthStep;
   onDepth: (depth: DepthStep) => void;
@@ -52,7 +57,10 @@ export function DepthStage(props: {
   const { picture, depth, plan, zoom } = props;
   const on = hasDepth(depth);
   const card = (plan?.depthPlace ?? plan?.place) === "card";
-  const before = { edit: props.edit, fix: props.fix, size: null, look: null };
+  const before = restored(
+    { edit: props.edit, fix: props.fix, size: null, look: null },
+    props.restore,
+  );
   const shownDepth = props.waiting && readsDepth(depth) ? null : on ? depth : null;
   const after = shownDepth ? { ...before, depth: shownDepth } : null;
   const label = on ? `After · ${depthNames(depth)}` : "After";
@@ -105,6 +113,7 @@ function withoutNull(recipe: Recipe & { fix: FixStep | null }): Recipe {
 function Fitted(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  restore?: RestoreStep | null;
   fix: FixStep | null;
   depth: DepthStep;
   onDepth: (depth: DepthStep) => void;
@@ -124,18 +133,21 @@ function Fitted(props: {
     width: Math.min(4096, Math.ceil((fit.width * pixels) / STEP) * STEP),
     height: Math.min(4096, Math.ceil((fit.height * pixels) / STEP) * STEP),
   };
-  const plain = props.edit || props.fix;
+  const plain = props.edit || props.fix || props.restore;
   const view = usePictureImage(plain ? null : pictureAddress(picture, "view"));
   const before = usePreview(
     picture.id,
     plain && box.measured
       ? {
-          recipe: {
-            edit: props.edit,
-            ...(props.fix ? { fix: props.fix } : {}),
-            size: null,
-            look: null,
-          },
+          recipe: restored(
+            {
+              edit: props.edit,
+              ...(props.fix ? { fix: props.fix } : {}),
+              size: null,
+              look: null,
+            },
+            props.restore,
+          ),
           side: "after",
           fit: wanted,
         }

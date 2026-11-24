@@ -103,6 +103,7 @@ def test_steps_are_made_in_mados_order_whatever_order_they_are_listed_in():
     assert steps_in_order([look, size]) == [size, look]
     assert recipe_of([look, size]) == {
         "edit": None,
+        "restore": None,
         "fix": None,
         "size": {"size": "tv-8k", "shape": "crop"},
         "depth": None,
@@ -111,12 +112,42 @@ def test_steps_are_made_in_mados_order_whatever_order_they_are_listed_in():
     }
     assert recipe_of([look]) == {
         "edit": None,
+        "restore": None,
         "fix": None,
         "size": None,
         "depth": None,
         "paint": None,
         "look": {"look": "warm-film", "strength": 0.6, "touches": {}},
     }
+
+
+def test_restoring_comes_after_a_cut_out_and_before_the_fixes_each_picture_as_it_needs():
+    fix: Step = {
+        "step": "fix",
+        "noise": {"strength": 0.8},
+        "blur": None,
+        "jpeg": None,
+        "dark": None,
+    }
+    restore: Step = {"step": "restore", "colour": {"strength": 0.8}, "faded": None}
+    cut: Step = {"step": "cutout", "quality": "fast", "behind": "nothing", "colour": None}
+
+    assert steps_in_order([fix, restore, cut]) == [cut, restore, fix]
+    made = recipe_of([fix, restore])
+    assert made["restore"] == {
+        "version": None,
+        "scratches": None,
+        "colour": {"strength": 0.8},
+        "faded": None,
+        "each": True,
+    }
+
+
+def test_a_batch_never_fills_scratches_and_needs_something_to_restore():
+    with pytest.raises(StepError, match="one picture at a time"):
+        recipe_of([{"step": "restore", "scratches": {"strokes": []}, "colour": None}])
+    with pytest.raises(StepError, match="nothing turned on"):
+        recipe_of([{"step": "restore", "colour": None, "faded": None}])
 
 
 def test_the_fixes_come_after_a_cut_out_and_before_the_size():
@@ -179,6 +210,7 @@ def test_cutting_out_the_subject_goes_first_as_the_recipes_edit():
             "version": None,
             "edits": [{"kind": "subject", "quality": "fast", "behind": "nothing", "colour": None}],
         },
+        "restore": None,
         "fix": None,
         "size": {"size": "tv-8k"},
         "depth": None,

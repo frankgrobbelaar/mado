@@ -2,6 +2,8 @@
 or on at its one setting (docs/stack/fixes.md). What Mado suggests fixing in a picture is
 `GET /pictures/{id}/fixes`, beside the plan and previews in mado/api/making.py."""
 
+from typing import Literal
+
 from pydantic import Field
 
 from mado.api.common import ApiModel
@@ -57,3 +59,7 @@ class FixesOut(ApiModel):
     see_through: bool  # its see-through parts stay as they are
     colour: str  # its colours, kept: "sRGB", "Display P3"
     megapixels: float
+    # What its colours are, for restoring: black and white or a toned print (offered colouring),
+    # or a colour photo (offered its faded colours back); a toned print's tone
+    colours: Literal["grey", "toned", "colour"]
+    tone: Literal["sepia", "toned"] | None

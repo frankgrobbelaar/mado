@@ -22,6 +22,7 @@ import {
   FixDialog,
   LookDialog,
   PaintDialog,
+  RestoreDialog,
   SavingDialog,
   SizeDialog,
 } from "@/features/batch/step-dialogs";
@@ -30,6 +31,7 @@ import {
   depthStep,
   fixStep,
   keepsNothing,
+  restoreStep,
   savingFor,
   savingFrom,
   withStep,
@@ -46,6 +48,7 @@ import {
   type KeptRecipe,
   type LookStepItem,
   type PaintStepItem,
+  type RestoreStepItem,
   type SizeStepItem,
   useAddWatch,
   useChangeRecipe,
@@ -348,6 +351,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
   const saving = savingFor(steps, chosenSaving);
   const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
   const fixing = steps.find((step): step is FixStepItem => step.step === "fix") ?? null;
+  const restoring = steps.find((step): step is RestoreStepItem => step.step === "restore") ?? null;
   const depthing = steps.find((step): step is DepthStepItem => step.step === "depth") ?? null;
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -393,6 +397,7 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             onAdd={(kind) => {
               if (kind === "cutout") setSteps(withStep(steps, cutoutStep(), "cutout"));
               if (kind === "fix") setSteps(withStep(steps, fixStep(), "fix"));
+              if (kind === "restore") setSteps(withStep(steps, restoreStep(), "restore"));
               if (kind === "depth") setSteps(withStep(steps, depthStep(), "depth"));
               setEditing(kind);
             }}
@@ -497,6 +502,22 @@ function RecipeDialog({ recipe, onClose }: { recipe: KeptRecipe | null; onClose:
             onClose={() => {
               if (!fixing.noise && !fixing.blur && !fixing.jpeg && !fixing.dark) {
                 setSteps(withStep(steps, null, "fix")); // fixes all off aren't a step
+              }
+              setEditing(null);
+            }}
+          />
+        )}
+        {editing === "restore" && restoring && (
+          <RestoreDialog
+            step={restoring}
+            onStep={(step) => setSteps(withStep(steps, step, "restore"))}
+            onRemove={() => {
+              setSteps(withStep(steps, null, "restore"));
+              setEditing(null);
+            }}
+            onClose={() => {
+              if (!restoring.colour && !restoring.faded) {
+                setSteps(withStep(steps, null, "restore")); // restoring all off isn't a step
               }
               setEditing(null);
             }}

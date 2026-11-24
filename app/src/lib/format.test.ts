@@ -10,6 +10,7 @@ import {
   madeAt,
   madeWith,
   pictures,
+  restoredAs,
   size,
   split,
   takenOn,
@@ -63,6 +64,30 @@ describe("the depth tools and a 3D photo", () => {
     expect(depthAs("portrait blur at f/2.8, fog and tilt-shift")).toBe("Depth");
     expect(depthAs(video.depth)).toBe("3D photo");
     expect(depthAs(null)).toBeNull();
+  });
+});
+
+describe("restoring", () => {
+  it("says restoring in the brackets, after the edits and before the fixes, as it's made", () => {
+    const coloured = { madeFor: null, look: null, restore: "coloured it" };
+    const all = {
+      madeFor: "TV 8K",
+      look: null,
+      edit: "erased a part",
+      restore: "filled its scratches and dust and coloured it",
+      fix: "took out noise",
+    };
+
+    expect(madeWith(coloured)).toBe("(coloured it)");
+    expect(madeWith(all)).toBe(
+      "for TV 8K (erased a part; filled its scratches and dust and coloured it; took out noise)",
+    );
+    expect(versionOf(coloured)).toBe("restored");
+    expect(versionOf({ ...coloured, fix: "took out noise" })).toBe("restored");
+    expect(restoredAs("coloured it")).toBe("Coloured");
+    expect(restoredAs("filled its scratches and dust")).toBe("Restored");
+    expect(restoredAs("brought its faded colours back")).toBe("Restored");
+    expect(restoredAs(null)).toBeNull();
   });
 });
 

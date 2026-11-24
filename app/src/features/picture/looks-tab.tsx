@@ -23,6 +23,7 @@ import {
   type PictureDetails,
   type Plan,
   type Recipe,
+  type RestoreStep,
   type TouchName,
   useDeleteLook,
   useImportLook,
@@ -85,6 +86,8 @@ export function LooksTab(props: {
   edit?: EditStep | null;
   /** The fixes chosen on the Fix tab: the small copies show a dark photo brightened. */
   fix?: FixStep | null;
+  /** Restoring chosen on the Fix tab, which the small copies show; null or missing for none. */
+  restore?: RestoreStep | null;
   /** "Only on a part", as the page holds the parts. */
   part?: ReactNode;
   /** The painting styles, as the page holds the painting chosen: a group of their own. */
@@ -124,6 +127,7 @@ export function LooksTab(props: {
             picture={picture}
             edit={props.edit ?? null}
             fix={props.fix ?? null}
+            restore={props.restore ?? null}
             looks={looks.data.looks}
             chosen={step.look}
             onPick={pick}
@@ -196,6 +200,8 @@ export function LookGrid(props: {
   edit?: EditStep | null;
   /** The fixes chosen: the small copies show a dark photo brightened. */
   fix?: FixStep | null;
+  /** Restoring chosen: the small copies show it (a picture coloured is plain to see). */
+  restore?: RestoreStep | null;
   looks: Look[];
   chosen: string;
   onPick: (look: Look) => void;
@@ -243,6 +249,7 @@ export function LookGrid(props: {
           picture={props.picture}
           edit={props.edit ?? null}
           fix={props.fix ?? null}
+          restore={props.restore ?? null}
           look={look}
           chosen={look.id === chosen}
           focusable={look.id === chosen || (at < 0 && index === 0)}
@@ -261,6 +268,7 @@ function LookTile(props: {
   picture: { id: number; version: string };
   edit: EditStep | null;
   fix: FixStep | null;
+  restore: RestoreStep | null;
   look: Look;
   chosen: boolean;
   focusable: boolean;
@@ -273,10 +281,11 @@ function LookTile(props: {
   const lit = brightening(props.fix);
   const copy = usePictureImage(
     lookAddress(props.picture, look),
-    props.edit || lit
+    props.edit || lit || props.restore
       ? {
           edit: props.edit ?? { version: props.picture.version, edits: [] },
           ...(lit ? { fix: lit } : {}),
+          ...(props.restore ? { restore: props.restore } : {}),
         }
       : undefined,
   );

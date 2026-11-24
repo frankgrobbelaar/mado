@@ -27,7 +27,7 @@ flowchart LR
 | --- | --- | --- |
 | Shell | `app/src-tauri` | The window and its title bar, one instance at a time, the engine's lifetime, updates, the tray; the paths Windows hands Mado, the files copied in File Explorer, and File Explorer's "Open in Mado" |
 | UI | `app/src` | Every screen. Reads and changes things only through the engine's API |
-| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites, search: the library read for what each picture shows and the words in it), editing pictures by clicking, fixing them (noise, blur, JPEG blocks, dark photos), making them right for a screen (the AI models on the graphics card), giving them depth (portrait blur, fog, tilt-shift) and a look, and saving them, 3D photos (a video of a picture moving by its depth), many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
+| Engine | `engine/src/mado` | The library (its folders, the scan, the watcher, the copies the window shows, duplicates and bursts, favourites, search: the library read for what each picture shows and the words in it), editing pictures by clicking, fixing them (noise, blur, JPEG blocks, dark photos) and restoring old photos (scratches and dust, colour, faded colours), making them right for a screen (the AI models on the graphics card), giving them depth (portrait blur, fog, tilt-shift) and a look, and saving them, 3D photos (a video of a picture moving by its depth), many at once in the queue with recipes and watch folders, the wallpaper studio (the monitors and Windows' wallpaper, every day if wanted), History and the quarantine, this PC's check, Setup's downloads, settings, backups, the export, the database |
 
 The shell stays small on purpose: logic that isn't about the window or the process belongs in the
 engine, where it is easy to test.
@@ -174,8 +174,9 @@ flowchart LR
 
 The Looks tab shows every look as a small copy of the picture and the one picked on the picture
 itself, with its strength and finishing touches; what the Edit, Size and Looks tabs set together
-is one recipe (`mado/core/recipe.py`: the edits, the fixes, the size step, the painting style,
-then the look step, any left out), made by one Save: edited, fixed, cropped or extended, made
+is one recipe (`mado/core/recipe.py`: the edits, restoring, the fixes, the size step, the
+depth tools, the painting style, then the look step, any left out), made by one Save: edited,
+restored, fixed, cropped or extended, made
 bigger, painted in its style, given its look and touches at that size (only on a part, when the
 look says so), then saved.
 Every look is a table of colours (a 3D LUT) run through Pillow's `Color3DLUT`; the owner's own
@@ -269,6 +270,33 @@ flowchart LR
 | Fixing | `mado/fixing.py` | What the dark photo fix takes from the whole picture (measured once on a small copy), and the fixes made on any part of it, the models a tile at a time through `upscale.through_model` (their answers the tile's own size), brightening and contrast a band of rows at a time; all of a picture fitted, the brightening and contrast alone |
 | Models | `mado/ai.py` | Each fix model's file (a download) and its kept session, a 384 tile at a time, on the card while it has room for it: FBCNN told how hard, NAFNet's answer held by the guard, either kept as strongly as asked |
 | The API | `mado/api/fixes.py`, `mado/api/making.py` | The fix step's choices; what's suggested (`/pictures/{id}/fixes`); the recipe's fix step in plans (made for how dark the picture measures), previews (fitted, the brightening on the copy shown; a part, every fix on the picture round it, stopped when a newer one comes) and Save |
+
+## Restoring an old photo
+
+The top of the Fix tab restores a scanned old print: the scratches, creases and dust Mado's
+detector finds, shown as a mask over the picture that the owner checks with the brush before
+anything is filled, then filled by LaMa; a black-and-white or toned print coloured by DDColor (its
+colours put onto the picture's own light); a colour photo's faded colours brought back by its own
+levels. Restoring is the recipe's step after the edits and before the fixes, made on the picture at
+its own size; what it works out once (the mask, the picture filled, DDColor's colours, the levels)
+is kept, so the stages and small copies lay colour on what's shown. Faces are left as they are. A
+batch's Restore step colours or brings back colours, each picture as it needs, and never fills
+scratches. docs/stack/restoring.md has the models, the choices and what was measured.
+
+```mermaid
+flowchart LR
+    tab["Fix tab: Restore an old photo"] -- "/pictures/{id}/scratches" --> found["the detector at 256 and 512, united and grown (card or processor)"]
+    found -- "the mask, by version and edits" --> cache[("cache/edits")]
+    tab -- "/plan, /preview with the recipe's restore" --> restorer["mado/restoring.py: LaMa a square at a time, DDColor at 512, levels"]
+    tab -- "Save" --> job["a job: edits, restoring, fixes, size, depth, paint, look, saved"]
+```
+
+| Part | File | Does |
+| --- | --- | --- |
+| The rules | `mado/core/restore.py` | Pure: the restore step and its words; which picture needs which (grey, a toned print, colour); colour put onto a picture's own light (Lab); faded colours' levels; the detector's canvases, uniting and growing its masks, the owner's strokes over them |
+| Restoring | `mado/restoring.py` | What the detector found, kept in memory and in `cache/edits`; the picture with its scratches filled by LaMa on a copy and laid back at full size; DDColor's colours and the levels kept; colour and faded colours laid on any part of the picture, or the whole a band of rows at a time |
+| Models | `mado/ai.py` | The detector's two kept sessions (half precision: a level under the highest optimisation on the processor) and DDColor's, each on the card while it has room for it |
+| The API | `mado/api/restore.py`, `mado/api/making.py`, `mado/api/fixes.py` | The restore step's choices; the mask (`/pictures/{id}/scratches`); what the picture's colours are (`/pictures/{id}/fixes`); the recipe's restore step in plans (how much the mask covers, refused past half the picture), previews and Save |
 
 ## Depth
 
@@ -429,11 +457,12 @@ Change a contract on both sides in the same commit.
 | `GET /sizes`, `POST /screens` | The sizes a picture can be made for (the devices, the owner's screens, prints); remembering this PC's screens as the window sees them |
 | `POST /pictures/{id}/select` | Parts picked with clicks on the picture as its edits so far left it: a click starts a part, an Alt-click takes from the part it's in; each part's name ("Part 1"), its answer and the outline round them all; how long reading the picture took and how long it waited for the card (409 while SAM isn't downloaded, or the picture changed) |
 | `POST /pictures/{id}/edit` | Makes the edits (the last one new) so the previews show them: how long it took, where it ran, and whether an erase came out smooth where the picture has detail |
-| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its fixes, its size step, its depth tools, its painting style and its look step, any of them none, the style and the look on the whole picture or parts): its shape and the words for it, what it is, the model (not cleaning again what the fixes cleaned), its look (the style named with it), edits, fixes and depth tools, about how long here (the fixes' and the depth tools' shares apart, and where the depth model runs), where its style is painted and whether it's made so much bigger than it's painted that its strokes go soft, the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
+| `POST /pictures/{id}/plan` | How a picture would be made to a recipe (its edits, its restoring, its fixes, its size step, its depth tools, its painting style and its look step, any of them none, the style and the look on the whole picture or parts): its shape and the words for it, what it is, the model (not cleaning again what the fixes cleaned), its look (the style named with it), edits, fixes and depth tools, about how long here (the fixes' and the depth tools' shares apart, and where the depth model runs), where its style is painted and whether it's made so much bigger than it's painted that its strokes go soft, the format (PNG or WebP for a cut-out with nothing behind it), colours and size, and the downloads it waits for |
 | `POST /pictures/{id}/depth` | How near each part of the picture is, as its edits leave it, read once (the depth model while it isn't downloaded, said and nothing read): whether it's flat, its subject's middle, where the model runs and how long reading took |
 | `GET /pictures/{id}/motion`, `POST /pictures/{id}/motion` | What a picture's 3D photo can be made with here (ffmpeg, the H.264 encoder that works, the sizes the picture has the pixels for); making one into the cache, the one before it let go |
 | `GET /motion/{id}`, `GET /motion/{id}/video`, `POST /motion/{id}/save`, `DELETE /motion/{id}` | How a 3D photo is coming on; the video (MP4, or an animated WebP); saving it beside the picture or into a folder, with History's line; letting it go |
-| `GET /pictures/{id}/fixes` | What the Fix tab suggests: a JPEG's own quality from its tables, how many stops dark it is, and whether it's grey, has see-through parts or wide colours, kept as they are |
+| `GET /pictures/{id}/fixes` | What the Fix tab suggests: a JPEG's own quality from its tables, how many stops dark it is, and whether it's grey, has see-through parts or wide colours, kept as they are; what its colours are for restoring (black and white, a toned print and its tone, or colour) |
+| `POST /pictures/{id}/scratches` | What the scratch detector finds on the picture as its edits leave it: the mask as a PNG (white where it found scratches and dust), with how much of the picture it covers, how long finding took, where it ran and how long it waited for the card in its headers; kept by the picture's version (409 while the detector isn't downloaded, or the picture changed) |
 | `POST /pictures/{id}/preview` | The picture made, all of it fitted (from its screen-sized view, as JPEG) or a part at full detail (as WebP), before (stretched) or after (made, with its look and touches), with its colour profile and how long it took |
 | `POST /pictures/{id}/saving` | The name a picture made would be saved as ("Harbour at dusk (TV 8K, Warm film).jpg"), whether that's taken, and about how big it comes out |
 | `POST /pictures/{id}/make` | Makes it to its recipe and saves it as chosen, as a job |
@@ -479,7 +508,8 @@ Change a contract on both sides in the same commit.
   models fetched when asked, each with its licence files), `pasted/` (pictures pasted from the
   clipboard, till a month after last opened), `wallpapers/` (the wallpapers Mado made, those
   showing and the last 3 days', and its copy of the owner's own), `cache/` (the pictures'
-  thumbnails and views, the last few full-size copies, each edit's mask in `cache/edits` and each
+  thumbnails and views, the last few full-size copies, each edit's mask and what the scratch
+  detector found in `cache/edits` and each
   picture's depth in `cache/depth`, by picture and version, let go after a month unused: anything
   in it can go, a mask made again from its clicks and depth read again; and the last few 3D photos
   made in `cache/motion`, cleared as the engine starts), and `backups/` (the last 7 nights, each checked as it's made, and apart from them the
@@ -504,7 +534,7 @@ Change a contract on both sides in the same commit.
 - **Export**: one zip, readable without Mado, written to a folder the owner picks in Settings (or
   with `mado export`): the database, its settings, the library's folders (`folders.json`), every
   picture with what Mado read of it (`pictures.csv`, marked as damaged when it is), the words read
-  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited, what the fixes and the depth tools did, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their painting styles (`styles.json`, each style's numbers, and the small copy it's known by in `styles/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
+  in each for search (`words.csv`), History (`history.csv`, with what each picture was made for and with, what was edited, what restoring, the fixes and the depth tools did, each picture set aside, the one kept and its review), the owner's looks (`looks.json`, and each as a `.cube` file in `looks/`), their painting styles (`styles.json`, each style's numbers, and the small copy it's known by in `styles/`), their recipes (`recipes.json`) and watch folders (`watch-folders.json`), what they decided of duplicates and bursts (`duplicates.json`: pictures not the same, which they keep, each setting aside), their favourites (`favourites.json`) and the wallpaper studio (`wallpaper.json`), and a manifest. It grows with the
   schema. Settings imports one too: the database it holds
   is restored like a backup as the engine starts again, and what Mado knew till then is backed up
   first. An export from a newer Mado waits for an update.

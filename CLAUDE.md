@@ -69,7 +69,12 @@ Small reading how far away each part of a picture is, downloaded the first time;
 focus at the subject or where it's clicked, fog and tilt-shift's band dragged on the picture, a
 step for batches and recipes; and 3D photos, a short looping video of the picture with the view
 moving through it, made with Windows' own encoder or the graphics card's, played on the page
-before it's saved). Next: the rest of 1.2, by [What's next](#whats-next).
+before it's saved); and restoring old photos, the fourteenth and the third of 1.2 (at the top of the
+Fix tab: scratches and dust found by Microsoft's old-photo detector and shown as a mask checked with
+the brush before LaMa fills them; a black-and-white or sepia print coloured by DDColor tiny, or a
+colour photo's faded colours brought back, each with a strength; faces left as they are; a step for
+batches and recipes that colours each picture as it needs and leaves scratches to its page; each
+model downloaded the first time). Next: the rest of 1.2, by [What's next](#whats-next).
 
 ## Ground rules
 
@@ -961,6 +966,77 @@ Everything decided so far. Don't ask again; change only with the owner.
   ffmpeg's end (Windows' `EINVAL`, its words never read, a stopped one left running), 3D photos
   in a wide-colour picture's colours with no tags, a 3D photo let go by looking at another tab,
   and the focus and band with no keyboard handle; all mended, each with its test.
+- Restoring old photos, as built (2026-11-24, Claude's calls while the owner is away;
+  docs/stack/restoring.md): at the top of the Fix tab, "Restore an old photo", not a tab of its own:
+  scratches, colour and fading are the whole picture's flaws, as the fixes are, the brief's chain
+  runs on into the fixes' noise and JPEG blocks, they want the same before-and-after stage at Fit,
+  100% and 400%, and a sixth tab would crowd the column. Two rows in the fixes' patterns: "Scratches
+  and dust" and "Colour" ("Colour it" or "Bring its colours back", a strength). Scratches are found
+  by Microsoft's old-photo detector (MIT, half precision, 75 MB, `models-3`) as report-3 note 6
+  says: grey at short sides 256 and 512 on fixed canvases of 256 x 512 and 512 x 1024 (a portrait
+  turned onto them), 40% sure and up, united and grown round by 3 px at a mask 768 short, kept in
+  `cache/edits` by the picture's version and edits; the mask is shown on the stage in the accent
+  before anything is filled, the owner painting over what it missed and holding Alt to take away
+  what isn't a scratch (Edit's brush, 1% of the shorter side at first), then "Fill them in"; leaving
+  the tab counts as checked. On eight made-up 12 MP aged prints it found 100% of the light
+  scratches, 88% of the dark ones' pixels (one dark scratch in a dark forest missed whole) and 91%
+  of the dust; 60% of its mask lay within 3 px of real damage, and on the same prints undamaged it
+  marked 1.1% (a road's dashed line, rigging, stems). Dust comes with it: a classic speck finder
+  found 96% at 98% precision on the prints but marked up to 2.8% of made-up night cities, pages of
+  words and fireworks (a print's dust is 0.1 to 0.2%), so there's no second finder. LaMa fills on a
+  copy 768 short (as good inside the damage as at 1536 or full size, 26.3 dB against 7.5 scratched,
+  and 2.6 and 6.7 times as quick), its 512 squares stepping 448, each hole pixel filled by the square
+  whose middle is nearest, laid back at full size through the smoothed mask with the print's grain;
+  a mask over half the picture isn't filled (Save waits), from a quarter the tab says it's a lot to
+  invent. Colour is DDColor tiny (Apache-2.0, 270 MB, `models-1`) on the picture squeezed to 512 as
+  its lightness, its a and b made the size of what's shown and put onto that part's own lightness
+  (OpenCV's Lab), so detail stays the original's; the strength mixes with the picture's own colour
+  (a sepia print's brown), a grey picture's profile goes once it's coloured, and the tab says a
+  coat's colour is a guess. Faded colours come back by classic means: each channel's 0.5th and
+  99.5th percentiles on a 1024 copy, taken 75% of the way from the three's together toward each
+  channel's own (on 60 faded made-up pictures ΔE 23.4 to 19.5 with the cast gone; all the way
+  overshoots, 20.4), mixed at its strength. Which picture needs which, from a 256 copy with its
+  colours smoothed 5 x 5: black and white under 2.3 of chroma at its 99th percentile, a toned print
+  under 1.3 of colour its light doesn't explain (sepia by its hue), else colour; on 1,440 made-up
+  pictures grey was right 180 of 180, toned 684 of 720 and colour 499 of 540, and a wrong call only
+  starts the row the other way. Colouring is suggested for grey and toned pictures, fading never (a
+  photo's own saturation and cast can't be told from age's). Restoring is the recipe's `restore`
+  step after the edits and before the fixes, on the picture at its own size (a scratch is a few
+  pixels: a crop or new size would move it off its mask): scratches first, so DDColor never sees
+  one. The picture filled, DDColor's colours and the levels are worked out once and kept, so the
+  stages, the Looks tab's and the styles' small copies and a part at 100% lay colour on what's shown.
+  The strokes are tied to the picture's version: a picture changed since lets them go, finds the
+  scratches again and shows the mask, saying why; Mado's own Save in its place lets restoring go
+  quietly, as edits do. A new picture is named "Coloured" (colour alone) or "Restored", and History
+  has a `restore` column (migration 14), "filled its scratches and dust and coloured it", in the
+  brackets after the edits. A batch's Restore step (and a recipe's, a watch folder's) colours each
+  black-and-white or toned picture and brings back each colour photo's faded colours, each as it
+  needs, both on at first; it never fills scratches, as the mask is each picture's own and filling
+  what's found unseen would paint over a road's lines on one picture and leave dark scratches on
+  another, so the step's card says scratches are filled on each picture's page, and a recipe with
+  them is refused with that sentence. Faces are left as they are: GFPGAN leans on parts for
+  non-commercial use and CodeFormer's licence is non-commercial, and the README says so. The small
+  things: each model downloaded the first time with its size and progress (faded colours need none,
+  so they work offline); the card busy with the queue, said while finding waits; a scan past 100
+  megapixels made smaller first on the Size tab; nothing found, said, the brush still filling what's
+  painted; a picture in colour asked to be coloured, its own colours said to give way; a sepia
+  print, its brown mixed in and no faded colours to bring back; see-through parts kept. Each model
+  keeps its session on the card while it has room (`ai.HELD`: the detector 2.7 GB, DDColor 2.4, both
+  measured in their own processes; all three with LaMa kept 3.3 GB in one), else the processor; the
+  detector's half-precision file loads a level under the highest optimisation there. Measured on the
+  owner's PC at 12 MP: finding 0.58 s on the card and 8.8 on the processor, filling (LaMa, a mask
+  over 5%) 2.9 and 14.7, DDColor 0.48 and 1.4, its colour laid on the whole picture 4.1 s, faded
+  colours 1.2 s; all of it, filled and coloured, 10.5 s on the card and 28 on the processor. Save
+  waits on every tab till the mask has been checked, a mask covering nothing fills nothing (the
+  plan, Save and History go on without the scratches), and a part at 100% has colour laid only
+  round it. Found on the way: Save's header didn't name restoring. A fresh agent's review found
+  colour alone tied to the picture's version (a Save failing with words about scratches, a picture
+  saved in its place coloured again), what was worked out for a picture unfilled used for it
+  filled, a job's edits made twice when it restored, the plan saying restoring ran on the
+  processor when only a model it didn't use would, a speck's mask rounded to nothing, Save
+  working while the mask was still being checked, a part at 100% laying colour on the whole
+  picture, the small copies taking strokes painted before a change, no limit on strokes in the
+  window, and DDColor fetched for a colour at 0%; all mended, each with its test.
 - The name (the owner, 2026-11-22: "Go with Mado"), the pick of six (Mado, Akari, Kagami, Iro,
   Sumi, Gaku): Kura the storehouse, Maku the curtain, Tansu the chest of drawers, Mado the window
   you see your pictures through. The only namesake found was an obscure "MadoPhoto" listing.
@@ -1096,8 +1172,10 @@ Everything decided so far. Don't ask again; change only with the owner.
    paint and cartoon by classic means, a step for batches and recipes): done.
 4. 1.2: restoring old photos (scratches, faces, colour) and the quick fixes (noise, blur, JPEG
    blocks, dark photos), portrait blur and 3D photos. Built: the quick fixes (the Fix tab, a step
-   for batches and recipes), and portrait blur and 3D photos (the Depth tab, with fog and
-   tilt-shift, a step for batches and recipes).
+   for batches and recipes), portrait blur and 3D photos (the Depth tab, with fog and tilt-shift, a
+   step for batches and recipes), and restoring old photos (scratches and dust shown as a mask and
+   filled, colour, faded colours, at the top of the Fix tab; faces left as they are, as no face
+   model may ship).
 5. Later: people (faces grouped, on the PC only), renaming by date taken, shrinking the library
    (AVIF or JPEG XL, originals to quarantine), and captions.
 

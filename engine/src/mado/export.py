@@ -328,6 +328,7 @@ _HISTORY_COLUMNS = (
     ("madeFor", "made_for"),
     ("look", "look"),
     ("edit", "edit"),
+    ("restore", "restore"),
     ("fix", "fix"),
     ("depth", "depth"),
     ("original", "original"),

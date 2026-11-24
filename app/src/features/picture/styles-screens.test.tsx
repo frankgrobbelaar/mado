@@ -87,6 +87,8 @@ const COLOUR: Fixes = {
   seeThrough: false,
   colour: "sRGB",
   megapixels: 12.2,
+  colours: "colour",
+  tone: null,
 };
 
 /** Every style's network downloaded, and MicroAST. */

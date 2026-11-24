@@ -22,7 +22,7 @@ from typing import Literal, cast
 from PIL import Image
 
 from mado import db
-from mado.ai import BIREFNET, Ai, Timer
+from mado.ai import BIREFNET, COLOURER, DETECTOR, Ai, Timer
 from mado.batches import Picture, kept_key
 from mado.config import DataPaths
 from mado.core.fixes import models_for as fix_models
@@ -84,6 +84,7 @@ class Sample:
     edit: str | None = None
     fix: str | None = None
     depth: str | None = None
+    restore: str | None = None
     problem: str | None = None
 
 
@@ -249,6 +250,7 @@ class Samples:
                 "edit": sample.edit,
                 "fix": sample.fix,
                 "depth": sample.depth,
+                "restore": sample.restore,
             }
         return kept
 
@@ -326,6 +328,7 @@ class Samples:
             self._ai.fix_place(fixers),
             paint_on=paint_on,
             depth_on=self._ai.depth_place(),
+            restore_on=(self._ai.restore_place(DETECTOR), self._ai.restore_place(COLOURER)),
         )
 
         def report(_stage: object, within: float) -> None:
@@ -401,6 +404,7 @@ class Samples:
             edit=made.edit,
             fix=made.fix,
             depth=made.depth,
+            restore=made.restore,
         )
 
     def _update(self, asked: _Asked, sample: Sample) -> None:

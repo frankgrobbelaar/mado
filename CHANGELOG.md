@@ -8,6 +8,25 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+### Added
+- Restoring old photos, at the top of the Fix tab: Mado finds a scanned print's scratches,
+  creases and dust and shows them on the picture first. Paint over any it missed (dark scratches
+  are the ones it misses most), hold Alt to take away a line that belongs in the picture, then
+  "Fill them in", and they're filled from what's round them. A mask over most of a picture isn't
+  filled.
+- Colour, on the same tab: a black-and-white or sepia print coloured, its colours put onto the
+  picture's own light so every detail stays its own, with a strength and a plain line that the
+  colours are guesses; or a colour photo's faded colours brought back from its own darkest and
+  brightest parts, which takes out a tint too. Mado tells black and white, a toned print and a
+  colour photo apart, and suggests colouring for the first two. Faces are left as they are.
+- Restoring is a step for many at once, recipes and watch folders: each picture coloured or its
+  faded colours brought back, as it needs. Scratches are filled one picture at a time, where you
+  check what Mado found. History names what restoring did, and a new picture is named "Coloured"
+  or "Restored".
+- The old-photo scratch detector (75 MB) and DDColor tiny (270 MB) come the first time each is
+  needed, with their size and progress, as the installer's first page lists them. Faded colours
+  need no download.
+
 ## 0.12.0 - 2026-11-24
 
 ### Added

@@ -10,6 +10,7 @@ import {
   pictureAddress,
   type Recipe,
   type Region,
+  type RestoreStep,
   type SizeStep,
   usePictureImage,
   usePreview,
@@ -19,6 +20,7 @@ import { about, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { withDepth } from "./depth";
 import { brightening, fixed } from "./fixes";
+import { restored } from "./restore";
 import type { Zoom } from "./stage";
 import { fitted, useBox } from "./stage-box";
 
@@ -37,6 +39,9 @@ export function SizeStage(props: {
   picture: PictureDetails;
   /** The edits made on the Edit tab, which before and after both show; null with none. */
   edit: EditStep | null;
+  /** Restoring chosen on the Fix tab, which both sides show once its models are here (it's made
+   * before the size); null with none. */
+  restore?: RestoreStep | null;
   /** The fixes chosen on the Fix tab, which after carries; null with none. */
   fix?: FixStep | null;
   /** The depth tools chosen on the Depth tab, which after carries; null with none. */
@@ -65,6 +70,7 @@ export function SizeStage(props: {
         <Fitted
           picture={picture}
           edit={props.edit}
+          restore={props.restore ?? null}
           fix={props.fix ?? null}
           plan={plan}
           size={size}
@@ -75,6 +81,7 @@ export function SizeStage(props: {
         <Compared
           picture={picture}
           edit={props.edit}
+          restore={props.restore ?? null}
           fix={props.fix ?? null}
           depth={props.depth ?? null}
           plan={plan}
@@ -110,6 +117,7 @@ export function SizeStage(props: {
 function Fitted(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  restore: RestoreStep | null;
   fix: FixStep | null;
   plan: Plan;
   size: SizeStep;
@@ -119,14 +127,16 @@ function Fitted(props: {
   const { picture, plan } = props;
   // Of the fixes, all of it shows a dark photo's brightening: the rest show at 100%.
   const lit = brightening(props.fix);
-  const changed = props.edit !== null || lit !== null;
+  const { restore } = props;
+  const changed = props.edit !== null || lit !== null || restore !== null;
   const view = usePictureImage(changed ? null : pictureAddress(picture, "view"));
-  // With edits or brightening, the picture shown under its shape is the picture as they leave it.
+  // With edits, restoring or brightening, the picture shown under its shape is the picture as they
+  // leave it.
   const edited = usePreview(
     picture.id,
     changed
       ? {
-          recipe: fixed({ edit: props.edit, size: null, look: null }, lit),
+          recipe: restored(fixed({ edit: props.edit, size: null, look: null }, lit), restore),
           side: "after",
           fit: { width: 2560, height: 2560 },
         }
@@ -148,7 +158,10 @@ function Fitted(props: {
     picture.id,
     extending && !lama
       ? {
-          recipe: fixed({ edit: props.edit, size: props.decided, look: null }, lit),
+          recipe: restored(
+            fixed({ edit: props.edit, size: props.decided, look: null }, lit),
+            restore,
+          ),
           side: "after",
           fit: { width: 1600, height: 1600 },
         }
@@ -286,6 +299,7 @@ function Fitted(props: {
 function Compared(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  restore: RestoreStep | null;
   fix: FixStep | null;
   depth: DepthStep | null;
   plan: Plan;
@@ -304,11 +318,14 @@ function Compared(props: {
       width={plan.width}
       height={plan.height}
       start={startingPoint(plan)}
-      before={lama ? null : { edit: props.edit, size, look: null }}
+      before={lama ? null : restored({ edit: props.edit, size, look: null }, props.restore)}
       after={
         waiting
           ? null
-          : withDepth(fixed({ edit: props.edit, size, paint, look }, props.fix), props.depth)
+          : restored(
+              withDepth(fixed({ edit: props.edit, size, paint, look }, props.fix), props.depth),
+              props.restore,
+            )
       }
       label={`After · ${plan.label}`}
       waiting={waiting ? `After shows once ${waiting} is downloaded` : null}

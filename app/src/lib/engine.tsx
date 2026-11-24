@@ -1015,10 +1015,25 @@ export interface DepthStep {
   tilt: TiltStep | null;
 }
 
+/** Restoring an old photo, each part off (null) or on: what the Fix tab's Restore asks for. */
+export interface RestoreStep {
+  /** The picture's version the scratches' strokes were painted on; null for none painted yet. */
+  version: string | null;
+  /** Scratches and dust filled: what Mado found, with the owner's strokes over it (painting adds,
+   * Alt takes away). */
+  scratches: { strokes: Stroke[] } | null;
+  /** A black-and-white or toned picture coloured: how much of DDColor's colours, 0 to 1. */
+  colour: { strength: number } | null;
+  /** Faded colours brought back from the picture's own levels, 0 to 1. */
+  faded: { strength: number } | null;
+}
+
 /** One picture, one recipe: what the Edit, Fix, Size, Depth and Looks tabs set together, made by
  * one Save. */
 export interface Recipe {
   edit?: EditStep | null;
+  /** Restoring, made after the edits and before the fixes. */
+  restore?: RestoreStep | null;
   fix?: FixStep | null;
   size: SizeStep | null;
   depth?: DepthStep | null;
@@ -1145,6 +1160,18 @@ export interface Plan {
   depthSeconds: number;
   /** Where the depth model runs; null without the depth tools. */
   depthPlace: "card" | "processor" | null;
+  /** Restoring, as Save and History say it: "filled its scratches and dust"; null without. */
+  restore: string | null;
+  /** Of `seconds`, about how long restoring takes. */
+  restoreSeconds: number;
+  /** Where the scratch detector and DDColor run: the processor when the card has no room left
+   * for them; null without restoring that needs them. */
+  restorePlace: "card" | "processor" | null;
+  /** How much of the picture the scratches' mask covers, as found and painted, 0 to 1; null
+   * without scratches, or while the detector isn't downloaded. */
+  restoreCovers: number | null;
+  /** Where its scratches are found (the detector's place); null without scratches. */
+  scratchPlace: "card" | "processor" | null;
   /** Where its painting style is made; null without one. */
   paintPlace: "card" | "processor" | null;
   /** A painting made far bigger than it's painted: seen close, its strokes are soft. */
@@ -1217,6 +1244,102 @@ export interface Fixes {
   /** Its colours, kept: "sRGB", "Display P3". */
   colour: string;
   megapixels: number;
+  /** What its colours are, for restoring: black and white or a toned print (offered colouring),
+   * or a colour photo (offered its faded colours back). */
+  colours: "grey" | "toned" | "colour";
+  /** A toned print's tone: sepia's brown, or another; null for any other picture. */
+  tone: "sepia" | "toned" | null;
+}
+
+/** What the scratch detector found on a picture, as its mask (an address the page can show, white
+ * where it found scratches and dust), and how finding it went. */
+export interface Scratches {
+  address: string | null;
+  /** How much of the picture it found, 0 to 1. */
+  found: number | null;
+  /** Seconds finding took; 0 when it was kept from before. */
+  seconds: number | null;
+  /** Where it ran; null when it was kept. */
+  place: Place | null;
+  problem: string | null;
+  busy: boolean;
+}
+
+/** What the scratch detector finds on a picture as its edits leave it, its mask fetched as the
+ * previews are (null `ask`: let go). */
+export function useScratches(
+  id: number,
+  ask: { version: string; edits: Edit[] } | null,
+): Scratches {
+  const engine = useEngine();
+  const wanted = ask ? JSON.stringify(ask) : null;
+  const [shown, setShown] = useState<{
+    id: number;
+    sent: string;
+    found: Omit<Scratches, "busy">;
+  } | null>(null);
+  const current = useRef<string | null>(null);
+  const showing = useCallback((next: string | null) => {
+    if (current.current && current.current !== next) URL.revokeObjectURL(current.current);
+    current.current = next;
+  }, []);
+  useEffect(() => () => showing(null), [showing]);
+  useEffect(() => {
+    if (wanted === null || engine.state !== "ready") return;
+    let cancelled = false;
+    const stop = new AbortController();
+    const failed = (problem: string) =>
+      setShown({
+        id,
+        sent: wanted,
+        found: { address: null, found: null, seconds: null, place: null, problem },
+      });
+    fetch(new URL(`/pictures/${id}/scratches`, engine.url), {
+      method: "POST",
+      body: wanted,
+      headers: { Authorization: `Bearer ${engine.token}`, "Content-Type": "application/json" },
+      signal: stop.signal,
+    })
+      .then(async (response) => {
+        if (cancelled) return;
+        if (!response.ok) {
+          failed((await problemIn(response)) ?? "Mado couldn't look for scratches.");
+          return;
+        }
+        const number = (name: string) => {
+          const said = response.headers.get(name);
+          const value = said === null || said === "" ? Number.NaN : Number(said);
+          return Number.isFinite(value) ? value : null;
+        };
+        const place = response.headers.get("X-Place");
+        const blob = await response.blob();
+        if (cancelled) return;
+        const address = URL.createObjectURL(blob);
+        showing(address);
+        setShown({
+          id,
+          sent: wanted,
+          found: {
+            address,
+            found: number("X-Found"),
+            seconds: number("X-Made-In"),
+            place: place === "card" || place === "processor" ? place : null,
+            problem: null,
+          },
+        });
+      })
+      .catch(() => {
+        if (!cancelled) failed("Mado's engine didn't answer.");
+      });
+    return () => {
+      cancelled = true;
+      stop.abort();
+    };
+  }, [engine, id, wanted, showing]);
+  const nothing = { address: null, found: null, seconds: null, place: null, problem: null };
+  if (wanted === null) return { ...nothing, busy: false };
+  if (shown === null || shown.id !== id || shown.sent !== wanted) return { ...nothing, busy: true };
+  return { ...shown.found, busy: false };
 }
 
 /** What Mado read of a picture's depth, for the Depth tab. */
@@ -1625,11 +1748,14 @@ export interface Job {
   fix: string | null;
   /** The depth tools: "portrait blur at f/2.8"; null without. */
   depth: string | null;
+  /** What restoring does: "filled its scratches and dust"; null without. */
+  restore: string | null;
   how: "new" | "replace";
   state: JobState;
   stage:
     | "reading"
     | "editing"
+    | "restoring"
     | "shaping"
     | "fixing"
     | "making"
@@ -1696,6 +1822,8 @@ export interface HistoryEntry {
   look: string | null;
   /** What was edited first: "erased a part". */
   edit: string | null;
+  /** What restoring did: "filled its scratches and dust". */
+  restore: string | null;
   /** What the fixes did: "took out noise". */
   fix: string | null;
   /** The depth tools: "portrait blur at f/2.8"; a 3D photo: "into a 3D photo, swaying for 5 s". */
@@ -1876,14 +2004,26 @@ export interface CutoutStepItem {
   colour: string | null;
 }
 
-/** A batch's step. Later pieces add kinds of their own. */
 /** The depth tools, as a batch's step: portrait blur in focus at each picture's subject. */
 export interface DepthStepItem extends DepthStep {
   step: "depth";
 }
 
+/** Restoring, as a batch's step: each picture as it needs, a black-and-white or sepia one
+ * coloured, a colour photo's faded colours brought back. Never scratches: those are checked on
+ * each picture's own page. */
+export interface RestoreStepItem {
+  step: "restore";
+  colour: { strength: number } | null;
+  faded: { strength: number } | null;
+  /** Never sent: a batch leaves scratches to each picture's page, and the engine refuses them. */
+  scratches?: null;
+}
+
+/** A batch's step. Later pieces add kinds of their own. */
 export type BatchStep =
   | CutoutStepItem
+  | RestoreStepItem
   | FixStepItem
   | SizeStepItem
   | DepthStepItem
@@ -2147,6 +2287,8 @@ export interface BatchLine {
   look: string | null;
   /** "cut out the subject" */
   edit: string | null;
+  /** "coloured it" */
+  restore: string | null;
   /** "took out noise" */
   fix: string | null;
   /** "portrait blur at f/2.8" */
@@ -2172,6 +2314,7 @@ export interface MadeToday {
   madeFor: string | null;
   look: string | null;
   edit: string | null;
+  restore: string | null;
   fix: string | null;
   depth: string | null;
 }

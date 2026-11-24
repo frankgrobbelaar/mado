@@ -13,7 +13,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { DepthControls } from "@/features/picture/depth-tab";
 import { BehindIt } from "@/features/picture/edit-tab";
-import { FixControls } from "@/features/picture/fix-tab";
+import { FixControls, FixRow, Strength } from "@/features/picture/fix-tab";
 import { LookGrid, Touches } from "@/features/picture/looks-tab";
 import { Chip, OtherSize, SizeButton } from "@/features/picture/size-tab";
 import { pickFolder } from "@/lib/dialogs";
@@ -25,6 +25,7 @@ import {
   type LookStepItem,
   type PaintStepItem,
   type Quality,
+  type RestoreStepItem,
   type SaveFormat,
   type SizeStepItem,
   useLooks,
@@ -406,6 +407,67 @@ export function FixDialog(props: {
       <p className="max-w-md text-12 text-fg-faint leading-normal">
         Each dark photo is brightened as it measures, and each JPEG's blocks come out as hard as it
         was squeezed. A picture with nothing for them to fix is left as it is, and Mado says so.
+      </p>
+    </StepCard>
+  );
+}
+
+/**
+ * Restore old photos, as the Fix tab's Colour row does it, each picture as it needs: one in black
+ * and white or a sepia print coloured, a colour photo's faded colours brought back. Scratches
+ * aren't here: Mado shows what it found on each picture for the owner to check before anything is
+ * filled, so they're filled one picture at a time, on its Fix tab.
+ */
+export function RestoreDialog(props: {
+  step: RestoreStepItem;
+  onStep: (step: RestoreStepItem) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const { step, onStep } = props;
+  return (
+    <StepCard
+      title="Restore old photos"
+      description="Each picture as it needs, made before the fixes: one in black and white or sepia coloured, a colour one's faded colours brought back."
+      onClose={props.onClose}
+      onRemove={props.onRemove}
+    >
+      <section
+        aria-label="Restoring"
+        className="flex max-w-md flex-col rounded-6 border border-edge bg-glass [&>*:first-child]:border-t-0"
+      >
+        <FixRow
+          title="Colour black and white and sepia"
+          detail="The colours are guessed from what photos usually look like: a coat's colour is a guess."
+          on={step.colour !== null}
+          onChange={(on) => onStep({ ...step, colour: on ? { strength: 1 } : null })}
+        >
+          {step.colour && (
+            <Strength
+              label="How much colour"
+              value={step.colour.strength}
+              onChange={(strength) => onStep({ ...step, colour: { strength } })}
+            />
+          )}
+        </FixRow>
+        <FixRow
+          title="Bring faded colours back"
+          detail="Each colour photo's colours set from its own darkest and brightest parts, which takes out a tint too."
+          on={step.faded !== null}
+          onChange={(on) => onStep({ ...step, faded: on ? { strength: 1 } : null })}
+        >
+          {step.faded && (
+            <Strength
+              label="How far their colours come back"
+              value={step.faded.strength}
+              onChange={(strength) => onStep({ ...step, faded: { strength } })}
+            />
+          )}
+        </FixRow>
+      </section>
+      <p className="max-w-md text-12 text-fg-faint leading-normal">
+        Scratches and dust are filled one picture at a time, on its Fix tab, where you check what
+        Mado found before anything is filled. Faces are left as they are.
       </p>
     </StepCard>
   );

@@ -294,6 +294,79 @@ describe("BatchPage", () => {
     );
   });
 
+  it("restores old photos as a step made after the cut-out, each picture as it needs, scratches left to its page", async () => {
+    // The engine's words for the steps sent, so each step has its Change.
+    const fetch = fakeEngine({
+      ...ENGINE,
+      "POST /batches/takes": (init: RequestInit | undefined) => {
+        const asked = JSON.parse(String(init?.body)) as { steps: { step: string }[] };
+        return takes({
+          words: [
+            ...asked.steps.map((each) => ({
+              kind: each.step,
+              title: each.step === "restore" ? "Restore" : "Fix",
+              detail: "…",
+              chip: "",
+              amount: null,
+            })),
+            { kind: "save", title: "Save", detail: "…", chip: "JPEG", amount: null },
+          ],
+        });
+      },
+    });
+    renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
+    const add = async (name: string) => {
+      fireEvent.pointerDown(await screen.findByRole("button", { name: "Add a step" }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      (await screen.findByRole("menuitem", { name })).click();
+    };
+
+    await add("Fix: noise, blur, JPEG blocks, dark");
+    fireEvent.click(
+      within(await screen.findByRole("dialog", { name: "Fix them" })).getByRole("button", {
+        name: "Done",
+      }),
+    );
+    await add("Restore: colour, faded colours");
+    const card = await screen.findByRole("dialog", { name: "Restore old photos" });
+    expect(
+      within(card).getByRole("switch", { name: "Colour black and white and sepia" }),
+    ).toBeChecked();
+    expect(within(card).getByRole("switch", { name: "Bring faded colours back" })).toBeChecked();
+    expect(
+      within(card).getByText(/Scratches and dust are filled one picture at a time/),
+    ).toBeVisible();
+    fireEvent.keyDown(within(card).getByRole("slider", { name: "How much colour" }), {
+      key: "ArrowLeft",
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Done" }));
+
+    // Made after a cut-out and before the fixes, as one picture's recipe makes them.
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/batches/takes").at(-1)?.steps).toEqual([
+        { step: "restore", colour: { strength: 0.99 }, faded: { strength: 1 } },
+        { step: "fix", noise: { strength: 1 }, blur: null, jpeg: null, dark: null },
+      ]),
+    );
+    expect(screen.getByRole("button", { name: "Change restore" })).toBeInTheDocument();
+
+    // Both turned off isn't a step.
+    fireEvent.click(screen.getByRole("button", { name: "Change restore" }));
+    const again = await screen.findByRole("dialog", { name: "Restore old photos" });
+    fireEvent.click(
+      within(again).getByRole("switch", { name: "Colour black and white and sepia" }),
+    );
+    fireEvent.click(within(again).getByRole("switch", { name: "Bring faded colours back" }));
+    fireEvent.click(within(again).getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(sent(fetch, "POST", "/batches/takes").at(-1)?.steps).toEqual([
+        { step: "fix", noise: { strength: 1 }, blur: null, jpeg: null, dark: null },
+      ]),
+    );
+  });
+
   it("gives each picture depth as a step made after the size, portrait blur at each subject", async () => {
     const fetch = fakeEngine(ENGINE);
     renderBatch({ pick: { how: "ticked", ids: [1, 2, 3] }, picked: PICKED });
@@ -422,7 +495,7 @@ describe("BatchPage", () => {
     fireEvent.click(within(card).getByRole("button", { name: "Done" }));
 
     expect(
-      await screen.findByText(/Pick what to do: cut out their subject, fix them/),
+      await screen.findByText(/Pick what to do: cut out their subject, restore old photos/),
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetch).toHaveBeenCalled();

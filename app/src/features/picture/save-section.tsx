@@ -1,8 +1,12 @@
-import { type ReactNode, useState } from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { type PictureDetails, type Plan, type Recipe, usePictureJobs } from "@/lib/engine";
 import { JobCard } from "./job-card";
 import { SaveDialog } from "./save-dialog";
+
+/** Why every tab's Save waits, as the picture's page says it (its scratches' mask not yet checked:
+ * nothing is filled till the owner has seen it); null when it needn't. */
+export const SaveHeld = createContext<string | null>(null);
 
 /**
  * The foot of a tool's column, on the Size and Looks tabs alike: the job making the picture, and
@@ -22,13 +26,16 @@ export function SaveSection(props: {
   caption?: ReactNode;
 }) {
   const { picture, recipe, plan } = props;
+  const held = useContext(SaveHeld);
   const jobs = usePictureJobs(picture.id);
   const [saving, setSaving] = useState(false);
   const job = jobs.data?.[0];
   const working = job?.state === "queued" || job?.state === "running";
   // A paste can be saved as it is, with nothing chosen on the tab.
   const ready = props.ready || picture.pasted;
-  const can = ready && recipe !== null && plan !== null && !plan.needs.length && !working;
+  const can =
+    ready && recipe !== null && plan !== null && !plan.needs.length && !working && held === null;
+  const caption = held ?? props.caption;
   return (
     <>
       {/* It stays at the column's foot, so Save is in reach however long the column grows; what
@@ -42,7 +49,7 @@ export function SaveSection(props: {
         >
           Save…
         </Button>
-        {props.caption && <p className="text-center text-13 text-fg-faint">{props.caption}</p>}
+        {caption && <p className="text-center text-13 text-fg-faint">{caption}</p>}
       </div>
       {saving && plan && recipe && (
         <SaveDialog

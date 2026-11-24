@@ -18,6 +18,7 @@ from mado.api.common import ApiModel, Copies, Database, Editors, Models, Seeing
 from mado.api.editing import opened_picture
 from mado.api.edits import EditStepIn, PartIn, edits_of
 from mado.api.looks import SMALL
+from mado.api.restore import RestoreStepIn, restoring_of, tied
 from mado.batches import order_of
 from mado.core.edits import EditError
 from mado.core.painting import (
@@ -32,6 +33,7 @@ from mado.core.painting import (
     picture_style,
     unsuited,
 )
+from mado.core.restore import RestoreError
 from mado.directml import ModelError
 from mado.editing import EditingError, picture_key
 from mado.making import split_alpha
@@ -39,6 +41,7 @@ from mado.own_styles import Kept, StyleNameError
 from mado.painting import MICROAST
 from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import Source
+from mado.restoring import RestoringError
 
 router = APIRouter()
 
@@ -102,6 +105,7 @@ class Styles(ApiModel):
 
 class SmallStyleAsk(ApiModel):
     edit: EditStepIn | None = None  # the picture as its edits leave it, at their version
+    restore: RestoreStepIn | None = None  # and as restoring leaves it
     code: str | None = Field(default=None, max_length=4096)  # a picture's own style
     named: str | None = Field(default=None, max_length=200)
 
@@ -203,9 +207,11 @@ def small_asked(
     picture, now = opened_picture(conn, picture_id, asked)
     try:
         image = sight.picture(picture, now)
-        if body.edit is not None and body.edit.edits:
-            editing = edits_of(body.edit.edits, body.edit.version)
-            small = editor.small(image, picture_key(picture.path, now), editing.edits, SMALL)
+        restoring = tied(restoring_of(body.restore), now, picture.path.name)
+        if (body.edit is not None and body.edit.edits) or restoring is not None:
+            edits = edits_of(body.edit.edits, body.edit.version).edits if body.edit else ()
+            key = picture_key(picture.path, now)
+            small = editor.small(image, key, edits, SMALL, restoring)
         else:
             small = image.copy()
             small.thumbnail((SMALL * 2, SMALL * 2), Image.Resampling.LANCZOS)
@@ -213,8 +219,10 @@ def small_asked(
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from None
     except (NeedsFfmpegError, NeedsReaderError) as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
-    except (UnreadableError, EditError, EditingError) as error:
+    except (UnreadableError, EditError, EditingError, RestoreError, RestoringError) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+    except ModelError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
     return _webp(_painted_small(small, style, ai), keep=False)
 
 

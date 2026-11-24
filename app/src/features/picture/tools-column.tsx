@@ -8,6 +8,7 @@ import type {
   PictureDetails,
   Plan,
   Recipe,
+  RestoreStep,
   SizeStep,
 } from "@/lib/engine";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,8 @@ export function ToolsColumn(props: {
   edited: EditStep | null;
   /** The fixes chosen, settled: the Looks tab's small copies show a dark photo brightened. */
   fixed?: FixStep | null;
+  /** Restoring chosen, settled, once its models are here: the Looks tab's small copies show it. */
+  restored?: RestoreStep | null;
   /** The Looks tab's "Only on a part". */
   part: ReactNode;
   /** The Looks tab's painting styles. */
@@ -155,6 +158,7 @@ export function ToolsColumn(props: {
             settling={props.settling}
             edit={props.edited}
             fix={props.fixed ?? null}
+            restore={props.restored ?? null}
             part={props.part}
             styles={props.styles}
           />

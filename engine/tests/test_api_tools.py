@@ -88,6 +88,8 @@ def test_the_engine_offers_what_it_fetches_itself_and_not_the_installers(paths: 
         ("scunet", "asked"),  # the first time a fix needs it
         ("fbcnn", "asked"),
         ("nafnet", "asked"),
+        ("oldphoto-scratch-detector", "asked"),  # the first time scratches are asked for
+        ("ddcolor-tiny", "asked"),  # the first time colouring is
         ("style-van-gogh-starry-night", "asked"),  # a style's first time
         ("style-hokusai-great-wave", "asked"),
         ("style-monet-water-lilies-1915", "asked"),

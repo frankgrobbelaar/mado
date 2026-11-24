@@ -158,6 +158,8 @@ describe("the made-up scenes", () => {
       fog: 0,
       tilt: null,
       flip: false,
+      scratches: 0,
+      mask: false,
     });
     assert.deepEqual(parseScene("harbour/region=0.1,0.2,0.3,0.4/blur=1.5/flip"), {
       ...parseScene("harbour"),
@@ -201,6 +203,28 @@ describe("the made-up scenes", () => {
     assert.throws(() => drawScene("harbour/look=sparkle"), /no look called "sparkle"/);
     assert.throws(() => drawScene("harbour/look=warm-film/part=boat"), /no part called "boat"/);
     for (const look of Object.keys(LOOKS)) assert.ok(drawScene(`harbour/look=${look}`), look);
+  });
+
+  it("scratches an old print, and draws what the detector finds as its mask", () => {
+    assert.deepEqual(parseScene("harbour/look=sepia-print/scratches=1"), {
+      ...parseScene("harbour"),
+      look: "sepia-print",
+      scratches: 1,
+    });
+    const scratched = drawScene("harbour/look=sepia-print/scratches=1");
+    // The damage lies on the print, over its look: light scratches, a crease, a dark one, dust.
+    assert.match(scratched, /<g id="scratches"[^>]*>.*stroke="#f4efe4".*stroke="#2a2219"/);
+    assert.ok(scratched.indexOf('id="scratches"') > scratched.indexOf('filter="url(#look)"'));
+    assert.doesNotMatch(drawScene("harbour/look=sepia-print"), /scratches/);
+    // The mask: white on black, the light scratches and dust grown, the dark scratch missed.
+    const mask = drawScene("harbour/mask");
+    assert.equal(parseScene("harbour/mask").mask, true);
+    assert.match(mask, /<rect width="400" height="300" fill="#000"\/>/);
+    assert.match(mask, /stroke="#fff"/);
+    assert.doesNotMatch(mask, /#2a2219|url\(#sky\)/);
+    // Nothing found: the mask is all black.
+    assert.equal(parseScene("harbour/mask=none").mask, "none");
+    assert.doesNotMatch(drawScene("harbour/mask=none"), /#fff/);
   });
 
   it("paints a scene in a style before its look, at its strength, on all of it or a part", () => {

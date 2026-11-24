@@ -99,6 +99,8 @@ const NOTHING: Fixes = {
   seeThrough: false,
   colour: "sRGB",
   megapixels: 12.2,
+  colours: "colour",
+  tone: null,
 };
 
 function model(id: string, name: string, size: number, state: Tool["state"] = "ready"): Tool {

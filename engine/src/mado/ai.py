@@ -45,6 +45,12 @@ U2NETP_FILE = "u2netp.onnx"
 # for portrait blur, fog, tilt-shift and 3D photos; a download.
 DEPTH = "depth-anything-v2-small"
 DEPTH_FILE = "depth-anything-v2-small.onnx"
+# Restoring old photos (docs/stack/restoring.md): the scratch detector (stored in half
+# precision) and DDColor, each a download; LaMa fills what the detector finds.
+DETECTOR = "oldphoto-scratch-detector"
+DETECTOR_FILE = "oldphoto-scratch-detector-fp16.onnx"
+COLOURER = "ddcolor-tiny"
+COLOURER_FILE = "ddcolor-tiny.onnx"
 _MIB = 1024 * 1024
 # What each keeps of the graphics card's own memory once it has run, as measured on the owner's
 # card: a session is never let go (mado/directml.py), so one is made there only when the card has
@@ -63,6 +69,10 @@ HELD: dict[str, int] = {
     FBCNN.id: 1340 * _MIB,
     NAFNET.id: 380 * _MIB,
     DEPTH: 420 * _MIB,  # at its 518 square: 401 MB measured
+    # Restoring's, each measured in its own process (docs/stack/restoring.md): the detector's two
+    # canvases (2,722 MB, its 512 x 1024 one most of it) and DDColor at its square (2,382 MB).
+    DETECTOR: 2750 * _MIB,
+    COLOURER: 2400 * _MIB,
 }
 _SPARE = 512 * _MIB  # room left on the card besides
 _UNKNOWN_ROOM = 4096 * _MIB  # where DirectX can't say how much room there is: a small card's
@@ -122,6 +132,8 @@ class EditingPlaces:
 type Fill = Callable[[Pixels, npt.NDArray[np.bool_]], Pixels]  # a 512 square, its hole filled
 type Matte = Callable[[Image.Image], Tensor]  # a picture's subject, 0 to 1, at its own size
 type DepthReader = Callable[[Tensor], Tensor]  # the model's square in, its numbers (bigger, nearer)
+type Find = Callable[[Tensor], Tensor]  # a canvas read by the scratch detector: how sure, 0 to 1
+type Colour = Callable[[Tensor], Tensor]  # the picture grey at DDColor's square: Lab's a and b
 
 
 class Ai:
@@ -258,6 +270,66 @@ class Ai:
             return answer
 
         return Tiling(run, FIX_TILE, FIX_OVERLAP, scale=1)
+
+    # Restoring old photos.
+
+    def restore_file(self, download: str, name: str) -> Path | None:
+        """A restoring model's file, once it's downloaded."""
+        folder = self._tools.folder(download)
+        return folder / name if folder is not None else None
+
+    def restore_place(self, download: str) -> Place:
+        """Where a restoring model runs now: on the card while it has room for what the model
+        keeps there (or made it there already), else the processor, as the fixes' models."""
+        file = DETECTOR_FILE if download == DETECTOR else COLOURER_FILE
+        return self.edit_place(download, self.restore_file(download, file))
+
+    def scratch_finder(self, timer: Timer | None = None) -> tuple[Find, Place]:
+        """The scratch detector, reading a canvas (1 × 1 × rows × columns, grey, -1 to 1) and
+        saying how sure it is each pixel is a scratch, 0 to 1, through its kept session for that
+        canvas; and where it runs. Stored in half precision, so on the processor its session is
+        made a level lower. Raises ModelError when it isn't downloaded, or as it runs when it
+        can't."""
+        found = self.restore_file(DETECTOR, DETECTOR_FILE)
+        if found is None:
+            raise ModelError("The scratch detector isn't downloaded yet.")
+        place = self.edit_place(DETECTOR, found)
+        clock = timer or Timer()
+        clock.place = place
+
+        def find(canvas: Tensor) -> Tensor:
+            rows, columns = canvas.shape[2], canvas.shape[3]
+            pinned = {"batch": 1, "height": rows, "width": columns}
+            with _turn(place, clock):  # timed once it has the card, not while it waits its turn
+                session = self._sessions.get(found, None, place, fixed=pinned, half=True)
+                began = time.perf_counter()
+                out = session.run({"input": canvas})[0]
+                clock.add(time.perf_counter() - began, rows * columns / 1e6)
+            return np.ascontiguousarray(out[0, 0], dtype=np.float32)
+
+        return find, place
+
+    def colourer(self, timer: Timer | None = None) -> tuple[Colour, Place]:
+        """DDColor, guessing a picture's colours from its light: the picture grey at its square
+        (1 × 3 × 512 × 512, 0 to 1) in, Lab's a and b (2 × 512 × 512) out, through its kept
+        session; and where it runs. Raises ModelError when it isn't downloaded, or as it runs
+        when it can't."""
+        found = self.restore_file(COLOURER, COLOURER_FILE)
+        if found is None:
+            raise ModelError("DDColor, which colours pictures, isn't downloaded yet.")
+        place = self.edit_place(COLOURER, found)
+        clock = timer or Timer()
+        clock.place = place
+
+        def colour(grey: Tensor) -> Tensor:
+            with _turn(place, clock):
+                session = self._sessions.get(found, None, place)
+                began = time.perf_counter()
+                out = session.run({"input": grey})[0]
+                clock.add(time.perf_counter() - began, grey.shape[2] * grey.shape[3] / 1e6)
+            return np.ascontiguousarray(out[0], dtype=np.float32)
+
+        return colour, place
 
     # Editing by clicking.
 

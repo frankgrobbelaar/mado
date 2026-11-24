@@ -431,6 +431,62 @@
       ]
     },
     {
+      "id": "oldphoto-scratch-detector",
+      "name": "Old-photo scratch detector",
+      "version": "models-3",
+      "purpose": "Finds the scratches, creases and dust on a scanned old photo, shown as a mask you check before anything is filled: from Microsoft's Bringing Old Photos Back to Life. Mado fetches it the first time scratches are asked for.",
+      "licence": "MIT",
+      "home": "https://github.com/microsoft/Bringing-Old-Photos-Back-to-Life",
+      "url": null,
+      "size": 75391673,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "oldphoto-scratch-detector-fp16.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/oldphoto-scratch-detector-fp16.onnx",
+          "size": 75390532,
+          "sha256": "fe7de75f936f6330d61d3acf7fb597586aa5a329abf1aef8f63bac1413c211f5"
+        },
+        {
+          "name": "LICENSE-Bringing-Old-Photos.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-3/LICENSE-Bringing-Old-Photos.txt",
+          "size": 1141,
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+        }
+      ]
+    },
+    {
+      "id": "ddcolor-tiny",
+      "name": "DDColor tiny",
+      "version": "models-1",
+      "purpose": "Colours a black-and-white or sepia photo, guessing its colours from what photos usually look like, then laying them on the picture's own light. Mado fetches it the first time colouring is asked for.",
+      "licence": "Apache-2.0",
+      "home": "https://github.com/piddnad/DDColor",
+      "url": null,
+      "size": 270266480,
+      "sha256": null,
+      "keep": null,
+      "by": "mado",
+      "when": "asked",
+      "files": [
+        {
+          "name": "ddcolor-tiny.onnx",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/ddcolor-tiny.onnx",
+          "size": 270255124,
+          "sha256": "acaa5c2ae44fa2fabdf1f290d67656fa1e8fec644e80a289f5d5c77651cbc273"
+        },
+        {
+          "name": "LICENSE-DDColor.txt",
+          "url": "https://github.com/frankgrobbelaar/mado/releases/download/models-1/LICENSE-DDColor.txt",
+          "size": 11356,
+          "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+        }
+      ]
+    },
+    {
       "id": "style-van-gogh-starry-night",
       "name": "After Van Gogh",
       "version": "models-3",

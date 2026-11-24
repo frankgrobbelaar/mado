@@ -76,6 +76,8 @@ def test_the_list_says_what_each_download_is_and_where_it_comes_from():
         "scunet",
         "fbcnn",
         "nafnet",
+        "oldphoto-scratch-detector",
+        "ddcolor-tiny",
         "style-van-gogh-starry-night",
         "style-hokusai-great-wave",
         "style-monet-water-lilies-1915",
@@ -193,6 +195,28 @@ def test_the_fixes_models_come_from_mados_first_and_third_sets_with_their_licenc
     assert next(each.name for each in models["nafnet"].files) == "nafnet-gopro-width32.onnx"
 
 
+def test_restorings_models_come_with_their_licences_named_as_restoring_looks_for_them():
+    models = {
+        item.id: item
+        for item in manifest()
+        if item.id in ("oldphoto-scratch-detector", "ddcolor-tiny")
+    }
+
+    detector, colourer = models["oldphoto-scratch-detector"], models["ddcolor-tiny"]
+    assert (detector.name, detector.licence) == ("Old-photo scratch detector", "MIT")
+    assert (colourer.name, colourer.licence) == ("DDColor tiny", "Apache-2.0")
+    for item in (detector, colourer):
+        assert item.when == "asked"
+        assert item.size == sum(each.size for each in item.files)
+        assert any(each.name.startswith("LICENSE") for each in item.files)
+        assert all(re.fullmatch(r"[0-9a-f]{64}", each.sha256) for each in item.files)
+    # Each model's file is named as mado/ai.py looks for it, in the set it was published in.
+    assert detector.files[0].name == "oldphoto-scratch-detector-fp16.onnx"
+    assert colourer.files[0].name == "ddcolor-tiny.onnx"
+    assert all("/releases/download/models-3/" in each.url for each in detector.files)
+    assert all("/releases/download/models-1/" in each.url for each in colourer.files)
+
+
 def test_the_painting_styles_come_from_mados_third_set_with_their_licences():
     painters = [item for item in manifest() if item.id.startswith("style-")]
     microast = next(item for item in manifest() if item.id == "microast")
@@ -244,6 +268,8 @@ def test_only_mados_own_downloads_are_offered_by_the_engine(paths: DataPaths):
         "scunet",
         "fbcnn",
         "nafnet",
+        "oldphoto-scratch-detector",
+        "ddcolor-tiny",
         "style-van-gogh-starry-night",
         "style-hokusai-great-wave",
         "style-monet-water-lilies-1915",

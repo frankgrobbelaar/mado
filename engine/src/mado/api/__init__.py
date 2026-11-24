@@ -428,7 +428,8 @@ def create_app(
         allow_origins=APP_ORIGINS,
         allow_methods=["*"],
         allow_headers=["Authorization", "Content-Type"],
-        expose_headers=["X-Made-In"],  # how long a preview took, which the Size tab shows
+        # how long a preview took, which the Size tab shows; and what the scratch detector found
+        expose_headers=["X-Made-In", "X-Found", "X-Place", "X-Waited"],
     )
     guarded = [Depends(require_token), Depends(require_records)]
     parts = (

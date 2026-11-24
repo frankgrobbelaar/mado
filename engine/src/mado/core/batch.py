@@ -3,9 +3,11 @@ from 23:00 till 07:00), the pictures See it first makes, what the rest takes by 
 whether a drive has room, a batch's steps and the words for them. Pure.
 
 A batch's steps are a list, each its kind of step and its choices (`{"step": "size", ...}`), so
-later pieces add kinds of their own. They're made in Mado's order, the subject cut out, the
-fixes, the size, the depth tools and then the look, whatever order they're listed in, and saved
-as the batch says.
+later pieces add kinds of their own. They're made in Mado's order, the subject cut out,
+restoring, the fixes, the size, the depth tools and then the look, whatever order they're listed
+in, and saved as the batch says. A batch's restoring colours each picture that isn't in colour
+and brings back each colour photo's faded colours, but never fills scratches: the detector's mask
+is each picture's own, and only the owner can tell a scratch from a line that belongs there.
 """
 
 from collections.abc import Sequence
@@ -22,6 +24,7 @@ NIGHT = (time(23, 0), time(7, 0))  # when a batch for tonight runs
 MARGIN = 256 * 1024 * 1024  # bytes kept free on a drive, so Windows and other apps have room
 ORDER = (
     "cutout",
+    "restore",
     "fix",
     "size",
     "depth",
@@ -108,9 +111,9 @@ def steps_in_order(steps: Sequence[Step]) -> list[Step]:
 
 
 def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
-    """Steps as a job keeps its recipe: its edits (the subject cut out), its fixes, its size
-    step, its depth step and its look step, any of them None. Raises StepError for none, two of a
-    kind, or a kind this Mado doesn't know."""
+    """Steps as a job keeps its recipe: its edits (the subject cut out), its restoring, its
+    fixes, its size step, its depth step and its look step, any of them None. Raises StepError
+    for none, two of a kind, a kind this Mado doesn't know, or scratches asked of a batch."""
     found: dict[str, dict[str, object]] = {}
     for step in steps:
         kind = str(step.get("step"))
@@ -124,8 +127,19 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
         found[kind] = {key: value for key, value in step.items() if key != "step"}
     if not found:
         raise StepError(
-            "Pick what to do first: cut out the subject, fix them, make them for a screen, give "
-            "them depth, paint them in a style, or give them a look."
+            "Pick what to do first: cut out the subject, restore them, fix them, make them for a "
+            "screen, give them depth, paint them in a style, or give them a look."
+        )
+    restore = found.get("restore")
+    if restore is not None and restore.get("scratches") is not None:
+        raise StepError(
+            "Scratches are filled one picture at a time, on its page, where you check what Mado "
+            "found: take them out of the Restore step."
+        )
+    if restore is not None and all(restore.get(kind) is None for kind in ("colour", "faded")):
+        raise StepError(
+            "The Restore step has nothing turned on: turn on colouring or faded colours, or take "
+            "the step out."
         )
     fix = found.get("fix")
     if fix is not None and all(fix.get(kind) is None for kind in ("noise", "blur", "jpeg", "dark")):
@@ -151,6 +165,15 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
     )
     return {
         "edit": edit,
+        "restore": {
+            "version": None,
+            "scratches": None,
+            "colour": restore.get("colour"),
+            "faded": restore.get("faded"),
+            "each": True,  # each picture as it needs: coloured, or its faded colours back
+        }
+        if restore is not None
+        else None,
         "fix": found.get("fix"),
         "size": found.get("size"),
         "depth": found.get("depth"),
@@ -161,6 +184,7 @@ def recipe_of(steps: Sequence[Step]) -> dict[str, object]:
 
 _SAID = {
     "cutout": "cut-out",
+    "restore": "restore step",
     "fix": "set of fixes",
     "size": "size",
     "depth": "set of depth tools",
@@ -261,10 +285,11 @@ def told(
     edit: str | None = None,
     fix: str | None = None,
     depth: str | None = None,
+    restore: str | None = None,
 ) -> tuple[str, str]:
     """A batch done, as its notification says it: "Holiday prints is done", "48 pictures made
     for TV 8K · 1 didn't work", "12 pictures made: cut out the subject"."""
-    edit = ", ".join(each for each in (edit, fix) if each) or None
+    edit = ", ".join(each for each in (edit, restore, fix) if each) or None
     look = " and ".join(each for each in (depth, look) if each) or None
     if made == 0:
         whole = failed

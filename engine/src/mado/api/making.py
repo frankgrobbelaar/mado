@@ -14,7 +14,7 @@ import time
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime
-from math import ceil
+from math import ceil, floor
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -26,7 +26,7 @@ from PIL import Image
 from pydantic import Field
 
 from mado import own_looks, own_styles
-from mado.ai import BIREFNET
+from mado.ai import BIREFNET, COLOURER, DETECTOR, Ai
 from mado.api.common import (
     ApiModel,
     Copies,
@@ -41,10 +41,11 @@ from mado.api.common import (
 )
 from mado.api.depth import DepthStepIn, depthing_of
 from mado.api.editing import changed
-from mado.api.edits import EditStepIn, PartIn, editing_of, picked
+from mado.api.edits import EditIn, EditStepIn, PartIn, editing_of, edits_of, picked
 from mado.api.fixes import FixesOut, FixStepIn, fixing_of
 from mado.api.jobs import Job, job_of
 from mado.api.looks import LookIn
+from mado.api.restore import RestoreStepIn, rechecked, restoring_of, tied
 from mado.api.styles import UNREAD_STYLE, PaintHereIn
 from mado.core.depth import DepthError, depthing_json
 from mado.core.edits import Edit, EditError, Editing, Part, as_json
@@ -65,6 +66,14 @@ from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
 from mado.core.painting import Painting, Style, enlarged, working_size
 from mado.core.quality import Format, about_bytes, colour_words, suited
 from mado.core.recipe import Plan, Recipe, Sizing, Styling
+from mado.core.restore import (
+    MOST_MASK,
+    RestoreError,
+    Restoring,
+    changing,
+    covers,
+    restoring_json,
+)
 from mado.core.sizes import (
     MAX_SIDE,
     PRINTS,
@@ -95,6 +104,7 @@ from mado.making import (
     picture_of,
     placed,
     planned,
+    restore_seconds,
     screens_kept,
     split_alpha,
     waiting_for,
@@ -102,6 +112,7 @@ from mado.making import (
 from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import Previews, Source, version
 from mado.quarantine import Quarantine
+from mado.restoring import Prepared, RestoringError, too_much
 from mado.system import pictures_folder
 from mado.upscale import (
     Pixels,
@@ -173,10 +184,11 @@ class LookHereIn(LookIn):
 
 
 class RecipeIn(ApiModel):
-    """A recipe: the edits, the fixes, the size step, the depth step, the painting step, then the
-    look step; any can be left out."""
+    """A recipe: the edits, restoring, the fixes, the size step, the depth step, the painting
+    step, then the look step; any can be left out."""
 
     edit: EditStepIn | None = None
+    restore: RestoreStepIn | None = None
     fix: FixStepIn | None = None
     size: SizeIn | None = None
     depth: DepthStepIn | None = None
@@ -229,6 +241,15 @@ class PlanOut(ApiModel):
     depth: str | None  # the depth tools, as Save and History say them: "portrait blur at f/2.8"
     depth_seconds: float  # of `seconds`, about how long the depth tools take
     depth_place: Literal["card", "processor"] | None  # where the depth model runs; None without
+    restore: str | None  # restoring, as Save and History say it: "filled its scratches and dust"
+    restore_seconds: float  # of `seconds`, about how long restoring takes
+    # where the detector and DDColor run (the processor when the card has no room left for them);
+    # None without restoring that needs them
+    restore_place: Literal["card", "processor"] | None
+    restore_covers: float | None  # how much of the picture the scratches' mask covers, 0 to 1
+    scratch_place: (
+        Literal["card", "processor"] | None
+    )  # where the scratches are found; None without
     paint_place: Literal["card", "processor"] | None  # where its painting is made; None without
     paint_note: str | None  # a painting made far bigger than it's painted: its strokes soft close
     seconds: float  # about how long it takes here
@@ -338,6 +359,7 @@ def plan_for(
     recipe = _recipe(body, conn, source.version, picture.path.name)
     here = ai.where()
     made = _planned(recipe, picture, source, seen, sight, ai, editor)
+    recipe, made, covers = _emptied(recipe, made, picture, source, seen, sight, ai, editor)
     fixers = fix_models(made.fixing, made.fix_quality)
     fix_on = ai.fix_place(fixers) if fixers else None
     painting = made.painting
@@ -351,6 +373,15 @@ def plan_for(
     frame = made.frame
     names = {item.id: item for item, _ in toolbox.status()}
     measured = made.model is not None and key(made.model.id, here.place) in here.speeds
+    restoring = made.restoring
+    restore_on = (ai.restore_place(DETECTOR), ai.restore_place(COLOURER))
+    # Where restoring runs: on the processor when a model it uses does (LaMa runs where this PC
+    # runs the models); faded colours alone use none.
+    find_on = restore_on[0] if restoring is not None and restoring.scratches is not None else None
+    colour_on = restore_on[1] if restoring is not None and restoring.colour else None
+    in_use = [place for place in (find_on, colour_on) if place is not None]
+    restore_place = ("processor" if "processor" in in_use else here.place) if in_use else None
+    missing = waiting_for(made, ai)
     return PlanOut(
         width=made.width,
         height=made.height,
@@ -380,10 +411,21 @@ def plan_for(
         depth=made.depth,
         depth_seconds=depth_seconds(made, depth_on, ai.edit_place(BIREFNET)),
         depth_place=depth_on if made.depthing is not None else None,
+        restore=made.restore,
+        restore_seconds=restore_seconds(made, here.place, restore_on),
+        restore_place=restore_place,
+        restore_covers=covers,
+        scratch_place=find_on,
         paint_place=paint_on,
         paint_note=enlarged(painting, made.width, made.height) if painting is not None else None,
         seconds=estimated(
-            made, here, ai.edit_place(BIREFNET), fix_on, paint_on=paint_on, depth_on=depth_on
+            made,
+            here,
+            ai.edit_place(BIREFNET),
+            fix_on,
+            paint_on=paint_on,
+            depth_on=depth_on,
+            restore_on=restore_on,
         ),
         place=here.place,
         measured=measured,
@@ -396,10 +438,76 @@ def plan_for(
         nothing_behind=made.see_through,
         needs=[
             Need(id=each, name=names[each].name, size=names[each].size or 0)
-            for each in waiting_for(made, ai)
+            for each in missing
             if each in names
         ],
     )
+
+
+def _laid_round(
+    pixels: Pixels, prepared: Prepared, box: Box, margin: int, editor: Editor
+) -> tuple[Pixels, bytes | None]:
+    """The picture's pixels (as its edits leave it, its scratches filled) with colour and faded
+    colours laid on round a part (`box`, in its pixels, `margin` more each way): only what the
+    part is made from. And its colour profile, as laying colour leaves it (a grey picture's own
+    goes once it's coloured)."""
+    height, width = pixels.shape[:2]
+    left, top = max(0, floor(box.x) - margin), max(0, floor(box.y) - margin)
+    right = min(width, ceil(box.x + box.width) + margin)
+    bottom = min(height, ceil(box.y + box.height) + margin)
+    crop = prepared.picture.crop((left, top, right, bottom))
+    crop.info = dict(prepared.picture.info)
+    shown = editor.restorer.shown(prepared, crop, (left, top, right, bottom))
+    out = pixels.copy()
+    out[top:bottom, left:right] = np.asarray(shown.convert("RGBA" if out.shape[2] == 4 else "RGB"))
+    profile = shown.info.get("icc_profile")
+    return out, profile if isinstance(profile, bytes) else None
+
+
+def _emptied(
+    recipe: Recipe,
+    made: Plan,
+    picture: Picture,
+    source: Source,
+    seen: Seen,
+    sight: Sight,
+    ai: Ai,
+    editor: Editor,
+) -> tuple[Recipe, Plan, float | None]:
+    """The recipe and its plan as the scratches' mask leaves them, and how much of the picture
+    the mask covers (None without scratches, or while the detector can't run). A mask covering
+    nothing (Mado found none, and none was painted) fills nothing: restoring goes on without its
+    scratches, and with nothing else on there's nothing to restore, so Save, History and the
+    picture's new name never say scratches were filled."""
+    restoring = made.restoring
+    if restoring is None or restoring.scratches is None or DETECTOR in waiting_for(made, ai):
+        return recipe, made, None
+    share = _covers(picture, source, made, sight, editor)
+    if share != 0:
+        return recipe, made, share
+    rest = replace(restoring, scratches=None)
+    unscratched = replace(recipe, restoring=rest if changing(rest) else None)
+    return unscratched, _planned(unscratched, picture, source, seen, sight, ai, editor), share
+
+
+def _covers(
+    picture: Picture, source: Source, made: Plan, sight: Sight, editor: Editor
+) -> float | None:
+    """How much of the picture the scratches' mask covers, as found and painted (the detector run
+    now when it hasn't been yet); None when the detector can't run."""
+    assert made.restoring is not None  # noqa: S101 - asked for with scratches
+    edits = made.editing.edits if made.editing else ()
+    key = picture_key(picture.path, source.version)
+    try:
+        decoded = sight.picture(picture, source.version)
+        mask = editor.scratch_mask(decoded, key, edits, made.restoring)
+    except ModelError:
+        return None
+    except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
+        raise _refused(error) from None
+    except EditingError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+    return covers(mask)  # as it is: one dab of the finest brush is something to fill
 
 
 _PREVIEWS: dict[int | str, dict[str, object]] = {
@@ -450,7 +558,7 @@ def preview(
         image = _previewed(picture, source, seen, made, body, sight, ai, copies, editor, depths)
     except ModelError as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
-    except EditingError as error:
+    except (EditingError, RestoringError) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
         raise _refused(error) from None
@@ -486,7 +594,7 @@ def fixes_for(picture_id: int, conn: Database, sight: Seeing) -> FixesOut:
     quality = seen.jpeg
     try:
         measured = sight.measured(
-            (str(picture.path).casefold(), source.version, None),
+            (str(picture.path).casefold(), source.version, None, None),
             lambda: sight.picture(picture, source.version),
         )
     except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
@@ -501,7 +609,59 @@ def fixes_for(picture_id: int, conn: Database, sight: Seeing) -> FixesOut:
         see_through=seen.alpha,
         colour=colour_words(seen.profile, keep=True),
         megapixels=round(seen.width * seen.height / 1e6, 1),
+        colours=seen.colours,
+        tone=seen.tone,
     )
+
+
+_PNG: dict[int | str, dict[str, object]] = {200: {"content": {"image/png": {}}}}
+
+
+class ScratchesAsk(ApiModel):
+    """What the scratch detector is to look at: the picture as `edits` leave it, as it was at
+    `version`."""
+
+    version: str
+    edits: Annotated[list[EditIn], Field(default_factory=list[EditIn], max_length=64)]
+
+
+@router.post("/pictures/{picture_id}/scratches", response_class=Response, responses=_PNG)
+def scratches(
+    picture_id: int, body: ScratchesAsk, conn: Database, sight: Seeing, editor: Editors
+) -> Response:
+    """What the scratch detector finds on the picture as its edits leave it, as a mask at the
+    mask's size (PNG, white where it found scratches and dust), kept by the picture's version:
+    how long finding took (`X-Made-In`), how much of the picture it covers (`X-Found`, 0 to 1),
+    where it ran (`X-Place`) and how long it waited for the graphics card (`X-Waited`). 409 while
+    the detector isn't downloaded, or once the picture changed."""
+    picture, _, source = _seen(conn, sight, picture_id)
+    if body.version != source.version:
+        raise HTTPException(status.HTTP_409_CONFLICT, rechecked(picture.path.name))
+    try:
+        editing = edits_of(body.edits, body.version)
+    except EditError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+    key = picture_key(picture.path, source.version)
+    try:
+        decoded = sight.picture(picture, source.version)
+        found = editor.found(decoded, key, editing.edits)
+    except ModelError as error:
+        downloaded = editor.restorer.ready()
+        code = status.HTTP_503_SERVICE_UNAVAILABLE if downloaded else status.HTTP_409_CONFLICT
+        raise HTTPException(code, str(error)) from None
+    except EditingError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
+    except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
+        raise _refused(error) from None
+    out = io.BytesIO()
+    Image.fromarray(found.mask, "L").save(out, format="PNG", compress_level=1)
+    headers = {
+        "X-Made-In": f"{found.seconds:.2f}",
+        "X-Found": repr(covers(found.mask)),  # a speck found is never said as nothing
+        "X-Place": found.place or "",
+        "X-Waited": f"{found.waited:.2f}",
+    }
+    return Response(out.getvalue(), media_type="image/png", headers=headers)
 
 
 @router.post("/pictures/{picture_id}/saving")
@@ -565,6 +725,9 @@ def make(
     picture, seen, source = _seen(conn, sight, picture_id)
     recipe = _recipe(body.recipe, conn, source.version, picture.path.name)
     made = _planned(recipe, picture, source, seen, sight, ai, editor)
+    recipe, made, share = _emptied(recipe, made, picture, source, seen, sight, ai, editor)
+    if share is not None and share > MOST_MASK:  # filling it would invent most of it
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, too_much(share))
     as_is = made.empty and _pasted(conn, picture_id)  # a paste saved as it is
     if made.empty and not as_is:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _nothing(recipe))
@@ -617,6 +780,7 @@ def make(
     order = {
         "recipe": {
             "edit": as_json(recipe.editing) if recipe.editing else None,  # its version too
+            "restore": restoring_json(made.restoring),  # the scratches' version too
             "fix": fixing_json(fixing),
             "size": decided.model_dump(by_alias=True) if decided else None,
             "depth": depthing_json(depthing),
@@ -629,6 +793,7 @@ def make(
         "edit": made.edit,
         "fix": made.fix,
         "depth": made.depth,
+        "restore": made.restore,
         "estimate": round(made.scale, 3),
         "as_is": as_is,
     }
@@ -670,6 +835,7 @@ def _previewed(
                 made.frame,
                 size,
                 made.editing,
+                made.restoring,
                 made.fixing,
                 made.fix_quality,
             ),
@@ -722,17 +888,31 @@ def _previewed(
         grown = Region(x=left, y=top, width=right - left, height=bottom - top)
     version_ = _version_of(picture)
     decoded = sight.picture(picture, version_)
-    state = editor.state(decoded, key, edits) if edits else decoded
+    restoring = made.restoring
+    changed = bool(edits) or restoring is not None
+    extending = made.frame.shape == "extend" and made.frame.sides != "none"
+    # Colour and faded colours are laid only round the part, on what's kept (the picture with its
+    # scratches filled, DDColor's colours, the levels): a strength moved never lays them on all of
+    # it. An extended canvas is drawn by LaMa from the picture as restoring leaves it, whole.
+    prepared = (
+        editor.prepared(decoded, key, edits, restoring)
+        if restoring is not None and (restoring.colour or restoring.faded) and not extending
+        else None
+    )
+    if prepared is not None:
+        state = prepared.picture
+    else:
+        state = editor.state(decoded, key, edits, restoring=restoring) if changed else decoded
     profile = state.info.get("icc_profile")
     offset = (0, 0)
-    if made.frame.shape == "extend" and made.frame.sides != "none":
+    if extending:
         pixels, kept, offset = sight.extended(
             picture,
             version_,
             made.frame.canvas,
             ai.filler,
-            image=state if edits else None,
-            also=made.editing,
+            image=state if changed else None,
+            also=(made.editing, restoring),
         )
     else:
         # A cut-out's see-through parts as a fourth channel: worked out round the part below,
@@ -757,10 +937,13 @@ def _previewed(
         )
         return _profiled(stretched, profile)
     made_box, made_size = box_of(grown), (grown.width, grown.height)
+    if prepared is not None:
+        reach_round = MARGIN + 8 if made.fixing is not None else 8  # the fixes' margin, resizing's
+        pixels, profile = _laid_round(pixels, prepared, made_box, reach_round, editor)
     source_pixels, source_part = pixels, made_box
     if made.fixing is not None:  # fixed round the part, as the whole picture measures
         measured = (
-            _measure(picture, version_, made.editing, sight, editor, decoded)
+            _measure(picture, version_, made.editing, sight, editor, decoded, restoring)
             if made.fixing.dark is not None
             else None
         )
@@ -784,6 +967,7 @@ def _previewed(
                 made.frame,
                 fit,
                 made.editing,
+                made.restoring,
                 made.fixing,
                 made.fix_quality,
             ),
@@ -907,6 +1091,7 @@ def _working(
         source.version,
         made.frame,
         made.editing,
+        made.restoring,
         made.fixing,
         made.fix_quality,
         style.id,
@@ -950,16 +1135,19 @@ def _planned(
     ai: Models,
     editor: Editor,
 ) -> Plan:
-    """The plan for a recipe, with how dark the picture measures as its edits leave it, once
-    the dark photo fix asks (worked out once, as the previews' own)."""
+    """The plan for a recipe, with how dark the picture measures as its edits and restoring
+    leave it, once the dark photo fix asks (worked out once, as the previews' own)."""
     stops = None
     if recipe.fixing is not None and recipe.fixing.dark is not None:
         editing = recipe.editing if recipe.editing and recipe.editing.edits else None
+        restoring = planned(recipe, seen, ai.starts_on(), ai.fix_starts_on()).restoring
         try:
-            stops = _measure(picture, source.version, editing, sight, editor).stops
+            stops = _measure(
+                picture, source.version, editing, sight, editor, restoring=restoring
+            ).stops
         except (UnreadableError, PictureGoneError, NeedsFfmpegError, NeedsReaderError) as error:
             raise _refused(error) from None
-        except EditingError as error:
+        except (EditingError, RestoringError) as error:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
         except ModelError as error:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from None
@@ -1043,6 +1231,7 @@ def _nothing(recipe: Recipe) -> str:
         and recipe.sizing is None
         and recipe.styling is None
         and recipe.painting is None
+        and recipe.restoring is None
     ):
         return unchanged(recipe.fixing)
     return _NOTHING
@@ -1055,18 +1244,20 @@ def _measure(
     sight: Sight,
     editor: Editor,
     decoded: Image.Image | None = None,
+    restoring: Restoring | None = None,
 ) -> Measure:
-    """What the dark photo fix takes from the whole picture, as its edits leave it, worked out
-    once."""
+    """What the dark photo fix takes from the whole picture, as its edits and restoring leave
+    it, worked out once."""
     edits = editing.edits if editing else ()
 
     def image() -> Image.Image:
         whole = decoded if decoded is not None else sight.picture(picture, version_)
-        if not edits:
+        if not edits and restoring is None:
             return whole
-        return editor.state(whole, picture_key(picture.path, version_), edits)
+        key = picture_key(picture.path, version_)
+        return editor.state(whole, key, edits, restoring=restoring)
 
-    return sight.measured((str(picture.path).casefold(), version_, editing), image)
+    return sight.measured((str(picture.path).casefold(), version_, editing, restoring), image)
 
 
 def _fixed_round(
@@ -1149,7 +1340,9 @@ def _fitted(
     image = _cut(picture, source, seen, made, size, sight, ai, copies, editor)
     if made.fixing is None or made.fixing.dark is None:
         return image
-    measured = _measure(picture, _version_of(picture), made.editing, sight, editor)
+    measured = _measure(
+        picture, _version_of(picture), made.editing, sight, editor, restoring=made.restoring
+    )
     extending = made.frame.shape == "extend" and made.frame.sides != "none"
     shown = made.frame.canvas if extending else made.frame.kept
     profile = image.info.get("icc_profile")
@@ -1186,20 +1379,35 @@ def _cut(
 ) -> Image.Image:
     """The picture made, `size` big, before its fixes: from its view the size of a screen, cut
     as its plan says (or from the picture itself, when the view has fewer pixels than that, or
-    as its edits left it); or, with its edges extended, from the canvas LaMa drew."""
+    as its edits left it, restored: its scratches filled at full size, its colour laid on the
+    copy); or, with its edges extended, from the canvas LaMa drew."""
     edits = made.editing.edits if made.editing else ()
+    restoring = made.restoring
     key = picture_key(picture.path, source.version)
     if made.frame.shape == "extend" and made.frame.sides != "none":
         version_ = _version_of(picture)
         whole = sight.picture(picture, version_)
-        state = editor.state(whole, key, edits) if edits else None
+        changed = bool(edits) or restoring is not None
+        state = editor.state(whole, key, edits, restoring=restoring) if changed else None
         canvas, kept, _at = sight.extended(
-            picture, version_, made.frame.canvas, ai.filler, image=state, also=made.editing
+            picture,
+            version_,
+            made.frame.canvas,
+            ai.filler,
+            image=state,
+            also=(made.editing, restoring),
         )
         profile = (state or whole).info.get("icc_profile")
         return _profiled(Image.fromarray(smaller(canvas, kept, size)), profile)
     kept = made.frame.kept
     box = (kept.x, kept.y, kept.x + kept.width, kept.y + kept.height)
+    if restoring is not None:
+        prepared = editor.prepared(sight.picture(picture, source.version), key, edits, restoring)
+        base = prepared.picture
+        small = _profiled(
+            base.resize(size, Image.Resampling.LANCZOS, box=box), base.info.get("icc_profile")
+        )
+        return editor.restorer.shown(prepared, small, box)
     if edits:
         state = editor.state(sight.picture(picture, source.version), key, edits)
         return _profiled(
@@ -1343,10 +1551,14 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
         editing: Editing | None = editing_of(body.edit)
         fixing = fixing_of(body.fix)
         depthing = depthing_of(body.depth)
-    except (EditError, FixError, DepthError) as error:
+        restoring = restoring_of(body.restore)
+    except (EditError, FixError, DepthError, RestoreError) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     if editing is not None and editing.version is not None and editing.version != now:
         raise HTTPException(status.HTTP_409_CONFLICT, changed(name, edited=bool(editing.edits)))
+    # The scratches' strokes were painted on the picture as it was: once it's changed, they're
+    # refused as edits are. A picture's own page always ties them to its version.
+    restoring = tied(restoring, now, name)
     picked_parts = (styling is not None and styling.parts) or (
         painting is not None and painting.parts
     )
@@ -1354,7 +1566,15 @@ def _recipe(body: RecipeIn, conn: sqlite3.Connection, now: str, name: str) -> Re
         # Parts picked for a look or a painting are tied to the picture as it is, as edits are:
         # a Save that finds it changed saves nothing.
         editing = Editing(editing.edits if editing else (), now)
-    return Recipe(sizing, styling, editing, fixing, depthing=depthing, painting=painting)
+    return Recipe(
+        sizing,
+        styling,
+        editing,
+        fixing,
+        depthing=depthing,
+        painting=painting,
+        restoring=restoring,
+    )
 
 
 def _refused(error: Exception) -> HTTPException:

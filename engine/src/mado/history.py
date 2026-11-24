@@ -49,6 +49,7 @@ class Entry:
     edit: str | None = None  # what was edited first: "erased a part"
     fix: str | None = None  # what the fixes did: "took out noise"
     depth: str | None = None  # the depth tools: "portrait blur at f/2.8", or "into a 3D photo"
+    restore: str | None = None  # what restoring did: "filled its scratches and dust"
 
 
 @dataclass(frozen=True)
@@ -74,10 +75,19 @@ def made(
     edit: str | None = None,
     fix: str | None = None,
     depth: str | None = None,
+    restore: str | None = None,
 ) -> int:
     """A new picture made beside (or away from) its original (or a 3D photo's video)."""
     return _insert(
-        conn, now, "made", job_id, name, (made_for, look, edit, fix, depth), original, result, None
+        conn,
+        now,
+        "made",
+        job_id,
+        name,
+        (made_for, look, edit, fix, depth, restore),
+        original,
+        result,
+        None,
     )
 
 
@@ -95,6 +105,7 @@ def replaced(
     edit: str | None = None,
     fix: str | None = None,
     depth: str | None = None,
+    restore: str | None = None,
 ) -> int:
     """An original replaced by a picture made from it, the original set aside."""
     return _insert(
@@ -103,7 +114,7 @@ def replaced(
         "replaced",
         job_id,
         name,
-        (made_for, look, edit, fix, depth),
+        (made_for, look, edit, fix, depth, restore),
         original,
         result,
         aside,
@@ -456,8 +467,8 @@ def _insert(
     kind: Kind,
     job_id: int | None,
     name: str,
-    # its size's, its look's, its edits', its fixes' and its depth tools' words
-    made: tuple[str | None, str | None, str | None, str | None, str | None],
+    # its size's, its look's, its edits', its fixes', its depth tools' and restoring's words
+    made: tuple[str | None, str | None, str | None, str | None, str | None, str | None],
     original: Path,
     result: Path,
     aside: Path | None,
@@ -466,8 +477,8 @@ def _insert(
     with conn:
         row = conn.execute(
             """INSERT INTO history (at, kind, job_id, name, made_for, look, edit, fix, depth,
-                                    original, result, aside, aside_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+                                    restore, original, result, aside, aside_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (
                 stamp,
                 kind,
@@ -478,6 +489,7 @@ def _insert(
                 made[2],
                 made[3],
                 made[4],
+                made[5],
                 str(original),
                 str(result),
                 str(aside) if aside else None,
@@ -527,6 +539,7 @@ def _entry(row: sqlite3.Row) -> Entry:
         edit=row["edit"],
         fix=row["fix"],
         depth=row["depth"],
+        restore=row["restore"],
     )
 
 
@@ -542,6 +555,7 @@ def _names(found: Entry, words: list[str]) -> bool:
             found.made_for,
             found.look,
             found.edit,
+            found.restore,
             found.fix,
             found.depth,
             found.original,

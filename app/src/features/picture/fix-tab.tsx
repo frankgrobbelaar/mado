@@ -9,6 +9,9 @@ import {
   type Plan,
   type Quality,
   type Recipe,
+  type RestoreStep,
+  type Scratches,
+  type Tool,
   useFixes,
   useTools,
 } from "@/lib/engine";
@@ -16,6 +19,8 @@ import { about } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ModelCard } from "./edit-tab";
 import { fixModels, jpegStrength } from "./fixes";
+import { hasRestore, MOST_MASK, restoreModels } from "./restore";
+import { RestoreSection } from "./restore-section";
 import { SaveSection } from "./save-section";
 
 const QUALITIES = [
@@ -35,54 +40,92 @@ const DOING: Record<string, string> = {
 };
 
 /**
- * The Fix tab: noise, blur from a shaking camera or a moving subject, JPEG blocks and a dark
- * photo, each turned on with its one setting, as no board draws it, so in the Edit tab's
- * patterns: a card of rows, each a fix. Mado suggests a fix only where it can measure the need
- * (a JPEG's own quality, how dark it is) and says when it found nothing; each model is
- * downloaded the first time it's needed, its size and progress said. The fixes are a step of the
- * picture's one recipe, made before it grows; nothing changes until Save.
+ * The Fix tab: restoring an old photo at its top (scratches and dust, then colour: made first),
+ * then noise, blur from a shaking camera or a moving subject, JPEG blocks and a dark photo, each
+ * turned on with its one setting, as no board draws it, so in the Edit tab's patterns: a card of
+ * rows, each a fix. Mado suggests a fix only where it can measure the need (a JPEG's own quality,
+ * how dark it is, a black-and-white or sepia print) and says when it found nothing; each model is
+ * downloaded the first time it's needed, its size and progress said. Restoring and the fixes are
+ * steps of the picture's one recipe, made before it grows; nothing changes until Save.
  */
 export function FixTab(props: {
   picture: PictureDetails;
   fix: FixStep;
   onFix: (fix: FixStep) => void;
+  /** Restoring, at the top of the tab: made before the fixes. */
+  restore: RestoreStep;
+  onRestore: (step: RestoreStep) => void;
+  /** The stage shows the scratches' mask and the brush. */
+  checking: boolean;
+  onChecking: (checking: boolean) => void;
+  scratches: Scratches;
+  brush: number;
+  onBrush: (brush: number) => void;
   recipe: Recipe | null;
   /** The plan for the recipe as it is now; null while it's on its way. */
   plan: Plan | null;
   settling: boolean;
+  /** Goes to the Size tab, to make a smaller copy of a scan too big to restore. */
+  onSize?: () => void;
 }) {
   const { picture, fix, plan } = props;
   const fixes = useFixes(picture);
   const tools = useTools();
   const found = fixes.data ?? null;
   const quality = plan?.fixQuality ?? fix.jpeg?.quality ?? null;
-  const waiting = fixModels(fix, quality)
-    .map((id) => tools.data?.find((tool) => tool.id === id))
-    .filter((tool) => tool !== undefined && tool.state !== "ready");
-  const on = Boolean(fix.noise || fix.blur || fix.jpeg || fix.dark);
+  const missing = (ids: string[]) =>
+    ids
+      .map((id) => tools.data?.find((tool) => tool.id === id))
+      .filter((tool): tool is Tool => tool !== undefined && tool.state !== "ready");
+  const fixesWait = missing(fixModels(fix, quality));
+  const waiting = [...missing(restoreModels(props.restore)), ...fixesWait];
+  const fixing = Boolean(fix.noise || fix.blur || fix.jpeg || fix.dark);
+  const on = fixing || hasRestore(props.restore);
   const megapixels = found?.megapixels ?? ((picture.width ?? 0) * (picture.height ?? 0)) / 1e6;
   // The fixes on change nothing in it (Dark photo on a picture that isn't dark): nothing to save.
   const nothing =
     on &&
     plan !== null &&
     plan.fix === null &&
+    plan.restore === null &&
     plan.method === "keep" &&
     plan.edit === null &&
     plan.look === null;
+  // A mask over most of the picture isn't filled: Save waits till less of it is masked.
+  const tooMuch = (plan?.restoreCovers ?? 0) > MOST_MASK;
+  const names = [...new Set(waiting.map((tool) => tool.name))].join(" and ");
   const caption = !on
     ? "Turn a fix on to see it: nothing changes until you save."
     : nothing
       ? fix.dark && found?.stops === 0
         ? "Nothing to save: it isn't dark, so Dark photo leaves it as it is."
-        : "Nothing to save: the fixes on change nothing in it."
-      : waiting.length
-        ? `Save waits for ${waiting.map((tool) => tool?.name).join(" and ")}, still to download.`
-        : `As a new picture beside the original, ${
-            picture.raw ? "the RAW staying as it is." : "unless you choose to replace it."
-          }`;
+        : props.restore.scratches && plan?.restoreCovers === 0 && !fixing
+          ? "Nothing to save: Mado found no scratches or dust, and none was painted."
+          : "Nothing to save: the fixes on change nothing in it."
+      : tooMuch
+        ? "Save waits till the mask covers less of the picture."
+        : waiting.length
+          ? `Save waits for ${names}, still to download.`
+          : `As a new picture beside the original, ${
+              picture.raw ? "the RAW staying as it is." : "unless you choose to replace it."
+            }`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3.5">
+      <RestoreSection
+        picture={picture}
+        fixes={found}
+        restore={props.restore}
+        onRestore={props.onRestore}
+        checking={props.checking}
+        onChecking={props.onChecking}
+        scratches={props.scratches}
+        brush={props.brush}
+        onBrush={props.onBrush}
+        plan={plan}
+        onSize={props.onSize}
+      />
+
       <section aria-labelledby="fixes" className="flex flex-col gap-2">
         <h2 id="fixes" className="type-eyebrow">
           Fix what's wrong
@@ -109,26 +152,30 @@ export function FixTab(props: {
         screenshot={plan?.kind === "screenshot"}
       />
 
-      <Notes picture={picture} fixes={found} plan={plan} on={on} megapixels={megapixels} />
+      <Notes
+        picture={picture}
+        fixes={found}
+        plan={plan}
+        on={on}
+        megapixels={megapixels}
+        coloured={Boolean(props.restore.colour)}
+      />
 
-      {waiting.map(
-        (tool) =>
-          tool && (
-            <ModelCard
-              key={tool.id}
-              tool={tool}
-              doing={DOING[tool.id] ?? tool.name}
-              offline="The fixes whose models are here already work now."
-            />
-          ),
-      )}
+      {fixesWait.map((tool) => (
+        <ModelCard
+          key={tool.id}
+          tool={tool}
+          doing={DOING[tool.id] ?? tool.name}
+          offline="The fixes whose models are here already work now."
+        />
+      ))}
 
       <SaveSection
         picture={picture}
         recipe={props.recipe}
         plan={props.settling ? null : plan}
-        ready={props.recipe !== null && !nothing}
-        quiet={!on || nothing}
+        ready={props.recipe !== null && !nothing && !tooMuch}
+        quiet={!on || nothing || tooMuch}
         caption={caption}
       />
     </div>
@@ -313,7 +360,7 @@ export function FixControls(props: {
 }
 
 /** A fix's row: what it mends, whether Mado suggests it, its switch, and its setting once on. */
-function FixRow(props: {
+export function FixRow(props: {
   title: string;
   detail: string;
   on: boolean;
@@ -364,7 +411,7 @@ function FixRow(props: {
 }
 
 /** A fix's one setting, 0 to 100%. */
-function Strength(props: {
+export function Strength(props: {
   label: string;
   value: number;
   onChange: (value: number) => void;
@@ -394,16 +441,24 @@ function Notes(props: {
   plan: Plan | null;
   on: boolean;
   megapixels: number;
+  /** Restoring colours it: it won't stay black and white. */
+  coloured?: boolean;
 }) {
   const { fixes, plan } = props;
   const said: string[] = [];
-  if (fixes?.grey) said.push("It stays black and white.");
+  if (fixes?.grey && !props.coloured) said.push("It stays black and white.");
   if (fixes?.seeThrough) said.push("Its see-through parts stay as they are.");
   if (fixes && fixes.colour !== "sRGB") said.push(`Its ${fixes.colour} colours are kept.`);
   const huge = props.on && props.megapixels >= HUGE;
-  // The card is too full of the models Mado has used to take the fixes': they run slower.
-  const crowded = props.on && plan?.place === "card" && plan.fixPlace === "processor";
+  // The card is too full of the models Mado has used to take the fixes' or restoring's: they run
+  // slower.
+  const crowded =
+    props.on &&
+    plan?.place === "card" &&
+    (plan.fixPlace === "processor" || plan.restorePlace === "processor");
   if (said.length === 0 && !huge && !crowded) return null;
+  const seconds = plan ? plan.fixSeconds + plan.restoreSeconds : 0;
+  const card = (plan?.fixPlace ?? plan?.restorePlace ?? plan?.place) === "card";
   return (
     <div className="flex flex-col gap-1.5">
       {said.length > 0 && <p className="text-12 text-fg-faint leading-normal">{said.join(" ")}</p>}
@@ -412,8 +467,9 @@ function Notes(props: {
           role="note"
           className="rounded-4 bg-tint/6 px-2.5 py-2 text-12 text-fg-soft leading-normal"
         >
-          Your graphics card is full of the models Mado has used since it started, so the fixes run
-          on the processor, slower. Restarting Mado frees the card.
+          Your graphics card is full of the models Mado has used since it started, so{" "}
+          {plan?.fixPlace === "processor" ? "the fixes run" : "restoring runs"} on the processor,
+          slower. Restarting Mado frees the card.
         </p>
       )}
       {huge && plan && (
@@ -421,10 +477,9 @@ function Notes(props: {
           role="note"
           className="rounded-4 bg-tint/6 px-2.5 py-2 text-12 text-fg-soft leading-normal"
         >
-          A big picture: {Math.round(props.megapixels)} megapixels, fixed a tile at a time, so Save
-          takes {about(plan.fixSeconds)} on{" "}
-          {(plan.fixPlace ?? plan.place) === "card" ? "your graphics card" : "the processor"}. Zoom
-          to 100% to see any part first: that's made in moments.
+          {plan.restoreSeconds > 0 && plan.fixSeconds === 0
+            ? `A big scan: ${Math.round(props.megapixels)} megapixels. Mado finds and fills its scratches on a smaller copy and lays them and its colour on at its full size, so Save takes ${about(seconds)} on ${card ? "your graphics card" : "the processor"}.`
+            : `A big picture: ${Math.round(props.megapixels)} megapixels, fixed a tile at a time, so Save takes ${about(seconds)} on ${card ? "your graphics card" : "the processor"}. Zoom to 100% to see any part first: that's made in moments.`}
         </p>
       )}
     </div>

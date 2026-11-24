@@ -24,7 +24,7 @@ import {
   useSettings,
 } from "@/lib/engine";
 import { openFolder, useExplorer } from "@/lib/explorer";
-import { count, dayAndTime, depthAs, editedAs, fixedAs, size } from "@/lib/format";
+import { count, dayAndTime, depthAs, editedAs, fixedAs, restoredAs, size } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SpaceCard } from "./space-card";
 import { WontOpen } from "./wont-open";
@@ -352,6 +352,7 @@ function Made({ made }: { made: MadeToday }) {
     made.madeFor ??
     made.look?.replace(/ at \d+%$/, "") ??
     editedAs(made.edit) ??
+    restoredAs(made.restore) ??
     fixedAs(made.fix) ??
     depthAs(made.depth) ??
     "";

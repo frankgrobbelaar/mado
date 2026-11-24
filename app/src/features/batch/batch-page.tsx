@@ -34,6 +34,7 @@ import {
   type LookStepItem,
   type PaintStepItem,
   type Picked,
+  type RestoreStepItem,
   type SizeStepItem,
   type Starts,
   shownQuery,
@@ -57,6 +58,7 @@ import {
   FixDialog,
   LookDialog,
   PaintDialog,
+  RestoreDialog,
   SavingDialog,
   SizeDialog,
 } from "./step-dialogs";
@@ -65,6 +67,7 @@ import {
   depthStep,
   fixStep,
   keepsNothing,
+  restoreStep,
   same,
   savingFor,
   savingFrom,
@@ -215,6 +218,7 @@ function Batch({ start }: { start: BatchStart }) {
   const size_ = steps.find((each): each is SizeStepItem => each.step === "size") ?? null;
   const cut = steps.find((step): step is CutoutStepItem => step.step === "cutout") ?? null;
   const fixing = steps.find((step): step is FixStepItem => step.step === "fix") ?? null;
+  const restoring = steps.find((step): step is RestoreStepItem => step.step === "restore") ?? null;
   const depthing = steps.find((step): step is DepthStepItem => step.step === "depth") ?? null;
   const look = steps.find((each): each is LookStepItem => each.step === "look") ?? null;
   const paint = steps.find((each): each is PaintStepItem => each.step === "paint") ?? null;
@@ -310,6 +314,7 @@ function Batch({ start }: { start: BatchStart }) {
               onAdd={(kind) => {
                 if (kind === "cutout") setSteps(withStep(steps, cutoutStep(), "cutout"));
                 if (kind === "fix") setSteps(withStep(steps, fixStep(), "fix"));
+                if (kind === "restore") setSteps(withStep(steps, restoreStep(), "restore"));
                 if (kind === "depth") setSteps(withStep(steps, depthStep(), "depth"));
                 setEditing(kind);
               }}
@@ -476,6 +481,19 @@ function Batch({ start }: { start: BatchStart }) {
           onClose={() => {
             if (!fixing.noise && !fixing.blur && !fixing.jpeg && !fixing.dark) {
               setSteps(withStep(steps, null, "fix")); // fixes all off aren't a step
+            }
+            setEditing(null);
+          }}
+        />
+      )}
+      {editing === "restore" && restoring && (
+        <RestoreDialog
+          step={restoring}
+          onStep={(step) => setSteps(withStep(steps, step, "restore"))}
+          onRemove={() => removed("restore")}
+          onClose={() => {
+            if (!restoring.colour && !restoring.faded) {
+              setSteps(withStep(steps, null, "restore")); // restoring all off isn't a step
             }
             setEditing(null);
           }}

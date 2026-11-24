@@ -7,6 +7,7 @@ import { about, madeWith, split, stem } from "@/lib/format";
 const STAGES = {
   reading: "Reading the picture",
   editing: "Making the edits",
+  restoring: "Restoring it",
   shaping: "Drawing the new edges",
   fixing: "Fixing it",
   making: "Making it bigger",

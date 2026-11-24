@@ -2,21 +2,24 @@
 it (a plan). Pure.
 
 The steps, in the order they're made: the edits (erased, cut out, blurred behind: the Edit tab,
-mado/core/edits.py), the fixes (noise, blur, JPEG blocks and darkness taken out: the Fix tab,
-mado/core/fixes.py), the size (cropped or extended, then made bigger: the Size tab), the depth
-tools (portrait blur, fog and tilt-shift, at the size made: the Depth tab, mado/core/depth.py),
-a painting style (mado/core/painting.py) and a look with its finishing touches, each on the whole
-picture or only a part (the Looks tab); then the picture is saved. The fixes are made on the part
-of the picture the size keeps, before it grows: noise and blocks come out first, and the
-upscaler, given a picture cleaned already, doesn't clean it again (Fast keeps what's left, with
-its weak-denoise twin). What the fixes make goes by what the picture measures: a picture that
-isn't dark isn't brightened, and a batch's JPEG blocks come out as hard as each JPEG was
-squeezed. The depth tools are made at the size made, so the upscaler sees the picture sharp and a
-lens's blur is drawn at the picture's own detail; they come before the painting, as a camera's
-lens and air come before a painter paints what it saw. The painting comes before the look, so a
-look grades the painted picture, and the touches go on top of both. Any step can be left out.
-Each step is a value that says all it does, so a recipe can be kept by name and run on many
-pictures ("4K, then Warm film at 60%, then JPEG into Edited").
+mado/core/edits.py), restoring (scratches and dust filled, a black-and-white picture coloured or
+faded colours brought back, at the picture's own size: the Fix tab, mado/core/restore.py), the
+fixes (noise, blur, JPEG blocks and darkness taken out: the Fix tab, mado/core/fixes.py), the
+size (cropped or extended, then made bigger: the Size tab), the depth tools (portrait blur, fog
+and tilt-shift, at the size made: the Depth tab, mado/core/depth.py), a painting style
+(mado/core/painting.py) and a look with its finishing touches, each on the whole picture or only
+a part (the Looks tab); then the picture is saved. Restoring comes before the fixes, so the
+colouring model never sees a scratch, and noise and JPEG blocks come out of the picture as
+restored. The fixes are made on the part of the picture the size keeps, before it grows: noise
+and blocks come out first, and the upscaler, given a picture cleaned already, doesn't clean it
+again (Fast keeps what's left, with its weak-denoise twin). What the fixes make goes by what the
+picture measures: a picture that isn't dark isn't brightened, and a batch's JPEG blocks come out
+as hard as each JPEG was squeezed. The depth tools are made at the size made, so the upscaler
+sees the picture sharp and a lens's blur is drawn at the picture's own detail; they come before
+the painting, as a camera's lens and air come before a painter paints what it saw. The painting
+comes before the look, so a look grades the painted picture, and the touches go on top of both.
+Any step can be left out. Each step is a value that says all it does, so a recipe can be kept by
+name and run on many pictures ("4K, then Warm film at 60%, then JPEG into Edited").
 
 The ways of making a picture bigger: the AI model, four times bigger, then resized exactly to
 the size made ("ai"); pixel art grown by repeating its pixels ("pixels"); a screenshot resized
@@ -46,6 +49,12 @@ from mado.core.painting import changes as paints
 from mado.core.painting import label as paint_label
 from mado.core.painting import phrase as paint_phrase
 from mado.core.quality import phrase as size_phrase
+from mado.core.restore import Kind as Colours
+from mado.core.restore import Restoring
+from mado.core.restore import changing as restores
+from mado.core.restore import for_picture as restoring_for
+from mado.core.restore import label as restore_label
+from mado.core.restore import phrase as restore_phrase
 from mado.core.sizes import Size, turned
 from mado.core.touches import NONE, Touches
 
@@ -84,6 +93,7 @@ class Recipe:
     fixing: Fixing | None = None  # made next, on the part the size keeps, before it grows
     depthing: Depthing | None = None  # made after the size, at the size made, before the painting
     painting: Painting | None = None  # made after the size and the depth tools, before the look
+    restoring: Restoring | None = None  # made after the edits, at the picture's own size
 
 
 @dataclass(frozen=True)
@@ -118,15 +128,19 @@ class Plan:
     depthing: Depthing | None = None  # the depth tools, made after the size, before the painting
     depth: str | None = None  # the depth tools as History says them: "portrait blur at f/2.8"
     painting: Painting | None = None  # the painting made after the size, when it changes it
+    restoring: Restoring | None = None  # restoring, made after the edits, when it changes it
+    restore: str | None = None  # restoring as History says it: "filled its scratches and dust"
+    source: tuple[int, int] = (0, 0)  # the picture's own size, as it's shown
 
     @property
     def empty(self) -> bool:
-        """Nothing to make: no edits, no fixes, no size, no depth tools, no painting and no look
-        that changes the picture."""
+        """Nothing to make: no edits, no restoring, no fixes, no size, no depth tools, no painting
+        and no look that changes the picture."""
         return (
             self.method == "keep"
             and self.styling is None
             and self.editing is None
+            and self.restoring is None
             and self.fixing is None
             and self.depthing is None
             and self.painting is None
@@ -144,13 +158,14 @@ def plan(
     fix_starts_on: Quality = "fast",
     stops: float | None = None,
     jpeg_saved_at: int | None = None,
+    colours: Colours = "colour",
 ) -> Plan:
     """How a `width` by `height` picture (as it's shown) is made to `recipe`. `guessed_kind` is
     what Mado takes it for, `found_focus` where it found the subject, `starts_on` the quality
     each kind starts on here, and `fix_starts_on` the one JPEG blocks start on (Best once its
     model is downloaded). `stops`: how dark the picture measures, as its edits leave it (None
     till it's measured: planned as if it's dark); `jpeg_saved_at`: its quality, when it's a
-    JPEG."""
+    JPEG; `colours`: what its colours are (a batch colours only what isn't in colour)."""
     sizing = recipe.sizing
     kind = sizing.kind if sizing and sizing.kind else guessed_kind
     quality = (sizing.quality if sizing else None) or starts_on[
@@ -173,6 +188,11 @@ def plan(
     edited = edit_label(editing)
     edit_words = edit_phrase(editing)
     clear = see_through(editing)
+    restoring = restoring_for(recipe.restoring, colours)
+    if not restores(restoring):
+        restoring = None  # restoring that changes nothing (colour at 0%) isn't a step
+    restored_as = restore_label(restoring)
+    restore_words = restore_phrase(restoring)
     dark = MOST_STOPS if stops is None else stops
     fixing = for_picture(
         recipe.fixing if recipe.fixing and recipe.fixing.on else None, jpeg_saved_at
@@ -205,7 +225,9 @@ def plan(
             made_for=None,
             styling=styling,
             look=look,
-            named=", ".join(each for each in (edited, fixed_as, depth_as, looks_as) if each),
+            named=", ".join(
+                each for each in (edited, restored_as, fixed_as, depth_as, looks_as) if each
+            ),
             editing=editing,
             edit=edit_words,
             see_through=clear,
@@ -217,6 +239,9 @@ def plan(
             depthing=depthing,
             depth=depth_words,
             painting=painting,
+            restoring=restoring,
+            restore=restore_words,
+            source=(width, height),
         )
     target = turned(sizing.size, width, height)
     focus = sizing.focus or found_focus
@@ -224,7 +249,9 @@ def plan(
     scale = target[0] / made.canvas.width
     method, model = way(scale, kind, quality, sizing.clean and not cleaned)
     named = ", ".join(
-        each for each in (edited, fixed_as, sizing.size.label, depth_as, looks_as) if each
+        each
+        for each in (edited, restored_as, fixed_as, sizing.size.label, depth_as, looks_as)
+        if each
     )
     return Plan(
         width=target[0],
@@ -256,6 +283,9 @@ def plan(
         depthing=depthing,
         depth=depth_words,
         painting=painting,
+        restoring=restoring,
+        restore=restore_words,
+        source=(width, height),
     )
 
 

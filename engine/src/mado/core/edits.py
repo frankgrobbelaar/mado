@@ -213,7 +213,7 @@ def _edit(data: object) -> Edit:
         case "erase":
             edit: Edit = Erase(
                 parts_from(kept.get("parts")),
-                _strokes(kept.get("strokes")),
+                strokes_from(kept.get("strokes")),
                 _quality(kept.get("quality")) or "fast",
             )
             if not edit.parts and not edit.strokes:
@@ -264,7 +264,9 @@ def _click(data: object) -> Click:
     return Click(_fraction(x), _fraction(y), kept.get("keep") is not False)
 
 
-def _strokes(data: object) -> tuple[Stroke, ...]:
+def strokes_from(data: object) -> tuple[Stroke, ...]:
+    """The brush's strokes as they're kept (JSON): each its points, its width and whether it
+    takes away. Raises EditError for strokes Mado can't read."""
     if not isinstance(data, list):
         return ()
     found: list[Stroke] = []
@@ -343,10 +345,7 @@ def edit_json(edit: Edit) -> dict[str, object]:
             return {
                 "kind": "erase",
                 "parts": parts_json(parts),
-                "strokes": [
-                    {"points": [list(p) for p in s.points], "size": s.size, "take": s.take}
-                    for s in strokes
-                ],
+                "strokes": strokes_json(strokes),
                 "quality": quality,
             }
         case CutOut(parts=parts, behind=behind, colour=colour):
@@ -365,6 +364,13 @@ def edit_json(edit: Edit) -> dict[str, object]:
                 "behind": behind,
                 "colour": colour_text(colour),
             }
+
+
+def strokes_json(strokes: Sequence[Stroke]) -> list[dict[str, object]]:
+    """The brush's strokes as they're kept."""
+    return [
+        {"points": [list(p) for p in s.points], "size": s.size, "take": s.take} for s in strokes
+    ]
 
 
 def parts_json(parts: Sequence[Part]) -> list[dict[str, object]]:

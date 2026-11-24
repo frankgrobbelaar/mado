@@ -536,10 +536,10 @@ export function BehindIt(props: { backing: Backing; onBacking: (backing: Backing
 }
 
 /** A picture too big to edit: why, and the way to make a smaller copy of it. */
-export function TooBig(props: { said: string; onSize?: () => void }) {
+export function TooBig(props: { said: string; onSize?: () => void; label?: string }) {
   return (
     <section
-      aria-label="Too big to edit"
+      aria-label={props.label ?? "Too big to edit"}
       className="flex flex-col gap-2 rounded-6 border border-dash border-dashed p-3"
     >
       <p className="text-13 leading-normal">{props.said}</p>

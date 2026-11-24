@@ -25,6 +25,8 @@ import {
   type Plan,
   type Quality,
   type Recipe,
+  type RestoreStep,
+  type Scratches,
   type SizeStep,
   type Stroke,
   shownFrom,
@@ -40,6 +42,7 @@ import {
   usePictureJobs,
   usePlan,
   useReadAgain,
+  useScratches,
   useStyles,
   useTools,
 } from "@/lib/engine";
@@ -62,6 +65,17 @@ import { MOTION_START, type MotionChoices, type MotionMaker, useMotionMaker } fr
 import { NeighbourStrip } from "./neighbour-strip";
 import { LookOnly, WhereItLives } from "./outside";
 import { networkOf, type PictureStyle, painted, styleName } from "./painting";
+import {
+  hasRestore,
+  NO_RESTORE,
+  RESTORE_MODELS,
+  restored,
+  restoreModels,
+  SCRATCH_BRUSH,
+  SCRATCH_STROKES,
+} from "./restore";
+import { SaveHeld } from "./save-section";
+import { ScratchStage } from "./scratch-stage";
 import { SizeStage } from "./size-stage";
 import { Stage, type Zoom } from "./stage";
 import { StylesSection } from "./styles-section";
@@ -129,6 +143,13 @@ export function PicturePage() {
   const [backing, setBacking] = useState<Backing>({ behind: "nothing", colour: "#ffffff" });
   // The fixes are each picture's own, as its flaws are; so are its depth tools and 3D photo.
   const [fix, setFix] = useState<FixStep>(NO_FIX);
+  // Restoring is each picture's own too, its scratches' strokes tied to its version; the stage
+  // shows their mask while it's being checked.
+  const [restore, setRestore] = useState<RestoreStep>(NO_RESTORE);
+  const [restoredSince, setRestoredSince] = useState<number | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [scratchBrush, setScratchBrush] = useState<number>(SCRATCH_BRUSH.first);
+  const [restoreNote, setRestoreNote] = useState<string | null>(null);
   const [depth, setDepth] = useState<DepthStep>(NO_DEPTH);
   const [depthMode, setDepthMode] = useState<DepthMode>("picture");
   const [choices, setChoices] = useState<MotionChoices>(MOTION_START);
@@ -149,6 +170,10 @@ export function PicturePage() {
     setSmeared(false);
     setLetGo(null);
     setFix(NO_FIX);
+    setRestore(NO_RESTORE);
+    setRestoredSince(null);
+    setChecking(false);
+    setRestoreNote(null);
     setDepth(NO_DEPTH);
     if (opened?.fresh) {
       // A picture Mado just made, opened from its job: shown as it is, not made again.
@@ -186,6 +211,32 @@ export function PicturePage() {
         : `${picture.data.name} changed since Mado read it, so your edits were let go. Start again with it as it is now.`,
     );
   }
+  // A picture whose file changed since restoring began. When it was Mado's own Save in the
+  // original's place, the restoring is in it now, so it goes quietly, as edits do (colouring it
+  // again would guess anew). Otherwise colour and faded colours go on with it as it is, while
+  // scratches' strokes, painted on what it was, go: its scratches are found again on it as it is
+  // now, the mask shown to check again.
+  if (
+    hasRestore(restore) &&
+    restore.version !== null &&
+    picture.data &&
+    picture.data.version !== restore.version
+  ) {
+    if (savedInPlace(jobs.data?.[0], restoredSince)) {
+      setRestore(NO_RESTORE);
+      setRestoredSince(null);
+      setChecking(false);
+      setRestoreNote(null);
+    } else if (restore.scratches) {
+      setRestore({ ...restore, version: picture.data.version, scratches: { strokes: [] } });
+      setChecking(true);
+      setRestoreNote(
+        `${picture.data.name} changed since Mado found its scratches, so they were found again on it as it is now: check the mask again.`,
+      );
+    } else {
+      setRestore({ ...restore, version: picture.data.version });
+    }
+  }
   const picking = usePicking(id, version, edits, { keyedByEdits: true });
   const lookPicking = usePicking(id, version, edits, { keyedByEdits: false });
   const editing = useEdit();
@@ -195,10 +246,16 @@ export function PicturePage() {
   const settledFix = useSettled(fix, 300);
   const settledPaint = useSettled(paint, 300);
   const settledDepth = useSettled(depth, 300);
+  const settledRestore = useSettled(restore, 300);
   const settling =
-    settled !== look || settledFix !== fix || settledPaint !== paint || settledDepth !== depth;
+    settled !== look ||
+    settledFix !== fix ||
+    settledPaint !== paint ||
+    settledDepth !== depth ||
+    settledRestore !== restore;
   // A picture opened next starts with no fixes: the last one's, still settling, never reach it.
   const fixStep = hasFix(fix) && hasFix(settledFix) ? settledFix : null;
+  const restoreStep = hasRestore(restore) && hasRestore(settledRestore) ? settledRestore : null;
   const depthStep = hasDepth(depth) && hasDepth(settledDepth) ? settledDepth : null;
   const ready = picture.data?.state === "ready";
   const lookParts = bare(lookPicking.picked.parts);
@@ -217,10 +274,13 @@ export function PicturePage() {
   const recipeEdit = editStep ?? (onParts ? { version, edits: [] } : null);
   // A paste can be saved as it is: nothing chosen is still something to save.
   const recipe: Recipe | null =
-    ready && (sized || looked || editStep || fixStep || paintStep || depthStep)
-      ? withDepth(
-          fixed({ edit: recipeEdit, size: sized, paint: paintStep, look: looked }, fixStep),
-          depthStep,
+    ready && (sized || looked || editStep || fixStep || paintStep || depthStep || restoreStep)
+      ? restored(
+          withDepth(
+            fixed({ edit: recipeEdit, size: sized, paint: paintStep, look: looked }, fixStep),
+            depthStep,
+          ),
+          restoreStep,
         )
       : ready && picture.data?.pasted
         ? AS_IT_IS
@@ -236,6 +296,29 @@ export function PicturePage() {
     edits,
   );
   const tools = useTools();
+  const detector = tools.data?.find((each) => each.id === RESTORE_MODELS.detector);
+  // What the detector finds, while scratches are on: the stage's mask, the Fix tab's words.
+  const scratches = useScratches(
+    id,
+    ready && restore.scratches && detector?.state === "ready"
+      ? { version: editedOn ?? version, edits }
+      : null,
+  );
+  // Restoring as the other tabs' previews show it: once its models are here, and not while its
+  // mask is being checked (nothing is filled till then).
+  const restoreReady =
+    restoreStep !== null &&
+    !checking &&
+    restoreModels(restoreStep).every(
+      (model) => tools.data?.find((each) => each.id === model)?.state === "ready",
+    );
+  const shownRestore = restoreReady ? restoreStep : null;
+  // The scratches' mask is filled only once it's been seen: every tab's Save waits till then (once
+  // the detector is here to find them; till then the Fix tab says it waits for its download).
+  const unchecked =
+    checking && restore.scratches && detector?.state === "ready"
+      ? "Save waits till you've checked the scratches' mask on the Fix tab."
+      : null;
   const depthModel = tools.data?.find((each) => each.id === DEPTH_MODEL);
   const depthWaiting =
     depthModel && depthModel.state !== "ready" && readsDepth(depth)
@@ -261,6 +344,21 @@ export function PicturePage() {
     drawnFor.current = editsKey;
     lookPicking.refresh();
   });
+
+  /** Restoring changed: its first change marks when it began, so a Save in the original's place
+   * asked for since is known to hold it. */
+  function changeRestore(step: RestoreStep) {
+    setRestore(step);
+    if (restoredSince === null && hasRestore(step)) setRestoredSince(Date.now());
+  }
+
+  /** Another tab chosen. The scratches' mask is the Fix tab's own: leaving it counts as checked,
+   * so the other tabs show the picture as Save makes it, its scratches filled. A mask found again
+   * while another tab was open waits to be seen there. */
+  function chooseTool(next: Tool) {
+    setTool(next);
+    if (tool === "fix" && next !== "fix") setChecking(false);
+  }
 
   /** An edit made, the next step of the picture's recipe; the previews show it once it's made. */
   function apply(edit: Edit, replacing = false) {
@@ -446,7 +544,8 @@ export function PicturePage() {
             </span>
           ) : looking ? (
             <HoldButton held={held} onHeld={setHeld} disabled={!ready} />
-          ) : depthing && depthMode === "motion" ? null : (
+          ) : (depthing && depthMode === "motion") ||
+            (fixing && checking && restore.scratches) ? null : (
             <>
               <Segmented
                 label="Zoom"
@@ -501,6 +600,7 @@ export function PicturePage() {
               <LooksOnStage
                 picture={picture.data}
                 edit={editStep}
+                restore={shownRestore}
                 fix={fixStep}
                 depth={depthStep}
                 sized={sized}
@@ -549,12 +649,39 @@ export function PicturePage() {
                 edited={edits.length > 0}
               />
             )}
-            {picture.data && fixing && (
+            {picture.data && fixing && checking && restore.scratches && (
+              <ScratchOnStage
+                picture={picture.data}
+                edit={editStep}
+                scratches={scratches}
+                strokes={restore.scratches.strokes}
+                brush={scratchBrush}
+                card={(plan.data?.scratchPlace ?? plan.data?.place) === "card"}
+                note={restoreNote}
+                onStroke={(stroke) => {
+                  const kept = restore.scratches?.strokes ?? [];
+                  if (kept.length >= SCRATCH_STROKES) {
+                    setRestoreNote(
+                      "That's as many strokes as Mado keeps: fill them in, or clear what you painted and use a bigger brush.",
+                    );
+                    return;
+                  }
+                  changeRestore({
+                    ...restore,
+                    version: picture.data?.version ?? version,
+                    scratches: { strokes: [...kept, stroke] },
+                  });
+                  setRestoreNote(null);
+                }}
+              />
+            )}
+            {picture.data && fixing && !(checking && restore.scratches) && (
               <FixOnStage
                 picture={picture.data}
                 edit={editStep}
                 fix={fixStep ?? NO_FIX}
-                plan={fixStep ? (plan.data ?? null) : null}
+                restore={shownRestore}
+                plan={fixStep || restoreStep ? (plan.data ?? null) : null}
                 zoom={zoom}
               />
             )}
@@ -562,6 +689,7 @@ export function PicturePage() {
               <DepthOnStage
                 picture={picture.data}
                 edit={editStep}
+                restore={shownRestore}
                 fix={fixStep}
                 depth={depth}
                 onDepth={setDepth}
@@ -578,6 +706,7 @@ export function PicturePage() {
               <OnStage
                 picture={picture.data}
                 edit={editStep}
+                restore={shownRestore}
                 fix={fixStep}
                 depth={depthStep}
                 zoom={zoom}
@@ -609,113 +738,125 @@ export function PicturePage() {
       </div>
       {picture.data?.aside && <LookOnly />}
       {picture.data && !picture.data.aside && (
-        <ToolsColumn
-          picture={picture.data}
-          tool={tool}
-          onTool={setTool}
-          size={sized}
-          onSize={setSized}
-          look={look}
-          onLook={setLook}
-          onPoint={setPointed}
-          recipe={recipe}
-          plan={plan}
-          settling={settling}
-          edited={editStep}
-          fixed={fixStep}
-          styles={
-            <StylesSection
-              picture={picture.data}
-              edit={editStep}
-              paint={paint}
-              onPaint={setPaint}
-              onPoint={setPointedPaint}
-              chosen={pictureStyle}
-              onChosen={setPictureStyle}
-              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
-            />
-          }
-          part={
-            <OnlyOnAPart
-              parts={lookPicking.picked.parts}
-              pending={lookPicking.pending}
-              problem={lookPicking.problem}
-              tooBig={big}
-              onSize={() => setTool("size")}
-              onRemove={lookPicking.remove}
-              onWhole={lookPicking.clear}
-            />
-          }
-          depthed={depthStep}
-          depth={
-            <DepthTab
-              picture={picture.data}
-              depth={depth}
-              onDepth={setDepth}
-              mode={depthMode}
-              onMode={setDepthMode}
-              read={depthRead.data ?? null}
-              readProblem={depthRead.isError ? depthRead.error.message : null}
-              recipe={recipe}
-              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
-              settling={settling}
-              choices={choices}
-              onChoices={setChoices}
-              maker={maker}
-            />
-          }
-          fix={
-            <FixTab
-              picture={picture.data}
-              fix={fix}
-              onFix={setFix}
-              recipe={recipe}
-              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
-              settling={settling}
-            />
-          }
-          edit={
-            <EditTab
-              picture={picture.data}
-              edit={editStep}
-              tooBig={big}
-              onSize={() => setTool("size")}
-              tool={editTool}
-              onTool={setEditTool}
-              picked={picking.picked}
-              onRemove={picking.remove}
-              onStep={picking.step}
-              edits={edits}
-              applying={editing.isPending}
-              problem={editProblem}
-              onApply={(edit) => apply(edit)}
-              smeared={smeared}
-              onBest={() => {
-                const last = edits.at(-1);
-                if (last?.kind !== "erase") return;
-                setEraseQuality("best");
-                apply({ ...last, quality: "best" }, true);
-              }}
-              onLook={() => {
-                lookPicking.adopt(picking.picked);
-                setTool("looks");
-              }}
-              quality={eraseQuality}
-              onQuality={setEraseQuality}
-              backing={backing}
-              onBacking={setBacking}
-              brush={brush}
-              onBrush={setBrush}
-              strokes={strokes}
-              onClearBrush={() => setStrokes([])}
-              cutQuality={cutQuality}
-              onCutQuality={setCutQuality}
-              recipe={recipe}
-              plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
-              settling={settling}
-            />
-          }
-        />
+        <SaveHeld.Provider value={unchecked}>
+          <ToolsColumn
+            picture={picture.data}
+            tool={tool}
+            onTool={chooseTool}
+            size={sized}
+            onSize={setSized}
+            look={look}
+            onLook={setLook}
+            onPoint={setPointed}
+            recipe={recipe}
+            plan={plan}
+            settling={settling}
+            edited={editStep}
+            fixed={fixStep}
+            restored={shownRestore}
+            styles={
+              <StylesSection
+                picture={picture.data}
+                edit={editStep}
+                restore={shownRestore}
+                paint={paint}
+                onPaint={setPaint}
+                onPoint={setPointedPaint}
+                chosen={pictureStyle}
+                onChosen={setPictureStyle}
+                plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+              />
+            }
+            part={
+              <OnlyOnAPart
+                parts={lookPicking.picked.parts}
+                pending={lookPicking.pending}
+                problem={lookPicking.problem}
+                tooBig={big}
+                onSize={() => chooseTool("size")}
+                onRemove={lookPicking.remove}
+                onWhole={lookPicking.clear}
+              />
+            }
+            depthed={depthStep}
+            depth={
+              <DepthTab
+                picture={picture.data}
+                depth={depth}
+                onDepth={setDepth}
+                mode={depthMode}
+                onMode={setDepthMode}
+                read={depthRead.data ?? null}
+                readProblem={depthRead.isError ? depthRead.error.message : null}
+                recipe={recipe}
+                plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+                settling={settling}
+                choices={choices}
+                onChoices={setChoices}
+                maker={maker}
+              />
+            }
+            fix={
+              <FixTab
+                picture={picture.data}
+                fix={fix}
+                onFix={setFix}
+                restore={restore}
+                onRestore={changeRestore}
+                checking={checking}
+                onChecking={setChecking}
+                scratches={scratches}
+                brush={scratchBrush}
+                onBrush={setScratchBrush}
+                recipe={recipe}
+                plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+                settling={settling}
+                onSize={() => chooseTool("size")}
+              />
+            }
+            edit={
+              <EditTab
+                picture={picture.data}
+                edit={editStep}
+                tooBig={big}
+                onSize={() => chooseTool("size")}
+                tool={editTool}
+                onTool={setEditTool}
+                picked={picking.picked}
+                onRemove={picking.remove}
+                onStep={picking.step}
+                edits={edits}
+                applying={editing.isPending}
+                problem={editProblem}
+                onApply={(edit) => apply(edit)}
+                smeared={smeared}
+                onBest={() => {
+                  const last = edits.at(-1);
+                  if (last?.kind !== "erase") return;
+                  setEraseQuality("best");
+                  apply({ ...last, quality: "best" }, true);
+                }}
+                onLook={() => {
+                  lookPicking.adopt(picking.picked);
+                  chooseTool("looks");
+                }}
+                quality={eraseQuality}
+                onQuality={setEraseQuality}
+                backing={backing}
+                onBacking={setBacking}
+                brush={brush}
+                onBrush={setBrush}
+                strokes={strokes}
+                onClearBrush={() => setStrokes([])}
+                cutQuality={cutQuality}
+                onCutQuality={setCutQuality}
+                recipe={recipe}
+                plan={plan.isPlaceholderData ? null : (plan.data ?? null)}
+                settling={settling}
+              />
+            }
+          />
+        </SaveHeld.Provider>
       )}
     </div>
   );
@@ -777,6 +918,7 @@ function HoldButton(props: {
 function LooksOnStage(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  restore: RestoreStep | null;
   fix: FixStep | null;
   depth: DepthStep | null;
   sized: SizeStep | null;
@@ -847,6 +989,7 @@ function LooksOnStage(props: {
       <LooksStage
         picture={picture}
         edit={props.edit}
+        restore={props.restore}
         fix={props.fix}
         depth={props.depth}
         size={decided}
@@ -950,6 +1093,7 @@ function EditOnStage(props: {
 function DepthOnStage(props: {
   picture: PictureDetails;
   edit: EditStep | null;
+  restore: RestoreStep | null;
   fix: FixStep | null;
   depth: DepthStep;
   onDepth: (depth: DepthStep) => void;
@@ -979,6 +1123,7 @@ function DepthOnStage(props: {
     <DepthStage
       picture={picture}
       edit={props.edit}
+      restore={props.restore}
       fix={props.fix}
       depth={props.depth}
       onDepth={props.onDepth}
@@ -997,6 +1142,7 @@ function FixOnStage(props: {
   picture: PictureDetails;
   edit: EditStep | null;
   fix: FixStep;
+  restore: RestoreStep | null;
   plan: Plan | null;
   zoom: Zoom;
 }) {
@@ -1018,9 +1164,46 @@ function FixOnStage(props: {
       picture={picture}
       edit={props.edit}
       fix={props.fix}
+      restore={props.restore}
       plan={props.plan}
       zoom={props.zoom}
     />
+  );
+}
+
+/** The scratches' mask on the Fix tab, before anything is filled, and the line under it: the
+ * brush paints what Mado missed, Alt takes away what isn't a scratch. */
+function ScratchOnStage(props: {
+  picture: PictureDetails;
+  edit: EditStep | null;
+  scratches: Scratches;
+  strokes: Stroke[];
+  brush: number;
+  card: boolean;
+  /** Why the strokes painted before were let go, while it says so. */
+  note: string | null;
+  onStroke: (stroke: Stroke) => void;
+}) {
+  return (
+    <>
+      <ScratchStage
+        picture={props.picture}
+        edit={props.edit}
+        scratches={props.scratches}
+        strokes={props.strokes}
+        brush={props.brush}
+        card={props.card}
+        onStroke={props.onStroke}
+      />
+      <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
+        {props.note ? (
+          <span role="status">{props.note}</span>
+        ) : (
+          <span>Paint over what Mado missed · Alt to take away what isn't a scratch</span>
+        )}
+        <span>Nothing is filled till you say</span>
+      </p>
+    </>
   );
 }
 
@@ -1029,6 +1212,7 @@ function FixOnStage(props: {
 function OnStage({
   picture,
   edit,
+  restore,
   fix,
   depth,
   zoom,
@@ -1040,6 +1224,7 @@ function OnStage({
 }: {
   picture: PictureDetails;
   edit: EditStep | null;
+  restore: RestoreStep | null;
   fix: FixStep | null;
   depth: DepthStep | null;
   zoom: Zoom;
@@ -1097,6 +1282,7 @@ function OnStage({
         <SizeStage
           picture={picture}
           edit={edit}
+          restore={restore}
           fix={fix}
           depth={depth}
           plan={plan}

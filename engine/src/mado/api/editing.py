@@ -19,8 +19,10 @@ from mado.api.common import ApiModel, Database, Editors, Models, Seeing
 from mado.api.edits import ClickIn, EditIn, EditStepIn, PartIn, edits_of, picked
 from mado.api.fixes import FixStepIn, fixing_of
 from mado.api.looks import SMALL
+from mado.api.restore import RestoreStepIn, restoring_of, tied
 from mado.core.edits import Click, EditError, parts_named
 from mado.core.fixes import FixError, Fixing
+from mado.core.restore import RestoreError
 from mado.directml import ModelError
 from mado.editing import EditingError, picture_key
 from mado.fixing import Measure, fixed
@@ -28,6 +30,7 @@ from mado.looks import through
 from mado.making import GREY_MODES, Picture, Sight, picture_of, split_alpha
 from mado.pictures import NeedsFfmpegError, NeedsReaderError, PictureGoneError, UnreadableError
 from mado.previews import version
+from mado.restoring import RestoringError
 
 router = APIRouter()
 _WEBP: dict[int | str, dict[str, object]] = {200: {"content": {"image/webp": {}}}}
@@ -136,6 +139,7 @@ def edit(picture_id: int, body: EditAsk, conn: Database, sight: Seeing, editor: 
 class SmallAsk(ApiModel):
     edit: EditStepIn  # the edits made so far (none: no edits), on the picture at their version
     fix: FixStepIn | None = None  # the fixes chosen: a dark photo is shown brightened
+    restore: RestoreStepIn | None = None  # restoring: its scratches filled, its colour
 
 
 @router.post("/pictures/{picture_id}/looks/{look_id}", response_class=Response, responses=_WEBP)
@@ -149,9 +153,10 @@ def small_edited(
     ai: Models,
 ) -> Response:
     """A small copy of the picture as its edits leave it, in a look: the Looks tab's, once the
-    Edit tab has made edits or the Fix tab brightens it (without either, it asks for the kept
-    copy by GET). A dark photo is brightened, and given its local contrast, as the whole picture
-    measures; noise, blur and blocks are too small to see at this size."""
+    Edit tab has made edits, or the Fix tab restores or brightens it (without any, it asks for
+    the kept copy by GET). Restoring shows its scratches filled and its colour; a dark photo is
+    brightened, and given its local contrast, as the whole picture measures; noise, blur and
+    blocks are too small to see at this size."""
     look = own_looks.resolve(conn, look_id)
     if look is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That look isn't in your looks any more.")
@@ -159,19 +164,27 @@ def small_edited(
     image, key = _opened(conn, sight, picture_id, body.edit.version)
     try:
         editing = edits_of(body.edit.edits, body.edit.version)
-        small = editor.small(image, key, editing.edits, SMALL)
+        restoring = tied(restoring_of(body.restore), now, picture.path.name)
+        small = editor.small(image, key, editing.edits, SMALL, restoring)
         fixing = fixing_of(body.fix)
         if fixing is not None and fixing.dark is not None:
+            changed = bool(editing.edits) or restoring is not None
+
+            def shown() -> Image.Image:
+                if not changed:
+                    return image
+                return editor.state(image, key, editing.edits, restoring=restoring)
+
             measured = sight.measured(
-                (str(picture.path).casefold(), now, editing if editing.edits else None),
-                lambda: editor.state(image, key, editing.edits) if editing.edits else image,
+                (str(picture.path).casefold(), now, editing if editing.edits else None, restoring),
+                shown,
             )
             small = _brightened(small, fixing, measured, image.width, ai)
     except FixError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
-    except EditError as error:
+    except (EditError, RestoreError) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
-    except EditingError as error:
+    except (EditingError, RestoringError) as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from None
     except ModelError as error:
         raise _refused(error) from None

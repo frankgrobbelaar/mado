@@ -90,18 +90,22 @@ class Sessions:
         threads: int | None = None,
         data: Callable[[], bytes] | None = None,
         processor_settings: Mapping[str, str] | None = None,
+        half: bool = False,
     ) -> Session:
         """The session for a model at a fixed square `size` (its free height and width pinned;
         None for a model whose size is fixed already, or whose sizes are pinned by name in
         `fixed`), on the card or the processor, with ONNX Runtime's `settings` for the card,
         `processor_settings` and at most `threads` of the processor's (None: as many as it has
         cores) for one there. `data` gives the model itself, made in memory, when there's no
-        file (`model` then only names it). Made the first time it's asked for, then kept. Raises
+        file (`model` then only names it). `half`: a model stored in half precision, which ONNX
+        Runtime's highest optimisation can break on the processor (its fused layer norms), so
+        there it's made one level lower. Made the first time it's asked for, then kept. Raises
         ModelError when it can't be made where it should run."""
         pinned = tuple(sorted((fixed or {}).items()))
         chosen = settings if place == "card" else processor_settings
         configured = tuple(sorted((chosen or {}).items()))
-        key = (str(model).casefold(), size, place, pinned, configured, threads)
+        lower = half and place == "processor"
+        key = (str(model).casefold(), size, place, pinned, configured, threads, lower)
         with self._guard:
             found = self._kept.get(key)
         if found is not None:
@@ -113,7 +117,9 @@ class Sessions:
                 found = self._kept.get(key)
             if found is None:
                 made = data() if data is not None else None
-                found = _make(model, size, place, dict(pinned), dict(configured), threads, made)
+                found = _make(
+                    model, size, place, dict(pinned), dict(configured), threads, made, lower
+                )
                 with self._guard:
                     self._kept[key] = found
             return found
@@ -133,6 +139,7 @@ def _make(
     settings: Mapping[str, str] | None = None,
     threads: int | None = None,
     data: bytes | None = None,
+    lower: bool = False,
 ) -> Session:
     try:
         import onnxruntime as ort  # loaded when first needed: the engine starts sooner
@@ -142,7 +149,11 @@ def _make(
     if data is None and not model.is_file():
         raise ModelError(f"The AI model {model.name} isn't there: Mado may need it again.")
     options = ort.SessionOptions()
-    options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    options.graph_optimization_level = (
+        ort.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+        if lower
+        else ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    )
     options.enable_mem_pattern = False  # DirectML asks for both of these
     options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
     if size is not None:

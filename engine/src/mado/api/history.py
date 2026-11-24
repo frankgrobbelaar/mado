@@ -47,6 +47,7 @@ class EntryOut(ApiModel):
     made_for: str | None  # what its size made it for: "TV 8K"
     look: str | None  # what it was made with: "Warm film at 60%"
     edit: str | None  # what was edited first: "erased a part"
+    restore: str | None  # what restoring did: "filled its scratches and dust"
     fix: str | None  # what the fixes did: "took out noise"
     depth: str | None  # the depth tools: "portrait blur at f/2.8"; a video: "into a 3D photo"
     original: str | None
@@ -77,6 +78,7 @@ class BatchLine(ApiModel):
     made_for: str | None
     look: str | None
     edit: str | None  # "cut out the subject"
+    restore: str | None  # "coloured it"
     fix: str | None  # "took out noise"
     depth: str | None  # "portrait blur at f/2.8"
     purpose: str | None  # what its size made them for: "tv"
@@ -129,6 +131,7 @@ class MadeToday(ApiModel):
     made_for: str | None  # "TV 8K"
     look: str | None  # "Warm film at 60%"
     edit: str | None  # "erased a part"
+    restore: str | None  # "filled its scratches and dust"
     fix: str | None  # "took out noise"
     depth: str | None  # "portrait blur at f/2.8", "into a 3D photo"
 
@@ -211,7 +214,7 @@ def made_today(conn: Database) -> list[MadeToday]:
     """The pictures made today, newest first, for Home."""
     today = _now().date().isoformat()
     rows = conn.execute(
-        """SELECT id, name, made_for, look, edit, fix, depth FROM history
+        """SELECT id, name, made_for, look, edit, restore, fix, depth FROM history
            WHERE kind IN ('made', 'replaced') AND undone_at IS NULL AND substr(at, 1, 10) = ?
            ORDER BY at DESC, id DESC LIMIT 12""",
         (today,),
@@ -223,6 +226,7 @@ def made_today(conn: Database) -> list[MadeToday]:
             made_for=row["made_for"],
             look=row["look"],
             edit=row["edit"],
+            restore=row["restore"],
             fix=row["fix"],
             depth=row["depth"],
         )
@@ -357,6 +361,7 @@ def _out(conn: sqlite3.Connection, found: Entry) -> EntryOut:
         made_for=found.made_for,
         look=found.look,
         edit=found.edit,
+        restore=found.restore,
         fix=found.fix,
         depth=found.depth,
         original=found.original,
@@ -434,7 +439,7 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
     ]
     order = batches.first_order(conn, batch_id)
     made_for, look, edit = order.get("label"), order.get("look"), order.get("edit")
-    fix, depth = order.get("fix"), order.get("depth")
+    fix, depth, restore = order.get("fix"), order.get("depth"), order.get("restore")
     started = row["started_at"]
     try:
         overnight = started is not None and at_night(datetime.fromisoformat(started))
@@ -450,6 +455,7 @@ def _batch_line(conn: sqlite3.Connection, batch_id: int) -> BatchLine | None:
         made_for=made_for if isinstance(made_for, str) else None,
         look=look if isinstance(look, str) else None,
         edit=edit if isinstance(edit, str) else None,
+        restore=restore if isinstance(restore, str) else None,
         fix=fix if isinstance(fix, str) else None,
         depth=depth if isinstance(depth, str) else None,
         purpose=batches.purpose_of(conn, steps),

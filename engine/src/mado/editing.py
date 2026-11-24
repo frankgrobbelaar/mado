@@ -39,8 +39,10 @@ from mado.core.edits import (
 )
 from mado.core.hardware import Place
 from mado.core.masks import Brush, Floats, Mask, feathered, stroked, together
+from mado.core.restore import Restoring, changing, restoring_json
 from mado.cutting import cut, lens_blurred, refined
 from mado.erasing import erased
+from mado.restoring import Found, Prepared, Restorer
 from mado.selecting import (
     Answers,
     Read,
@@ -110,6 +112,7 @@ class Editor:
         self._masks: OrderedDict[str, Mask] = OrderedDict()
         self._made: OrderedDict[str, Made] = OrderedDict()
         self._smalls: OrderedDict[str, Image.Image] = OrderedDict()
+        self.restorer = Restorer(ai, folder)  # restoring old photos: what it finds, kept beside
 
     def state(
         self,
@@ -117,15 +120,19 @@ class Editor:
         key: str,
         edits: tuple[Edit, ...],
         *,
+        restoring: Restoring | None = None,
         stop: Callable[[], bool] = lambda: False,
         report: Callable[[int], None] = lambda _done: None,
         keep: bool = True,
     ) -> Image.Image:
         """The picture (`image`, decoded at full size; `key` names it and its version) as the
         edits leave it, made one edit at a time from the last one kept; `report` hears how many
-        are made. Without `keep` (a batch's picture, made once) nothing is kept of it: no mask in
-        the cache and nothing in memory. Raises EditingError, ModelError when a model can't run,
+        are made; then restored, when `restoring` asks (mado/restoring.py). Without `keep` (a
+        batch's picture, made once) nothing is kept of it: no mask in the cache and nothing in
+        memory. Raises EditingError, RestoringError, ModelError when a model can't run,
         StoppedError when stopped between edits."""
+        if restoring is not None and changing(restoring):
+            return self._restored(image, key, edits, restoring, stop, report, keep)
         if not edits:
             return image
         _too_big(image)
@@ -157,24 +164,115 @@ class Editor:
                     self._keep(self._states, digest, made, _STATES, _pixels)
             return made
 
-    def small(
-        self, image: Image.Image, key: str, edits: tuple[Edit, ...], longest: int
+    def _restored(
+        self,
+        image: Image.Image,
+        key: str,
+        edits: tuple[Edit, ...],
+        restoring: Restoring,
+        stop: Callable[[], bool],
+        report: Callable[[int], None],
+        keep: bool,
     ) -> Image.Image:
-        """The picture as the edits leave it, `longest` pixels on its longer side: the copy the
-        Looks tab shows each look on, made once for all of them. Raises as `state` does."""
-        name = f"{_digest(key, edits)}|{longest}"
+        """The picture as its edits leave it, restored: kept as the edits' states are."""
+        _too_big(image, "restores")
+        digest = _restored_digest(key, edits, restoring)
+        with self._lock:
+            found = self._states.get(digest)
+            if found is not None:
+                self._states.move_to_end(digest)
+                return found
+        prepared = self.prepared(image, key, edits, restoring, stop=stop, report=report, keep=keep)
+        made = self.restorer.whole(prepared, stop=stop)
+        if keep:
+            with self._lock:
+                self._keep(self._states, digest, made, _STATES, _pixels)
+        return made
+
+    def restored(
+        self,
+        edited: Image.Image,
+        key: str,
+        edits: tuple[Edit, ...],
+        restoring: Restoring,
+        *,
+        stop: Callable[[], bool] = lambda: False,
+        keep: bool = True,
+    ) -> Image.Image:
+        """The picture as its edits left it (`edited`, made already: a job's, which makes them
+        once), restored. Raises RestoringError, ModelError, StoppedError."""
+        _too_big(edited, "restores")
+        prepared = self.restorer.prepared(
+            edited, key, _digest(key, edits), restoring, stop=stop, keep=keep
+        )
+        return self.restorer.whole(prepared, stop=stop)
+
+    def prepared(
+        self,
+        image: Image.Image,
+        key: str,
+        edits: tuple[Edit, ...],
+        restoring: Restoring,
+        *,
+        stop: Callable[[], bool] = lambda: False,
+        report: Callable[[int], None] = lambda _done: None,
+        keep: bool = True,
+    ) -> Prepared:
+        """The picture as its edits leave it, ready to be restored (its scratches filled, what
+        colouring takes worked out), for a copy of any size to be shown restored. Raises as
+        `state` does."""
+        _too_big(image, "restores")
+        edited = self.state(image, key, edits, stop=stop, report=report, keep=keep)
+        return self.restorer.prepared(
+            edited, key, _digest(key, edits), restoring, stop=stop, keep=keep
+        )
+
+    def found(self, image: Image.Image, key: str, edits: tuple[Edit, ...]) -> Found:
+        """What the scratch detector finds on the picture as its edits leave it, kept by the
+        picture's version (mado/restoring.py). Raises as `state` does."""
+        _too_big(image, "restores")
+        edited = self.state(image, key, edits)
+        return self.restorer.found(edited, key, _digest(key, edits))
+
+    def scratch_mask(
+        self, image: Image.Image, key: str, edits: tuple[Edit, ...], restoring: Restoring
+    ) -> Mask:
+        """What restoring fills: what the detector found, with the owner's strokes over it."""
+        _too_big(image, "restores")
+        edited = self.state(image, key, edits)
+        return self.restorer.mask(edited, key, _digest(key, edits), restoring)
+
+    def small(
+        self,
+        image: Image.Image,
+        key: str,
+        edits: tuple[Edit, ...],
+        longest: int,
+        restoring: Restoring | None = None,
+    ) -> Image.Image:
+        """The picture as the edits (and restoring) leave it, `longest` pixels on its longer side:
+        the copy the Looks tab shows each look on, made once for all of them. Raises as `state`
+        does."""
+        restored = restoring is not None and bool(changing(restoring))
+        name = f"{_restored_digest(key, edits, restoring if restored else None)}|{longest}"
         with self._lock:
             found = self._smalls.get(name)
             if found is not None:
                 self._smalls.move_to_end(name)
                 return found
-        state = self.state(image, key, edits)
-        scale = min(longest / max(state.size), 1.0)
-        size = (max(1, round(state.width * scale)), max(1, round(state.height * scale)))
-        small = state.resize(size, Image.Resampling.LANCZOS, reducing_gap=3.0)
-        profile = state.info.get("icc_profile")
+        if restored and restoring is not None:
+            prepared = self.prepared(image, key, edits, restoring)
+            base = prepared.picture
+        else:
+            prepared, base = None, self.state(image, key, edits)
+        scale = min(longest / max(base.size), 1.0)
+        size = (max(1, round(base.width * scale)), max(1, round(base.height * scale)))
+        small = base.resize(size, Image.Resampling.LANCZOS, reducing_gap=3.0)
+        profile = base.info.get("icc_profile")
         if isinstance(profile, bytes):
             small.info["icc_profile"] = profile
+        if prepared is not None:
+            small = self.restorer.shown(prepared, small, (0, 0, base.width, base.height))
         with self._lock:
             self._keep(self._smalls, name, small, _SMALLS, lambda _each: 1)
         return small
@@ -520,18 +618,29 @@ def cut_quality(ai: Ai) -> Quality:
     return "best" if ai.edit_place(BIREFNET, found) == "card" else "fast"
 
 
-def _too_big(image: Image.Image) -> None:
+def _too_big(image: Image.Image, does: str = "edits") -> None:
     if image.width * image.height > MOST_PIXELS:
         megapixels = image.width * image.height / 1e6
         raise EditingError(
-            f"It's {megapixels:.0f} megapixels, and Mado edits pictures up to "
+            f"It's {megapixels:.0f} megapixels, and Mado {does} pictures up to "
             f"{MOST_PIXELS / 1e6:.0f}. Your picture is as it was; make a smaller copy of it on the "
-            "Size tab, then edit that."
+            f"Size tab, then {does.removesuffix('s')} that."
         )
 
 
 def _digest(key: str, edits: tuple[Edit, ...]) -> str:
     text = json.dumps({"key": key, "edits": [edit_json(each) for each in edits]}, sort_keys=True)
+    return hashlib.sha256(text.encode()).hexdigest()[:32]
+
+
+def _restored_digest(key: str, edits: tuple[Edit, ...], restoring: Restoring | None) -> str:
+    """What names a picture as its edits and restoring leave it (restoring's own version aside:
+    the key carries the picture's)."""
+    if restoring is None:
+        return _digest(key, edits)
+    asked = restoring_json(restoring) or {}
+    asked.pop("version", None)
+    text = json.dumps({"at": _digest(key, edits), "restore": asked}, sort_keys=True)
     return hashlib.sha256(text.encode()).hexdigest()[:32]
 
 

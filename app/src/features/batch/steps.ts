@@ -6,6 +6,7 @@ import type {
   FixStepItem,
   LookStepItem,
   PaintStepItem,
+  RestoreStepItem,
   Settings,
   SizeStepItem,
   StepWords,
@@ -70,6 +71,17 @@ export function cutoutStep(before?: CutoutStepItem): CutoutStepItem {
   };
 }
 
+/** Restoring old photos a batch at a time: each picture as it needs, a black-and-white or sepia
+ * one coloured and a colour one's faded colours brought back. Scratches are each picture's own,
+ * checked and filled on its page, so a batch never fills them. */
+export function restoreStep(before?: RestoreStepItem): RestoreStepItem {
+  return {
+    step: "restore",
+    colour: before ? before.colour : { strength: 1 },
+    faded: before ? before.faded : { strength: 1 },
+  };
+}
+
 /** The fixes: noise taken out to start with, as the most common fix a batch of photos wants;
  * the rest as the Fix tab turns them on. */
 export function fixStep(before?: FixStepItem): FixStepItem {
@@ -109,19 +121,20 @@ export function keepsNothing(steps: BatchStep[]): boolean {
 /** The formats that keep see-through parts. */
 export const SEE_THROUGH: BatchSaving["format"][] = ["PNG", "WebP"];
 
-/** The steps with one put in its place (the subject cut out, the fixes, the size, the depth
- * tools, the painting style, then the look), or taken out. */
+/** The steps with one put in its place (the subject cut out, restoring, the fixes, the size, the
+ * depth tools, the painting style, then the look), or taken out. */
 export function withStep(steps: BatchStep[], step: BatchStep | null, kind: BatchStep["step"]) {
   const rest = steps.filter((each) => each.step !== kind);
   const next = step ? [...rest, step] : rest;
   return next.sort((a, b) => ORDER.indexOf(a.step) - ORDER.indexOf(b.step));
 }
 
-const ORDER: BatchStep["step"][] = ["cutout", "fix", "size", "depth", "paint", "look"];
+const ORDER: BatchStep["step"][] = ["cutout", "restore", "fix", "size", "depth", "paint", "look"];
 
 /** What a step is called, before the engine's words for it come. */
 export const TITLES: Record<string, string> = {
   cutout: "Cut out the subject",
+  restore: "Restore",
   fix: "Fix",
   size: "Make it for a screen",
   depth: "Depth",
@@ -148,7 +161,9 @@ export function wordsFor(steps: BatchStep[], saving: BatchSaving): StepWords[] {
                 ? "Fix"
                 : step.step === "depth"
                   ? "Depth"
-                  : "Cut out the subject",
+                  : step.step === "restore"
+                    ? "Restore"
+                    : "Cut out the subject",
       amount: null,
     })),
     {

@@ -159,12 +159,12 @@ def square_around(
     return x0, y0, x0 + side_x, y0 + side_y
 
 
-def stroked(brushes: Sequence[Brush], size: tuple[int, int]) -> Mask:
-    """The brush's strokes drawn at a picture's size, in the order they were made: one taking away
-    clears what was painted before it, and painting again brings it back. Their edges are smooth
-    to a pixel."""
+def stroked(brushes: Sequence[Brush], size: tuple[int, int], onto: Mask | None = None) -> Mask:
+    """The brush's strokes drawn at a picture's size, in the order they were made, over `onto`
+    (a mask found already, left as it was) or nothing: one taking away clears what was there or
+    painted before it, and painting again brings it back. Their edges are smooth to a pixel."""
     width, height = size
-    found = np.zeros((height, width), np.uint8)
+    found = np.zeros((height, width), np.uint8) if onto is None else onto.copy()
     for brush in brushes:
         drawn = _drawn(brush, width, height)
         if drawn is None:

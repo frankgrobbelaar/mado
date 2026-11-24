@@ -216,15 +216,20 @@ function painted(step: PaintStep | null | undefined): string {
  * scene as the picture is, before its fixes ("low-tide/dark=2.6/grain=45"). */
 const DAMAGED = new Map<number, string>();
 
-/** What's still wrong with a damaged picture after the fixes asked for ("low-tide/dark=2.6/grain=45"
- * brightened is "low-tide/grain=45"), as the engine makes them: all of a picture fitted is sent
- * only the brightening; a part at full detail every fix. */
-function unfixed(damaged: string, fix: Recipe["fix"]): string {
+/** What's still wrong with a damaged picture after the fixes and restoring asked for
+ * ("low-tide/dark=2.6/grain=45" brightened is "low-tide/grain=45"; an old print's scratches filled
+ * and coloured loses its scratches and its tone), as the engine makes them: all of a picture fitted
+ * is sent only the brightening of the fixes; a part at full detail every fix. */
+function unfixed(damaged: string, recipe: Recipe | null): string {
   const [drawn = "", ...wrong] = damaged.split("/");
+  const fix = recipe?.fix;
+  const restore = recipe?.restore;
   const out: Record<string, boolean> = {
     dark: Boolean(fix?.dark),
     grain: Boolean(fix?.noise),
     blocks: Boolean(fix?.jpeg),
+    scratches: Boolean(restore?.scratches),
+    look: Boolean(restore?.colour || restore?.faded),
   };
   return [drawn, ...wrong.filter((word) => !out[word.split("=")[0] ?? ""])].join("/");
 }
@@ -257,9 +262,11 @@ function pictureFor(url: URL, init: RequestInit | undefined): Response | undefin
       .filter(Boolean)
       .join("/");
     const id = Number(preview[1]);
-    const fix = asked.side === "after" ? asked.recipe.fix : null;
     const damaged = DAMAGED.get(id);
-    const drawn = (damaged ? unfixed(damaged, fix) : null) ?? SCENES.get(id) ?? "harbour";
+    const drawn =
+      (damaged ? unfixed(damaged, asked.side === "after" ? asked.recipe : null) : null) ??
+      SCENES.get(id) ??
+      "harbour";
     return scene(words ? `${drawn}/${words}` : drawn, { "X-Made-In": "0.9" });
   }
   const made = path.match(/^\/history\/(\d+)\/thumbnail$/);
@@ -499,42 +506,58 @@ describe.runIf(SHOTS)("The README's screens", () => {
   });
 
   it("fix", async () => {
-    DAMAGED.set(13, "low-tide/dark=2.6/grain=45");
+    // An old sepia print scanned with the phone: its scratches and dust found, checked and filled,
+    // then coloured.
+    DAMAGED.set(11, "harbour/look=sepia-print/scratches=1/grain=30");
     try {
       engine({
-        ...opened(13),
-        "/pictures/13/fixes": {
-          jpegQuality: 94,
+        ...opened(11),
+        "/pictures/11/fixes": {
+          jpegQuality: null, // a phone's HEIC: no JPEG tables to read
           blocks: false,
-          stops: 2.6,
-          dark: true,
+          stops: 0,
+          dark: false,
           grey: false,
           seeThrough: false,
-          colour: "sRGB",
+          colour: "Display P3",
           megapixels: 12.2,
+          colours: "toned",
+          tone: "sepia",
         },
         "/tools": [
+          {
+            ...FIX_MODEL,
+            id: "oldphoto-scratch-detector",
+            name: "Old-photo scratch detector",
+            size: 75_391_673,
+          },
+          { ...FIX_MODEL, id: "lama", name: "LaMa", size: 209_175_026 },
+          { ...FIX_MODEL, id: "ddcolor-tiny", name: "DDColor tiny", size: 270_266_480 },
           { ...FIX_MODEL, id: "scunet", name: "SCUNet", size: 72_932_271 },
-          { ...FIX_MODEL, id: "nafnet", name: "NAFNet", size: 68_940_956 },
         ],
-        "POST /pictures/13/plan": plan({
+        "POST /pictures/11/scratches": () =>
+          scene("harbour/mask", { "X-Found": "0.014", "X-Made-In": "0.6", "X-Place": "card" }),
+        "POST /pictures/11/plan": plan({
           width: 4032,
           height: 3024,
           label: "",
           method: "keep",
           model: null,
           sides: "none",
-          fix: "took out noise and brightened it",
-          fixSeconds: 26,
-          seconds: 27,
+          restore: "filled its scratches and dust and coloured it",
+          restoreSeconds: 10,
+          restorePlace: "card",
+          restoreCovers: 0.016,
+          seconds: 11,
         }),
       });
       await measuredBoxes("fix");
-      draw("/library/pictures/:id", "/library/pictures/13?folder=1", <PicturePage />);
+      draw("/library/pictures/:id", "/library/pictures/11?folder=1", <PicturePage />);
       fireEvent.click(await screen.findByRole("tab", { name: "Fix" }));
-      fireEvent.click(await screen.findByRole("switch", { name: "Dark photo" }));
-      fireEvent.click(await screen.findByRole("switch", { name: "Noise" }));
-      await screen.findByText(/Mado brightens it by about 2\.6 stops/);
+      fireEvent.click(await screen.findByRole("switch", { name: "Scratches and dust" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Fill them in" }));
+      fireEvent.click(await screen.findByRole("switch", { name: "Colour" }));
+      await screen.findByText(/After · Scratches, Colour/);
       await settle(2500);
       await dump("fix");
     } finally {

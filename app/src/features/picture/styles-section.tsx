@@ -21,6 +21,7 @@ import {
   type PictureDetails,
   type Plan,
   pictureAddress,
+  type RestoreStep,
   type Styles,
   styleAddress,
   styleThumbnailAddress,
@@ -65,6 +66,8 @@ export function StylesSection(props: {
   picture: PictureDetails;
   /** The edits made on the Edit tab, which the small copies show; null for none. */
   edit: EditStep | null;
+  /** Restoring chosen on the Fix tab, which the small copies show too; null or missing for none. */
+  restore?: RestoreStep | null;
   paint: PaintStep | null;
   onPaint: (step: PaintStep | null) => void;
   /** A style pointed at, shown on the big picture till the pointer leaves; null when none. */
@@ -208,14 +211,20 @@ export function StylesSection(props: {
  * picture's not kept yet; each a small copy of the picture in it once its network is here. */
 function choicesOf(
   styles: Styles,
-  props: { picture: PictureDetails; edit: EditStep | null; chosen: PictureStyle | null },
+  props: {
+    picture: PictureDetails;
+    edit: EditStep | null;
+    restore?: RestoreStep | null;
+    chosen: PictureStyle | null;
+  },
   tools: Tool[],
 ): Choice[] {
+  const restore = props.restore ?? null;
   const asked = (id: string, body?: unknown) =>
-    props.edit || body
+    props.edit || restore || body
       ? {
           path: `/pictures/${props.picture.id}/styles/${id}`,
-          body: { edit: props.edit, ...(body ?? {}) },
+          body: { edit: props.edit, ...(restore ? { restore } : {}), ...(body ?? {}) },
         }
       : { path: styleAddress(props.picture, id) };
   const need = (download: string | null) => {

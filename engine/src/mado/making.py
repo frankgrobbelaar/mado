@@ -43,7 +43,22 @@ import numpy.typing as npt
 from PIL import Image
 
 from mado import encode, hardware, history, own_looks, own_styles
-from mado.ai import BIREFNET, DEPTH, DEPTH_FILE, FIX_OVERLAP, FIX_TILE, LAMA, MIGAN, SAM, Ai, Timer
+from mado.ai import (
+    BIREFNET,
+    COLOURER,
+    COLOURER_FILE,
+    DEPTH,
+    DEPTH_FILE,
+    DETECTOR,
+    DETECTOR_FILE,
+    FIX_OVERLAP,
+    FIX_TILE,
+    LAMA,
+    MIGAN,
+    SAM,
+    Ai,
+    Timer,
+)
 from mado.core.depth import DepthError, Depthing, depthing_from
 from mado.core.edits import (
     Blur,
@@ -69,6 +84,10 @@ from mado.core.naming import EXTENSIONS, aside_name, new_name, replacement_name
 from mado.core.painting import Painting, Style, classic, mixed
 from mado.core.quality import Format
 from mado.core.recipe import Plan, Recipe, Sizing, Styling, plan
+from mado.core.restore import Colours, RestoreError, colours_of, restoring_from
+from mado.core.restore import Kind as ColourKind
+from mado.core.restore import models_for as restore_models
+from mado.core.restore import unchanged as restore_unchanged
 from mado.core.sizes import DPI, Screen, SizeError, resolve
 from mado.core.tiles import count
 from mado.core.touches import named
@@ -103,6 +122,7 @@ from mado.pictures import (
     read_exif,
 )
 from mado.quarantine import InUseMoveError, MoveError, Quarantine, movable, move
+from mado.restoring import RestoringError, fill_squares
 from mado.upscale import (
     Pixels,
     StoppedError,
@@ -122,6 +142,7 @@ GREY_MODES = ("L", "LA", "I", "I;16", "1", "F")  # a black and white picture's m
 _SMALL = 512  # the copy what a picture is is guessed from, when it's bigger than _AS_IS
 _AS_IS = 1024  # pictures this small are looked at pixel by pixel
 _GREY = 128  # the grey copy its subject is found in
+_COLOURS = 512  # the copy what its colours are is measured on (made 256 there, so grain averages)
 
 
 @dataclass(frozen=True)
@@ -146,6 +167,8 @@ class Seen:
     alpha: bool  # it has see-through parts
     grey: bool = False  # black and white
     jpeg: int | None = None  # the quality a JPEG was saved at, from its tables; None otherwise
+    colours: ColourKind = "colour"  # black and white, a toned print (sepia), or a colour photo
+    tone: Literal["sepia", "toned"] | None = None  # a toned print's: sepia's brown, or another
 
 
 @dataclass(frozen=True)
@@ -199,6 +222,7 @@ class Naming:
     edit: str | None = None  # what was edited: "erased a part"
     fix: str | None = None  # what the fixes did: "took out noise"
     depth: str | None = None  # the depth tools: "portrait blur at f/2.8 and fog"
+    restore: str | None = None  # what restoring did: "filled its scratches and dust"
 
     @classmethod
     def of(cls, made: Plan) -> Naming:
@@ -211,6 +235,7 @@ class Naming:
             made.edit,
             made.fix,
             made.depth,
+            made.restore,
         )
 
 
@@ -251,6 +276,7 @@ def see(image: Image.Image, picture: Picture) -> Seen:
         height=image.height,
     )
     profile = image.info.get("icc_profile")
+    colours = _colours(image)
     return Seen(
         kind=kind,
         focus=subject(grey),
@@ -260,7 +286,20 @@ def see(image: Image.Image, picture: Picture) -> Seen:
         alpha=_see_through(image),
         grey=image.mode in GREY_MODES,
         jpeg=jpeg_quality_of(picture.path) if picture.format == "JPEG" else None,
+        colours=colours.kind,
+        tone=colours.tone,
     )
+
+
+def _colours(image: Image.Image) -> Colours:
+    """What a picture's colours are (mado/core/restore.py), from a small copy of it, its
+    see-through parts left out: a grey picture's are black and white whatever it measures."""
+    if image.mode in GREY_MODES:
+        return Colours("grey", None, 0.0, 0.0)
+    small = _shrunk(image, _COLOURS, Image.Resampling.BOX)
+    colours, alpha = split_alpha(small)
+    shown = None if alpha is None else alpha > 0
+    return colours_of((colours / np.float32(255)).astype(np.float32), shown)
 
 
 def jpeg_quality_of(path: Path) -> int | None:
@@ -413,6 +452,7 @@ def planned(
         fix_starts_on=fix_starts_on,
         stops=stops,
         jpeg_saved_at=seen.jpeg,
+        colours=seen.colours,
     )
 
 
@@ -444,18 +484,21 @@ def make(
 ) -> Made:
     """The picture made to its plan, from the picture decoded at full size and upright: its
     edits (by `editor`, `key` naming the picture and its version, keeping their masks unless
-    it's a batch's picture, made once), its fixes on the part kept, its size, its depth tools at
+    it's a batch's picture, made once), restoring at its own size (its scratches filled, its
+    colour), its fixes on the part kept, its size, its depth tools at
     that size (by `depths`, from the depth of the picture as its edits left it; portrait blur in
     focus at its subject, or `found_focus` without one, unless it says where), its painting
     style, then its look and touches at that size (`seed` grows them), the style and the look
     only on a part when they say so. Its colour
-    profile comes with it. A dark photo's fix measures the picture as its edits leave it, and
+    profile comes with it. A dark photo's fix measures the picture as restoring leaves it, and
     `replan` makes the plan again for how dark it is. Raises StoppedError when stopped,
-    ModelError when a model can't run, EditingError for edits Mado can't make."""
+    ModelError when a model can't run, EditingError for edits Mado can't make, RestoringError
+    for a mask Mado won't fill."""
     edits = made.editing.edits if made.editing else ()
     parts = made.styling.parts if made.styling else ()
     painted_parts = made.painting.parts if made.painting else ()
-    if (edits or parts or painted_parts) and editor is None:
+    restoring = made.restoring
+    if (edits or parts or painted_parts or restoring) and editor is None:
         raise EditingError("Mado can't make edits here.")
     edited = image
     if edits and editor is not None:
@@ -468,15 +511,22 @@ def make(
             report=lambda done: report("editing", done / len(edits)),
             keep=keep,
         )
+    restored = edited
+    if restoring is not None and editor is not None:
+        if stop():
+            raise StoppedError
+        report("restoring", 0.0)
+        restored = editor.restored(edited, key, edits, restoring, stop=stop, keep=keep)
+        report("restoring", 1.0)
     measured = None
     if made.fixing is not None and made.fixing.dark is not None:  # only the dark fix measures
-        measured = measure(edited)
+        measured = measure(restored)
         if replan is not None:
             made = replan(measured.stops)
     sized = (
-        edited
+        restored
         if made.method == "keep" and made.fixing is None
-        else _sized(edited, made, ai, report, stop, timer, measured, fix_timer)
+        else _sized(restored, made, ai, report, stop, timer, measured, fix_timer)
     )
     if made.depthing is not None:
         if depths is None or editor is None:
@@ -861,6 +911,7 @@ def keep(
                 edit=naming.edit,
                 fix=naming.fix,
                 depth=naming.depth,
+                restore=naming.restore,
             )
             try:
                 target = _into_place(
@@ -888,6 +939,7 @@ def keep(
             edit=naming.edit,
             fix=naming.fix,
             depth=naming.depth,
+            restore=naming.restore,
         )
         _replacing(
             partial, target, original, aside, quarantine, now, lambda: history.forget(conn, entry)
@@ -1001,12 +1053,13 @@ def recipe_from(
     looks: Callable[[str], Look | None],
     styles: Callable[[dict[str, object]], Style | None] = lambda _asked: None,
 ) -> Recipe:
-    """A recipe as a job keeps it (JSON: its edit, fix, size, depth, paint and look steps, any of
-    them none), the owner's screens naming theirs, `looks` finding a look by its id and `styles` a
-    painting step's style (mado/own_styles.py's `resolve`). A job Mado 0.1 kept is its size step
-    alone, flat. Raises SizeError for a size Mado can't make, MissingLookError for a look that
-    isn't there any more, MissingStyleError for a painting style that isn't, EditError for edits
-    it can't make, FixError for fixes it can't read, DepthError for a depth step it can't read."""
+    """A recipe as a job keeps it (JSON: its edit, restore, fix, size, depth, paint and look
+    steps, any of them none), the owner's screens naming theirs, `looks` finding a look by its id
+    and `styles` a painting step's style (mado/own_styles.py's `resolve`). A job Mado 0.1 kept is
+    its size step alone, flat. Raises SizeError for a size Mado can't make, MissingLookError for a
+    look that isn't there any more, MissingStyleError for a painting style that isn't, EditError
+    for edits it can't make, FixError for fixes it can't read, DepthError for a depth step it
+    can't read, RestoreError for a restore step it can't read."""
     if isinstance(data.get("size"), str):  # Mado 0.1's: the size step's fields, flat
         return Recipe(sizing=_sizing_from(data, screens))
     size, look = data.get("size"), data.get("look")
@@ -1035,6 +1088,7 @@ def recipe_from(
         fixing=fixing_from(data.get("fix")),
         depthing=depthing_from(data.get("depth")),
         painting=_painting_from(data.get("paint"), styles),
+        restoring=restoring_from(data.get("restore")),
     )
 
 
@@ -1106,15 +1160,17 @@ def estimated(
     fix_on: Place | None = None,
     paint_on: Place | None = None,
     depth_on: Place | None = None,
+    restore_on: tuple[Place, Place] | None = None,
 ) -> float:
     """How long making a plan takes here, in seconds. `cut_on`: where cutting out a subject at
     its best runs (on the processor, unless the card has a great deal of room); `fix_on`: where
     the fixes' models run (None: where this PC runs the models); `paint_on`: where its painting
     style's network runs (None: where this PC runs the models); `depth_on`: where the depth
-    model runs."""
+    model runs; `restore_on`: where the scratch detector and DDColor run."""
     pixels = made.width * made.height
     canvas = made.frame.canvas
     seconds = _edit_seconds(made, here.place, cut_on or "processor")
+    seconds += restore_seconds(made, here.place, restore_on)
     seconds += fix_seconds(made, here, fix_on)
     seconds += depth_seconds(made, depth_on or here.place, cut_on or "processor")
     seconds += paint_seconds(made, paint_on or here.place)
@@ -1135,6 +1191,43 @@ def estimated(
     tile = tile_for(made.model, here.place, here.card)
     tiles = count(ceil(canvas.width), ceil(canvas.height), tile, overlap_for(tile))
     return seconds + seconds_for(made.model.id, here.place, tiles, tile, pixels, here.speeds)
+
+
+def restore_seconds(
+    made: Plan, place: Place, restore_on: tuple[Place, Place] | None = None
+) -> float:
+    """About how long a plan's restoring takes here, at the picture's own size: the detector at
+    its two canvases and LaMa over every square of the copy it fills on (scratches usually cross
+    most of a picture), DDColor once, and laying colour or faded colours on, by the megapixel.
+    `restore_on`: where the detector and DDColor run (None: where this PC runs the models);
+    LaMa runs where this PC runs the models."""
+    restoring = made.restoring
+    if restoring is None:
+        return 0.0
+    width, height = made.source
+    megapixels = width * height / 1e6
+    find_on, colour_on = restore_on or (place, place)
+    seconds = 0.0
+    if restoring.scratches is not None:
+        seconds += _FIND_SECONDS[find_on] + fill_squares(width, height) * _FILL_SECONDS[place]
+        seconds += _FILL_LAY_SECONDS * megapixels
+    if restoring.colour:
+        seconds += _COLOUR_SECONDS[colour_on] + _COLOUR_LAY_SECONDS * megapixels
+    if restoring.faded:
+        seconds += _FADED_LAY_SECONDS * megapixels
+    return seconds
+
+
+# What restoring takes on the owner's PC, measured at 12 MP (docs/stack/restoring.md): the
+# detector at both its canvases (0.58 s on the card, 8.8 on the processor), LaMa a square (six
+# squares and the fill laid back: 2.9 s and 14.7), DDColor at its square (0.48 and 1.4), and laying
+# the fill back, colour (4.1 s) or faded colours (1.2 s) on, a megapixel of the picture.
+_FIND_SECONDS: dict[Place, float] = {"card": 0.6, "processor": 8.8}
+_FILL_SECONDS: dict[Place, float] = {"card": 0.3, "processor": 2.25}
+_COLOUR_SECONDS: dict[Place, float] = {"card": 0.5, "processor": 1.4}
+_FILL_LAY_SECONDS = 0.09
+_COLOUR_LAY_SECONDS = 0.34
+_FADED_LAY_SECONDS = 0.1
 
 
 def fix_seconds(made: Plan, here: Here, fix_on: Place | None = None) -> float:
@@ -1289,6 +1382,14 @@ def waiting_for(made: Plan, ai: Ai) -> list[str]:
     for model in fix_models(made.fixing, made.fix_quality):
         if ai.fix_file(model) is None:
             found.append(model.id)
+    for download in restore_models(made.restoring):
+        if download == LAMA:
+            missing = ai.lama_file() is None and LAMA not in found
+        else:
+            file = DETECTOR_FILE if download == DETECTOR else COLOURER_FILE
+            missing = ai.restore_file(download, file) is None
+        if missing:
+            found.append(download)
     depthing = made.depthing
     reads = depthing is not None and (depthing.portrait is not None or depthing.fog is not None)
     if reads and ai.edit_file(DEPTH, DEPTH_FILE) is None:
@@ -1366,6 +1467,7 @@ class Maker:
             EditError,
             FixError,
             DepthError,
+            RestoreError,
         ) as error:
             raise JobError(str(error)) from None
         saving = saving_from(order["saving"])
@@ -1407,6 +1509,11 @@ class Maker:
         edited_on = recipe.editing.version if recipe.editing else None
         if edited_on is not None and edited_on != now_version:
             raise JobError(_CHANGED.format(name=picture.path.name))
+        # Only scratches' strokes are tied to the picture as it was painted on.
+        scratched = recipe.restoring is not None and recipe.restoring.scratches is not None
+        restored_on = recipe.restoring.version if recipe.restoring and scratched else None
+        if restored_on is not None and restored_on != now_version:
+            raise JobError(_RESTORE_CHANGED.format(name=picture.path.name))
         here = self._ai.where()
         seen = see(image, picture)
         starts_on, fix_starts_on = self._ai.starts_on(here), self._ai.fix_starts_on()
@@ -1431,6 +1538,10 @@ class Maker:
                 self._ai.fix_place(fixers),
                 paint_on=painting_on,
                 depth_on=self._ai.depth_place(),
+                restore_on=(
+                    self._ai.restore_place(DETECTOR),
+                    self._ai.restore_place(COLOURER),
+                ),
             )
         )
         timer = Timer()
@@ -1448,7 +1559,9 @@ class Maker:
                 seed=seed_of(picture.path),
                 editor=self._editor,
                 key=picture_key(picture.path, now_version or ""),
-                keep=edited_on is not None,  # a batch's picture is made once: nothing kept
+                # A batch's picture is made once: nothing kept. A picture's own Save is tied to
+                # its version by its edits or by restoring, and keeps what they found.
+                keep=edited_on is not None or restored_on is not None,
                 fix_timer=_one_timer(fix_timers),
                 replan=lambda stops: planned(recipe, seen, starts_on, fix_starts_on, stops),
                 depths=self._depths,
@@ -1456,7 +1569,7 @@ class Maker:
             )
         except ModelError as error:
             raise JobError(f"{error} Nothing was saved; the original is as it was.") from None
-        except EditingError as error:
+        except (EditingError, RestoringError) as error:
             raise JobError(str(error)) from None
         result, made = making.image, making.plan
         if made.empty and not as_is:  # measured, its fixes change nothing in it
@@ -1540,6 +1653,10 @@ _CHANGED = (
     "{name} changed since you edited it, so the parts you picked may not be where they were. "
     "Nothing was saved, and the picture is as it is now. Open it and edit it again."
 )
+_RESTORE_CHANGED = (
+    "{name} changed since you checked its scratches, so the mask may not be where they are. "
+    "Nothing was saved, and the picture is as it is now. Open it and check them again."
+)
 NO_RAW_REPLACE = (
     "Mado can't write camera RAW, so it saves a new picture beside it: the RAW stays exactly as "
     "it is."
@@ -1548,13 +1665,13 @@ NO_RAW_REPLACE = (
 
 def nothing_to_make(recipe: Recipe) -> str:
     """What a job with nothing to make says: why its fixes change nothing in its picture (it
-    isn't dark, or isn't a JPEG), or that it was asked for nothing at all."""
-    if (
-        recipe.fixing is not None
-        and recipe.sizing is None
-        and recipe.styling is None
-        and recipe.painting is None
-    ):
+    isn't dark, or isn't a JPEG), why a batch's restoring doesn't (it's in colour already, or
+    black and white), or that it was asked for nothing at all."""
+    alone = recipe.sizing is None and recipe.styling is None and recipe.painting is None
+    if recipe.restoring is not None and recipe.fixing is None and alone:
+        said = restore_unchanged(recipe.restoring)
+        return f"{said} Nothing was saved, and the original is as it was."
+    if recipe.fixing is not None and recipe.restoring is None and alone:
         return f"{unchanged(recipe.fixing)} Nothing was saved, and the original is as it was."
     return (
         "There was nothing to make: no size, and no style or look that changes it. Nothing was "
@@ -1612,7 +1729,7 @@ def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
     if f"{stat.st_mtime_ns:x}-{stat.st_size:x}" != version_ or not Path(path).is_file():
         return None
     made_for, look, edit = made.get("madeFor"), made.get("look"), made.get("edit")
-    fix, depth = made.get("fix"), made.get("depth")
+    fix, depth, restore = made.get("fix"), made.get("depth"), made.get("restore")
     return Path(path), Naming(
         width,
         height,
@@ -1622,6 +1739,7 @@ def _seen_first(found: object, picture: Picture) -> tuple[Path, Naming] | None:
         edit if isinstance(edit, str) else None,
         fix if isinstance(fix, str) else None,
         depth if isinstance(depth, str) else None,
+        restore if isinstance(restore, str) else None,
     )
 
 

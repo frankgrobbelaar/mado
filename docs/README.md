@@ -52,6 +52,7 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | The quick fixes | SCUNet, FBCNN, NAFNet (downloaded); Mado's own code for dark photos | Noise, JPEG blocks, blur from a shaking camera or a moving subject, dark photos | [fixes.md](stack/fixes.md) |
 | Painting styles | Mado's four painters and MicroAST (downloaded); Mado's own code for pencil, oil paint and cartoon | Painting a picture after a painter, in the style of any picture, or by classic means | [styles.md](stack/styles.md) |
 | Depth | Depth Anything V2 Small (downloaded); Mado's own code for the lens, fog, tilt-shift and 3D photos | How far away each part is; portrait blur, fog, tilt-shift; 3D photos made with ffmpeg's H.264 | [depth.md](stack/depth.md) |
+| Restoring | Microsoft's old-photo scratch detector and DDColor tiny (downloaded), LaMa; Mado's own code for faded colours | Scratches and dust found, checked and filled; a black-and-white or sepia print coloured; faded colours brought back | [restoring.md](stack/restoring.md) |
 | This PC | | What the graphics card can do, tested and timed | [hardware.md](stack/hardware.md) |
 | The queue | Mado's own code | Many at once: batches made one at a time, nights, room on a drive, See it first, recipes and watch folders | [queue.md](stack/queue.md) |
 | Duplicates and bursts | Mado's own code, on NumPy and Pillow | Fingerprints from the thumbnails, groups, which to keep, setting the rest aside | [duplicates.md](stack/duplicates.md) |
@@ -63,5 +64,5 @@ Every tool Mado uses, its version on 2026-11-22, and the page that explains how 
 | GitHub Actions | | CI and releases | [github-actions.md](stack/github-actions.md) |
 | NSIS | via Tauri | The Windows installer | [tauri.md](stack/tauri.md#installer) |
 
-Tools still to come (the models for faces, restoring and captions) get a page, or a section,
-when they're first used.
+Tools still to come (the models for captions, and for faces once one may ship) get a page, or a
+section, when they're first used.

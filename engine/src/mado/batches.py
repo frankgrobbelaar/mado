@@ -17,7 +17,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Literal, cast
 
 from mado import own_looks, own_styles
-from mado.ai import BIREFNET, Ai
+from mado.ai import BIREFNET, COLOURER, DETECTOR, Ai
 from mado.core.batch import (
     KEPT_SECONDS,
     SPACE_HELD,
@@ -49,6 +49,9 @@ from mado.core.naming import EXTENSIONS, QUARANTINE
 from mado.core.painting import Painting
 from mado.core.quality import Format, about_bytes
 from mado.core.recipe import Plan, Recipe, Styling, plan, said_with
+from mado.core.restore import RestoreError, Restoring, restoring_from
+from mado.core.restore import detail as restore_detail
+from mado.core.restore import phrase as restore_phrase
 from mado.core.sizes import Purpose, SizeError
 from mado.core.touches import named as named_touches
 from mado.core.touches import words as touch_words
@@ -289,9 +292,15 @@ def takes(
     # Its style paints in the same place for every picture, as the depth model reads.
     paint_on = ai.painter.place(recipe.painting.style) if recipe.painting else None
     depth_on = ai.depth_place() if recipe.depthing else None
+    restore_on = (ai.restore_place(DETECTOR), ai.restore_place(COLOURER))
+    # Restoring each picture as it needs (coloured, or its colours back) isn't known till each is
+    # read: reckoned as if each needs all it asks, and waiting for all of their models.
+    asked = recipe
+    if recipe.restoring is not None and recipe.restoring.each:
+        asked = replace(recipe, restoring=replace(recipe.restoring, each=False))
     for picture in pictures:
         made = plan(
-            recipe,
+            asked,
             picture.width,
             picture.height,
             guessed_kind="photo",
@@ -303,7 +312,10 @@ def takes(
         )
         first = first or made
         bytes_ = about_bytes(chosen, level, "photo", made.width * made.height)
-        each.append((estimated(made, here, cut_on, paint_on=paint_on, depth_on=depth_on), bytes_))
+        seconds = estimated(
+            made, here, cut_on, paint_on=paint_on, depth_on=depth_on, restore_on=restore_on
+        )
+        each.append((seconds, bytes_))
     assert first is not None  # noqa: S101 - there's a picture
     times = [(guess, took) for _at, guess, took, _b, _m in found]
     sizes = [(float(guessed), float(made)) for _at, _g, _t, guessed, made in found]
@@ -349,6 +361,7 @@ def recipe_from_steps(conn: sqlite3.Connection, steps: Sequence[dict[str, object
         MissingStyleError,
         FixError,
         DepthError,
+        RestoreError,
     ) as error:
         raise BatchError(str(error)) from None
 
@@ -478,6 +491,7 @@ def _orders(
             "edit": words[2],
             "fix": words[3],
             "depth": words[4],
+            "restore": words[5],
             "seconds": round(seconds, 2),
             "bytes": bytes_,
         }
@@ -510,6 +524,18 @@ def words_for(
                     "Cut out the subject",
                     None,
                 )
+            )
+        elif kind == "restore":
+            asked = {k: v for k, v in step.items() if k != "step"}
+            try:
+                restoring = restoring_from({**asked, "each": True})
+            except RestoreError:
+                restoring = None
+            if restoring is None:
+                found.append(("restore", "Restore", "Restoring Mado can't read", "?", None))
+                continue
+            found.append(
+                ("restore", "Restore", restore_detail(restoring), _restore_chip(restoring), None)
             )
         elif kind == "fix":
             try:
@@ -632,9 +658,9 @@ def purpose_of(conn: sqlite3.Connection, steps: Sequence[dict[str, object]]) -> 
 
 def _made_words(
     recipe: Recipe,
-) -> tuple[str | None, str | None, str | None, str | None, str | None]:
-    """What a batch's pictures are made for and with, what's edited first, what the fixes do and
-    the depth tools, as a job and History say them."""
+) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None]:
+    """What a batch's pictures are made for and with, what's edited first, what the fixes do,
+    the depth tools and restoring, as a job and History say them."""
     made_for = recipe.sizing.size.label if recipe.sizing else None
     look = said_with(recipe.painting, recipe.styling)
     return (
@@ -643,7 +669,15 @@ def _made_words(
         edit_phrase(recipe.editing),
         fix_phrase(recipe.fixing),
         depth_phrase(recipe.depthing),
+        restore_phrase(recipe.restoring),
     )
+
+
+def _restore_chip(restoring: Restoring) -> str:
+    """Restoring as a recipe's line says it: "Coloured", "Faded colours back", "Restored"."""
+    if restoring.colour is not None and restoring.faded is not None:
+        return "Coloured or colours back"
+    return "Coloured" if restoring.colour is not None else "Faded colours back"
 
 
 def _depth_chip(on: tuple[str, ...]) -> str:

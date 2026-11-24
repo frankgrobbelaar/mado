@@ -93,6 +93,7 @@ export function madeWith(made: {
   madeFor: string | null;
   look: string | null;
   edit?: string | null;
+  restore?: string | null;
   fix?: string | null;
   depth?: string | null;
 }): string {
@@ -100,26 +101,41 @@ export function madeWith(made: {
   const withs = [made.depth, made.look].filter(Boolean).join(" and ");
   const parts = [made.madeFor ? `for ${made.madeFor}` : null, withs ? `with ${withs}` : null];
   const said = parts.filter(Boolean).join(", ");
-  // The edits and fixes, made first, come after in brackets: "for TV 8K (erased a part; took out
-  // noise)".
-  const first = [made.edit, made.fix].filter(Boolean).join("; ");
+  // The edits, restoring and fixes, made first, come after in brackets: "for TV 8K (erased a
+  // part; coloured it; took out noise)".
+  const first = [made.edit, made.restore, made.fix].filter(Boolean).join("; ");
   return first ? `${said} (${first})`.trimStart() : said;
 }
 
 /** The same as a version of it is called: "TV 8K", "Warm film at 60%", "TV 8K, Warm film at 60%";
- * "edited" for one only edited, "fixed" for one only fixed, its depth tools' name for one given
- * only those ("Portrait blur"). */
+ * "edited" for one only edited, "restored" for one only restored, "fixed" for one only fixed, its
+ * depth tools' name for one given only those ("Portrait blur"). */
 export function versionOf(made: {
   madeFor: string | null;
   look: string | null;
   edit?: string | null;
+  restore?: string | null;
   fix?: string | null;
   depth?: string | null;
 }): string {
   return (
     [made.madeFor, made.look].filter(Boolean).join(", ") ||
-    (made.edit ? "edited" : made.fix ? "fixed" : (depthAs(made.depth)?.toLowerCase() ?? ""))
+    (made.edit
+      ? "edited"
+      : made.restore
+        ? "restored"
+        : made.fix
+          ? "fixed"
+          : (depthAs(made.depth)?.toLowerCase() ?? ""))
   );
+}
+
+/** What restoring made a picture, as its new name says it ("Coloured" when that's all, else
+ * "Restored"), from History's words for it, as `label` writes them in
+ * engine/src/mado/core/restore.py. */
+export function restoredAs(restore: string | null | undefined): string | null {
+  if (!restore) return null;
+  return restore === "coloured it" ? "Coloured" : "Restored";
 }
 
 /** How History's words for a 3D photo start (engine/src/mado/core/motion.py's MOTION_WORDS). */

@@ -422,4 +422,8 @@ MIGRATIONS: Final[tuple[str, ...]] = (
     """
     ALTER TABLE history ADD COLUMN depth TEXT;  -- "portrait blur at f/2.8", "into a 3D photo"
     """,
+    # 14. Restoring old photos: what History says restoring did, apart from the edits and fixes.
+    """
+    ALTER TABLE history ADD COLUMN restore TEXT;  -- "filled its scratches and dust"
+    """,
 )

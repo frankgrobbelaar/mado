@@ -315,8 +315,8 @@ function SaveForm(props: {
 
 /** What the picture is made for and with, as the Save board's header says it: "Made for TV 8K,
  * 7680 × 4320", "Made for TV 8K (7680 × 4320), with Warm film at 60%", "With Warm film at 60%,
- * 4032 × 3024"; the edits and fixes first, made before them: "Erased a part, took out noise,
- * 4032 × 3024". */
+ * 4032 × 3024"; the edits, restoring and fixes first, made before them: "Erased a part, coloured
+ * it, took out noise, 4032 × 3024". */
 function MadeAs({ plan }: { plan: Plan }) {
   const pixels = (
     <span className="font-mono text-fg">
@@ -325,7 +325,7 @@ function MadeAs({ plan }: { plan: Plan }) {
   );
   const size = <span className="font-mono text-fg">{plan.label}</span>;
   const look = <span className="text-fg">{plan.look}</span>;
-  const first = [plan.edit, plan.fix].filter(Boolean).join(", ");
+  const first = [plan.edit, plan.restore, plan.fix].filter(Boolean).join(", ");
   const edited = first ? (
     <span className="text-fg">{first.charAt(0).toUpperCase() + first.slice(1)}</span>
   ) : null;

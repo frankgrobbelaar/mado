@@ -28,6 +28,7 @@ _LISTED = 3  # waiting pictures, and pictures done, listed before "+28 more"
 _KEPT = timedelta(days=7)  # a batch whose pictures didn't all work stays this long, uncleared
 _STEPS = {
     "cutout": "Cut out the subject",
+    "restore": "Restore",
     "fix": "Fix",
     "size": "Make it for a screen",
     "depth": "Depth",
@@ -38,6 +39,7 @@ _STEPS = {
 # picture is its first step's.
 _STAGE_STEP = {
     "editing": "cutout",
+    "restoring": "restore",
     "fixing": "fix",
     "shaping": "size",
     "making": "size",

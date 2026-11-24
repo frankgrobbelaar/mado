@@ -460,6 +460,7 @@ function batchLine(overrides: Partial<BatchLine>): BatchLine {
     madeFor: "TV 8K",
     look: null,
     edit: null,
+    restore: null,
     fix: null,
     depth: null,
     purpose: "tv",

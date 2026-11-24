@@ -1264,6 +1264,57 @@
         }
       }
     },
+    "/pictures/{picture_id}/scratches": {
+      "post": {
+        "summary": "Scratches",
+        "description": "What the scratch detector finds on the picture as its edits leave it, as a mask at the\nmask's size (PNG, white where it found scratches and dust), kept by the picture's version:\nhow long finding took (`X-Made-In`), how much of the picture it covers (`X-Found`, 0 to 1),\nwhere it ran (`X-Place`) and how long it waited for the graphics card (`X-Waited`). 409 while\nthe detector isn't downloaded, or once the picture changed.",
+        "operationId": "scratches_pictures__picture_id__scratches_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "picture_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Picture Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScratchesAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/pictures/{picture_id}/saving": {
       "post": {
         "summary": "Saving Name",
@@ -1487,7 +1538,7 @@
     "/pictures/{picture_id}/looks/{look_id}": {
       "post": {
         "summary": "Small Edited",
-        "description": "A small copy of the picture as its edits leave it, in a look: the Looks tab's, once the\nEdit tab has made edits or the Fix tab brightens it (without either, it asks for the kept\ncopy by GET). A dark photo is brightened, and given its local contrast, as the whole picture\nmeasures; noise, blur and blocks are too small to see at this size.",
+        "description": "A small copy of the picture as its edits leave it, in a look: the Looks tab's, once the\nEdit tab has made edits, or the Fix tab restores or brightens it (without any, it asks for\nthe kept copy by GET). Restoring shows its scratches filled and its colour; a dark photo is\nbrightened, and given its local contrast, as the whole picture measures; noise, blur and\nblocks are too small to see at this size.",
         "operationId": "small_edited_pictures__picture_id__looks__look_id__post",
         "security": [
           {
@@ -5870,6 +5921,17 @@
             ],
             "title": "Edit"
           },
+          "restore": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restore"
+          },
           "fix": {
             "anyOf": [
               {
@@ -5981,6 +6043,7 @@
           "madeFor",
           "look",
           "edit",
+          "restore",
           "fix",
           "depth",
           "purpose",
@@ -7605,6 +7668,17 @@
             ],
             "title": "Edit"
           },
+          "restore": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restore"
+          },
           "fix": {
             "anyOf": [
               {
@@ -7791,6 +7865,7 @@
           "madeFor",
           "look",
           "edit",
+          "restore",
           "fix",
           "depth",
           "original",
@@ -8064,6 +8139,30 @@
           "megapixels": {
             "type": "number",
             "title": "Megapixels"
+          },
+          "colours": {
+            "type": "string",
+            "enum": [
+              "grey",
+              "toned",
+              "colour"
+            ],
+            "title": "Colours"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sepia",
+                  "toned"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
           }
         },
         "type": "object",
@@ -8075,7 +8174,9 @@
           "grey",
           "seeThrough",
           "colour",
-          "megapixels"
+          "megapixels",
+          "colours",
+          "tone"
         ],
         "title": "FixesOut",
         "description": "What Mado measures of a picture, for the Fix tab: only what it can measure cheaply and\nreliably (docs/stack/fixes.md says how often each suggestion was right)."
@@ -8634,6 +8735,17 @@
             ],
             "title": "Depth"
           },
+          "restore": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restore"
+          },
           "how": {
             "type": "string",
             "enum": [
@@ -8652,6 +8764,7 @@
                 "enum": [
                   "reading",
                   "editing",
+                  "restoring",
                   "shaping",
                   "fixing",
                   "making",
@@ -8773,6 +8886,7 @@
           "edit",
           "fix",
           "depth",
+          "restore",
           "how",
           "state",
           "stage",
@@ -9288,6 +9402,17 @@
             ],
             "title": "Edit"
           },
+          "restore": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restore"
+          },
           "fix": {
             "anyOf": [
               {
@@ -9318,6 +9443,7 @@
           "madeFor",
           "look",
           "edit",
+          "restore",
           "fix",
           "depth"
         ],
@@ -11198,6 +11324,62 @@
             ],
             "title": "Depthplace"
           },
+          "restore": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restore"
+          },
+          "restoreSeconds": {
+            "type": "number",
+            "title": "Restoreseconds"
+          },
+          "restorePlace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "processor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restoreplace"
+          },
+          "restoreCovers": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restorecovers"
+          },
+          "scratchPlace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "processor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scratchplace"
+          },
           "paintPlace": {
             "anyOf": [
               {
@@ -11312,6 +11494,11 @@
           "depth",
           "depthSeconds",
           "depthPlace",
+          "restore",
+          "restoreSeconds",
+          "restorePlace",
+          "restoreCovers",
+          "scratchPlace",
           "paintPlace",
           "paintNote",
           "seconds",
@@ -11661,6 +11848,16 @@
               }
             ]
           },
+          "restore": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestoreStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "fix": {
             "anyOf": [
               {
@@ -11714,7 +11911,7 @@
         },
         "type": "object",
         "title": "RecipeIn",
-        "description": "A recipe: the edits, the fixes, the size step, the depth step, the painting step, then the\nlook step; any can be left out."
+        "description": "A recipe: the edits, restoring, the fixes, the size step, the depth step, the painting\nstep, then the look step; any can be left out."
       },
       "Region": {
         "properties": {
@@ -11762,6 +11959,97 @@
           "name"
         ],
         "title": "RenameIn"
+      },
+      "RestoreStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "const": "restore",
+            "title": "Step",
+            "default": "restore"
+          },
+          "colour": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "faded": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scratches": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScratchesIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "RestoreStep",
+        "description": "Restoring, each picture as it needs: a black-and-white or sepia picture coloured, a colour\nphoto's faded colours brought back, each off or at its strength. Scratches aren't a batch's:\nwhat the detector finds is checked on each picture's own page before it's filled."
+      },
+      "RestoreStepIn": {
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "scratches": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScratchesIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "colour": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "faded": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrengthIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "RestoreStepIn",
+        "description": "Restoring, each part null (off) or on: scratches and dust filled, a black-and-white or\ntoned picture coloured, faded colours brought back. `version`: the picture's, as the strokes\nwere painted on it."
       },
       "Restored": {
         "properties": {
@@ -12568,6 +12856,43 @@
         ],
         "title": "Scan"
       },
+      "ScratchesAsk": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/EditIn"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Edits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "ScratchesAsk",
+        "description": "What the scratch detector is to look at: the picture as `edits` leave it, as it was at\n`version`."
+      },
+      "ScratchesIn": {
+        "properties": {
+          "strokes": {
+            "items": {
+              "$ref": "#/components/schemas/StrokeIn"
+            },
+            "type": "array",
+            "maxItems": 512,
+            "title": "Strokes"
+          }
+        },
+        "type": "object",
+        "title": "ScratchesIn",
+        "description": "Scratches and dust filled: what Mado found, with the owner's strokes over it (painting\nadds, Alt takes away)."
+      },
       "ScreensSeen": {
         "properties": {
           "seen": {
@@ -13355,6 +13680,16 @@
                 "type": "null"
               }
             ]
+          },
+          "restore": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestoreStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -13369,6 +13704,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/EditStepIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restore": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestoreStepIn"
               },
               {
                 "type": "null"
@@ -13451,6 +13796,9 @@
             "$ref": "#/components/schemas/CutoutStep"
           },
           {
+            "$ref": "#/components/schemas/RestoreStep"
+          },
+          {
             "$ref": "#/components/schemas/FixStep"
           },
           {
@@ -13474,6 +13822,7 @@
             "fix": "#/components/schemas/FixStep",
             "look": "#/components/schemas/LookStep",
             "paint": "#/components/schemas/PaintStep",
+            "restore": "#/components/schemas/RestoreStep",
             "size": "#/components/schemas/SizeStep"
           }
         }

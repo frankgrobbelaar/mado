@@ -5,6 +5,8 @@ import {
   type PictureDetails,
   type Plan,
   pictureAddress,
+  type Recipe,
+  type RestoreStep,
   usePictureImage,
   usePreview,
   useQueueNow,
@@ -12,7 +14,8 @@ import {
 } from "@/lib/engine";
 import { about, stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { brightening, fixModels, fixNames, hasFix } from "./fixes";
+import { brightening, fixed, fixModels, fixNames, hasFix } from "./fixes";
+import { hasRestore, restored, restoreModels, restoreNames } from "./restore";
 import { capitalised, LABEL, PartsCompared, Side, Slider, useSlow } from "./size-stage";
 import type { Zoom } from "./stage";
 import { fitted, useBox } from "./stage-box";
@@ -32,42 +35,64 @@ export function FixStage(props: {
   edit: EditStep | null;
   /** The fixes, settled: the previews follow them once a slider stops. */
   fix: FixStep;
+  /** Restoring, settled, made before the fixes: its scratches filled and its colour show fitted
+   * as at full detail. */
+  restore?: RestoreStep | null;
   plan: Plan | null;
   zoom: Zoom;
 }) {
   const { picture, fix, plan, zoom } = props;
   const tools = useTools();
-  const on = hasFix(fix);
+  const restore = hasRestore(props.restore) ? props.restore : null;
+  const fixing = hasFix(fix);
+  const on = fixing || restore !== null;
   const quality = plan?.fixQuality ?? fix.jpeg?.quality ?? null;
-  const missing = fixModels(fix, quality)
+  const missingFixes = fixModels(fix, quality);
+  const missing = [...(restore ? restoreModels(restore) : []), ...missingFixes]
     .map((id) => tools.data?.find((tool) => tool.id === id))
     .filter((tool) => tool !== undefined && tool.state !== "ready")
     .map((tool) => tool?.name ?? "");
   // The fixes on find nothing to do in it (Dark photo on a picture that isn't dark).
-  const idle = on && plan !== null && plan.fix === null;
+  const idle = on && plan !== null && plan.fix === null && plan.restore === null;
+  // Only an empty mask leaves restoring nothing to do: colour and faded colours always change it.
   const waiting = idle
-    ? "Nothing changes: the fixes on find nothing to do in it"
+    ? fixing
+      ? "Nothing changes: the fixes on find nothing to do in it"
+      : "Nothing changes: there are no scratches or dust to fill"
     : missing.length
-      ? `After shows once ${missing.join(" and ")} is downloaded`
+      ? `After shows once ${[...new Set(missing)].join(" and ")} is downloaded`
       : null;
-  const label = on ? `After · ${fixNames(fix)}` : "After";
-  const card = (plan?.fixPlace ?? plan?.place) === "card";
+  const names = [restore ? restoreNames(restore) : "", fixing ? fixNames(fix) : ""]
+    .filter(Boolean)
+    .join(", ");
+  const label = on ? `After · ${names}` : "After";
+  const card = (plan?.fixPlace ?? plan?.restorePlace ?? plan?.place) === "card";
   const before = { edit: props.edit, size: null, look: null };
-  const after = on && !waiting ? { edit: props.edit, fix, size: null, look: null } : null;
-  // All of it shows the brightening only, which needs no model.
+  const after =
+    on && !waiting
+      ? restored(fixed({ edit: props.edit, size: null, look: null }, fixing ? fix : null), restore)
+      : null;
+  // All of it shows restoring and the brightening, which need no model past restoring's own.
   const lit = idle ? null : brightening(fix);
+  const fittedAfter =
+    (lit || restore) && !(restore && waiting)
+      ? restored(fixed({ edit: props.edit, size: null, look: null }, lit), restore)
+      : null;
+  const fittedNames = [restore ? restoreNames(restore) : "", lit ? fixNames(lit) : ""]
+    .filter(Boolean)
+    .join(", ");
   return (
     <>
       {zoom === "fit" ? (
         <FittedCompare
           picture={picture}
           edit={props.edit}
-          after={lit ? { edit: props.edit, fix: lit, size: null, look: null } : null}
-          label={`After · ${fixNames(lit ?? fix)}`}
+          after={fittedAfter}
+          label={`After · ${fittedNames}`}
           waiting={
-            lit
+            fittedAfter
               ? null
-              : idle
+              : idle || waiting
                 ? waiting
                 : on
                   ? "Noise, blur and blocks show at 100%: zoom in to compare them"
@@ -91,10 +116,10 @@ export function FixStage(props: {
         />
       )}
       <p className="flex flex-wrap gap-x-4.5 gap-y-1 text-13 text-fg-muted">
-        {on && plan && plan.fixSeconds > 0 && (
+        {on && plan && plan.fixSeconds + plan.restoreSeconds > 0 && (
           <span>
-            {capitalised(about(plan.fixSeconds))} on {card ? "your graphics card" : "the processor"}
-            , as Save makes it
+            {capitalised(about(plan.fixSeconds + plan.restoreSeconds))} on{" "}
+            {card ? "your graphics card" : "the processor"}, as Save makes it
           </span>
         )}
         <span>
@@ -112,7 +137,7 @@ export function FixStage(props: {
 function FittedCompare(props: {
   picture: PictureDetails;
   edit: EditStep | null;
-  after: { edit: EditStep | null; fix: FixStep; size: null; look: null } | null;
+  after: Recipe | null;
   label: string;
   waiting: string | null;
   card: boolean;

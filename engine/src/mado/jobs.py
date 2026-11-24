@@ -56,6 +56,7 @@ log = logging.getLogger(__name__)
 type Stage = Literal[
     "reading",
     "editing",
+    "restoring",
     "shaping",
     "fixing",
     "making",
@@ -77,6 +78,7 @@ HOLD_FOR = timedelta(minutes=10)  # and for this long, before it counts as not w
 _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's whole
     "reading": (0.0, 0.05),
     "editing": (0.05, 0.12),
+    "restoring": (0.12, 0.12),
     "shaping": (0.12, 0.22),
     "fixing": (0.22, 0.22),
     "making": (0.22, 0.85),
@@ -87,7 +89,14 @@ _SHARE: dict[Stage, tuple[float, float]] = {  # each stage's part of a job's who
 }
 # A job with fixes or depth tools: they share making's part with the size, the fixes about as long
 # as making it bigger, the depth tools about half as long; all of it when nothing is made bigger.
-_WEIGHTS: dict[Stage, float] = {"fixing": 0.23, "making": 0.4, "depthing": 0.15}
+# Restoring, made before the shape, shares the shape's part and making's with them.
+_WEIGHTS: dict[Stage, float] = {
+    "restoring": 0.25,
+    "shaping": 0.1,
+    "fixing": 0.23,
+    "making": 0.4,
+    "depthing": 0.15,
+}
 
 
 @dataclass(frozen=True)
@@ -729,7 +738,7 @@ class Jobs:
         ).fetchone()
         order = _object(json.loads(first["recipe"])) if first else {}
         label, look, edit = order.get("label"), order.get("look"), order.get("edit")
-        fix, depth = order.get("fix"), order.get("depth")
+        fix, depth, restore = order.get("fix"), order.get("depth"), order.get("restore")
         title, body = told(
             batch["name"],
             made=row["made"],
@@ -739,6 +748,7 @@ class Jobs:
             edit=edit if isinstance(edit, str) else None,
             fix=fix if isinstance(fix, str) else None,
             depth=depth if isinstance(depth, str) else None,
+            restore=restore if isinstance(restore, str) else None,
         )
         self._notify(title, body, link="/")
 
@@ -1076,6 +1086,8 @@ def _shares(kept: str) -> dict[Stage, tuple[float, float]]:
         recipe = _object(_object(json.loads(kept)).get("recipe"))
     except ValueError:
         return _SHARE
+    if recipe.get("restore") is not None:
+        return _restoring_shares(recipe)
     steps: tuple[tuple[Stage, str], ...] = (
         ("fixing", "fix"),
         ("making", "size"),
@@ -1090,6 +1102,30 @@ def _shares(kept: str) -> dict[Stage, tuple[float, float]]:
     at = low
     for stage, _step in steps:
         width = (high - low) * _WEIGHTS[stage] / whole if stage in present else 0.0
+        shares[stage] = (at, at + width)
+        at += width
+    return shares
+
+
+def _restoring_shares(recipe: dict[str, object]) -> dict[Stage, tuple[float, float]]:
+    """Each stage's part of a job that restores: restoring, then the shape (only when its edges
+    are extended), the fixes, making it bigger and the depth tools, each its share by its weight
+    of the part from the edits' end to making's, in the order they're made."""
+    size = recipe.get("size")
+    extending = isinstance(size, dict) and cast("dict[str, object]", size).get("shape") == "extend"
+    steps: tuple[tuple[Stage, bool], ...] = (
+        ("restoring", True),
+        ("shaping", extending),
+        ("fixing", recipe.get("fix") is not None),
+        ("making", size is not None),
+        ("depthing", recipe.get("depth") is not None),
+    )
+    low, high = _SHARE["shaping"][0], _SHARE["making"][1]
+    whole = sum(_WEIGHTS[stage] for stage, present in steps if present)
+    shares = dict(_SHARE)
+    at = low
+    for stage, present in steps:
+        width = (high - low) * _WEIGHTS[stage] / whole if present else 0.0
         shares[stage] = (at, at + width)
         at += width
     return shares

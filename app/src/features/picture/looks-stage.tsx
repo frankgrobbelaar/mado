@@ -8,6 +8,7 @@ import {
   type PictureDetails,
   type Plan,
   pictureAddress,
+  type RestoreStep,
   type SizeStep,
   usePictureImage,
   usePreview,
@@ -17,6 +18,7 @@ import { stem } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { withDepth } from "./depth";
 import { brightening, fixed } from "./fixes";
+import { restored } from "./restore";
 import { useSlow } from "./size-stage";
 import { fitted, useBox } from "./stage-box";
 
@@ -37,6 +39,9 @@ export function LooksStage(props: {
   picture: PictureDetails;
   /** The edits made on the Edit tab, which the picture shows; null with none. */
   edit: EditStep | null;
+  /** Restoring chosen on the Fix tab, which the picture shows once its models are here; null with
+   * none. */
+  restore?: RestoreStep | null;
   /** The fixes chosen on the Fix tab, which the picture shows; null with none. */
   fix?: FixStep | null;
   /** The depth tools chosen on the Depth tab, which the picture shows; null with none. */
@@ -80,13 +85,16 @@ export function LooksStage(props: {
   // Of the fixes, all of it shows a dark photo's brightening: the rest show at full detail.
   const fix = brightening(props.fix);
   const depth = props.depth ?? null;
-  const changed = size !== null || edit !== null || fix !== null || depth !== null;
+  // Restoring shows at any size: a picture coloured or its scratches filled is plain to see.
+  const restore = props.restore ?? null;
+  const changed =
+    size !== null || edit !== null || fix !== null || depth !== null || restore !== null;
   const view = usePictureImage(changed ? null : pictureAddress(picture, "view"));
   const plain = usePreview(
     picture.id,
     changed && box.measured
       ? {
-          recipe: withDepth(fixed({ edit, size, look: null }, fix), depth),
+          recipe: restored(withDepth(fixed({ edit, size, look: null }, fix), depth), restore),
           side: "after",
           fit: wanted,
         }
@@ -96,7 +104,7 @@ export function LooksStage(props: {
     picture.id,
     styled && box.measured
       ? {
-          recipe: withDepth(fixed({ edit, size, paint, look }, fix), depth),
+          recipe: restored(withDepth(fixed({ edit, size, paint, look }, fix), depth), restore),
           side: "after",
           fit: wanted,
         }

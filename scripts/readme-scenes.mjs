@@ -342,13 +342,15 @@ export function parseScene(spec) {
     fog: 0,
     tilt: null,
     flip: false,
+    scratches: 0,
+    mask: false,
   };
   for (const ask of asks) {
     const [key, value = ""] = ask.split("=");
     if (key === "look") scene.look = value;
     else if (key === "style") scene.style = value;
     else if (
-      ["paint", "strength", "grain", "vignette", "blur", "dark", "blocks", "bokeh", "fog"].includes(key)
+      ["paint", "strength", "grain", "vignette", "blur", "dark", "blocks", "bokeh", "fog", "scratches"].includes(key)
     )
       scene[key] = Number(value);
     else if (key === "part") scene.part = value;
@@ -357,6 +359,7 @@ export function parseScene(spec) {
     else if (key === "region") scene.region = value.split(",").map(Number);
     else if (key === "tilt") scene.tilt = value.split(",").map(Number);
     else if (key === "flip") scene.flip = true;
+    else if (key === "mask") scene.mask = value === "none" ? "none" : true;
     else throw new Error(`A scene can't be asked for "${ask}" (${spec}).`);
   }
   return scene;
@@ -368,12 +371,21 @@ export function parseScene(spec) {
  * nothing); blurred (a picture only stretched, or shaken); its colours squeezed into `blocks`
  * steps (a JPEG saved small); darkened by `dark` stops; blurred as a lens would but for the part
  * in `focus` (portrait blur, `bokeh` its blur), with a band in focus (tilt-shift, its top and foot
- * as fractions of the height) or hazed with distance (fog, 0 to 100); a region of it (fractions of
- * the picture: x, y, width, height); or mirrored, a scene twice over looking like two. */
+ * as fractions of the height) or hazed with distance (fog, 0 to 100); scratched and dusted as an
+ * old print is (`scratches`), or what Mado's detector finds of that as its mask (`mask`, or
+ * `mask=none` for nothing found); a region
+ * of it (fractions of the picture: x, y, width, height); or mirrored, a scene twice over looking
+ * like two. */
 export function drawScene(spec) {
   const asked = parseScene(spec);
   const scene = SCENES[asked.name];
   if (!scene) throw new Error(`There's no scene called "${asked.name}" (${spec}).`);
+  if (asked.mask) {
+    // White where the detector found scratches and dust, grown as it grows them; the dark
+    // scratch it missed, as it misses dark ones, left for the brush.
+    const found = asked.mask === "none" ? "" : damage({ grown: 1.6, light: "#fff", dark: null });
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" preserveAspectRatio="none"><rect width="400" height="300" fill="#000"/>${found}</svg>`;
+  }
   const defs = [skyOf(scene.sky)];
   const part = (name) => {
     const shape = scene.parts[name];
@@ -470,12 +482,43 @@ export function drawScene(spec) {
     picture = `<g filter="url(#dark)">${picture}</g>`;
   }
   if (asked.flip) picture = `<g transform="matrix(-1 0 0 1 400 0)">${picture}</g>`;
+  // Scratches lie on the print, over everything its colours went through.
+  if (asked.scratches > 0) picture += damage({ grown: 0, light: "#f4efe4", dark: "#2a2219" });
   const [x, y, width, height] = asked.region ?? [0, 0, 1, 1];
   const box = [x * 400, y * 300, width * 400, height * 300].map(round).join(" ");
   // A region is the picture's own pixels, stretched to the box it's shown in; the whole picture
   // keeps its shape.
   const fit = asked.region ? "none" : "xMidYMid slice";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box}" width="${round(width * 400)}" height="${round(height * 300)}" preserveAspectRatio="${fit}"><defs>${defs.join("")}</defs>${picture}</svg>`;
+}
+
+/** An old print's damage in the scenes' 400 x 300: two light scratches and a crease, a dark
+ * scratch, and dust. */
+const DAMAGE = {
+  light: ["M8 46 C 120 62 262 84 396 72", "M30 214 C 140 206 252 218 392 206"],
+  crease: "M302 0 L 297 300",
+  dark: "M152 0 C 162 118 142 204 168 300",
+  dust: [
+    [62, 122, 1.2],
+    [232, 140, 0.9],
+    [334, 232, 1.1],
+    [112, 262, 0.8],
+    [190, 40, 1],
+  ],
+};
+
+/** The damage drawn: `grown` wider (a mask's), the light marks in `light`, the dark ones in `dark`
+ * (none: left out). */
+function damage({ grown, light, dark }) {
+  const line = (d, width, colour) =>
+    `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${round(width + grown)}" stroke-linecap="round"/>`;
+  const marks = [
+    ...DAMAGE.light.map((d) => line(d, 0.9, light)),
+    line(DAMAGE.crease, 1.3, light),
+    ...DAMAGE.dust.map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${round(r + grown / 2)}" fill="${light}"/>`),
+  ];
+  if (dark) marks.push(line(DAMAGE.dark, 0.8, dark), `<circle cx="22" cy="92" r="1.4" fill="${dark}"/>`);
+  return `<g id="scratches">${marks.join("")}</g>`;
 }
 
 function skyOf(sky) {

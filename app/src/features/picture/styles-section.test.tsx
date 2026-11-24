@@ -58,6 +58,8 @@ const FINE: Fixes = {
   seeThrough: false,
   colour: "sRGB",
   megapixels: 12.2,
+  colours: "colour",
+  tone: null,
 };
 
 const blob = () => new Response(new Blob(["made-up picture"], { type: "image/webp" }));

@@ -23,10 +23,11 @@ from mado.api.common import (
     Working,
 )
 from mado.api.depth import DepthStepIn
-from mado.api.fixes import FixStepIn
+from mado.api.fixes import FixStepIn, StrengthIn
 from mado.api.looks import LookIn
 from mado.api.making import Need, SizeIn
 from mado.api.pictures import Shown
+from mado.api.restore import ScratchesIn
 from mado.api.search import found_ids
 from mado.api.styles import PaintIn
 from mado.batches import BatchError, Picture
@@ -68,6 +69,17 @@ class CutoutStep(ApiModel):
     colour: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
 
 
+class RestoreStep(ApiModel):
+    """Restoring, each picture as it needs: a black-and-white or sepia picture coloured, a colour
+    photo's faded colours brought back, each off or at its strength. Scratches aren't a batch's:
+    what the detector finds is checked on each picture's own page before it's filled."""
+
+    step: Literal["restore"] = "restore"
+    colour: StrengthIn | None = None
+    faded: StrengthIn | None = None
+    scratches: ScratchesIn | None = None  # never a batch's: refused, saying why
+
+
 class FixStep(FixStepIn):
     """The fixes: noise, blur, JPEG blocks and a dark photo, each off or at its setting: the Fix
     tab's choices."""
@@ -90,7 +102,7 @@ class PaintStep(PaintIn):
 
 
 type Step = Annotated[
-    CutoutStep | FixStep | SizeStep | DepthStep | PaintStep | LookStep,
+    CutoutStep | RestoreStep | FixStep | SizeStep | DepthStep | PaintStep | LookStep,
     Field(discriminator="step"),
 ]
 

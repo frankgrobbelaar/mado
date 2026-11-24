@@ -7,7 +7,7 @@
 **Your pictures, right for every screen.**
 
 Mado (窓, "window") makes your pictures right for any screen, from a phone to an 8K TV, or for a
-print. It gives them looks, edits them with a click, fixes them, works on many at once, makes
+print. It gives them looks, edits them with a click, fixes and restores them, works on many at once, makes
 wallpapers to fit your monitors, and keeps a library of the folders they live in. Small AI models do the hard parts,
 on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
 
@@ -19,7 +19,7 @@ on your own Windows PC. Nothing is uploaded, and nothing changes until you say.
   <br>
   <sub>Free and open source · No account · Windows 10 and 11</sub>
   <br>
-  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, paints them after a painter or in any picture's style, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, blurs a picture as a lens would by its depth or makes it a moving 3D photo, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
+  <sub><b>Early days.</b> Mado keeps your library, camera RAW and all, finds its duplicates and bursts, and finds a picture from a few words describing it or the words it shows; it makes pictures right for any screen or print, gives them looks, paints them after a painter or in any picture's style, erases or cuts out what you click, takes out noise, blur, JPEG blocks and darkness, restores old photos' scratches and colour, blurs a picture as a lens would by its depth or makes it a moving 3D photo, works on many at once, and makes wallpapers to fit your monitors exactly.</sub>
   <br>
   <br>
 </p>
@@ -70,17 +70,19 @@ it, as a big camera lens does, or give just that part a look.
 
 ![Select, erase or cut out: a boat picked with one click](docs/readme/edit.png)
 
-### 4. Fix what's wrong
+### 4. Fix what's wrong, and restore old photos
 
-Bring back a photo that came out too dark, grainy, shaken or squeezed into blocks. Turn a fix on
-and drag the line to compare: the brightening over the whole picture, every fix at 100%. A dark
-photo is brightened from its brightest parts, so a night stays a night, and the noise that brings
-out is taken away. JPEG blocks, and the halos round a screenshot's letters, come out as hard as
-the picture was squeezed. Blur from a shaking camera or a moving subject is mended; a picture out
-of focus only comes a little crisper. Mado suggests what it can measure, and fixes a picture
-before it grows, so it's clean when it's made bigger.
+Bring back a photo that came out too dark, grainy, shaken or squeezed into blocks, or an old print.
+Turn a fix on and drag the line to compare. A dark photo is brightened from its brightest parts, so
+a night stays a night, and the noise that brings out is taken away. JPEG blocks, and the halos round
+a screenshot's letters, come out as hard as the picture was squeezed. Blur from a shaking camera or
+a moving subject is mended; a picture out of focus only comes a little crisper. On an old print,
+Mado finds the scratches and dust and shows them to you first: paint over any it missed, then it
+fills them from what's round them. It colours a black-and-white or sepia print, its guesses said to
+be guesses, or brings a faded photo's colours back. Faces are left as they are. Mado suggests what
+it can measure, and fixes a picture before it grows, so it's clean when it's made bigger.
 
-![The Fix tab: a dark photo brightened, the line between before and after](docs/readme/fix.png)
+![The Fix tab: an old sepia print with its scratches filled and coloured, the line between before and after](docs/readme/fix.png)
 
 ### 5. Many at once
 
@@ -175,6 +177,8 @@ it, and each runs on your PC.
 | Mado's painting styles: After Van Gogh, After Hokusai, After Monet, After Seurat | Paint a picture after a painter. Mado trained them itself on public-domain paintings, which aren't in Mado (downloaded the first time each is asked for, 6.9 MB each) | MIT, the network's design PyTorch examples' (BSD-3-Clause) |
 | MicroAST | Paints a picture in the style of any picture of yours, from its colours and textures (downloaded the first time, 2 MB) | MIT |
 | Depth Anything V2 Small | Reads how far away each part of a picture is, for portrait blur, fog and 3D photos (downloaded the first time, 99 MB) | Apache-2.0 |
+| Microsoft's old-photo scratch detector (from Bringing Old Photos Back to Life) | Finds the scratches, creases and dust on an old print, shown to you before anything is filled; LaMa fills them (downloaded the first time, 75 MB) | MIT |
+| DDColor (tiny) | Colours a black-and-white or sepia print, guessing its colours from what photos usually look like (downloaded the first time, 270 MB) | Apache-2.0 |
 
 They run on ONNX Runtime (MIT) with Microsoft's DirectML, which Mado carries under Microsoft's
 terms.
@@ -187,6 +191,9 @@ terms.
   still gets it.
 - **No pictures from words.** The big models that make pictures from words don't fit an ordinary
   graphics card, and their licences aren't ones Mado allows. Mado works on the pictures you have.
+- **Faces are left as they are.** The models that redraw faces in old photos are for
+  non-commercial use, or lean on parts that are, which Mado's licence can't carry, so restoring
+  leaves faces as the print has them.
 
 ## Download
 
