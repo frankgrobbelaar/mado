@@ -8,6 +8,8 @@ shows these notes when it offers the update.
 
 ## Unreleased
 
+## 0.12.0 - 2026-11-24
+
 ### Added
 - The Depth tab, after Fix: Mado reads how far away each part of a picture is, then blurs it as a
   lens would (portrait blur, in focus at its subject or where you click, at an aperture from f/1.4
